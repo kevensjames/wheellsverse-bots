@@ -5,8 +5,10 @@ governance ``audit_log`` (observations / safe actions / approvals / failures / d
 ``mission`` headers (missions — normalized through the SAME ``timeline.events_from_missions`` adapter),
 ``worker_jobs`` (worker executions + results), ``cycle_store`` runs (bounded cycles) and
 ``proposals_store`` (owner approvals/rejections). Every line cites its record id; nothing is narrated
-from memory and NO hidden reasoning is exposed (the §61 ``_contains_cot`` boundary is asserted on the
-output). An empty day is an honest "nothing recorded", never a filled-in story.
+from memory and NO hidden reasoning is exposed (the §61 ``_contains_cot`` boundary is enforced on the
+output — it raises rather than return). An empty day is an honest "nothing recorded", never a filled-in
+story — and "nothing recorded" is claimed ONLY when every source was actually read: a source that is
+NOT_CONNECTED makes the history UNAVAILABLE (a DB that is down has not recorded "nothing").
 
 Pure/deterministic over injected record lists; ``collect()`` is the only storage touch. Testable as a
 plain ``python3`` script (mirrors test_registry.py).
@@ -55,7 +57,13 @@ def _from_audit(records: list) -> list:
         elif verbs & _OBSERVE_VERBS:            # a read is an observation whether or not it was pre-approved
             cat, txt = "observation", f"{action} ({scope})"
         elif r.get("approved") is True:
-            cat, txt = "approval", f"owner-approved {action} ({scope}) → success"
+            # 'approved' is a CALLER kwarg (governance/actions.py: approved=body.approved; actor defaults to
+            # 'operator'). Only an owner principal (brakes._mutate writes 'owner:<source>') is an owner approval;
+            # anything else is narrated as exactly what the row says — a flag the caller set.
+            actor = str(r.get("actor") or "UNKNOWN")
+            cat = "approval"
+            txt = (f"owner-approved {action} ({scope}) by {actor} → success" if actor.startswith("owner:")
+                   else f"{action} ({scope}) by {actor}, approved flag set by caller → success")
         else:
             cat, txt = "safe_action", f"{action} ({scope}) by {r.get('actor') or 'UNKNOWN'}"
         out.append(_entry(r.get("ts"), cat, txt, "governance.audit_log", f"audit_id:{rid}"))
@@ -141,17 +149,25 @@ def reconstruct(*, audit=None, jobs=None, missions=None, cycles=None, proposals=
         entries = [e for e in entries if _day_of(e["ts"]) == day]
     entries.sort(key=lambda e: (_ts(e["ts"]) is None, -( _ts(e["ts"]).timestamp() if _ts(e["ts"]) else 0), e["ref"]))
     counts = {c: sum(1 for e in entries if e["category"] == c) for c in CATEGORIES}
-    nothing = not entries
+    not_connected = [k for k, v in src.items() if v is None]
+    nothing = not entries and not not_connected          # "nothing recorded" is a claim only over READ sources
+    recorded = ", ".join(f"{n} {c}" for c, n in counts.items() if n)
+    if not_connected:
+        summary = (f"history UNAVAILABLE (sources not connected: {', '.join(not_connected)})"
+                   + (f"; on record from the connected sources: {recorded}" if entries else ""))
+    elif nothing:
+        summary = (f"nothing recorded for {day or 'any day'} — no observation, mission, action, worker execution, "
+                   f"approval, result, failure or deployment is on record")
+    else:
+        summary = recorded
     out = {"version": WHAT_I_DID_VERSION, "day": day or "ALL_RECORDED",
            "sources": {k: ("NOT_CONNECTED" if v is None else "CONNECTED") for k, v in src.items()},
-           "nothing_recorded": nothing,
-           "summary": (f"nothing recorded for {day or 'any day'} — no observation, mission, action, worker execution, "
-                       f"approval, result, failure or deployment is on record" if nothing
-                       else ", ".join(f"{n} {c}" for c, n in counts.items() if n)),
+           "nothing_recorded": nothing, "summary": summary,
            "counts": counts, "entries": entries,
-           "reconstructed_from": "audit_log + worker_jobs + mission + cycle_store + proposals_store records only",
-           "hidden_reasoning_exposed": False}
-    assert not _contains_cot(out)        # §61/§154 boundary — the answer never carries hidden reasoning
+           "reconstructed_from": "audit_log + worker_jobs + mission + cycle_store + proposals_store records only"}
+    out["hidden_reasoning_exposed"] = _contains_cot(out)      # the attestation IS the scan, not a constant
+    if out["hidden_reasoning_exposed"]:
+        raise ValueError("§61/§154 invariant violated: the answer carries a hidden-reasoning key")   # fail closed
     return out
 
 

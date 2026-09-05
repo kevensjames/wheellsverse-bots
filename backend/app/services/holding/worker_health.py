@@ -10,9 +10,13 @@ credential PRESENCE per model provider (env presence only — never a value, §1
 authority flags (``self_model._flags``).
 
 Truth rules (§0 #16-19, §120): liveness must be OBSERVED — a worker with no heartbeat and no passing
-probe is OFFLINE even when the catalog says AVAILABLE; a provider-backed worker with no credential in
-THIS runtime is AUTH_BLOCKED regardless of its catalog history. ONLINE != authority: every row carries
-``execution_authority`` derived from the three brakes, and it is "NONE" while they are off (§0 #12).
+probe is OFFLINE even when the catalog says AVAILABLE. Observation outranks inference: a worker whose
+heartbeat / job / probe is live IS live even when its provider credential is absent from THIS process —
+workers execute on the remote runner, whose env is not observable from here — so ``credential_present``
+is reported as a separate "in this process" fact and AUTH_BLOCKED is stated only when nothing live is
+observed. ONLINE != authority: every row carries ``execution_authority`` derived from the three brakes
+AND the §97 STOP record (``brakes.stop_record``): it is "NONE" while the brakes are off, while STOP is
+engaged, or while the STOP record is unreadable (fail closed, §0 #12).
 Pure/deterministic; testable as a plain ``python3`` script (mirrors test_registry.py).
 """
 from __future__ import annotations
@@ -21,8 +25,10 @@ import functools
 import os
 
 from app.services.capability.manifest import Availability as AV, Certification as CE, ActivationMode as AM
+from app.services.holding.brakes import ENGAGED, RELEASED, UNAVAILABLE   # §97 — the ONE stop vocabulary
 
-WORKER_HEALTH_VERSION = "1.0.0"
+WORKER_HEALTH_VERSION = "1.1.0"
+CREDENTIAL_SCOPE = "in this process (runner env not observable)"
 STATES = ("ONLINE", "IDLE", "BUSY", "DEGRADED", "AUTH_BLOCKED", "OFFLINE", "QUARANTINED")
 LIVE_STATES = ("ONLINE", "IDLE", "BUSY")      # OBSERVED live — selectable, still no authority
 
@@ -64,9 +70,29 @@ def credential_present(provider: str, env=None):
     return any(bool(env.get(k)) for k in keys)
 
 
-def execution_authority(flags: dict) -> str:
-    """What a worker may EXECUTE right now, from the three brakes — independent of its liveness
-    (§119 'ONLINE != authority'). Fail-closed: a missing flag is OFF."""
+def read_stop(store=None):
+    """§97 STOP as the tri-state the reports need: True ENGAGED / False RELEASED / None unreadable.
+    Composes ``brakes.stop_record`` (the ONE durable record; ``brakes.stop_engaged`` is the same read
+    collapsed to bool). None is treated as engaged by every consumer here — the same fail-closed rule."""
+    try:
+        from app.services.holding.brakes import stop_record
+        rec = stop_record(store)
+    except Exception:      # noqa: BLE001 — unreadable, never guessed
+        return None
+    return None if rec is None else bool(rec.get("engaged"))
+
+
+def stop_state(stopped) -> str:
+    return UNAVAILABLE if stopped is None else (ENGAGED if stopped else RELEASED)
+
+
+def execution_authority(flags: dict, stopped=None) -> str:
+    """What a worker may EXECUTE right now, from the three brakes AND §97 STOP — independent of its
+    liveness (§119 'ONLINE != authority'). Fail-closed: a missing flag is OFF; ``stopped`` True (engaged)
+    or None (record unreadable / not consulted) is NONE — only an explicitly RELEASED stop (False) lets the
+    brakes grant anything."""
+    if stopped is not False:
+        return "NONE"
     f = flags or {}
     if not (f.get("KAI_CAPABILITY_EXECUTION_ENABLED") and f.get("HOLDING_AUTONOMY_ENABLED")):
         return "NONE"
@@ -83,9 +109,10 @@ def _heartbeats_for(worker_id: str, heartbeats: list) -> list:
     return out
 
 
-def normalize_worker(m, *, heartbeats=None, jobs=None, auth=None, health=None, flags=None) -> dict:
+def normalize_worker(m, *, heartbeats=None, jobs=None, auth=None, health=None, flags=None, stopped=None) -> dict:
     """One worker → its §119 state + the observable reasons + sources. ``auth`` = {provider: bool}
-    overrides the env probe (tests); ``health`` = {cap_id: bool} runtime probe (the router's seam)."""
+    overrides the env probe (tests); ``health`` = {cap_id: bool} runtime probe (the router's seam);
+    ``stopped`` = §97 STOP tri-state (``read_stop``), None → treated as engaged."""
     heartbeats, jobs, auth, health = heartbeats or [], jobs or [], auth or {}, health or {}
     wp = m.worker_profile
     provider = (wp.model_provider if wp else "") or ""
@@ -94,8 +121,11 @@ def normalize_worker(m, *, heartbeats=None, jobs=None, auth=None, health=None, f
     live = [j for j in jobs if isinstance(j, dict) and j.get("status") in _LIVE_JOB
             and (j.get("worker") == m.id or j.get("claimed_by") == m.id)]
     online_hb = [h for h in hb if h.get("online")]
+    keys = ", ".join(auth_env_keys(provider)) or "no known env key"
     reasons, sources = [], [f"capability.seed:{m.id} availability={m.availability.value} "
                             f"certification={m.certification.value} activation={m.activation.value}"]
+    # OBSERVED signals (probe / jobs / heartbeat) rank above INFERRED ones (local credential presence):
+    # the worker runs on the remote runner, whose env this process cannot see (§120 review M8).
     if m.availability == AV.QUARANTINED:
         state = "QUARANTINED"; reasons.append("catalog availability QUARANTINED (policy/health violation, §52)")
     elif (m.availability != AV.AVAILABLE or m.activation == AM.DISABLED
@@ -103,11 +133,6 @@ def normalize_worker(m, *, heartbeats=None, jobs=None, auth=None, health=None, f
         state = "OFFLINE"
         reasons.append(f"not runnable per catalog: availability={m.availability.value}, "
                        f"certification={m.certification.value}, activation={m.activation.value}")
-    elif cred is False:
-        state = "AUTH_BLOCKED"
-        reasons.append(f"no {provider} credential present in this runtime "
-                       f"(checked presence of {', '.join(auth_env_keys(provider)) or 'no known env key'})")
-        sources.append("env presence probe (values never read)")
     elif health.get(m.id) is False:
         state = "DEGRADED"; reasons.append("runtime health probe FAILED"); sources.append("runtime health probe")
     elif live or any(h.get("current_job") for h in online_hb):
@@ -118,31 +143,41 @@ def normalize_worker(m, *, heartbeats=None, jobs=None, auth=None, health=None, f
         state = "IDLE"; reasons.append("heartbeat online, no current job"); sources.append("holding.status.list_workers")
     elif health.get(m.id) is True:
         state = "ONLINE"; reasons.append("runtime health probe passed (no heartbeat plane)"); sources.append("runtime health probe")
+    elif cred is False:
+        state = "AUTH_BLOCKED"
+        reasons.append(f"no {provider} credential present {CREDENTIAL_SCOPE} and nothing observed live "
+                       f"(checked presence of {keys})")
     else:
         state = "OFFLINE"
         reasons.append("no live heartbeat and no passing runtime probe — runnable per catalog"
                        + (" with credential present" if cred else "") + ", but not OBSERVED live")
-    if cred is True:
+    if cred is False and state in LIVE_STATES:
+        reasons.append(f"no {provider} credential present {CREDENTIAL_SCOPE} (checked presence of {keys}) — "
+                       "liveness is OBSERVED on the runner, not inferred from this process")
+    if cred is not None:
         sources.append("env presence probe (values never read)")
     return {"worker": m.id, "name": m.name, "state": state, "provider": provider or "local",
-            "credential_present": cred, "catalog_availability": m.availability.value,
-            "certification": m.certification.value,
-            "execution_authority": execution_authority(flags),
-            "authority_note": "liveness never grants authority — execution needs the three brakes (§0 #12/§119)",
+            "credential_present": cred, "credential_scope": CREDENTIAL_SCOPE,
+            "catalog_availability": m.availability.value, "certification": m.certification.value,
+            "execution_authority": execution_authority(flags, stopped),
+            "authority_note": "liveness never grants authority — execution needs the three brakes AND a released "
+                              "§97 STOP (§0 #12/§119)",
             "live_jobs": len(live), "heartbeats": len(hb), "reasons": reasons, "sources": sources}
 
 
-def normalize(*, manifests, heartbeats=None, jobs=None, auth=None, health=None, flags=None) -> dict:
+def normalize(*, manifests, heartbeats=None, jobs=None, auth=None, health=None, flags=None, stopped=None) -> dict:
     """§119 snapshot over every coding-worker manifest. Runner heartbeat rows that match no catalog worker
-    are reported under ``runner_plane`` (never hidden, never attributed to a worker)."""
-    workers = [normalize_worker(m, heartbeats=heartbeats, jobs=jobs, auth=auth, health=health, flags=flags)
+    are reported under ``runner_plane`` (never hidden, never attributed to a worker). ``stopped`` = §97
+    STOP tri-state; None (unreadable / not consulted) → authority NONE, reported as UNAVAILABLE."""
+    workers = [normalize_worker(m, heartbeats=heartbeats, jobs=jobs, auth=auth, health=health, flags=flags, stopped=stopped)
                for m in (manifests or []) if getattr(m, "worker_profile", None) is not None]
     matched = {h.get("worker_id") for m in (manifests or []) if getattr(m, "worker_profile", None) is not None
                for h in _heartbeats_for(m.id, heartbeats or [])}
     unmatched = [h for h in (heartbeats or []) if h.get("worker_id") not in matched]
     counts = {s: sum(1 for w in workers if w["state"] == s) for s in STATES}
     return {"version": WORKER_HEALTH_VERSION, "workers": workers, "counts": counts,
-            "execution_authority": execution_authority(flags),
+            "execution_authority": execution_authority(flags, stopped),
+            "stop_engaged": stopped is not False, "stop_record_state": stop_state(stopped),   # brakes' own convention
             "runner_plane": [{"worker_id": h.get("worker_id"), "online": bool(h.get("online")),
                               "current_job": h.get("current_job")} for h in unmatched],
             "states": list(STATES)}
@@ -155,10 +190,13 @@ def router_health(snapshot: dict) -> dict:
     return {w["worker"]: w["state"] in LIVE_STATES for w in (snapshot or {}).get("workers", [])}
 
 
-def snapshot(*, heartbeats=None, jobs=None, auth=None, health=None, flags=None) -> dict:
-    """Live §119 snapshot from the REAL sources (each fail-soft → empty; the env probe is real)."""
+def snapshot(*, heartbeats=None, jobs=None, auth=None, health=None, flags=None, stopped=None) -> dict:
+    """Live §119 snapshot from the REAL sources (each fail-soft → empty; the env probe is real; the §97 STOP
+    record is read via brakes — unreadable stays None → authority NONE)."""
     from app.services.capability.seed import seed_registry
     manifests = seed_registry().list()
+    if stopped is None:
+        stopped = read_stop()
     if heartbeats is None:
         try:
             from app.services.holding.status import list_workers
@@ -177,7 +215,8 @@ def snapshot(*, heartbeats=None, jobs=None, auth=None, health=None, flags=None) 
             flags = _flags()
         except Exception:
             flags = {}
-    return normalize(manifests=manifests, heartbeats=heartbeats, jobs=jobs, auth=auth, health=health, flags=flags)
+    return normalize(manifests=manifests, heartbeats=heartbeats, jobs=jobs, auth=auth, health=health, flags=flags,
+                     stopped=stopped)
 
 
 if __name__ == "__main__":

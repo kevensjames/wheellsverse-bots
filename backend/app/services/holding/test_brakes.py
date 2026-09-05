@@ -4,18 +4,20 @@ STOP store, env, manifests and the job queue are injected; the real config/DB is
 """
 import inspect
 import json
+import os
 import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace as NS
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))   # backend/ on path so `app` is a package
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))   # repo root so `core.operator_session` resolves
 
 from app.services.holding import brakes as br                                          # noqa: E402
 from app.services.holding.brakes import (                                              # noqa: E402
-    brakes, stop, release, stop_engaged, InMemoryStopStore, DbStopStore,
-    ON, OFF, UNAVAILABLE, POLICY_LOCKED, ENGAGED, RELEASED, STOP)
+    brakes, stop, release, stop_engaged, stop_state, InMemoryStopStore, DbStopStore,
+    ON, OFF, UNAVAILABLE, POLICY_LOCKED, ENGAGED, RELEASED, STOP, STOP_ENGAGED, STOP_UNREADABLE)
 from core.operator_session import (principal_for_role, ROLE_OWNER, ROLE_OPERATOR, ROLE_VIEWER,   # noqa: E402
                                    Principal, SCOPE_KAI_ULTRA)
 
@@ -50,6 +52,19 @@ def board(settings=S(), rec=None, *, readable=True, env=None, loader=None):
     b = brakes(settings=settings, stop_store=InMemoryStopStore(rec, readable=readable), env=env if env is not None else {},
                manifests_loader=loader, now=NOW)
     return b, {r["brake"]: r for r in b["brakes"]}
+
+
+FIN_KEYS = ("KAI_SCOPE_SOL_TRANSFER", "KAI_SCOPE_SOL", "DWOLLA_KEY", "DWOLLA_SECRET", "DWOLLA_ENV", "DWOLLA_ALLOW_PRODUCTION")
+CREDS = {"DWOLLA_KEY": "key-SECRET-abc", "DWOLLA_SECRET": "sec-SECRET-xyz"}
+SOL_PATH = "/admin/sol/cycles/{id}/collect|payout|retry-failed"
+
+
+def fin_env(**kv):
+    """os.environ with ONLY the given Sol/Dwolla switches set (the other FIN_KEYS removed) — the FINANCIAL row
+    composes the enforcers' own readers (governance.actions.is_scope_enabled / dwolla.client), which read os.environ."""
+    env = {k: v for k, v in os.environ.items() if k not in FIN_KEYS}
+    env.update(kv)
+    return patch.dict(os.environ, env, clear=True)
 
 
 JOB_ROWS = [   # worker_jobs.list_jobs shape
@@ -88,6 +103,12 @@ def run() -> bool:
                  for n in rows[k]["controlled_by"]} | {"KAI_HOLDING_DELIVERY_ENABLED"}
     ck("flag brakes are controlled ONLY by flags declared in app.config.Settings AND in self_model.FLAG_KEYS (one flag vocabulary)",
        flag_ctrl <= declared and flag_ctrl <= set(FLAG_KEYS))
+    ck("L1: brakes._ALL_FLAGS ⊆ self_model.FLAG_KEYS ∪ os_lab.runtimes FLAG_* — COMPOSED from those constants, no literal second list in brakes.py",
+       set(br._ALL_FLAGS) <= set(FLAG_KEYS) | set(br.OS_LAB_FLAGS)
+       and br.OS_LAB_FLAGS == (FLAG_OS_LAB, FLAG_ULTRON, FLAG_VIRTME_NG, FLAG_SYZKALLER)
+       and re.search(r"_ALL_FLAGS\s*=\s*tuple\(k for k in FLAG_KEYS", src) and not re.search(r'_ALL_FLAGS\s*=\s*\(\s*"', src)
+       and (flag_ctrl | set(rows["OS_LAB_ACTIVE_RUNTIME"]["controlled_by"])) <= set(br._ALL_FLAGS)
+       and all(k.endswith("_ENABLED") for k in br._ALL_FLAGS) and "MONEY_MODE" not in br._ALL_FLAGS)
     ble = inspect.getsource(build_live_engine)
     ck("A1/A2/SELF_IMPROVEMENT read the SAME flags build_live_engine + a2_dispatch.brakes_all_on enforce",
        all(f in ble and f in inspect.getsource(brakes_all_on) for f in rows["A2_PREPARATION"]["controlled_by"])
@@ -120,12 +141,13 @@ def run() -> bool:
     # ── config unreadable → UNAVAILABLE, never a fake OFF ────────────────────────────────────────────
     def _boom():
         raise RuntimeError("config down")
-    bu = brakes(load_settings=_boom, stop_store=InMemoryStopStore({}), env={}, now=NOW)
+    with fin_env():
+        bu = brakes(load_settings=_boom, stop_store=InMemoryStopStore({}), env={}, now=NOW)
     ru = {r["brake"]: r for r in bu["brakes"]}
-    ck("settings unreadable → flag brakes + EXTERNAL + OS_LAB UNAVAILABLE (never OFF); FINANCIAL/RESTRICTED stay POLICY_LOCKED",
+    ck("settings unreadable → flag brakes + EXTERNAL + OS_LAB UNAVAILABLE (never OFF); RESTRICTED stays POLICY_LOCKED; FINANCIAL is env-derived (OFF here, not Settings-dependent)",
        all(ru[k]["state"] == UNAVAILABLE for k in ("OBSERVATION", "DETECTION", "A1_VERIFICATION", "A2_PREPARATION",
                                                     "SELF_IMPROVEMENT", "EXTERNAL_COMMUNICATION", "OS_LAB_ACTIVE_RUNTIME"))
-       and ru["FINANCIAL_EXECUTION"]["state"] == POLICY_LOCKED and ru["RESTRICTED_SECURITY"]["state"] == POLICY_LOCKED
+       and ru["FINANCIAL_EXECUTION"]["state"] == OFF and ru["RESTRICTED_SECURITY"]["state"] == POLICY_LOCKED
        and all(v == UNAVAILABLE for v in bu["flags"].values()))
 
     # ── EXTERNAL_COMMUNICATION: opt-in flag AND a configured channel; secrets never read into the report ─
@@ -138,14 +160,67 @@ def run() -> bool:
     ck("channel PRESENCE only — the token value never appears in the board",
        "tok-SECRET-123" not in json.dumps(e2) and e2["EXTERNAL_COMMUNICATION"]["flags"]["channel_configured"] is True)
 
-    # ── FINANCIAL_EXECUTION: POLICY_LOCKED, uncontrolled, MONEY_MODE observed never flipped ──────────
-    fin = rows["FINANCIAL_EXECUTION"]
-    ck("FINANCIAL_EXECUTION is POLICY_LOCKED with NO controlling flag (never a controllable OFF); Settings declares no MONEY_MODE",
-       fin["state"] == POLICY_LOCKED and fin["controlled_by"] == [] and fin["mutable_via"] == "NONE in this app"
-       and "MONEY_MODE" not in declared and fin["flags"]["MONEY_MODE_observed"].startswith("NOT_DECLARED"))
-    _, fm = board(S(MONEY_MODE="MOCK"), rec={"engaged": True})
-    ck("MONEY_MODE=MOCK is REPORTED as observed and stays POLICY_LOCKED even with STOP engaged",
-       fm["FINANCIAL_EXECUTION"]["flags"]["MONEY_MODE_observed"] == "MOCK" and fm["FINANCIAL_EXECUTION"]["state"] == POLICY_LOCKED)
+    # ── FINANCIAL_EXECUTION (H1): a REAL env-controlled path in THIS app — app/main.py mounts routers/sol.py whose
+    #    collect/payout/retry-failed → DwollaClient are gated by @audited(scope=sol.transfer) + the sandbox-lock.
+    #    The row is DERIVED from those enforcers' own readers, never asserted POLICY_LOCKED / 'no execution path'. ─
+    from app.services.governance.actions import is_scope_enabled
+    from app.services.dwolla.client import is_configured
+    import app.main as _main
+    from app.routers import sol as _sol
+    FIN_CTRL = ["KAI_SCOPE_SOL_TRANSFER", "DWOLLA_ENV", "DWOLLA_ALLOW_PRODUCTION", "DWOLLA credentials (presence only)"]
+    with fin_env():
+        bf0, f0 = board()
+    with fin_env(KAI_SCOPE_SOL_TRANSFER="1", **CREDS):
+        real_on = is_scope_enabled("sol.transfer") and is_configured()
+        bf1, f1 = board()
+        _, fstop = board(rec={"engaged": True})
+    with fin_env(KAI_SCOPE_SOL_TRANSFER="1"):
+        _, f2 = board()
+    with fin_env(**CREDS):
+        _, f3 = board()
+    with fin_env(KAI_SCOPE_SOL_TRANSFER="1", DWOLLA_ENV="production", **CREDS):
+        _, f4 = board()
+    with fin_env(KAI_SCOPE_SOL_TRANSFER="1", DWOLLA_ENV="production", DWOLLA_ALLOW_PRODUCTION="1", **CREDS):
+        bf5, f5 = board()
+    with fin_env(KAI_SCOPE_SOL="true", **CREDS):
+        _, f6 = board()
+    with fin_env(KAI_SCOPE_SOL_TRANSFER="1", DWOLLA_ENV="bogus", **CREDS):
+        _, f7 = board()
+    with patch("app.services.dwolla.client.is_configured", side_effect=RuntimeError("reader down")):
+        _, fu = board()
+    fin0 = json.dumps(f0["FINANCIAL_EXECUTION"])
+    ck("the money path is REAL here: app.main mounts routers/sol.py; _collect/_payout/_retry_failed are @audited(scope=sol.transfer, destructive)",
+       any(getattr(r, "path", "").startswith("/admin/sol") for r in _main.app.routes)
+       and all(getattr(getattr(_sol, f), "__kai_action__", {}) == {"scope": "sol.transfer", "destructive": True, "name": f}
+               for f in ("_collect", "_payout", "_retry_failed")))
+    ck("FINANCIAL_EXECUTION: scope off + creds absent → OFF, env-controlled (controlled_by = the 4 real switches, mutable_via env) — never POLICY_LOCKED / 'no execution path' / 'NONE in this app'",
+       f0["FINANCIAL_EXECUTION"]["state"] == OFF and f0["FINANCIAL_EXECUTION"]["controlled_by"] == FIN_CTRL
+       and f0["FINANCIAL_EXECUTION"]["mutable_via"] == "env" and f0["FINANCIAL_EXECUTION"]["halted_by_stop"] is False
+       and not any(s in fin0 for s in ("POLICY_LOCKED", "no execution path", "NONE in this app", "MONEY_MODE"))
+       and SOL_PATH in f0["FINANCIAL_EXECUTION"]["path"])
+    ck("KAI_SCOPE_SOL_TRANSFER=1 + creds present → ON (matches is_scope_enabled ∧ is_configured), mode SANDBOX (DWOLLA_ENV default), enforced_by = audited(sol.transfer) + sandbox-lock",
+       real_on and f1["FINANCIAL_EXECUTION"]["state"] == ON and f1["FINANCIAL_EXECUTION"]["flags"]["mode"] == "SANDBOX"
+       and f1["FINANCIAL_EXECUTION"]["flags"]["dwolla_credentials_present"] is True
+       and f1["FINANCIAL_EXECUTION"]["enforced_by"] == "governance.actions.audited(scope=sol.transfer) + dwolla.client sandbox-lock")
+    ck("scope on / creds absent → OFF naming the missing creds; creds present / scope off → OFF naming ScopeDenied (each real gate named, none invented)",
+       f2["FINANCIAL_EXECUTION"]["state"] == OFF and any("DWOLLA_KEY" in r for r in f2["FINANCIAL_EXECUTION"]["reasons"])
+       and f3["FINANCIAL_EXECUTION"]["state"] == OFF and any("ScopeDenied" in r for r in f3["FINANCIAL_EXECUTION"]["reasons"]))
+    ck("DWOLLA_ENV=production without DWOLLA_ALLOW_PRODUCTION → OFF PRODUCTION_LOCKED (DwollaClient's sandbox-lock, reported not re-invented); with allow → ON PRODUCTION; unknown host → OFF INVALID_DWOLLA_ENV",
+       f4["FINANCIAL_EXECUTION"]["state"] == OFF and f4["FINANCIAL_EXECUTION"]["flags"]["mode"] == "PRODUCTION_LOCKED"
+       and any("DwollaProductionLocked" in r for r in f4["FINANCIAL_EXECUTION"]["reasons"])
+       and f5["FINANCIAL_EXECUTION"]["state"] == ON and f5["FINANCIAL_EXECUTION"]["flags"]["mode"] == "PRODUCTION"
+       and f7["FINANCIAL_EXECUTION"]["state"] == OFF and f7["FINANCIAL_EXECUTION"]["flags"]["mode"] == "INVALID_DWOLLA_ENV")
+    ck("wildcard KAI_SCOPE_SOL enables the scope exactly as governance.actions.is_scope_enabled does (one rule, composed)",
+       f6["FINANCIAL_EXECUTION"]["state"] == ON and f6["FINANCIAL_EXECUTION"]["flags"]["KAI_SCOPE_SOL_TRANSFER (is_scope_enabled)"] is True)
+    ck("credential PRESENCE only — neither secret VALUE appears anywhere in any board (OFF, ON sandbox, ON production); the row reads is_configured() → bool, never the vars",
+       not any(v in json.dumps(bx) for v in CREDS.values() for bx in (bf0, bf1, bf5))
+       and not re.search(r"DWOLLA_KEY\"\)|DWOLLA_SECRET\"\)|environ", inspect.getsource(br._financial_row)))
+    ck("STOP engaged leaves FINANCIAL_EXECUTION unchanged (ON stays ON) — STOP does not control money and never claims to",
+       fstop["FINANCIAL_EXECUTION"]["state"] == ON and fstop["FINANCIAL_EXECUTION"]["halted_by_stop"] is False
+       and fstop[STOP]["state"] == ENGAGED)
+    ck("scope/dwolla readers unreadable → UNAVAILABLE (never a guessed OFF), still naming its controls and env mutability",
+       fu["FINANCIAL_EXECUTION"]["state"] == UNAVAILABLE and fu["FINANCIAL_EXECUTION"]["controlled_by"] == FIN_CTRL
+       and fu["FINANCIAL_EXECUTION"]["mutable_via"] == "env")
 
     # ── RESTRICTED_SECURITY: derived from the REAL privileged manifests ──────────────────────────────
     from app.services.security.capabilities import PRIVILEGED_CAP_IDS
@@ -175,6 +250,10 @@ def run() -> bool:
     ck("STOP record {} → RELEASED, stop_engaged False; engaged → ENGAGED, True",
        rows[STOP]["state"] == RELEASED and b["stop_engaged"] is False
        and board(rec={"engaged": True})[1][STOP]["state"] == ENGAGED and stop_engaged(InMemoryStopStore({"engaged": True})) is True)
+    ck("L2: stop_state names WHY — {} → None, engaged → STOP_ENGAGED, unreadable → STOP_UNREADABLE; stop_engaged composes it (one reader)",
+       stop_state(InMemoryStopStore({})) is None and stop_state(InMemoryStopStore({"engaged": True})) == STOP_ENGAGED
+       and stop_state(InMemoryStopStore(readable=False)) == STOP_UNREADABLE
+       and "stop_state(store) is not None" in inspect.getsource(br.stop_engaged))
     bun, run_ = board(readable=False)
     ck("STOP record UNREADABLE → state UNAVAILABLE, treated_as ENGAGED, stop_engaged True (fail closed, never assumed released)",
        run_[STOP]["state"] == UNAVAILABLE and run_[STOP]["treated_as"] == ENGAGED and bun["stop_engaged"] is True
@@ -188,6 +267,9 @@ def run() -> bool:
        all(stopped[k]["state"] == live[k]["state"] and stopped[k]["halted_by_stop"] is False for k in NOT_HALTED)
        and stopped["OBSERVATION"]["state"] == ON
        and set(stopped[STOP]["halts"]) == set(HALTED) and set(NOT_HALTED) <= set(stopped[STOP]["does_not_halt"]))
+    ck("STOP does_not_halt NAMES the Sol money path (routers/sol.py collect|payout|retry-failed) and says STOP does not control it",
+       any(SOL_PATH in x and "STOP does NOT control it" in x for x in stopped[STOP]["does_not_halt"])
+       and not any(SOL_PATH in x for x in stopped[STOP]["halts"]))
     _, unr = board(STAGING_ALL_ON(), readable=False)
     ck("STOP unreadable → A1/A2/SI OFF with the fail-closed reason (not silently ON)",
        all(unr[k]["state"] == OFF and "fail closed" in unr[k]["reasons"][-1] for k in HALTED))
@@ -216,6 +298,11 @@ def run() -> bool:
        e_rel._global is True and not disabled(e_rel) and e_stop._global is False and disabled(e_stop))
     ck("build_live_engine: STOP record unreadable → fail closed (every config-read brake OFF); explicit test overrides untouched",
        e_unr._global is False and disabled(e_unr) and e_override._global is True and not disabled(e_override))
+    ck("L2: build_live_engine RECORDS why — brake_override None (released), STOP_ENGAGED, STOP_UNREADABLE (distinguished, never a silent 0-execution); "
+       "partial overrides still record it for the config-read brake (a2) they forced",
+       e_rel.brake_override is None and e_stop.brake_override == STOP_ENGAGED and e_unr.brake_override == STOP_UNREADABLE
+       and e_override.brake_override == STOP_ENGAGED
+       and build_live_engine(autonomy_on=False, execution_on=False, a2_on=False).brake_override is None)
     ck("config flags are NOT mutated by STOP (restored/unchanged real settings)",
        all(getattr(cfg.settings, k) == v for k, v in saved.items()))
     calls = []
@@ -226,9 +313,9 @@ def run() -> bool:
     a_stop = enqueue_a2_coding_job(mission_id="m", base_sha="abc", settings=stg, grant_registry=reg, enqueue_fn=enq, stop_store=eng_store)
     a_unr = enqueue_a2_coding_job(mission_id="m", base_sha="abc", settings=stg, grant_registry=reg, enqueue_fn=enq,
                                   stop_store=InMemoryStopStore(readable=False))
-    ck("enqueue_a2_coding_job (A2 + self-improvement path): released → enqueued; STOP engaged/unreadable → refused STOP_ENGAGED, enqueue never called",
-       a_rel["enqueued"] is True and len(calls) == 1 and a_stop == {"enqueued": False, "reason": "STOP_ENGAGED"}
-       and a_unr["reason"] == "STOP_ENGAGED" and len(calls) == 1)
+    ck("enqueue_a2_coding_job (A2 + self-improvement path): released → enqueued; STOP engaged → refused STOP_ENGAGED; unreadable → refused STOP_UNREADABLE (distinguished); enqueue never called",
+       a_rel["enqueued"] is True and len(calls) == 1 and a_stop == {"enqueued": False, "reason": STOP_ENGAGED}
+       and a_unr == {"enqueued": False, "reason": STOP_UNREADABLE} and len(calls) == 1)
     ck("the board's honored_by names exactly these two composition points",
        any("build_live_engine" in h for h in rows[STOP]["honored_by"]) and any("enqueue_a2_coding_job" in h for h in rows[STOP]["honored_by"]))
 
@@ -252,8 +339,9 @@ def run() -> bool:
     ck("owner stop() → durable record engaged, state ENGAGED, actor owner:owner_key, reason kept",
        store.rec["engaged"] is True and rep["engaged"] is True and rep["state"] == ENGAGED
        and rep["actor"] == "owner:owner_key" and rep["reason"] == "incident 42" and stop_engaged(store) is True)
-    ck("stop report: halts == A1/A2/SI, does_not_halt lists the uncontrolled brakes, brakes_after shows A1/A2/SI OFF",
+    ck("stop report: halts == A1/A2/SI, does_not_halt lists the uncontrolled brakes + the Sol money path, brakes_after shows A1/A2/SI OFF",
        set(rep["halts"]) == set(HALTED) and set(NOT_HALTED) <= set(rep["does_not_halt"])
+       and any(SOL_PATH in x for x in rep["does_not_halt"])
        and all(rep["brakes_after"][k] == OFF for k in HALTED) and rep["brakes_after"][STOP] == ENGAGED)
     inf = rep["in_flight"]
     ck("STOP does NOT claim to undo started work: in-flight running+claimed jobs listed truthfully (2), queued/succeeded excluded",
@@ -291,6 +379,9 @@ def run() -> bool:
        "resource_governor import _worker_plane" in inspect.getsource(br._default_worker_plane))
     ck("STOP is ONE durable record (holding_brakes) — no new authority flag added to Settings",
        "holding_brakes" in br._DDL and not any(k.startswith("KAI_STOP") or "BRAKE" in k for k in declared))
+    ck("DDL runs ONCE per process: DbStopStore.get/set compose _ensure_table (module guard); text(_DDL) is executed in exactly one place",
+       "_ensure_table(db)" in inspect.getsource(DbStopStore.get) and "_ensure_table(db)" in inspect.getsource(DbStopStore.set)
+       and src.count("text(_DDL)") == 1 and "global _ddl_done" in inspect.getsource(br._ensure_table))
 
     # ── [db] the durable store, if a DB is reachable here: readable or honestly None ─────────────────
     got = DbStopStore().get()

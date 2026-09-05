@@ -41,9 +41,14 @@ BRAKES_ON = {**OFF, "KAI_CAPABILITY_EXECUTION_ENABLED": True, "HOLDING_AUTONOMY_
 AUTH_ALL = {"anthropic": True, "openai": True}
 
 
-def ans(flags=OFF, *, auth=AUTH_ALL, health=None, heartbeats=None, **kw):
-    ws = normalize(manifests=MANIFESTS, auth=auth, health=health, heartbeats=heartbeats, flags=flags)
-    return answer(manifests=MANIFESTS, flags=flags, worker_snapshot=ws, **kw)
+SW_OFF = {"scope_sol_transfer": False, "dwolla_env": "sandbox", "dwolla_allow_production": False, "dwolla_credentials_present": False}
+SW_ON = {**SW_OFF, "scope_sol_transfer": True, "dwolla_credentials_present": True}
+
+
+def ans(flags=OFF, *, auth=AUTH_ALL, health=None, heartbeats=None, jobs=None, stopped=False, **kw):
+    """stopped=False = the §97 STOP record was READ and is RELEASED — the only value that can grant authority."""
+    ws = normalize(manifests=MANIFESTS, auth=auth, health=health, heartbeats=heartbeats, jobs=jobs, flags=flags, stopped=stopped)
+    return answer(manifests=MANIFESTS, flags=flags, worker_snapshot=ws, stopped=stopped, **kw)
 
 
 def rows(a):
@@ -62,7 +67,7 @@ def run() -> bool:
     a = ans()
 
     # ── deterministic, versioned, every row tagged with exactly one of the 8 statuses ───────────
-    ck("same inputs -> byte-identical answer, versioned", ans() == a and a["version"] == ca.CAPABILITIES_ANSWER_VERSION == "1.0.0")
+    ck("same inputs -> byte-identical answer, versioned", ans() == a and a["version"] == ca.CAPABILITIES_ANSWER_VERSION == "1.1.0")
     ck("EVERY row carries one of the 8 §98 statuses and the counts partition the rows",
        all(r["status"] in STATUSES for r in rows(a)) and sum(a["counts"].values()) == len(rows(a))
        and all(ar["area"] in AREAS for ar in a["areas"]))
@@ -73,7 +78,7 @@ def run() -> bool:
        == sorted(m.id for m in MANIFESTS))
 
     # ── status_of: the versioned rule table over REAL manifest fields ─────────────────────────────
-    st = {m.id: status_of(m, OFF)[0] for m in MANIFESTS}
+    st = {m.id: status_of(m, OFF, False)[0] for m in MANIFESTS}
     ck("rule table: QUARANTINED->BLOCKED, DISABLED->DISABLED, DISCOVERED->UNAVAILABLE, RESTRICTED/tier-4->RESTRICTED, "
        "EXPERIMENTAL cert->EXPERIMENTAL, certified+selectable->AVAILABLE while brake #1 is OFF",
        st["quarantined-x"] == "BLOCKED" and st["off-tool"] == "DISABLED" and st["payloads-all-the-things"] == UNAVAILABLE
@@ -88,20 +93,62 @@ def run() -> bool:
        row(a, "holding.view")["status"] == "DISABLED" and row(hv, "holding.view")["status"] == "ACTIVE"
        and row(hv, "holding.view")["source"] == "config.KAI_HOLDING_ENABLED" and "True" in row(hv, "holding.view")["why"])
     br = ans(BRAKES_ON)
-    ck("three brakes ON -> autonomous_work + a2.prepare_only ACTIVE; OFF -> DISABLED (why names each brake)",
+    ck("three brakes ON (STOP released) -> autonomous_work + a2.prepare_only ACTIVE; OFF -> DISABLED (why names each brake)",
        row(a, "holding.autonomous_work")["status"] == "DISABLED" and row(br, "holding.autonomous_work")["status"] == "ACTIVE"
        and row(a, "a2.prepare_only")["status"] == "DISABLED" and row(br, "a2.prepare_only")["status"] == "ACTIVE"
        and "brake #2 HOLDING_AUTONOMY_ENABLED" in row(a, "holding.autonomous_work")["why"])
+    # ── review H2: §97 STOP is consulted — engaged OR unreadable overrides every brake ────────────
+    SI_ON = {**BRAKES_ON, "KAI_SELF_IMPROVEMENT_ENABLED": True}
+    st_rel, st_eng, st_unr = ans(SI_ON, health={"claude-code": True}), ans(SI_ON, health={"claude-code": True}, stopped=True), \
+        ans(SI_ON, health={"claude-code": True}, stopped=None)
+    gated = ("holding.autonomous_work", "a2.prepare_only", "self_improvement.prepare")
+    ck("H2: STOP engaged -> autonomous_work / a2.prepare_only / self_improvement.prepare DISABLED with why 'STOP_AUTONOMOUS_EXECUTION engaged (brakes)' (all four brakes ON)",
+       all(row(st_rel, g)["status"] == "ACTIVE" for g in gated)
+       and all(row(st_eng, g)["status"] == "DISABLED" and row(st_eng, g)["why"].startswith("STOP_AUTONOMOUS_EXECUTION engaged (brakes)")
+               for g in gated))
+    ck("H2: STOP unreadable (None) -> the same three rows DISABLED, why says unreadable -> treated as engaged (fail closed)",
+       all(row(st_unr, g)["status"] == "DISABLED" and row(st_unr, g)["why"].startswith("STOP_AUTONOMOUS_EXECUTION engaged (brakes)")
+           and "unreadable" in row(st_unr, g)["why"] for g in gated))
+    ck("H2: status_of under brake #1 ON: STOP released -> ACTIVE; engaged / unreadable -> AVAILABLE (why cites STOP, owner-driven use not halted)",
+       status_of(CTX7, BRAKES_ON, False)[0] == "ACTIVE" and status_of(CTX7, BRAKES_ON, True) [0] == "AVAILABLE"
+       and status_of(CTX7, BRAKES_ON, None)[0] == "AVAILABLE" and status_of(CTX7, BRAKES_ON)[0] == "AVAILABLE"
+       and "STOP_AUTONOMOUS_EXECUTION engaged (brakes)" in status_of(CTX7, BRAKES_ON, True)[1]
+       and row(st_rel, "context7")["status"] == "ACTIVE" and row(st_eng, "context7")["status"] == "AVAILABLE")
+    ck("H2: STOP engaged / unreadable -> every worker row execution_authority NONE and NO row anywhere is ACTIVE; authority block carries STOP in brakes' vocabulary",
+       all(r["execution_authority"] == "NONE" for r in rows(st_eng) if "execution_authority" in r)
+       and all(r["execution_authority"] == "NONE" for r in rows(st_unr) if "execution_authority" in r)
+       and st_eng["counts"]["ACTIVE"] == 0 and st_unr["counts"]["ACTIVE"] == 0
+       and st_eng["authority"]["STOP_AUTONOMOUS_EXECUTION"] == "ENGAGED" and st_unr["authority"]["STOP_AUTONOMOUS_EXECUTION"] == "UNAVAILABLE"
+       and st_rel["authority"]["STOP_AUTONOMOUS_EXECUTION"] == "RELEASED"
+       and any(r["execution_authority"] == "A2_PREPARE_ONLY" for r in rows(st_rel) if "execution_authority" in r))
 
     # ── §119/§120: real worker truth wins over the catalog; flip a worker to AUTH_BLOCKED ─────────
     live = ans(health={"claude-code": True})
-    blocked = ans(health={"claude-code": True}, auth={"anthropic": False, "openai": True})
+    blocked = ans(auth={"anthropic": False, "openai": True})            # nothing observed live + no local credential
     ck("observed-live Claude -> worker ONLINE -> AVAILABLE, but execution_authority NONE (brakes off)",
        row(live, "claude-code")["worker_state"] == "ONLINE" and row(live, "claude-code")["status"] == "AVAILABLE"
        and row(live, "claude-code")["execution_authority"] == "NONE" and row(live, "claude-code")["source"] == "holding.worker_health")
-    ck("flip Claude to AUTH_BLOCKED (no credential) -> status AUTH_REQUIRED and the why says so",
+    ck("flip Claude to AUTH_BLOCKED (no credential, nothing observed live) -> status AUTH_REQUIRED and the why says so",
        row(blocked, "claude-code")["worker_state"] == "AUTH_BLOCKED" and row(blocked, "claude-code")["status"] == "AUTH_REQUIRED"
        and "no anthropic credential" in row(blocked, "claude-code")["why"])
+    # ── review M7/M8: liveness is an observation, ACTIVE is an authority claim ───────────────────
+    HB_IDLE = [{"worker_id": "claude-code:host1", "online": True, "current_job": None}]
+    JOB_RUN = [{"id": 1, "status": "running", "worker": "claude-code", "claimed_by": "claude-code:host1"}]
+    idle, busy = ans(heartbeats=HB_IDLE), ans(heartbeats=HB_IDLE, jobs=JOB_RUN)
+    ck("M7: IDLE worker (heartbeat, brakes off) -> AVAILABLE not ACTIVE; BUSY (running job, brakes off) -> AVAILABLE not ACTIVE",
+       row(idle, "claude-code")["worker_state"] == "IDLE" and row(idle, "claude-code")["status"] == "AVAILABLE"
+       and row(busy, "claude-code")["worker_state"] == "BUSY" and row(busy, "claude-code")["status"] == "AVAILABLE"
+       and idle["counts"]["ACTIVE"] == 0 and busy["counts"]["ACTIVE"] == 0)
+    ck("M7: the SAME idle worker with brakes ON + STOP released -> ACTIVE; brakes ON + STOP engaged -> AVAILABLE (authority, not liveness, makes ACTIVE)",
+       row(ans(BRAKES_ON, heartbeats=HB_IDLE), "claude-code")["status"] == "ACTIVE"
+       and row(ans(BRAKES_ON, heartbeats=HB_IDLE), "claude-code")["execution_authority"] == "A2_PREPARE_ONLY"
+       and row(ans(BRAKES_ON, heartbeats=HB_IDLE, stopped=True), "claude-code")["status"] == "AVAILABLE"
+       and row(ans(BRAKES_ON, heartbeats=HB_IDLE, stopped=None), "claude-code")["status"] == "AVAILABLE")
+    nocred_busy = ans(heartbeats=HB_IDLE, jobs=JOB_RUN, auth={"anthropic": False, "openai": True})
+    ck("M8: observed running job + no LOCAL credential -> worker BUSY -> AVAILABLE (not AUTH_REQUIRED); why keeps the 'in this process' credential fact",
+       row(nocred_busy, "claude-code")["worker_state"] == "BUSY" and row(nocred_busy, "claude-code")["status"] == "AVAILABLE"
+       and "runner env not observable" in row(nocred_busy, "claude-code")["why"]
+       and next(w for w in nocred_busy["workers"]["workers"] if w["worker"] == "claude-code")["credential_present"] is False)
     ck("...and the 'cannot' answer CHANGES: the Claude limitation appears only when it is not live",
        not any("Claude Code coding worker" in l for l in live["cannot"])
        and any("Claude Code coding worker is not AVAILABLE (AUTH_BLOCKED)" in l for l in blocked["cannot"]))
@@ -158,9 +205,37 @@ def run() -> bool:
        row(ans(telegram={"state": "CONNECTED"}), "connector.telegram")["status"] == "ACTIVE"
        and row(ans(telegram={"state": "DEGRADED"}), "connector.telegram")["status"] == "DISABLED"
        and row(a, "connector.telegram")["status"] == "AUTH_REQUIRED")
-    ck("finance feed UNAVAILABLE unless a live source is wired (figures never estimated); money.move DISABLED under MOCK",
+    ck("finance feed UNAVAILABLE unless a live source is wired (figures never estimated); money.move DISABLED under a DECLARED MOCK",
        row(a, "finance.feed")["status"] == UNAVAILABLE and row(ans(finance_available=True), "finance.feed")["status"] == "AVAILABLE"
        and row(a, "money.move")["status"] == "DISABLED" and row(ans({**OFF, "MONEY_MODE": "LIVE"}), "money.move")["status"] == "RESTRICTED")
+    # ── review M6: MONEY_MODE is not a Settings field here; the real money path has its own switches ──
+    nomode = ans({**OFF, "MONEY_MODE": None})
+    ck("M6: MONEY_MODE None (not declared in this app's Settings) -> money.move UNAVAILABLE with the honest why, never a fabricated MOCK observation",
+       row(nomode, "money.move")["status"] == UNAVAILABLE
+       and row(nomode, "money.move")["why"].startswith("MONEY_MODE not declared in this app's Settings (readers default MOCK)")
+       and nomode["authority"]["MONEY_MODE"] is None)
+    ck("M6: the false 'no money moves' observation is gone; the §99 invariant is phrased as POLICY ('without owner authority') on every finance row",
+       not any("no money moves" in r["why"] for r in rows(a) + rows(nomode))
+       and all("without owner authority" in row(x, cid)["why"] for x in (a, nomode) for cid in ("money.move", "finance.sol_transfer")))
+    sol_off, sol_on = ans(money_switches=SW_OFF), ans(money_switches=SW_ON)
+    ck("M6: finance.sol_transfer is derived from the REAL switches: switches unreadable -> UNAVAILABLE; scope off -> DISABLED (ScopeDenied); scope on -> RESTRICTED (approved=True + sandbox-lock still required)",
+       row(a, "finance.sol_transfer")["status"] == UNAVAILABLE and "unreadable" in row(a, "finance.sol_transfer")["why"]
+       and row(sol_off, "finance.sol_transfer")["status"] == "DISABLED" and "KAI_SCOPE_SOL_TRANSFER=off" in row(sol_off, "finance.sol_transfer")["why"]
+       and "ScopeDenied" in row(sol_off, "finance.sol_transfer")["why"]
+       and row(sol_on, "finance.sol_transfer")["status"] == "RESTRICTED" and "KAI_SCOPE_SOL_TRANSFER=on" in row(sol_on, "finance.sol_transfer")["why"]
+       and "approved=True" in row(sol_on, "finance.sol_transfer")["why"])
+    ck("M6: the why reports each switch's posture (DWOLLA_ENV, DWOLLA_ALLOW_PRODUCTION, credential PRESENCE) and the source names the env switches",
+       "DWOLLA_ENV=sandbox" in row(sol_on, "finance.sol_transfer")["why"] and "DWOLLA_ALLOW_PRODUCTION=False" in row(sol_on, "finance.sol_transfer")["why"]
+       and "Dwolla credentials present=True" in row(sol_on, "finance.sol_transfer")["why"]
+       and "Dwolla credentials present=False" in row(sol_off, "finance.sol_transfer")["why"]
+       and row(sol_on, "finance.sol_transfer")["source"] == "config.env:KAI_SCOPE_SOL_TRANSFER,DWOLLA_ENV,DWOLLA_ALLOW_PRODUCTION"
+       and row(ans(money_switches={**SW_ON, "dwolla_env": "production", "dwolla_allow_production": True}), "finance.sol_transfer")["why"]
+       .count("DWOLLA_ENV=production, DWOLLA_ALLOW_PRODUCTION=True") == 1)
+    live_sw = ca.sol_money_switches()
+    ck("sol_money_switches() composes governance.is_scope_enabled + dwolla.client (presence only, no key value) over the REAL env",
+       set(live_sw) == {"scope_sol_transfer", "dwolla_env", "dwolla_allow_production", "dwolla_credentials_present"}
+       and all(isinstance(live_sw[k], bool) for k in ("scope_sol_transfer", "dwolla_allow_production", "dwolla_credentials_present"))
+       and isinstance(live_sw["dwolla_env"], str))
     ck("os_lab RESTRICTED when its catalog is present, UNAVAILABLE otherwise",
        row(ans(os_lab_present=True), "os_lab")["status"] == "RESTRICTED" and row(a, "os_lab")["status"] == UNAVAILABLE)
     ck("connectors = MCP-type manifests + connector.* rows", set(a["connectors"]) == {"context7", "quarantined-x", "off-tool",
@@ -177,12 +252,26 @@ def run() -> bool:
        len(rows(la)) >= 126 and all(r["status"] in STATUSES for r in rows(la))
        and sum(la["counts"].values()) == len(rows(la)) and la["cannot"][:2] == _INVARIANT_LIMITATIONS[:2]
        and la["authority"]["KAI_CAPABILITY_EXECUTION_ENABLED"] is False)
+    from app.services.holding.worker_health import read_stop, stop_state
+    real_stop = read_stop()          # DB-less run: unreadable -> None -> treated as engaged everywhere
+    ck("live_answer(): the REAL MONEY_MODE is None in this app -> money.move UNAVAILABLE; the §97 STOP is read once via brakes and threaded (never assumed RELEASED)",
+       _flags()["MONEY_MODE"] is None and row(la, "money.move")["status"] == UNAVAILABLE
+       and la["authority"]["STOP_AUTONOMOUS_EXECUTION"] == stop_state(real_stop) == la["workers"]["stop_record_state"]
+       and (real_stop is not None or la["authority"]["STOP_AUTONOMOUS_EXECUTION"] == "UNAVAILABLE")
+       and all(row(la, g)["status"] == "DISABLED" for g in ("holding.autonomous_work", "a2.prepare_only", "self_improvement.prepare"))
+       and la["counts"]["ACTIVE"] == 0 or la["authority"]["KAI_CAPABILITY_EXECUTION_ENABLED"])
+    ck("live_answer(): the Sol money row is derived from the real switches (DISABLED / RESTRICTED, never UNAVAILABLE when the env is readable)",
+       row(la, "finance.sol_transfer")["status"] in ("DISABLED", "RESTRICTED") and "KAI_SCOPE_SOL_TRANSFER=" in row(la, "finance.sol_transfer")["why"])
 
     # ── consolidation + purity ────────────────────────────────────────────────────────────────────
-    ck("composes self_model._derive_limitations, worker_health.normalize, coding.coding_action_class (no forks)",
+    ck("composes self_model._derive_limitations, worker_health.normalize, coding.coding_action_class, brakes STOP vocabulary, governance/dwolla readers (no forks)",
        "from app.services.holding.self_model import _derive_limitations" in src
        and "from app.services.holding.worker_health import LIVE_STATES, normalize" in src
-       and "from app.services.capability.coding import coding_action_class" in src)
+       and "from app.services.capability.coding import coding_action_class" in src
+       and "from app.services.holding.brakes import STOP" in src
+       and "from app.services.governance.actions import is_scope_enabled" in src
+       and "from app.services.dwolla.client import _env, _truthy, is_configured" in src
+       and "from app.services.holding.worker_health import read_stop" in src)
     ck("no LLM / network / clock", all(t not in src for t in ("datetime.now", "time.time", "openai", "ollama", "httpx",
                                                               "requests", "capability.brain", "nai_brain", "subprocess")))
 

@@ -145,6 +145,40 @@ def run() -> bool:
                               "DbCycleStore", "mission import list_missions",
                               "proposals_store import list_proposals")))
 
+    # ── DB down is NOT_CONNECTED, never "connected and empty" (the readers' [] fail-soft hid this) ─────
+    import app.database as _db
+    from app.services.holding import worker_jobs as _wj
+    _sl, _lj = _db.SessionLocal, _wj.list_jobs
+    calls = [0]
+    def _down(*a, **k): raise RuntimeError("db down")
+    try:
+        _db.SessionLocal = _down
+        _wj.list_jobs = lambda **k: calls.__setitem__(0, calls[0] + 1) or []
+        probe = eh.db_reachable()
+        feeds = eh.collect_sources(limit=5)
+        snap = evaluate(**feeds)
+    finally:
+        _db.SessionLocal, _wj.list_jobs = _sl, _lj
+    ck("SessionLocal raising -> db_reachable() False and the four DB feeds are None (readers NOT called, no [] masquerade)",
+       probe is False and all(feeds[k] is None for k in ("jobs", "cycles", "missions", "proposals")) and calls[0] == 0)
+    ck("DB down -> snapshot reports jobs/cycles/missions/proposals NOT_CONNECTED and every metric over them UNAVAILABLE 'source not connected'",
+       all(snap["sources"][k] == "NOT_CONNECTED" for k in ("jobs", "cycles", "missions", "proposals"))
+       and all(x["status"] == UNAVAILABLE and "source not connected" in x["detail"]
+               for x in snap["metrics"] if x["metric"] not in ("latency", "reliability", "security_violations")))
+    ck("with the real SessionLocal restored the probe is a plain bool again (no state kept)", isinstance(eh.db_reachable(), bool))
+    from app.services.governance import audit_log as _al
+    _p = _al.AUDIT_LOG_PATH
+    try:
+        _al.AUDIT_LOG_PATH = Path(eh.__file__).parent            # exists, but open() fails -> the reader would swallow it into []
+        broken = eh._read_audit(10)
+        _al.AUDIT_LOG_PATH = Path(eh.__file__).parent / "definitely-absent.jsonl"
+        absent = eh._read_audit(10)
+    finally:
+        _al.AUDIT_LOG_PATH = _p
+    ck("audit log: a read FAILURE is None (NOT_CONNECTED); an ABSENT file is [] (nothing ever recorded) — the two are distinct",
+       broken is None and absent == [] and evaluate(audit=broken)["sources"]["audit"] == "NOT_CONNECTED"
+       and evaluate(audit=absent)["sources"]["audit"] == "CONNECTED")
+
     n = len(res); ok = sum(res)
     print(f"\nEVAL HARNESS (§34) TESTS: {ok}/{n} —", "PASS" if ok == n else "FAIL")
     return ok == n

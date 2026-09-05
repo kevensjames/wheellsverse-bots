@@ -96,6 +96,24 @@ def run() -> bool:
     rl = rg._rate_limit()
     ck("per-minute cap is READ from CapabilityExecutionService.rate_limit_per_min (its _rate_ok enforces)",
        rl["limit_per_min"] == int(default_rl) and rl["enforced_by"].endswith("_rate_ok"))
+    # NOT in the API process: the router must NOT be imported (that would BUILD an empty service and report used=0 as MEASURED)
+    _mod = sys.modules.pop("app.routers.admin_capabilities", None)
+    try:
+        cold = rg._rate_limit()
+        still_absent = "app.routers.admin_capabilities" not in sys.modules
+        cold_pm = _rows(budgets(sources={**NONE_SOURCES, "rate_limit": rg._rate_limit}, now=NOW, today=TODAY),
+                        "per_minute")["capability_invocations"]
+    finally:
+        if _mod is not None:
+            sys.modules["app.routers.admin_capabilities"] = _mod
+    ck("router not loaded -> windows None with the reason; the governor did NOT import the router (sys.modules unchanged)",
+       cold["windows"] is None and cold["windows_reason"] == rg._RATE_WINDOWS_UNOBSERVABLE and still_absent
+       and cold["limit_per_min"] == int(default_rl))
+    ck("router not loaded -> per_minute used UNAVAILABLE (state UNAVAILABLE, cap still the real default), used_source says not observable from this process",
+       cold_pm["used"] == UNAVAILABLE and cold_pm["state"] == UNAVAILABLE and cold_pm["cap"] == int(default_rl)
+       and cold_pm["used_source"] == "rate windows are in-process state of the API worker; not observable from this process")
+    ck("the governor never imports a router (a router import is a side effect, not a read)",
+       "from app.routers" not in src and "import app.routers" not in src)
     # live windows: the governor reads the REAL service's _rate windows — never its own counter
     import app.routers.admin_capabilities as ac
     t = [1000.0]
@@ -110,8 +128,11 @@ def run() -> bool:
         aged = rg._rate_limit()
     finally:
         ac._service = saved
-    ck("live 60s windows are the execution service's own (_rate) — 3 calls seen, then aged out at 61s",
-       live["limit_per_min"] == 5 and live["windows"] == {"owner/health": 3} and aged["windows"] == {"owner/health": 0})
+    ck("live 60s windows are the execution service's own (_rate) — 3 calls seen, then aged out at 61s; read via the ALREADY-loaded module, labelled this-process-only",
+       live["limit_per_min"] == 5 and live["windows"] == {"owner/health": 3} and aged["windows"] == {"owner/health": 0}
+       and "windows_reason" not in live
+       and "this process only" in _rows(budgets(sources={**NONE_SOURCES, "rate_limit": lambda: live}, now=NOW, today=TODAY),
+                                        "per_minute")["capability_invocations"]["used_source"])
 
     from app.services.holding.self_improvement_guardrails import DAILY_PREPARATION_CEILING
     from app.services.holding.holding_cycle import SELF_IMPROVE_DAILY_CEILING

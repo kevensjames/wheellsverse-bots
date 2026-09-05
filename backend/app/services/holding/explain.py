@@ -5,18 +5,18 @@ OBSERVABLE inputs only: facts + policy applied + priority calculation (the ONE �
 NO hidden chain-of-thought (§87/§0 #16-19): every line of an explanation is a real field of the item
 being explained, a named policy rule that observably fired on that field, or the deterministic
 ``rank_key`` arithmetic. Nothing is narrated by an LLM, no number is invented, and any hidden-reasoning
-key that arrives on the input (the §61 ``_COT_KEYS`` vocabulary) is STRIPPED before explanation and
-reported as stripped — the output never carries it. Unknown → UNKNOWN/UNAVAILABLE, never guessed.
+key that arrives on the input (the §61 ``timeline.is_cot_key`` token rule) is STRIPPED before explanation
+and reported as stripped — the output never carries it. Unknown → UNKNOWN/UNAVAILABLE, never guessed.
 
 CONSOLIDATION: composes ``priorities.rank_key``/``LADDER`` (§22), ``health_score.evidence_quality``
-(§58) and ``timeline._contains_cot``/``_COT_KEYS`` (§61) — no second ranker, scorer, or CoT filter.
+(§58) and ``timeline.is_cot_key``/``_contains_cot`` (§61) — no second ranker, scorer, or CoT filter.
 Pure/deterministic; testable as a plain ``python3`` script (mirrors test_registry.py).
 """
 from __future__ import annotations
 
 from app.services.holding.priorities import LADDER, rank_key
 from app.services.holding.health_score import evidence_quality
-from app.services.holding.timeline import _COT_KEYS, _contains_cot
+from app.services.holding.timeline import is_cot_key, _contains_cot
 
 EXPLAIN_VERSION = "1.0.0"
 UNKNOWN, UNAVAILABLE = "UNKNOWN", "UNAVAILABLE"
@@ -30,13 +30,13 @@ _SEVERITY_RUNG_NOTE = "rung derived from severity by priorities.rank_key (no exp
 
 def _strip_cot(obj):
     """Return a copy of ``obj`` with every hidden-reasoning key removed (recursively) + the keys found.
-    Fail-closed: lists and nested dicts are walked fully."""
+    Fail-closed: lists and nested dicts are walked fully; the key rule is timeline.is_cot_key (tokens)."""
     found: list[str] = []
     def walk(o):
         if isinstance(o, dict):
             out = {}
             for k, v in o.items():
-                if str(k).strip().lower() in _COT_KEYS:
+                if is_cot_key(k):
                     found.append(str(k)); continue
                 out[k] = walk(v)
             return out
@@ -182,9 +182,10 @@ def explain(item) -> dict:
                         "caveat": ("no evidence references on record — treat as unverified" if not refs
                                    else "explanation covers observable inputs only; nothing beyond them is claimed")},
         "stripped_hidden_fields": stripped,
-        "hidden_reasoning_exposed": False,
     }
-    assert not _contains_cot(result)     # invariant — the output can never carry hidden reasoning
+    result["hidden_reasoning_exposed"] = _contains_cot(result)     # the attestation IS the scan, not a constant
+    if result["hidden_reasoning_exposed"]:
+        raise ValueError("§87 invariant violated: the explanation carries a hidden-reasoning key")   # fail closed
     return result
 
 

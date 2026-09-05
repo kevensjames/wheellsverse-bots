@@ -93,8 +93,11 @@ def candidates_from_eval(eval_now: dict, eval_prev: dict | None = None) -> tuple
     return out, sorted(unmeasured), comparison
 
 
-def run_pass(*, gaps, eval_now, eval_prev=None) -> dict:
-    """ONE bounded §80 pass: goals-vs-reality + eval → ranked candidates. Returns; never loops or re-arms."""
+def run_pass(*, gaps, eval_now, eval_prev=None, source_failures=None) -> dict:
+    """ONE bounded §80 pass: goals-vs-reality + eval → ranked candidates. Returns; never loops or re-arms.
+    ``source_failures`` = [{source, error}] the caller could not read; they are reported and no_change is
+    NOT claimed over them (an unread store has not proven "nothing to improve")."""
+    failures = [f for f in (source_failures or []) if isinstance(f, dict)]
     cands = candidates_from_gaps(gaps)
     ev, unmeasured, comparison = candidates_from_eval(eval_now, eval_prev)
     cands += ev
@@ -108,25 +111,34 @@ def run_pass(*, gaps, eval_now, eval_prev=None) -> dict:
             "eval_as_of": (eval_now or {}).get("as_of", UNAVAILABLE),
             "eval_version": (eval_now or {}).get("version", UNAVAILABLE),
             "comparison": comparison, "unmeasured": unmeasured,
-            "candidates": ranked, "dropped_no_evidence": dropped, "no_change": not ranked,
+            "candidates": ranked, "dropped_no_evidence": dropped, "source_failures": failures,
+            "no_change": not ranked and not failures,
             "ranker": "priorities.rank_key", "executes": False,
             "final_decision_by": "KAI coordinator + owner (§0 #11/§165) — candidates are proposals, not actions"}
 
 
 def run_live_pass(*, eval_prev=None, limit: int = 500) -> dict:
     """The live pass: goal_registry.analyze_all() + eval_harness.evaluate(**collect_sources()). One call
-    each (bounded); each source fails soft to empty/UNAVAILABLE."""
+    each (bounded). A store that cannot be read is REPORTED under source_failures (and no_change is not
+    claimed) — never erased into an empty goal list / an all-UNAVAILABLE snapshot that looks like calm."""
     from app.services.holding.goal_registry import analyze_all
     from app.services.holding.eval_harness import evaluate, collect_sources
+    failures = []
     try:
         gaps = analyze_all()
-    except Exception:
+    except Exception as e:   # noqa: BLE001
         gaps = []
+        failures.append({"source": "goal_registry.analyze_all", "error": f"{type(e).__name__}: {e}"[:300]})
     try:
-        snap = evaluate(**collect_sources(limit))
-    except Exception:
-        snap = evaluate()
-    return run_pass(gaps=gaps, eval_now=snap, eval_prev=eval_prev)
+        feeds = collect_sources(limit)
+    except Exception as e:   # noqa: BLE001
+        feeds = {}
+        failures.append({"source": "eval_harness.collect_sources", "error": f"{type(e).__name__}: {e}"[:300]})
+    snap = evaluate(**feeds)
+    down = sorted(k for k, v in (snap.get("sources") or {}).items() if v == "NOT_CONNECTED")
+    if down:
+        failures.append({"source": "eval_harness.collect_sources", "error": f"NOT_CONNECTED: {', '.join(down)}"})
+    return run_pass(gaps=gaps, eval_now=snap, eval_prev=eval_prev, source_failures=failures)
 
 
 if __name__ == "__main__":

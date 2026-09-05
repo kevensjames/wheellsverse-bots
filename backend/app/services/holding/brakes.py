@@ -14,9 +14,10 @@ A switch may NEVER claim to disable something it does not control: each row list
 reads (``controlled_by``) and what STOP does to it (``halted_by_stop``).
 
 STOP_AUTONOMOUS_EXECUTION (§97): one durable record (``holding_brakes`` table, self-creating; injectable
-store for tests). Engaged → ``stop_engaged()`` is True → the EXISTING composition points read it and force
-their config-read brakes OFF: ``holding_cycle.build_live_engine`` (brakes #1/#2/#3) and
-``a2_dispatch.enqueue_a2_coding_job`` (the A2 / self-improvement enqueue path). STOP halts NEW consequential work
+store for tests). Engaged or unreadable → ``stop_state()`` names WHY (STOP_ENGAGED | STOP_UNREADABLE) → the
+EXISTING composition points read it, force their config-read brakes OFF and RECORD that reason
+(``engine.brake_override`` / the A2 refusal ``reason``): ``holding_cycle.build_live_engine`` (brakes #1/#2/#3)
+and ``a2_dispatch.enqueue_a2_coding_job`` (the A2 / self-improvement enqueue path). STOP halts NEW consequential work
 (the next engine build / A2 enqueue refuses); it does NOT undo work already started — an already-built
 engine finishes its bounded cycle and claimed/running worker jobs run to completion or lease expiry — and
 the STOP report says so, listing the in-flight jobs truthfully (or UNAVAILABLE when the queue is unreadable).
@@ -34,11 +35,15 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-BRAKES_VERSION = "1.0.0"
+from app.services.holding.self_model import FLAG_KEYS
+from app.services.holding.os_lab.runtimes import FLAG_OS_LAB, FLAG_ULTRON, FLAG_VIRTME_NG, FLAG_SYZKALLER
+
+BRAKES_VERSION = "1.1.0"
 
 ON, OFF, UNAVAILABLE, POLICY_LOCKED = "ON", "OFF", "UNAVAILABLE", "POLICY_LOCKED"
 ENGAGED, RELEASED = "ENGAGED", "RELEASED"
 STOP = "STOP_AUTONOMOUS_EXECUTION"
+STOP_ENGAGED, STOP_UNREADABLE = "STOP_ENGAGED", "STOP_UNREADABLE"   # stop_state(): WHY the readers refuse
 _IN_FLIGHT = ("claimed", "running")
 
 
@@ -49,6 +54,16 @@ def _now_iso() -> str:
 # ── the ONE durable STOP record ──────────────────────────────────────────────────────────────────
 _DDL = ("CREATE TABLE IF NOT EXISTS holding_brakes (key TEXT PRIMARY KEY, record JSONB NOT NULL, "
         "updated_at TIMESTAMPTZ NOT NULL DEFAULT now())")
+_ddl_done = False
+
+
+def _ensure_table(db) -> None:
+    """Self-creating DDL, run ONCE per process (module guard) — not on every read of the hot brake path."""
+    global _ddl_done
+    if not _ddl_done:
+        from sqlalchemy import text
+        db.execute(text(_DDL)); db.commit()
+        _ddl_done = True
 
 
 class DbStopStore:
@@ -61,7 +76,7 @@ class DbStopStore:
             from app.database import SessionLocal
             db = SessionLocal()
             try:
-                db.execute(text(_DDL)); db.commit()
+                _ensure_table(db)
                 r = db.execute(text("SELECT record FROM holding_brakes WHERE key = :k"), {"k": self.KEY}).fetchone()
                 if not r:
                     return {}
@@ -77,7 +92,7 @@ class DbStopStore:
             from app.database import SessionLocal
             db = SessionLocal()
             try:
-                db.execute(text(_DDL))
+                _ensure_table(db)
                 db.execute(text("INSERT INTO holding_brakes (key, record) VALUES (:k, CAST(:r AS JSONB)) "
                                 "ON CONFLICT (key) DO UPDATE SET record = EXCLUDED.record, updated_at = now()"),
                            {"k": self.KEY, "r": json.dumps(rec, default=str)})
@@ -109,22 +124,25 @@ def stop_record(store=None) -> dict | None:
     return (store or DbStopStore()).get()
 
 
+def stop_state(store=None) -> str | None:
+    """WHY the readers refuse — None (released), STOP_ENGAGED, or STOP_UNREADABLE (fail closed). The ONE reader
+    build_live_engine + a2_dispatch compose, so every refusal carries its real reason (never a bare False)."""
+    rec = stop_record(store)
+    if rec is None:
+        return STOP_UNREADABLE
+    return STOP_ENGAGED if rec.get("engaged") else None
+
+
 def stop_engaged(store=None) -> bool:
     """§97 truth the existing brake readers consult. Unreadable → True (fail closed)."""
-    rec = stop_record(store)
-    return True if rec is None else bool(rec.get("engaged"))
+    return stop_state(store) is not None
 
 
 # ── flag reading (never invents a value: unreadable → None → UNAVAILABLE) ───────────────────────
-_ALL_FLAGS = (
-    "KAI_HOLDING_WATCH_ENABLED", "KAI_HOLDING_CYCLE_ENABLED",
-    "KAI_SELF_IMPROVEMENT_DETECT_ENABLED", "KAI_PROACTIVE_ENABLED",
-    "KAI_CAPABILITY_EXECUTION_ENABLED", "HOLDING_AUTONOMY_ENABLED", "KAI_A2_EXECUTION_ENABLED",
-    "KAI_SELF_IMPROVEMENT_ENABLED", "KAI_HOLDING_DELIVERY_ENABLED",
-    "KAI_CYBER_OPS_ENABLED", "KAI_VOICE_ENABLED",
-    "KAI_OS_LAB_ENABLED", "KAI_OS_LAB_ULTRON_RUNTIME_ENABLED", "KAI_OS_LAB_VIRTME_NG_ENABLED",
-    "KAI_OS_LAB_SYZKALLER_ENABLED",
-)
+OS_LAB_FLAGS = (FLAG_OS_LAB, FLAG_ULTRON, FLAG_VIRTME_NG, FLAG_SYZKALLER)
+# ONE flag vocabulary (§L1): the boolean *_ENABLED keys of self_model.FLAG_KEYS + os_lab.runtimes' own flag
+# constants — composed, never a second literal list. (FLAG_KEYS' MONEY_MODE/APP_ENV are context, not brakes.)
+_ALL_FLAGS = tuple(k for k in FLAG_KEYS if k.endswith("_ENABLED")) + OS_LAB_FLAGS
 
 
 def _load_default_settings():
@@ -223,16 +241,48 @@ def _external_comm_row(flags: dict, env: dict, now: str) -> dict:
                 reasons=[reason], mutable_via="config/env (redeploy) — NOT controlled by STOP")
 
 
-def _financial_row(settings, now: str) -> dict:
-    """No switch in this app enables financial execution: Settings declares no MONEY_MODE field (App A /
-    env owns it; readers default to MOCK), status.autonomy_status hardcodes financial_execution=DISABLED, and
-    the privileged security caps never touch MONEY_MODE (§59). POLICY_LOCKED — never a controllable OFF."""
-    observed = getattr(settings, "MONEY_MODE", None) if settings is not None else None
-    return _row("FINANCIAL_EXECUTION", POLICY_LOCKED, controlled_by=(), halted_by_stop=False, now=now,
-                enforced_by="no execution path exists in this app; MONEY_MODE is App A/env-owned; status.financial_execution=DISABLED",
-                flags={"MONEY_MODE_observed": observed if observed is not None else "NOT_DECLARED_IN_THIS_APP (readers default MOCK)"},
-                reasons=["disabled by construction — no flag here can enable it; STOP neither controls nor claims it"],
-                mutable_via="NONE in this app")
+_SOL_MONEY_PATH = ("routers/sol.py POST /admin/sol/cycles/{id}/collect|payout|retry-failed → DwollaClient ACH debit/payout "
+                   "(admin token + approved=True, operator-driven — not autonomous)")
+_FIN_CONTROLS = ("KAI_SCOPE_SOL_TRANSFER", "DWOLLA_ENV", "DWOLLA_ALLOW_PRODUCTION", "DWOLLA credentials (presence only)")
+_FIN_ENFORCED_BY = "governance.actions.audited(scope=sol.transfer) + dwolla.client sandbox-lock"
+
+
+def _financial_row(now: str) -> dict:
+    """FINANCIAL_EXECUTION is a REAL env-controlled path in THIS app (app/main.py mounts routers/sol.py). Derived
+    from the SAME readers the enforcers use — governance.actions.is_scope_enabled('sol.transfer') (the @audited
+    gate) and dwolla.client.is_configured/_env/_truthy/_HOSTS (the sandbox-lock). Credential PRESENCE only, never
+    a value. Readers raising → UNAVAILABLE, never a guessed OFF. STOP does not control it (and says so)."""
+    try:
+        from app.services.governance.actions import is_scope_enabled
+        from app.services.dwolla.client import is_configured, _env as dwolla_env, _truthy, _HOSTS
+        scope_on, creds = bool(is_scope_enabled("sol.transfer")), bool(is_configured())
+        denv, allow, hosts = dwolla_env(), bool(_truthy("DWOLLA_ALLOW_PRODUCTION")), tuple(_HOSTS)
+    except Exception:   # noqa: BLE001 — the enforcers' readers failed: unreadable, never guessed
+        return _row("FINANCIAL_EXECUTION", UNAVAILABLE, controlled_by=_FIN_CONTROLS, enforced_by=_FIN_ENFORCED_BY,
+                    halted_by_stop=False, now=now, reasons=["scope / dwolla readers unreadable"], mutable_via="env",
+                    path=_SOL_MONEY_PATH)
+    if denv not in hosts:
+        mode, client_ok = "INVALID_DWOLLA_ENV", False
+    elif denv == "production":
+        mode, client_ok = ("PRODUCTION", True) if allow else ("PRODUCTION_LOCKED", False)
+    else:
+        mode, client_ok = "SANDBOX", True
+    reasons = []
+    if not scope_on:
+        reasons.append("scope sol.transfer not enabled (KAI_SCOPE_SOL_TRANSFER / wildcard KAI_SCOPE_SOL unset) → ScopeDenied")
+    if not creds:
+        reasons.append("DWOLLA_KEY / DWOLLA_SECRET absent → DwollaClient not configured")
+    if not client_ok:
+        reasons.append(f"DWOLLA_ENV={denv!r}: " + ("DWOLLA_ALLOW_PRODUCTION unset → DwollaProductionLocked (sandbox-lock)"
+                                                   if mode == "PRODUCTION_LOCKED" else "unknown host — DwollaClient refuses"))
+    state = ON if (scope_on and creds and client_ok) else OFF
+    if state == ON:
+        reasons.append(f"scope enabled + credentials present → live ACH path against {mode}")
+    reasons.append("operator-driven (admin token + approved=True); STOP does NOT control it")
+    return _row("FINANCIAL_EXECUTION", state, controlled_by=_FIN_CONTROLS, enforced_by=_FIN_ENFORCED_BY, halted_by_stop=False,
+                now=now, flags={"KAI_SCOPE_SOL_TRANSFER (is_scope_enabled)": scope_on, "DWOLLA_ENV": denv,
+                                "DWOLLA_ALLOW_PRODUCTION": allow, "dwolla_credentials_present": creds, "mode": mode},
+                reasons=reasons, mutable_via="env", path=_SOL_MONEY_PATH)
 
 
 def _restricted_security_row(flags: dict, now: str, *, manifests_loader=None) -> dict:
@@ -264,13 +314,12 @@ def _default_security_manifests():
 
 
 def _os_lab_row(settings, now: str) -> dict:
+    names = OS_LAB_FLAGS
     try:
-        from app.services.holding.os_lab.runtimes import (_runtime_on, _is_production, FLAG_OS_LAB, FLAG_ULTRON,
-                                                          FLAG_VIRTME_NG, FLAG_SYZKALLER)
+        from app.services.holding.os_lab.runtimes import _runtime_on, _is_production
     except Exception:   # noqa: BLE001
-        return _row("OS_LAB_ACTIVE_RUNTIME", UNAVAILABLE, controlled_by=(), halted_by_stop=False, now=now,
+        return _row("OS_LAB_ACTIVE_RUNTIME", UNAVAILABLE, controlled_by=names, halted_by_stop=False, now=now,
                     enforced_by="holding.os_lab.runtimes", reasons=["os_lab module unreadable"], mutable_via=UNAVAILABLE)
-    names = (FLAG_OS_LAB, FLAG_ULTRON, FLAG_VIRTME_NG, FLAG_SYZKALLER)
     if settings is None:
         return _row("OS_LAB_ACTIVE_RUNTIME", UNAVAILABLE, controlled_by=names, halted_by_stop=False, now=now,
                     enforced_by="os_lab.runtimes._runtime_on", reasons=["config unavailable"], mutable_via=UNAVAILABLE)
@@ -291,6 +340,7 @@ def _stop_row(rec: dict | None, now: str) -> dict:
     halts = [b for b, _n, _m, _e, h in _FLAG_BRAKES if h]
     no_halt = [b for b, _n, _m, _e, h in _FLAG_BRAKES if not h] + \
               ["EXTERNAL_COMMUNICATION", "FINANCIAL_EXECUTION", "RESTRICTED_SECURITY", "OS_LAB_ACTIVE_RUNTIME",
+               "FINANCIAL_EXECUTION's Sol money path — " + _SOL_MONEY_PATH + " — env-gated; STOP does NOT control it",
                "owner-driven /admin/capabilities + /admin/holding/command invocations (not autonomous)"]
     if rec is None:
         state, treated = UNAVAILABLE, ENGAGED
@@ -298,8 +348,8 @@ def _stop_row(rec: dict | None, now: str) -> dict:
         state, treated = (ENGAGED if rec.get("engaged") else RELEASED), (ENGAGED if rec.get("engaged") else RELEASED)
     return {"brake": STOP, "state": state, "treated_as": treated, "record": rec if rec else {},
             "controlled_by": ["holding_brakes durable record (brakes.stop / brakes.release, owner-only, audited)"],
-            "honored_by": ["holding_cycle.build_live_engine (config-read brakes #1/#2/#3 forced OFF)",
-                           "a2_dispatch.enqueue_a2_coding_job (A2 + self-improvement enqueue refused: STOP_ENGAGED)"],
+            "honored_by": ["holding_cycle.build_live_engine (config-read brakes #1/#2/#3 forced OFF; engine.brake_override records why)",
+                           "a2_dispatch.enqueue_a2_coding_job (A2 + self-improvement enqueue refused: STOP_ENGAGED | STOP_UNREADABLE)"],
             "halts": halts, "does_not_halt": no_halt,
             "latency": "next build_live_engine / A2 enqueue; an already-built engine finishes its bounded cycle; "
                        "claimed/running worker jobs run to completion or lease expiry (never undone, never hidden)",
@@ -321,7 +371,7 @@ def brakes(*, settings=None, load_settings: Callable | None = None, stop_store=N
     rows = [_stop_row(rec, now)]
     rows += _flag_rows(flags, settings, stopped, now)
     rows.append(_external_comm_row(flags, env if env is not None else os.environ, now))
-    rows.append(_financial_row(settings, now))
+    rows.append(_financial_row(now))
     rows.append(_restricted_security_row(flags, now, manifests_loader=manifests_loader))
     rows.append(_os_lab_row(settings, now))
     return {"version": BRAKES_VERSION, "observed_at": now, "stop_engaged": (True if stopped is None else stopped),

@@ -10,10 +10,16 @@ and runtime health (``status.autonomy_status``).
 
 Every capability is tagged with exactly one of
     AVAILABLE / ACTIVE / DISABLED / BLOCKED / AUTH_REQUIRED / RESTRICTED / UNAVAILABLE / EXPERIMENTAL
-by the versioned rule table ``status_of`` — a pure function of manifest fields + flags, so flipping a
-flag (e.g. KAI_CAPABILITY_EXECUTION_ENABLED) observably changes the answer. "Can't / not allowed" is
-DERIVED from policy: ``self_model._derive_limitations`` (the invariants + live flag posture) — no second
-limitations list. Deterministic; testable as a plain ``python3`` script (mirrors test_registry.py).
+by the versioned rule table ``status_of`` — a pure function of manifest fields + flags + the §97 STOP
+record, so flipping a flag (e.g. KAI_CAPABILITY_EXECUTION_ENABLED) or engaging STOP observably changes the
+answer. ACTIVE is claimed ONLY when execution authority exists right now (brakes on AND STOP released);
+an observed-live worker with no authority is AVAILABLE, never ACTIVE. STOP unreadable → treated as
+engaged (fail closed, brakes' own rule). "Can't / not allowed" is DERIVED from policy:
+``self_model._derive_limitations`` (the invariants + live flag posture) — no second limitations list.
+Money: MONEY_MODE is NOT declared in this app's Settings (readers default MOCK) → reported UNAVAILABLE,
+never as an observed mode; the real money path (routers/sol.py → governance scope ``sol.transfer`` →
+DwollaClient sandbox-lock) is reported from ITS switches. Deterministic; testable as a plain ``python3``
+script (mirrors test_registry.py).
 """
 from __future__ import annotations
 
@@ -23,10 +29,11 @@ import re
 from app.services.capability.manifest import (Availability as AV, Certification as CE, ActivationMode as AM,
                                               RiskClass as RK, CapabilityType as CT)
 from app.services.capability.coding import coding_action_class
+from app.services.holding.brakes import STOP                      # §97 — the ONE stop vocabulary
 from app.services.holding.self_model import _derive_limitations
-from app.services.holding.worker_health import LIVE_STATES, normalize as normalize_workers
+from app.services.holding.worker_health import LIVE_STATES, normalize as normalize_workers, stop_state
 
-CAPABILITIES_ANSWER_VERSION = "1.0.0"
+CAPABILITIES_ANSWER_VERSION = "1.1.0"
 UNAVAILABLE = "UNAVAILABLE"
 AREAS = ("observation", "analysis", "engineering", "browser-research", "files", "deployment",
          "marketing", "finance", "security", "systems-research", "communication")
@@ -50,9 +57,15 @@ _KEYWORD_AREA = (   # (area, keywords) — matched against the manifest's OWN ca
     ("communication", ("slack", "telegram", "email", "notify", "messaging")),
     ("files", ("file", "document", "pdf", "convert", "markdown")),
 )
-# §119 worker state → §98 status
-_WORKER_STATUS = {"BUSY": "ACTIVE", "IDLE": "ACTIVE", "ONLINE": "AVAILABLE", "DEGRADED": "BLOCKED",
+# §119 worker state → §98 status. Live states are AVAILABLE: liveness is an observation, ACTIVE is a claim of
+# execution authority, which only the brakes + a released STOP grant (answer() upgrades to ACTIVE then).
+_WORKER_STATUS = {"BUSY": "AVAILABLE", "IDLE": "AVAILABLE", "ONLINE": "AVAILABLE", "DEGRADED": "BLOCKED",
                   "AUTH_BLOCKED": "AUTH_REQUIRED", "OFFLINE": UNAVAILABLE, "QUARANTINED": "BLOCKED"}
+
+
+def _stop_why(stopped) -> str:
+    """The §97 reason text; ``stopped`` None = record unreadable → treated as engaged (fail closed)."""
+    return f"{STOP} engaged (brakes)" + ("" if stopped else " — record unreadable, treated as engaged (fail closed)")
 
 
 def area_of(m) -> str:
@@ -71,8 +84,9 @@ def _module_present(mod: str) -> bool:
         return False
 
 
-def status_of(m, flags: dict) -> tuple[str, str]:
-    """THE versioned rule table: (status, why) from the manifest's real fields + the execution brake."""
+def status_of(m, flags: dict, stopped=None) -> tuple[str, str]:
+    """THE versioned rule table: (status, why) from the manifest's real fields + the execution brake + §97
+    STOP (``stopped`` True/None → never ACTIVE)."""
     if m.availability == AV.QUARANTINED:
         return "BLOCKED", "QUARANTINED after a policy/health violation (§52) — cleared only explicitly"
     if m.availability == AV.EXTERNAL_BLOCKED or m.certification in (CE.EXTERNAL_BLOCKED, CE.REJECTED):
@@ -88,7 +102,10 @@ def status_of(m, flags: dict) -> tuple[str, str]:
     if m.certification in (CE.EXPERIMENTAL, CE.PARTIAL, CE.UPSTREAM_UNRESOLVED):
         return "EXPERIMENTAL", f"available but certification={m.certification.value}"
     if (flags or {}).get("KAI_CAPABILITY_EXECUTION_ENABLED"):
-        return "ACTIVE", "certified + selectable, and the execution plane (brake #1) is ON"
+        if stopped is False:
+            return "ACTIVE", "certified + selectable, and the execution plane (brake #1) is ON"
+        return "AVAILABLE", (f"certified + selectable; brake #1 is ON but {_stop_why(stopped)} — no autonomous "
+                             "execution (owner-driven invocation is not halted by STOP)")
     return "AVAILABLE", "certified + selectable; execution plane (brake #1 KAI_CAPABILITY_EXECUTION_ENABLED) is OFF"
 
 
@@ -97,8 +114,8 @@ def _flag_status(flags: dict, key: str, *, on="ACTIVE", off="DISABLED") -> tuple
     return (on if on_ else off), f"config.{key}={on_}"
 
 
-def _service_entries(flags: dict, *, telegram: dict, autonomy: dict, finance_available: bool,
-                     os_lab_present) -> list[dict]:
+def _service_entries(flags: dict, *, stopped, telegram: dict, autonomy: dict, finance_available: bool,
+                     os_lab_present, money_switches) -> list[dict]:
     """Holding services / mission system / connectors / authority — each derived from a REAL flag or probe."""
     f = flags or {}
     brakes = f.get("KAI_CAPABILITY_EXECUTION_ENABLED") and f.get("HOLDING_AUTONOMY_ENABLED")
@@ -107,6 +124,12 @@ def _service_entries(flags: dict, *, telegram: dict, autonomy: dict, finance_ava
 
     def add(area, cid, name, status, why, source):
         rows.append({"area": area, "id": cid, "name": name, "status": status, "why": why, "source": source})
+
+    def halted(on, why):
+        """§97: the three autonomous-execution rows are DISABLED while STOP is engaged or unreadable."""
+        if stopped is not False:
+            return "DISABLED", f"{_stop_why(stopped)}; {why}"
+        return ("ACTIVE" if on else "DISABLED"), why
 
     for area, cid, name, key in (
         ("observation", "holding.view", "Holding view (read-only twin/registry)", "KAI_HOLDING_ENABLED"),
@@ -132,15 +155,15 @@ def _service_entries(flags: dict, *, telegram: dict, autonomy: dict, finance_ava
         "read-only records; execution of mission work needs the brakes" if present
         else "module not importable in this runtime", "holding.mission")
     add("engineering", "holding.autonomous_work", "Autonomous work engine (A0/A1)",
-        "ACTIVE" if brakes else "DISABLED",
-        f"brake #1 KAI_CAPABILITY_EXECUTION_ENABLED={bool(f.get('KAI_CAPABILITY_EXECUTION_ENABLED'))}, "
-        f"brake #2 HOLDING_AUTONOMY_ENABLED={bool(f.get('HOLDING_AUTONOMY_ENABLED'))}", "holding.holding_cycle.build_live_engine")
+        *halted(brakes, f"brake #1 KAI_CAPABILITY_EXECUTION_ENABLED={bool(f.get('KAI_CAPABILITY_EXECUTION_ENABLED'))}, "
+                        f"brake #2 HOLDING_AUTONOMY_ENABLED={bool(f.get('HOLDING_AUTONOMY_ENABLED'))}"),
+        "holding.holding_cycle.build_live_engine")
     add("engineering", "a2.prepare_only", "A2 isolated-worktree prepare (never merge/deploy)",
-        "ACTIVE" if a2 else "DISABLED",
-        f"needs brakes #1+#2 and #3 KAI_A2_EXECUTION_ENABLED={bool(f.get('KAI_A2_EXECUTION_ENABLED'))}", "holding.a2_framework")
+        *halted(a2, f"needs brakes #1+#2 and #3 KAI_A2_EXECUTION_ENABLED={bool(f.get('KAI_A2_EXECUTION_ENABLED'))}"),
+        "holding.a2_framework")
     add("engineering", "self_improvement.prepare", "Self-improvement preparation (READY_FOR_REVIEW only)",
-        "ACTIVE" if (a2 and f.get("KAI_SELF_IMPROVEMENT_ENABLED")) else "DISABLED",
-        f"needs the three A2 brakes + KAI_SELF_IMPROVEMENT_ENABLED={bool(f.get('KAI_SELF_IMPROVEMENT_ENABLED'))}",
+        *halted(a2 and f.get("KAI_SELF_IMPROVEMENT_ENABLED"),
+                f"needs the three A2 brakes + KAI_SELF_IMPROVEMENT_ENABLED={bool(f.get('KAI_SELF_IMPROVEMENT_ENABLED'))}"),
         "holding.self_improvement_guardrails")
     for op in ("merge", "deploy", "branch_protection"):
         ac = coding_action_class(op).value
@@ -152,11 +175,29 @@ def _service_entries(flags: dict, *, telegram: dict, autonomy: dict, finance_ava
     add("deployment", "deployment.status", "Deployment SHA/status read adapter", "AVAILABLE" if present else UNAVAILABLE,
         "read-only provider adapter; no write path" if present else "module not importable in this runtime",
         "holding.deployment_status")
-    money = f.get("MONEY_MODE") or "MOCK"
-    add("finance", "money.move", "Move / pay / trade / change budgets",
-        "DISABLED" if money == "MOCK" else "RESTRICTED",
-        f"MONEY_MODE={money}" + (" — no money moves" if money == "MOCK" else " — owner-only FINANCIAL action class"),
-        "config.MONEY_MODE")
+    money = f.get("MONEY_MODE")
+    policy = "money never moves without owner authority (§99 policy — owner-only FINANCIAL action class)"
+    if money is None:            # this app's Settings declares no MONEY_MODE: a reader default is not an observation
+        add("finance", "money.move", "Move / pay / trade / change budgets", UNAVAILABLE,
+            f"MONEY_MODE not declared in this app's Settings (readers default MOCK); {policy}", "config.MONEY_MODE")
+    else:
+        add("finance", "money.move", "Move / pay / trade / change budgets",
+            "DISABLED" if money == "MOCK" else "RESTRICTED", f"MONEY_MODE={money} (declared); {policy}", "config.MONEY_MODE")
+    sw = money_switches if isinstance(money_switches, dict) else None
+    if sw is None:
+        add("finance", "finance.sol_transfer", "Sol ROSCA money movement (Dwolla ACH collect / payout)", UNAVAILABLE,
+            f"money-path switches unreadable (governance scope sol.transfer / Dwolla env); {policy}",
+            "config.env:KAI_SCOPE_SOL_TRANSFER,DWOLLA_ENV,DWOLLA_ALLOW_PRODUCTION")
+    else:
+        scope = bool(sw.get("scope_sol_transfer"))
+        add("finance", "finance.sol_transfer", "Sol ROSCA money movement (Dwolla ACH collect / payout)",
+            "RESTRICTED" if scope else "DISABLED",
+            f"KAI_SCOPE_SOL_TRANSFER={'on' if scope else 'off'} (governance scope sol.transfer on routers/sol.py"
+            f"{'' if scope else ' → ScopeDenied'}); every call also needs approved=True (destructive) + the DwollaClient "
+            f"sandbox-lock: DWOLLA_ENV={sw.get('dwolla_env') or UNAVAILABLE}, "
+            f"DWOLLA_ALLOW_PRODUCTION={bool(sw.get('dwolla_allow_production'))}, "
+            f"Dwolla credentials present={sw.get('dwolla_credentials_present')} (presence only); {policy}",
+            "config.env:KAI_SCOPE_SOL_TRANSFER,DWOLLA_ENV,DWOLLA_ALLOW_PRODUCTION")
     add("finance", "finance.feed", "Live authoritative finance/revenue feed",
         "AVAILABLE" if finance_available else UNAVAILABLE,
         "authoritative source wired" if finance_available else "no live Stripe/CRM/billing source — figures UNAVAILABLE, never estimated",
@@ -179,26 +220,32 @@ def _service_entries(flags: dict, *, telegram: dict, autonomy: dict, finance_ava
 
 
 def answer(*, manifests, flags, worker_snapshot=None, telegram=None, autonomy=None,
-           finance_available: bool = False, os_lab_present: bool = False) -> dict:
+           finance_available: bool = False, os_lab_present: bool = False, stopped=None, money_switches=None) -> dict:
     """§98/§99 pure answer. ``manifests`` = registry manifests; ``flags`` = self_model._flags() shape;
-    ``worker_snapshot`` = worker_health.normalize(...) (built here from the manifests when None)."""
+    ``worker_snapshot`` = worker_health.normalize(...) (built here from the manifests when None);
+    ``stopped`` = §97 STOP tri-state (True engaged / False released / None unreadable → treated as engaged);
+    ``money_switches`` = sol_money_switches() (None → the Sol money row is UNAVAILABLE)."""
     flags = flags or {}
-    ws = worker_snapshot or normalize_workers(manifests=manifests, flags=flags)
+    ws = worker_snapshot or normalize_workers(manifests=manifests, flags=flags, stopped=stopped)
     wstate = {w["worker"]: w for w in ws.get("workers", [])}
     rows = []
     for m in manifests or []:
         if m.id in wstate:                       # §119/§120 real worker truth wins over the catalog row
             w = wstate[m.id]
-            rows.append({"area": "engineering", "id": m.id, "name": m.name, "status": _WORKER_STATUS[w["state"]],
+            status = _WORKER_STATUS[w["state"]]
+            if status == "AVAILABLE" and w["execution_authority"] != "NONE" and stopped is False:
+                status = "ACTIVE"                # observed live AND holds execution authority right now
+            rows.append({"area": "engineering", "id": m.id, "name": m.name, "status": status,
                          "why": f"worker {w['state']}: " + "; ".join(w["reasons"]),
                          "source": "holding.worker_health", "worker_state": w["state"],
                          "execution_authority": w["execution_authority"]})
             continue
-        s, why = status_of(m, flags)
+        s, why = status_of(m, flags, stopped)
         rows.append({"area": area_of(m), "id": m.id, "name": m.name, "status": s, "why": why,
                      "source": f"capability.registry:{m.id}", "type": m.type.value})
-    rows += _service_entries(flags, telegram=telegram or {}, autonomy=autonomy or {},
-                             finance_available=finance_available, os_lab_present=os_lab_present)
+    rows += _service_entries(flags, stopped=stopped, telegram=telegram or {}, autonomy=autonomy or {},
+                             finance_available=finance_available, os_lab_present=os_lab_present,
+                             money_switches=money_switches)
     areas = []
     for a in AREAS:
         items = sorted((r for r in rows if r["area"] == a), key=lambda r: r["id"])
@@ -213,22 +260,36 @@ def answer(*, manifests, flags, worker_snapshot=None, telegram=None, autonomy=No
     return {"version": CAPABILITIES_ANSWER_VERSION,
             "areas": areas, "can": can, "restricted": restricted,
             "cannot": cannot, "cannot_source": "self_model._derive_limitations (policy invariants + live flags)",
-            "authority": {k: flags.get(k) for k in ("MONEY_MODE", "KAI_CAPABILITY_EXECUTION_ENABLED",
-                                                     "HOLDING_AUTONOMY_ENABLED", "KAI_A2_EXECUTION_ENABLED",
-                                                     "KAI_SELF_IMPROVEMENT_ENABLED", "APP_ENV")},
+            "authority": {**{k: flags.get(k) for k in ("MONEY_MODE", "KAI_CAPABILITY_EXECUTION_ENABLED",
+                                                        "HOLDING_AUTONOMY_ENABLED", "KAI_A2_EXECUTION_ENABLED",
+                                                        "KAI_SELF_IMPROVEMENT_ENABLED", "APP_ENV")},
+                          STOP: stop_state(stopped)},
             "workers": ws, "connectors": connectors,
             "counts": {s: sum(1 for r in rows if r["status"] == s) for s in STATUSES},
             "derived_from": ["capability.registry (seed manifests)", "holding.worker_health", "self_model._flags",
-                             "holding.status.telegram_status", "holding.status.autonomy_status",
-                             "holding.registry.report_value", "self_model._derive_limitations"],
+                             "holding.brakes.stop_record (§97 STOP)", "holding.status.telegram_status",
+                             "holding.status.autonomy_status", "holding.registry.report_value",
+                             "governance.actions.is_scope_enabled + dwolla.client (Sol money-path switches)",
+                             "self_model._derive_limitations"],
             "hardcoded_list": False}
 
 
+def sol_money_switches() -> dict:
+    """The REAL switches on the only money path in this app (routers/sol.py collect/payout → governance
+    ``@audited(scope="sol.transfer", destructive=True)`` → DwollaClient sandbox-lock), read by the modules
+    that enforce them — presence/posture only, never a key value (§120)."""
+    from app.services.governance.actions import is_scope_enabled
+    from app.services.dwolla.client import _env, _truthy, is_configured
+    return {"scope_sol_transfer": is_scope_enabled("sol.transfer"), "dwolla_env": _env(),
+            "dwolla_allow_production": _truthy("DWOLLA_ALLOW_PRODUCTION"), "dwolla_credentials_present": is_configured()}
+
+
 def live_answer() -> dict:
-    """The live §98/§99 answer from the REAL sources (each fail-soft → UNAVAILABLE/empty, never a guess)."""
+    """The live §98/§99 answer from the REAL sources (each fail-soft → UNAVAILABLE/empty, never a guess).
+    §97 STOP is read ONCE (worker_health.read_stop over brakes.stop_record) and threaded everywhere."""
     from app.services.capability.seed import seed_registry
     from app.services.holding import self_model as sm
-    from app.services.holding.worker_health import snapshot as worker_snapshot
+    from app.services.holding.worker_health import read_stop, snapshot as worker_snapshot
     manifests = seed_registry().list()
     def _try(fn, default):
         try:
@@ -236,15 +297,18 @@ def live_answer() -> dict:
         except Exception:      # noqa: BLE001 — a failing subsystem is honestly UNAVAILABLE
             return default
     flags = _try(sm._flags, {})
+    stopped = read_stop()                      # None = unreadable → treated as engaged downstream
     try:
         from app.services.holding.os_lab import catalog as _os_lab   # noqa: F401
         os_lab_present = True
     except Exception:
         os_lab_present = False
     from app.services.holding import status as hstat
-    return answer(manifests=manifests, flags=flags, worker_snapshot=_try(lambda: worker_snapshot(flags=flags), None),
+    return answer(manifests=manifests, flags=flags,
+                  worker_snapshot=_try(lambda: worker_snapshot(flags=flags, stopped=stopped), None),
                   telegram=_try(hstat.telegram_status, {}), autonomy=_try(hstat.autonomy_status, {}),
-                  finance_available=_try(sm._finance_available, False), os_lab_present=os_lab_present)
+                  finance_available=_try(sm._finance_available, False), os_lab_present=os_lab_present,
+                  stopped=stopped, money_switches=_try(sol_money_switches, None))
 
 
 if __name__ == "__main__":

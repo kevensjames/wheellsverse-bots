@@ -37,14 +37,15 @@ def enqueue_a2_coding_job(*, mission_id: str, base_sha: str, settings, company_i
     (EDIT_CODE_IN_WORKTREE,coding,company,staging) is granted. Otherwise REFUSE (no job, a typed reason) —
     0 A2 writes. Deployed KAI is the only enqueuer. Returns {enqueued, reason, job, task}."""
     from app.services.holding.a2_wiring import build_a2_grant_registry
-    from app.services.holding.brakes import stop_engaged
+    from app.services.holding.brakes import stop_state
     reg = grant_registry or build_a2_grant_registry()
     if str(getattr(settings, "APP_ENV", "")).lower() != "staging":       # §30 staging-only
         return {"enqueued": False, "reason": "STAGING_ONLY"}
     if not brakes_all_on(settings):                                      # §31 three brakes
         return {"enqueued": False, "reason": "BRAKE_OFF"}
-    if stop_engaged(stop_store):                                         # §97 STOP (unreadable → engaged)
-        return {"enqueued": False, "reason": "STOP_ENGAGED"}
+    stopped = stop_state(stop_store)                                     # §97 STOP: STOP_ENGAGED | STOP_UNREADABLE (fail closed)
+    if stopped:
+        return {"enqueued": False, "reason": stopped}
     if (company_autonomy or {}).get(company_id, True) is False:          # §31 company kill-switch
         return {"enqueued": False, "reason": "COMPANY_AUTONOMY_OFF"}
     if not base_sha:                                                     # §7 base_sha required (fail closed)

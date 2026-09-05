@@ -151,7 +151,33 @@ def run() -> bool:
     # ── live pass over the real readers (DB-less here: every source fails soft) ──────────────────
     lv = ic.run_live_pass()
     ck("run_live_pass(): one bounded pass over the real goal store + real feeds, honest when nothing is connected",
-       lv["bounded"] is True and lv["passes"] == 1 and lv["executes"] is False and isinstance(lv["candidates"], list))
+       lv["bounded"] is True and lv["passes"] == 1 and lv["executes"] is False and isinstance(lv["candidates"], list)
+       and isinstance(lv["source_failures"], list))
+    ck("run_pass: a reported source failure blocks no_change=True (an unread store has not proven 'nothing to improve'); none -> unchanged",
+       run_pass(gaps=[], eval_now=evaluate(), source_failures=[{"source": "x", "error": "y"}])["no_change"] is False
+       and run_pass(gaps=[], eval_now=evaluate(), source_failures=[])["no_change"] is True
+       and run_pass(gaps=[], eval_now=evaluate(), source_failures=["junk", None])["no_change"] is True)
+    def _boom(*a, **k): raise RuntimeError("goal store down")
+    goal_registry.analyze_all = _boom
+    try:
+        gf = ic.run_live_pass()
+    finally:
+        goal_registry.analyze_all = _aa
+    ck("goal store raising -> run_live_pass REPORTS it under source_failures (goal_registry.analyze_all, RuntimeError) and no_change is False",
+       any(f["source"] == "goal_registry.analyze_all" and "RuntimeError" in f["error"] for f in gf["source_failures"])
+       and gf["no_change"] is False and gf["goals_reviewed"] == 0)
+    import app.database as _db
+    _sl = _db.SessionLocal
+    def _down(*a, **k): raise RuntimeError("db down")
+    try:
+        _db.SessionLocal = _down
+        dbf = ic.run_live_pass()
+    finally:
+        _db.SessionLocal = _sl
+    ck("DB down -> the eval feeds' NOT_CONNECTED is a reported failure (cycles/jobs/missions/proposals), no_change is False, not erased into calm",
+       any(f["source"] == "eval_harness.collect_sources" and f["error"] == "NOT_CONNECTED: cycles, jobs, missions, proposals"
+           for f in dbf["source_failures"])
+       and dbf["no_change"] is False)
 
     # ── consolidation + purity ────────────────────────────────────────────────────────────────────
     ck("composes goal_registry.analyze_all, eval_harness.evaluate/compare/collect_sources, priorities.rank_key, health_score.evidence_quality",
