@@ -34,8 +34,17 @@
 .kaip-orb[data-state="thinking"] .kaip-orb-dot { animation: kaip-pulse .7s infinite; }
 .kaip-orb[data-state="speaking"] .kaip-orb-dot { animation: kaip-pulse .35s infinite; }
 .kaip-orb[data-state="alert"] { background: linear-gradient(135deg, var(--kaip-warn), var(--kaip-err)); }
+/* Phase 7b presence states — each is driven by a REAL event (mic open, command accepted, approval pending, backend failure) */
+.kaip-orb[data-state="listening"] { background: linear-gradient(135deg, var(--kaip-accent), #0aa36c); box-shadow: 0 8px 30px rgba(77, 244, 165, .45), 0 0 0 3px rgba(77, 244, 165, .35); }
+.kaip-orb[data-state="listening"] .kaip-orb-dot { background: var(--kaip-err); animation: kaip-pulse .6s infinite; }
+.kaip-orb[data-state="working"] .kaip-orb-dot { animation: kaip-pulse .5s infinite; }
+.kaip-orb[data-state="waiting"] { background: linear-gradient(135deg, var(--kaip-warn), #ff8a3d); }
+.kaip-orb[data-state="degraded"] { background: #3a2a30; color: var(--kaip-err); box-shadow: 0 6px 20px rgba(255, 91, 110, .25); }
+.kaip-orb[data-state="degraded"] .kaip-orb-dot { background: var(--kaip-err); animation: none; }
+.kaip-orb-mic { display: none; font-size: 10px; letter-spacing: .08em; padding: 2px 6px; border-radius: 8px; background: var(--kaip-err); color: #fff; }
+.kaip-orb[data-mic="1"] .kaip-orb-mic { display: inline-block; animation: kaip-pulse 1s infinite; }
 @keyframes kaip-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .kaip-orb-dot { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .kaip-orb-dot, .kaip-orb-mic, .kaip-mic-dot, .kaip-title-dot { animation: none !important; } }
 
 /* ── backdrop ────────────────────────────────────────────────────────────── */
 .kaip-backdrop { position: fixed; inset: 0; z-index: 2147483200; background: rgba(2, 5, 12, .45); opacity: 0; pointer-events: none; transition: opacity .25s; }
@@ -88,38 +97,111 @@
 
 @media (max-width: 520px) { .kaip-drawer { width: 100vw; right: -100vw; } }
 
-/* ── NEXUS immersive (§P13) — same provider, full-screen ─────────────────── */
-.kaip-nexus { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column;
-  background: radial-gradient(1200px 700px at 50% 34%, #0c1730 0%, #05070d 62%); color: var(--kaip-text);
-  font-family: 'Space Grotesk', system-ui, sans-serif; }
-.kaip-nx-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--kaip-border); }
-.kaip-nx-exit { color: var(--kaip-muted); text-decoration: none; font-size: 13px; justify-self: start; }
-.kaip-nx-exit:hover { color: var(--kaip-text); }
-.kaip-nx-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; letter-spacing: 1px; justify-self: center; }
-.kaip-nx-ctx { justify-self: end; font-size: 11px; color: var(--kaip-cyan); text-transform: lowercase; }
-.kaip-nx-core { display: flex; align-items: center; justify-content: center; padding: 26px 0 12px; }
-/* Living avatar — driven video (idle ⇄ speaking) composited into the dark stage */
-.kaip-av { position: relative; width: 264px; height: 264px; border-radius: 50%; }
-.kaip-av-ring { position: absolute; inset: -12px; border-radius: 50%; pointer-events: none;
-  border: 1px solid rgba(0, 212, 255, .3); box-shadow: 0 0 60px rgba(0, 212, 255, .4), inset 0 0 30px rgba(0, 212, 255, .14);
-  animation: kaip-breathe 4s ease-in-out infinite; }
-.kaip-av[data-state="thinking"] .kaip-av-ring { animation-duration: 1.4s; }
-.kaip-av[data-state="speaking"] .kaip-av-ring { animation-duration: .7s; box-shadow: 0 0 92px rgba(0, 212, 255, .7), inset 0 0 30px rgba(168, 85, 247, .28); }
-.kaip-av[data-state="alert"] .kaip-av-ring { box-shadow: 0 0 70px rgba(255, 181, 71, .55); border-color: var(--kaip-warn); }
-.kaip-av[data-state="offline"] .kaip-av-ring { animation: none; box-shadow: none; }
+/* ── §10/§49 embodiment — the certified VIDEO fallback (idle ⇄ speaking clip swap), mounted into the
+   ONE immersive view's [data-kai-slot="avatar"] (§69). GLB is honestly ASSET_UNAVAILABLE (tag). ─── */
+.kaip-av { position: absolute; inset: 12%; border-radius: 50%; overflow: hidden; }
 .kaip-av-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
   mix-blend-mode: screen; filter: saturate(1.06) contrast(1.04); transition: opacity .4s; }
 #kaip-av-poster { opacity: 1; }
 #kaip-av-idle, #kaip-av-speak { opacity: 0; }
 #kaip-av-idle.ready { opacity: 1; }
-.kaip-av[data-state="speaking"] #kaip-av-speak.ready { opacity: 1; }
-.kaip-av[data-state="speaking"] #kaip-av-idle.ready { opacity: 0; }
-.kaip-av[data-state="offline"] .kaip-av-media { filter: grayscale(.7) brightness(.6); }
-@keyframes kaip-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-@media (prefers-reduced-motion: reduce) { .kaip-nx-orb { animation: none !important; } }
-.kaip-nx-conv { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 760px; margin: 0 auto; min-height: 0; padding-bottom: 22px; }
-.kaip-nx-conv .kaip-msgs { padding: 12px 24px; }
-.kaip-nx-conv .kaip-input-wrap { border-top: none; padding: 10px 24px 0; }
+.kaip-av[data-clip="speak"] #kaip-av-speak.ready { opacity: 1; }
+.kaip-av[data-clip="speak"] #kaip-av-idle.ready { opacity: 0; }
+.kaip-av[data-state="offline"] .kaip-av-media, .kaip-av[data-state="degraded"] .kaip-av-media { filter: grayscale(.7) brightness(.6); }
+.kaip-av-tag { position: absolute; left: 50%; top: 5%; transform: translateX(-50%); white-space: nowrap; font: 500 9px/1.2 'JetBrains Mono', monospace; letter-spacing: .04em;
+  color: var(--kaip-muted); background: rgba(6, 10, 20, .75); border: 1px solid var(--kaip-border); border-radius: 8px; padding: 3px 7px; max-width: 92%; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── §5/§6/§7 voice controls — ALWAYS visible; DISABLED WITH REASON when any gate is not real ── */
+.kaip-voice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--kaip-border); background: rgba(0, 0, 0, .18); font-family: 'Space Grotesk', system-ui, sans-serif; }
+.kaip-voice.compact { padding: 0; border: none; background: none; flex-wrap: nowrap; gap: 6px; }
+.kaip-mic { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border-radius: 11px; cursor: pointer; font: 600 12.5px/1 'Space Grotesk', system-ui, sans-serif; letter-spacing: .02em;
+  color: #06121b; background: linear-gradient(135deg, var(--kaip-accent), #0aa36c); border: 1px solid rgba(77, 244, 165, .5); -webkit-user-select: none; user-select: none; touch-action: none; }
+.kaip-mic:disabled { background: #232a3a; color: var(--kaip-muted); border-color: var(--kaip-border); cursor: not-allowed; }
+.kaip-mic[data-on="1"] { background: var(--kaip-err); color: #fff; border-color: #fff; box-shadow: 0 0 0 4px rgba(255, 91, 110, .35); }
+.kaip-mic:focus-visible, .kaip-vbtn:focus-visible, .kaip-vsel select:focus-visible { outline: 2px solid var(--kaip-cyan); outline-offset: 2px; }
+.kaip-mic-ico { font-size: 14px; }
+.kaip-vsel { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--kaip-muted); }
+.kaip-vlab { text-transform: uppercase; letter-spacing: .08em; font-size: 9.5px; }
+.kaip-vsel select { background: #060a14; color: var(--kaip-text); border: 1px solid var(--kaip-border); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 11.5px; max-width: 240px; }
+.kaip-vbtn { padding: 7px 10px; border-radius: 9px; cursor: pointer; font: 600 11.5px/1 'Space Grotesk', system-ui, sans-serif; color: var(--kaip-text); background: transparent; border: 1px solid var(--kaip-border); }
+.kaip-vbtn:hover:not(:disabled) { border-color: var(--kaip-cyan); }
+.kaip-vbtn:disabled { color: var(--kaip-muted); cursor: not-allowed; opacity: .75; }
+.kaip-vbtn[data-on="1"] { background: rgba(255, 91, 110, .15); border-color: var(--kaip-err); color: var(--kaip-err); }
+.kaip-vbtn-off { border-style: dashed; }
+.kaip-voice-reason { flex-basis: 100%; font-size: 11px; line-height: 1.4; color: var(--kaip-muted); }
+.kaip-voice[data-status="READY"] .kaip-voice-reason { color: var(--kaip-accent); }
+/* L4 tone: policy-off codes (BRIDGE_OFF/NO_SESSION/NOT_OWNER/FLAG_OFF/VOICE_OFF/MUTED/WAKE_WORD_UNAVAILABLE/CANCEL_UNAVAILABLE) stay muted;
+   amber ONLY for real failures — backend unreachable, no browser speech, or a permission/load error (data-err from voice.noteErr) */
+.kaip-voice[data-status="BACKEND_UNREACHABLE"] .kaip-voice-reason, .kaip-voice[data-status="BROWSER_UNAVAILABLE"] .kaip-voice-reason, .kaip-voice[data-err="1"] .kaip-voice-reason { color: var(--kaip-warn); }
+.kaip-voice.compact .kaip-voice-reason { flex: 0 1 360px; min-width: 0; font-size: 10.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* M7: one line + ellipsis, never clipped mid-sentence — the full text rides on the mic (title + aria-describedby) */
+.kaip-voice.compact .kaip-vlab, .kaip-voice.compact .kaip-mic-label { display: none; }
+.kaip-voice.compact .kaip-mic { padding: 10px 12px; }
+
+/* ── UNMISTAKABLE mic / recording / network indicator — fixed, above everything ── */
+.kaip-mic-banner { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 2147483600; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  max-width: min(96vw, 900px); padding: 9px 14px; border-radius: 14px; background: #ff5b6e; color: #fff; border: 2px solid #fff;
+  box-shadow: 0 10px 40px rgba(255, 91, 110, .6); font: 700 12.5px/1.3 'Space Grotesk', system-ui, sans-serif; letter-spacing: .04em; }
+.kaip-mic-banner[hidden] { display: none; }
+.kaip-mic-banner[data-kind="tts"] { background: linear-gradient(135deg, var(--kaip-cyan), var(--kaip-purple)); color: #06121b; box-shadow: 0 10px 40px rgba(0, 212, 255, .45); }   /* L6: the KAI accent (same tokens as the orb) — speaking is not recording-red */
+.kaip-mic-dot { width: 12px; height: 12px; border-radius: 50%; background: #fff; animation: kaip-pulse .8s infinite; }
+.kaip-mic-rec { padding: 2px 7px; border-radius: 6px; background: #fff; color: #ff5b6e; font-size: 11px; }
+.kaip-mic-rec[hidden] { display: none; }
+.kaip-mic-net { font-weight: 500; font-size: 11px; opacity: .95; }
+.kaip-mic-interim { font-weight: 400; font-style: italic; font-size: 12px; opacity: .9; }
+.kaip-mic-stop { padding: 6px 12px; border-radius: 8px; border: 1px solid #fff; background: #fff; color: #06121b; font: 700 12px 'Space Grotesk', system-ui, sans-serif; cursor: pointer; }
+
+/* ── captions / subtitles (§27 freeze on stop) ── */
+.kaip-subtitles { padding: 6px 18px; font-size: 13px; line-height: 1.45; color: var(--kaip-text); background: rgba(0, 212, 255, .06); border-top: 1px solid var(--kaip-border); }
+.kaip-subtitles:empty { display: none; }
+.kaip-subtitles[data-state="INTERRUPTED"] { color: var(--kaip-muted); text-decoration: line-through; }
+
+/* ── §51 follow-ups + details (depth on the dashboard) ── */
+.kaip-followups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.kaip-details { margin-top: 6px; font-size: 11px; color: var(--kaip-muted); }
+.kaip-details pre { white-space: pre-wrap; word-break: break-word; margin: 4px 0 0; font: 11px/1.4 'JetBrains Mono', monospace; max-height: 220px; overflow: auto; }
+
+/* ── §75 approval card — typed decision is the ONLY durable path ── */
+.kaip-approval { margin-top: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--kaip-warn); background: rgba(255, 181, 71, .08); }
+.kaip-ap-head { font-size: 11.5px; font-weight: 700; color: var(--kaip-warn); letter-spacing: .03em; }
+.kaip-ap-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 8px 0; font-size: 12px; }
+.kaip-ap-grid dt { color: var(--kaip-muted); text-transform: uppercase; font-size: 10px; letter-spacing: .08em; }
+.kaip-ap-grid dd { margin: 0; word-break: break-word; }
+.kaip-ap-form { display: flex; gap: 6px; }
+.kaip-ap-input { flex: 1; min-width: 0; background: #060a14; color: var(--kaip-text); border: 1px solid var(--kaip-border); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 12.5px; }
+.kaip-ap-msg { min-height: 14px; margin-top: 6px; font-size: 11.5px; color: var(--kaip-warn); }
+
+/* ── §67 settings panel ── */
+.kaip-settings { position: fixed; top: 0; right: 0; width: 420px; max-width: 96vw; height: 100vh; z-index: 2147483500; overflow-y: auto; display: flex; flex-direction: column;
+  background: var(--kaip-bg); color: var(--kaip-text); border-left: 1px solid var(--kaip-border); box-shadow: -22px 0 60px rgba(0, 0, 0, .55); font-family: 'Space Grotesk', system-ui, sans-serif; }
+.kaip-settings[hidden] { display: none; }
+.kaip-set-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--kaip-border); font-size: 14px; }
+.kaip-set-body { padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 12px; font-size: 12.5px; }
+.kaip-set-body fieldset { border: 1px solid var(--kaip-border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 9px; margin: 0; }
+.kaip-set-body legend { padding: 0 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--kaip-cyan); }
+.kaip-set-field { display: flex; flex-direction: column; gap: 4px; color: var(--kaip-muted); }
+.kaip-set-field input[type="text"], .kaip-set-field select { background: #060a14; color: var(--kaip-text); border: 1px solid var(--kaip-border); border-radius: 8px; padding: 7px 9px; font: inherit; }
+.kaip-set-row { display: flex; align-items: flex-start; gap: 8px; line-height: 1.4; }
+.kaip-set-row input { margin-top: 2px; }
+.kaip-set-inline { display: flex; align-items: center; gap: 10px; color: var(--kaip-muted); }
+.kaip-set-inline input { width: 56px; background: #060a14; color: var(--kaip-text); border: 1px solid var(--kaip-border); border-radius: 8px; padding: 5px 7px; font: inherit; }
+.kaip-set-note { font-size: 11px; line-height: 1.45; color: var(--kaip-muted); }
+.kaip-set-lock { border: 1px dashed var(--kaip-warn); border-radius: 8px; padding: 8px 10px; color: var(--kaip-warn); }
+.kaip-set-actions { display: flex; align-items: center; gap: 12px; }
+.kaip-set-saved { font-size: 11px; color: var(--kaip-accent); }
+
+/* ── §66 arrival toast ── */
+.kaip-toast { position: fixed; left: 24px; bottom: 24px; z-index: 2147483100; padding: 9px 13px; border-radius: 10px; background: var(--kaip-panel); color: var(--kaip-text); border: 1px solid var(--kaip-cyan);
+  font: 500 12px 'Space Grotesk', system-ui, sans-serif; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .25s, transform .25s; }
+.kaip-toast.show { opacity: 1; transform: none; }
+
+@media (max-width: 520px) {
+  .kaip-voice { gap: 6px; padding: 8px 12px; }
+  .kaip-vsel { flex: 1 1 auto; min-width: 0; }
+  .kaip-vsel select { flex: 1; min-width: 0; max-width: 100%; }
+  .kaip-mic-banner { top: 6px; font-size: 11.5px; padding: 8px 10px; }
+  .kaip-settings { width: 100vw; }
+}
+@media (prefers-reduced-motion: reduce) { .kaip-toast { transition: none; } .kaip-av-media { transition: none; } }
 
 /* ── owner session sign-in (drawer) ──────────────────────────────────────── */
 .kaip-auth { padding: 16px 18px; border-bottom: 1px solid var(--kaip-border); display: flex; flex-direction: column; gap: 10px; }
