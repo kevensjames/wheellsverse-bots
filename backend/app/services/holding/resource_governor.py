@@ -26,6 +26,7 @@ from __future__ import annotations
 import os
 import platform
 import shutil
+import sys
 from datetime import datetime, timezone, timedelta, date
 from typing import Any, Callable
 
@@ -35,6 +36,8 @@ NO_CAP_DECLARED = "NO_CAP_DECLARED"
 
 # budget states (versioned with the formula)
 WITHIN_CAP, OVER_CAP = "WITHIN_CAP", "OVER_CAP"
+
+_RATE_WINDOWS_UNOBSERVABLE = "rate windows are in-process state of the API worker; not observable from this process"
 
 # §78 anomaly rule (deterministic, versioned): today >= max(min_abs, factor * mean(prior baseline days))
 ANOMALY_FACTOR = 3.0
@@ -95,17 +98,21 @@ def _llm_usage() -> dict | None:
 
 def _rate_limit() -> dict:
     """The capability rate limiter: its configured cap always; its LIVE 60-second windows only when the
-    real in-process execution service exists (the router singleton) — else windows UNAVAILABLE."""
+    real execution service (the router singleton) is ALREADY LOADED in this process — never imported here:
+    importing the router would BUILD a fresh, empty service and report used=0 as if measured. Elsewhere
+    the windows are the API worker's in-process state and honestly UNAVAILABLE."""
     import inspect
     from app.services.capability.execution import CapabilityExecutionService
     default = inspect.signature(CapabilityExecutionService.__init__).parameters["rate_limit_per_min"].default
-    out = {"limit_per_min": int(default), "windows": None,
+    out = {"limit_per_min": int(default), "windows": None, "windows_reason": _RATE_WINDOWS_UNOBSERVABLE,
            "enforced_by": "capability.execution.CapabilityExecutionService._rate_ok"}
+    router = sys.modules.get("app.routers.admin_capabilities")     # look, don't import
     try:
-        from app.routers.admin_capabilities import _service    # the one live service in this process
+        _service = router._service
         now = _service._clock()
         out["limit_per_min"] = int(_service._rate_limit)
         out["windows"] = {f"{p}/{c}": sum(1 for t in ts if now - t < 60.0) for (p, c), ts in _service._rate.items()}
+        out.pop("windows_reason")
     except Exception:   # noqa: BLE001 — no live service here -> windows honestly UNAVAILABLE
         pass
     return out
@@ -303,8 +310,8 @@ def budgets(*, sources: dict | None = None, now: str = "", today: str = "") -> l
                      cap=(rl.get("limit_per_min", UNAVAILABLE) if rl else UNAVAILABLE),
                      cap_source="CapabilityExecutionService.rate_limit_per_min",
                      enforced_by=(rl or {}).get("enforced_by", UNAVAILABLE), used=peak,
-                     used_source="live service 60s windows (peak principal/capability)" if windows is not None
-                     else "no live execution service in this process", now=now))
+                     used_source="live service 60s windows, this process only (peak principal/capability)"
+                     if windows is not None else _RATE_WINDOWS_UNOBSERVABLE, now=now))
 
     # self-improvement preparations per day (guardrails ceiling; used = today's SI jobs, same classifier)
     from app.services.holding.self_improvement_guardrails import DAILY_PREPARATION_CEILING, describe

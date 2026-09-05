@@ -56,6 +56,22 @@ def run() -> bool:
     ck("an OBSERVABLE 'summary' (published text) is NOT mistaken for CoT and IS allowed",
        validate_event(_ev(summary="mission COMPLETE: fix deploy"))[0] is True)
 
+    # ── the key rule is by TOKEN (is_cot_key), not exact spelling — one rule for timeline/explain/what_i_did ──
+    ck("is_cot_key catches variants the exact list missed: reasoning_v2 / llm_thoughts / cot_trace / 'reasoning trace' / llmThoughts / COT-Trace",
+       all(tl.is_cot_key(k) for k in ("reasoning_v2", "llm_thoughts", "cot_trace", "reasoning trace", "llmThoughts", "COT-Trace",
+                                      "Thinking.step", "deliberation_log", "my scratchpad")))
+    ck("is_cot_key is token-exact, not substring: summary / rationale / cotangent / thoughtful_note / boycott are observable",
+       not any(tl.is_cot_key(k) for k in ("summary", "rationale", "cotangent", "thoughtful_note", "boycott", "refs", "root_signature")))
+    ck("every legacy _COT_KEYS spelling is caught by the token rule (the list is examples of the ONE rule, not a second vocabulary)",
+       all(tl.is_cot_key(k) for k in tl._COT_KEYS))
+    ck("a NESTED reasoning_v2 (a spelling not in the legacy list) is REJECTED at admission",
+       validate_event(_ev(refs=[{"reasoning_v2": "x"}]))[1] == "REJECTED_CHAIN_OF_THOUGHT"
+       and validate_event(_ev(refs=[{"llmThoughts": "x"}]))[1] == "REJECTED_CHAIN_OF_THOUGHT")
+    ck("the §17/§87 attestation key passes ONLY as exactly False; any other value is hidden reasoning",
+       not tl._contains_cot({tl.ATTESTATION_KEY: False, "summary": "x"})
+       and tl._contains_cot({tl.ATTESTATION_KEY: True}) and tl._contains_cot({tl.ATTESTATION_KEY: "no"})
+       and tl._contains_cot({tl.ATTESTATION_KEY: 0}))
+
     # ── adapters map REAL sources → observable events; no source data → 0 events (never fabricated) ──────
     ck("audit adapter: no records → 0 events (honest empty)", events_from_audit([]) == [])
     ck("audit adapter emits ONLY approved actions as approval events (an owner decision)",

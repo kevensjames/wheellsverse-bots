@@ -24,6 +24,7 @@ collector, daemon, or scheduler (§79).
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy import text
@@ -46,6 +47,19 @@ _COT_KEYS = frozenset({
     "thinking", "inner_monologue",
     "reasoning", "thought",     # §87 bare forms — the ONE vocabulary explain / what_i_did / attention strip on
 })
+# The matcher is by TOKEN, not exact key: a key is hidden reasoning when ANY of its tokens (split on
+# non-alphanumerics and camelCase, casefolded) is in this set — so reasoning_v2 / llm_thoughts / cot_trace /
+# 'reasoning trace' / llmThoughts are caught, not only the spellings listed above (each of which it covers).
+_COT_TOKENS = frozenset({"reasoning", "thought", "thoughts", "cot", "scratchpad", "monologue", "deliberation", "thinking"})
+# The ONE key that legitimately names reasoning: the §17/§87 boolean attestation (attention_model / explain /
+# what_i_did emit it). It is admissible ONLY with the value False — any other value is treated as hidden reasoning.
+ATTESTATION_KEY = "hidden_reasoning_exposed"
+
+
+def is_cot_key(key) -> bool:
+    """§61/§87: THE hidden-reasoning key rule (explain / what_i_did / validate_event all use this one)."""
+    k = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", str(key)).casefold()
+    return any(t in _COT_TOKENS for t in re.split(r"[^0-9a-z]+", k))
 
 
 def _now() -> str:
@@ -54,10 +68,13 @@ def _now() -> str:
 
 def _contains_cot(obj) -> bool:
     """True if a hidden-chain-of-thought key appears ANYWHERE in the event (recursively through dicts and
-    lists). Fail-closed: an ambiguous structure is walked fully, never skipped."""
+    lists). Fail-closed: an ambiguous structure is walked fully, never skipped. The only pass-through is the
+    attestation key carrying exactly False."""
     if isinstance(obj, dict):
         for k, v in obj.items():
-            if str(k).strip().lower() in _COT_KEYS:
+            if k == ATTESTATION_KEY and v is False:
+                continue
+            if is_cot_key(k):
                 return True
             if _contains_cot(v):
                 return True

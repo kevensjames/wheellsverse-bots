@@ -171,11 +171,18 @@ class WorkerResult:
     certified: bool = False
 
 
-def assert_independent_reviewer(author: str, reviewer: str) -> None:
+def assert_independent_reviewer(author: str, reviewer: str) -> tuple[str, str]:
     """§16/§89 the ONE reviewer≠author identity rule. Shared by certify_worker_result and the holding
-    challenge (§88) / review-panel (§89) seams — no second copy of the rule anywhere. Raises ValueError."""
-    if not reviewer or reviewer == author:
-        raise ValueError(f"no identity may review or certify its own output (§16/§89): {author!r}")
+    challenge (§88) / review-panel (§89) seams — no second copy of the rule anywhere. Identities are
+    compared NORMALIZED (strip + casefold: 'Claude-Code ' IS 'claude-code'); an empty/None identity on
+    EITHER side cannot be asserted independent → refused (fail closed). Raises ValueError. Returns the
+    normalized (author, reviewer) pair so callers compare/count identities with this same normalization."""
+    a = str(author or "").strip().casefold()
+    r = str(reviewer or "").strip().casefold()
+    if not a or not r or a == r:
+        raise ValueError("no identity may review or certify its own output, and independence cannot be asserted "
+                         f"for an unknown identity (§16/§89): author={author!r} reviewer={reviewer!r}")
+    return a, r
 
 
 def certify_worker_result(result: WorkerResult, *, reviewed_by: str, tests_ok: bool) -> WorkerResult:

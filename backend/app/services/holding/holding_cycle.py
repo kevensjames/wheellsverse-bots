@@ -36,21 +36,25 @@ def build_live_engine(*, autonomy_on: bool | None = None, execution_on: bool | N
         INJECTED here AND brake #1 AND brake #3 are on (autonomy is the step-1 kill switch). Production
         injects no framework, so A2 never runs there regardless of the flag — prepare-only, never merge.
     Overrides are for tests; production reads app.config.settings.
-      • §97 STOP_AUTONOMOUS_EXECUTION (brakes.stop_engaged — engaged OR unreadable → fail closed) forces
+      • §97 STOP_AUTONOMOUS_EXECUTION (brakes.stop_state — engaged OR unreadable → fail closed) forces
         every CONFIG-READ brake OFF; explicit overrides are untouched (tests). It halts the NEXT engine
-        build only — an already-built engine is not undone."""
+        build only — an already-built engine is not undone. WHY the config-read brakes were forced is
+        recorded on the engine as ``brake_override`` (None | STOP_ENGAGED | STOP_UNREADABLE |
+        CONFIG_UNAVAILABLE) so a cycle result can say so instead of a silent 0-execution."""
+    override = None
     if autonomy_on is None or execution_on is None or a2_on is None:
         try:
             from app.config import settings
-            from app.services.holding.brakes import stop_engaged
-            stopped = stop_engaged(stop_store)
+            from app.services.holding.brakes import stop_state
+            override = stop_state(stop_store)        # None released | STOP_ENGAGED | STOP_UNREADABLE (fail closed)
             def _cfg(flag):
-                return False if stopped else bool(getattr(settings, flag, False))
+                return False if override else bool(getattr(settings, flag, False))
             autonomy_on = _cfg("HOLDING_AUTONOMY_ENABLED") if autonomy_on is None else autonomy_on
             execution_on = _cfg("KAI_CAPABILITY_EXECUTION_ENABLED") if execution_on is None else execution_on
             a2_on = _cfg("KAI_A2_EXECUTION_ENABLED") if a2_on is None else a2_on
         except Exception:
             # config unavailable → fail CLOSED (every brake engaged) — never assume-on for a brake
+            override = override or "CONFIG_UNAVAILABLE"
             autonomy_on = False if autonomy_on is None else autonomy_on
             execution_on = False if execution_on is None else execution_on
             a2_on = False if a2_on is None else a2_on
@@ -62,9 +66,11 @@ def build_live_engine(*, autonomy_on: bool | None = None, execution_on: bool | N
         execute = lambda cap, op, inp, *, mission_id="": _DisabledResult("capability execution disabled (brake #1)")
     # brake #3: A2 prepare-only wired only when a framework is injected AND brakes #1 and #3 are both on.
     wired_a2 = a2_framework if (a2_framework is not None and execution_on and a2_on) else None
-    return HoldingAutonomousWorkEngine(execute=execute, resolver=make_engine_resolver(TaskCapabilityResolver()),
-                                       a2_framework=wired_a2,
-                                       global_autonomy=bool(autonomy_on), company_autonomy=company_autonomy or {})
+    engine = HoldingAutonomousWorkEngine(execute=execute, resolver=make_engine_resolver(TaskCapabilityResolver()),
+                                         a2_framework=wired_a2,
+                                         global_autonomy=bool(autonomy_on), company_autonomy=company_autonomy or {})
+    engine.brake_override = override   # §L2: why the config-read brakes were forced OFF; None = config authoritative
+    return engine
 
 # §19 bounded per-source-volatility intervals (seconds) — 90-day planning is NOT every 15 min.
 CYCLE_INTERVALS = {

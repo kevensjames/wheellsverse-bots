@@ -47,13 +47,34 @@ def run() -> bool:
     ck("empty reviewer identity -> ValueError (fail closed)", ok)
     ck("identity rule IS capability.coding.assert_independent_reviewer (no second copy)",
        ch.assert_independent_reviewer is coding.assert_independent_reviewer)
+    # H3 — identities are compared normalized; an unknown author cannot be asserted independent of anyone
+    r = _stub({"stance": "AGREE"})
+    try:
+        challenge(REC, reviewer=r, reviewer_id="Kai-Planner "); ok = False
+    except ValueError:
+        ok = True
+    ck("H3: reviewer 'Kai-Planner ' over author 'kai-planner' -> ValueError (no case/whitespace bypass); reviewer never invoked",
+       ok and r.calls == [])
+    try:
+        coding.assert_independent_reviewer("claude-code", "Claude-Code"); ok = False
+    except ValueError:
+        ok = True
+    ck("H3: assert_independent_reviewer('claude-code', 'Claude-Code') -> ValueError", ok)
+    def _raises(rec):
+        try:
+            challenge(rec, reviewer=r, reviewer_id="b"); return False
+        except ValueError:
+            return True
+    ck("H3: None / empty / blank / missing author -> ValueError (fail closed, same rule as the panel); reviewer never invoked",
+       all(_raises(rec) for rec in ({**REC, "author": None}, {**REC, "author": ""}, {**REC, "author": "   "},
+                                    {k: v for k, v in REC.items() if k != "author"})) and r.calls == [])
 
     # ── the brief tells the reviewer to REFUTE ────────────────────────────────────────────────────
     brief = refute_brief(REC)
     ck("brief instructs REFUTE + forbids restating/unsourced numbers; deterministic",
        "REFUTE" in brief["instruction"] and "Restating" in brief["instruction"]
        and "cannot source" in brief["instruction"] and refute_brief(REC) == brief
-       and brief["rules_version"] == CHALLENGE_RULES_VERSION == "1.0.0")
+       and brief["rules_version"] == CHALLENGE_RULES_VERSION == "1.1.0")
 
     # ── a bad recommendation is refuted WITH counter-evidence ─────────────────────────────────────
     r = _stub({"stance": "REFUTE",
@@ -92,6 +113,42 @@ def run() -> bool:
                    reviewer_id="b")
     ck("AGREE with independent sourced checks and its own reasoning -> UPHELD (agreement is allowed, sycophancy is not)",
        up["outcome"] == UPHELD and up["counter_evidence_quality"] == "HIGH" and len(up["checks"]) == 2)
+    # M5 — restatement is measured as coverage of the CLAIM, so filler cannot dilute it
+    CHECKS = [{"source": "log_inspect:sol-worker-traces", "freshness": "FRESH"},
+              {"source": "repo_inspect:sol/worker.py", "timestamp": "2026-09-01"}]
+    padded = challenge(REC, reviewer=_stub({"stance": "AGREE",
+                                            "argument": REC["claim"] + " — honestly truly absolutely definitely "
+                                                        "certainly obviously clearly surely indeed genuinely wonderful.",
+                                            "checks": CHECKS}), reviewer_id="b")
+    ck("M5: verbatim claim restatement padded with 10 filler words -> REJECTED_SYCOPHANTIC (coverage of the claim, not containment)",
+       padded["outcome"] == REJECTED_SYCOPHANTIC and any("restates" in f for f in padded["flags"]))
+    padded_r = challenge(REC, reviewer=_stub({"stance": "AGREE",
+                                              "argument": REC["rationale"] + " — honestly truly absolutely definitely "
+                                                          "certainly obviously clearly surely indeed genuinely wonderful.",
+                                              "checks": CHECKS}), reviewer_id="b")
+    ck("M5: restating the RATIONALE (padded) is a restatement too -> REJECTED_SYCOPHANTIC",
+       padded_r["outcome"] == REJECTED_SYCOPHANTIC)
+    short = [challenge(REC, reviewer=_stub({"stance": "AGREE", "argument": arg, "checks": CHECKS}), reviewer_id="b")
+             for arg in ("", None, "ok", "looks good")]
+    ck("M5: empty / None / 1-2 word AGREE argument with sourced checks -> REJECTED_MALFORMED, never UPHELD",
+       all(m["outcome"] == REJECTED_MALFORMED and m["checks"] == [] and any("under" in f for f in m["flags"])
+           for m in short))
+    free = challenge(REC, reviewer=_stub({"stance": "AGREE",
+                                          "argument": "Independently sampled worker traces; blocking time sits "
+                                                      "inside the consumer wait, so streaming removes it.",
+                                          "checks": [{"source": "trust me"}, {"source": "I checked: it works"},
+                                                     {"source": "note:trust me"}]}), reviewer_id="b")
+    ck("M5: checks whose only 'source' is a free string ('trust me') do not vouch -> not UPHELD (REJECTED_SYCOPHANTIC), checks == []",
+       free["outcome"] == REJECTED_SYCOPHANTIC and free["checks"] == [] and any("independent" in f for f in free["flags"]))
+    ck("M5: a REFUTE whose counter carries only a free-string source -> INSUFFICIENT_EVIDENCE (a note is not a source)",
+       challenge(REC, reviewer=_stub({"stance": "REFUTE", "argument": "The p95 driver is the DB lock wait.",
+                                      "counter_evidence": [{"source": "trust me"}]}),
+                 reviewer_id="b")["outcome"] == INSUFFICIENT_EVIDENCE)
+    vocab = [{"source": "kpi_history:sol.p95"}, {"event_id": "evt-7"}, {"audit_id": "aud-7"}, {"job_id": "job-7"},
+             {"mission_id": "m-7"}, {"source": "https://ci.example/run/7"}, {"evidence_ref": "log_inspect:x"}]
+    ck("M5: refs in the known vocabulary (reader:key / event_id / audit_id / job_id / mission_id / URL) DO vouch",
+       len(ch._sourced(vocab)) == len(vocab)
+       and ch._sourced([{"source": "UNKNOWN"}, {"source": "UNAVAILABLE"}, {"note": "x"}, {"source": "trust me"}, "str"]) == [])
 
     # ── no invented numbers (§0 #16-19) ───────────────────────────────────────────────────────────
     un = challenge(REC, reviewer=_stub({"stance": "REFUTE", "argument": "Polling is only 12% of p95.",
@@ -117,7 +174,7 @@ def run() -> bool:
        challenge(REC, reviewer=_stub({"stance": "MAYBE"}), reviewer_id="b")["outcome"] == REJECTED_MALFORMED
        and challenge(REC, reviewer=_stub("nope"), reviewer_id="b")["outcome"] == REJECTED_MALFORMED)
     ck("INSUFFICIENT_EVIDENCE stance passes through as INSUFFICIENT_EVIDENCE",
-       challenge(REC, reviewer=_stub({"stance": "INSUFFICIENT_EVIDENCE", "argument": "cannot verify"}),
+       challenge(REC, reviewer=_stub({"stance": "INSUFFICIENT_EVIDENCE", "argument": "cannot verify this independently"}),
                  reviewer_id="b")["outcome"] == INSUFFICIENT_EVIDENCE)
     ck("deterministic: same recommendation + same reply -> identical verdict",
        challenge(REC, reviewer=_stub({"stance": "AGREE"}), reviewer_id="b")

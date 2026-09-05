@@ -18,8 +18,11 @@ Sources are the SHAPES the existing modules already emit (nothing new is recorde
 ``None`` = source NOT_CONNECTED -> every metric over it is UNAVAILABLE. ``[]`` = connected but empty ->
 still UNAVAILABLE (n=0 is no sample; an empty log never proves "0 violations / 0 regressions").
 
-ponytail: the DB readers above return [] when the DB is DOWN (their fail-soft contract), which this
-harness cannot tell from "connected and empty". Upgrade path: have the readers return None on failure.
+The DB readers above return [] when the DB is DOWN (their fail-soft contract), which is indistinguishable
+from "connected and empty" — so ``collect_sources`` probes DB reachability ONCE (SELECT 1) and hands the
+four DB-backed feeds over as None when it fails; the audit log likewise is None when its file exists but
+cannot be read (an ABSENT file is an honest [] — nothing was ever recorded). ponytail: a reader that fails
+on its own table while the DB is up still returns []; upgrade path is for the readers to return None.
 
 Improvement over time = ``compare(prev_snapshot, cur_snapshot)`` — a pure per-metric delta with a versioned
 better/worse direction; snapshots from different formula versions are NOT_COMPARABLE. Persisting snapshots
@@ -270,17 +273,51 @@ def compare(prev: dict, cur: dict) -> dict:
             "to": cur.get("as_of"), "summary": tally, "deltas": deltas}
 
 
+def db_reachable() -> bool:
+    """ONE SELECT 1 through the app's own session factory (looked up at call time so a test can patch it).
+    False = the DB-backed feeds are NOT_CONNECTED, never "connected and empty"."""
+    try:
+        import app.database as _db
+        from sqlalchemy import text
+        s = _db.SessionLocal()
+        try:
+            s.execute(text("SELECT 1"))
+        finally:
+            s.close()
+        return True
+    except Exception:   # noqa: BLE001 — unreachable is a fact to report, not to guess around
+        return False
+
+
+def _read_audit(limit: int):
+    """audit_log.list_actions, but a read FAILURE is None (NOT_CONNECTED) — the reader itself swallows it
+    into []. An absent file is [] (nothing has ever been recorded — honest empty)."""
+    from app.services.governance.audit_log import list_actions, AUDIT_LOG_PATH
+    if not AUDIT_LOG_PATH.exists():
+        return []
+    try:
+        with AUDIT_LOG_PATH.open():        # the same open() list_actions performs; if it fails, so did the read
+            pass
+    except OSError:
+        return None
+    return list_actions(limit=limit)
+
+
 def collect_sources(limit: int = 500) -> dict:
-    """Pull the five REAL feeds from their existing readers (lazy imports; each fails soft to []). This is
-    the only place the harness touches storage; ``evaluate(**collect_sources())`` is the live snapshot."""
-    from app.services.governance.audit_log import list_actions
+    """Pull the five REAL feeds from their existing readers (lazy imports). A feed is None (NOT_CONNECTED)
+    when its store is unreachable — the DB probed once for the four DB-backed feeds, the audit file for its
+    own. This is the only place the harness touches storage; ``evaluate(**collect_sources())`` is the live
+    snapshot."""
     from app.services.holding.worker_jobs import list_jobs
     from app.services.holding.cycle_store import DbCycleStore
     from app.services.holding.mission import list_missions
     from app.services.holding.proposals_store import list_proposals
-    return {"audit": list_actions(limit=limit), "jobs": list_jobs(limit=limit),
-            "cycles": DbCycleStore().list_runs(limit=limit), "missions": list_missions(limit=limit),
-            "proposals": list_proposals(limit=limit)}
+    up = db_reachable()
+    return {"audit": _read_audit(limit),
+            "jobs": list_jobs(limit=limit) if up else None,
+            "cycles": DbCycleStore().list_runs(limit=limit) if up else None,
+            "missions": list_missions(limit=limit) if up else None,
+            "proposals": list_proposals(limit=limit) if up else None}
 
 
 if __name__ == "__main__":

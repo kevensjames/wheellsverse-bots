@@ -5,11 +5,19 @@ enforces) and, for a WorkerResult subject, the INDEPENDENT_VERIFIER role's appro
 ``certify_worker_result`` (tests must have run and passed) — a panel cannot be softer than the seam.
 
 Hard rules (all deterministic, no LLM inside this module — each role's reviewer is an injectable seam):
-  • no role may hold the author's identity (§0 #11 / §89: nobody approves their own output) -> ValueError
+  • no role may hold the author's identity (§0 #11 / §89: nobody approves their own output) -> ValueError.
+    Identities are compared as ``assert_independent_reviewer`` normalizes them (strip + casefold), so
+    'Codex ' / 'CODEX' are the author 'codex'; an empty/None identity anywhere -> ValueError (fail closed)
   • the INDEPENDENT_VERIFIER identity must differ from every other panelist (it is the independent one)
   • a missing required role -> INCOMPLETE (never a partial approval)
+  • fewer than MIN_DISTINCT_REVIEWERS (3) distinct identities across the 4 roles -> INCOMPLETE with reason:
+    one identity wearing three hats is not a panel (the verifier is already distinct by rule, so the other
+    three roles must be held by at least two identities). Nobody is invoked.
   • an APPROVE with no sourced evidence (§58 evidence_quality LOW) is downgraded to NEEDS_CHANGES
   • aggregate: any REJECT -> REJECTED; any NEEDS_CHANGES -> NEEDS_CHANGES; all APPROVE -> APPROVED
+  • a WorkerResult is left certified ONLY when the aggregate outcome is APPROVED (which implies the verifier
+    said APPROVE and the seam certified it); any other outcome leaves ``certified=False`` — a rejected panel
+    never leaves a certified record behind (a2_framework gates READY_FOR_REVIEW on that flag)
 The panel is ADVISORY: KAI (the caller) remains the final governed coordinator (§165); nothing here
 executes, merges, or deploys. Bounded: exactly one call per role (§79).
 """
@@ -20,10 +28,11 @@ from dataclasses import asdict, is_dataclass
 from app.services.capability.coding import WorkerResult, assert_independent_reviewer, certify_worker_result
 from app.services.holding.health_score import evidence_quality
 
-PANEL_RULES_VERSION = "1.0.0"
+PANEL_RULES_VERSION = "1.1.0"
 ROLES = ("PLANNER", "DOMAIN_EXPERT", "SECURITY_REVIEWER", "INDEPENDENT_VERIFIER")
 VERDICTS = ("APPROVE", "REJECT", "NEEDS_CHANGES")
 COORDINATOR = "KAI coordinator (caller)"
+MIN_DISTINCT_REVIEWERS = 3      # across the 4 roles; the verifier is distinct by rule, the other 3 need >= 2 identities
 
 
 def _subject_view(subject) -> dict:
@@ -42,19 +51,27 @@ def convene(subject, *, author: str = "", panel: dict, tests_ok: bool | None = N
     if isinstance(subject, WorkerResult):
         author = subject.worker
     author = str(author or "")
-    if not author:
+    if not author.strip():
         raise ValueError("panel needs the author's identity to enforce reviewer≠author (§89) — refused")
-    ids = {role: str(spec[0]) for role, spec in (panel or {}).items() if role in ROLES}
-    for role, rid in ids.items():
-        assert_independent_reviewer(author, rid)                  # the ONE rule; raises on self-review
-    ver = ids.get("INDEPENDENT_VERIFIER")
-    if ver and any(rid == ver for role, rid in ids.items() if role != "INDEPENDENT_VERIFIER"):
+    ids = {role: str(spec[0] or "") for role, spec in (panel or {}).items() if role in ROLES}
+    # the ONE rule (raises on self-review / unknown identity) also hands back each identity as it compared
+    # it (strip + casefold); the panel compares and counts identities with THAT normalization, no second one
+    norm = {role: assert_independent_reviewer(author, rid)[1] for role, rid in ids.items()}
+    ver = norm.get("INDEPENDENT_VERIFIER")
+    if ver and any(n == ver for role, n in norm.items() if role != "INDEPENDENT_VERIFIER"):
         raise ValueError("the INDEPENDENT_VERIFIER must not also hold another panel role (§89)")
+    distinct = len(set(norm.values()))
     base = {"version": PANEL_RULES_VERSION, "author": author, "coordinator": COORDINATOR,
-            "final_decision_by": COORDINATOR, "advisory": True, "panel": ids}
+            "final_decision_by": COORDINATOR, "advisory": True, "panel": ids, "distinct_reviewers": distinct}
     missing = [r for r in ROLES if r not in ids]
     if missing:
-        return {**base, "outcome": "INCOMPLETE", "missing_roles": missing, "reviews": []}
+        return {**base, "outcome": "INCOMPLETE", "missing_roles": missing,
+                "reason": f"missing roles: {missing}", "reviews": []}
+    if distinct < MIN_DISTINCT_REVIEWERS:
+        return {**base, "outcome": "INCOMPLETE", "missing_roles": [],
+                "reason": f"only {distinct} distinct reviewer identities across {len(ROLES)} roles; "
+                          f">= {MIN_DISTINCT_REVIEWERS} required — one identity wearing several hats is not a panel",
+                "reviews": []}
 
     view = _subject_view(subject)
     reviews = []
@@ -81,8 +98,13 @@ def convene(subject, *, author: str = "", panel: dict, tests_ok: bool | None = N
     verdicts = [r["verdict"] for r in reviews]
     outcome = ("REJECTED" if "REJECT" in verdicts else
                "NEEDS_CHANGES" if "NEEDS_CHANGES" in verdicts else "APPROVED")
-    return {**base, "outcome": outcome, "reviews": reviews,
-            "certified": bool(getattr(subject, "certified", False)) if isinstance(subject, WorkerResult) else None}
+    certified = None
+    if isinstance(subject, WorkerResult):
+        # a panel that did not APPROVE leaves NOTHING certified — the seam's tests-based flag stands only
+        # under an APPROVED aggregate (APPROVED ⇒ the verifier said APPROVE); ``reviewed`` stays the truth
+        subject.certified = bool(subject.certified and outcome == "APPROVED")
+        certified = subject.certified
+    return {**base, "outcome": outcome, "reviews": reviews, "certified": certified}
 
 
 if __name__ == "__main__":

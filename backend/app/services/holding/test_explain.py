@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))   # backend/ on pat
 from app.services.holding import explain as ex                                  # noqa: E402
 from app.services.holding.explain import explain, EXPLAIN_VERSION, UNKNOWN, UNAVAILABLE   # noqa: E402
 from app.services.holding.priorities import rank_key, LADDER, _SEVERITY_RUNG   # noqa: E402
-from app.services.holding.timeline import _COT_KEYS, _contains_cot             # noqa: E402
+from app.services.holding.timeline import _COT_KEYS, _contains_cot, is_cot_key   # noqa: E402
 from app.services.holding.health_score import evidence_quality                 # noqa: E402
 from app.services.holding.holding_problems import _mk                          # noqa: E402
 
@@ -56,9 +56,8 @@ def _keys(o, acc=None):
 
 def _no_cot_field(out) -> bool:
     ks = _keys(out)
-    banned = [k for k in ks if k.strip().lower() in _COT_KEYS
-              or (any(w in k.lower() for w in ("reasoning", "thought", "thinking", "monologue", "scratchpad"))
-                  and k != _ATTEST)]
+    banned = [k for k in ks if k != _ATTEST
+              and (is_cot_key(k) or any(w in k.lower() for w in ("reasoning", "thought", "thinking", "monologue", "scratchpad")))]
     return not banned and not _contains_cot(out) and out.get(_ATTEST) is False
 
 
@@ -87,7 +86,27 @@ def run() -> bool:
     ck("no 'reasoning'/'thought'/CoT-like field on ANY explanation (only the False attestation)",
        all(_no_cot_field(o) for o in outs.values()))
     ck("§61 vocabulary is the ONE filter and covers the bare forms too",
-       {"reasoning", "thought", "chain_of_thought", "thoughts"} <= set(_COT_KEYS))
+       {"reasoning", "thought", "chain_of_thought", "thoughts"} <= set(_COT_KEYS) and all(is_cot_key(k) for k in _COT_KEYS))
+    variants = {**PRIORITY, "reasoning_v2": "v2 steps", "llm_thoughts": "llm hmm", "cot_trace": "trace-1",
+                "reasoning trace": "spaced", "detail": {"llmThoughts": "camel hmm", "http": 502}}
+    v = explain(variants)
+    ck("token rule: reasoning_v2 / llm_thoughts / cot_trace / 'reasoning trace' / llmThoughts are stripped (exact-match would have leaked them)",
+       v["stripped_hidden_fields"] == sorted(["cot_trace", "llm_thoughts", "llmThoughts", "reasoning trace", "reasoning_v2"]) and _no_cot_field(v)
+       and not any(s in json.dumps(v) for s in ("v2 steps", "llm hmm", "trace-1", "spaced", "camel hmm"))
+       and next(f for f in v["facts"] if f["claim"] == "detail")["value"] == {"http": 502})
+    _cc = ex._contains_cot
+    try:
+        ex._contains_cot = lambda o: True                # simulate the scan finding hidden reasoning in the OUTPUT
+        try:
+            explain(PRIORITY); leaked = "returned"
+        except ValueError:
+            leaked = "raised"
+        except AssertionError:
+            leaked = "assert"
+    finally:
+        ex._contains_cot = _cc
+    ck("hidden_reasoning_exposed is the SCAN result and a positive scan RAISES ValueError (never a stripped assert, never returned)",
+       leaked == "raised" and explain(PRIORITY)[_ATTEST] is False and "assert " not in Path(ex.__file__).read_text())
     # sentinel values: 'hidden-why' cannot collide with the mandated 'applied_because' policy key (line ~126)
     dirty = {**PRIORITY, "reasoning_trace": "step 1 ...", "detail": {"thoughts": "hmm", "reasoning": "hidden-why", "http": 502}}
     d = explain(dirty)
@@ -173,10 +192,11 @@ def run() -> bool:
 
     # ── consolidation + purity (source inspection) ────────────────────────────────────────────────
     src = Path(ex.__file__).read_text()
-    ck("composes priorities.rank_key/LADDER, health_score.evidence_quality, timeline._COT_KEYS/_contains_cot",
+    ck("composes priorities.rank_key/LADDER, health_score.evidence_quality, timeline.is_cot_key/_contains_cot (no second CoT vocabulary here)",
        "from app.services.holding.priorities import LADDER, rank_key" in src
        and "from app.services.holding.health_score import evidence_quality" in src
-       and "from app.services.holding.timeline import _COT_KEYS, _contains_cot" in src)
+       and "from app.services.holding.timeline import is_cot_key, _contains_cot" in src
+       and "_COT_KEYS" not in src and "_COT_TOKENS" not in src)
     ck("no LLM / network / clock — a pure function of the item",
        all(t not in src for t in ("datetime.now", "time.time", "openai", "ollama", "httpx", "requests",
                                   "capability.brain", "nai_brain", "subprocess")))

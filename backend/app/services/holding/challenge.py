@@ -3,24 +3,31 @@ is briefed to REFUTE it. The acceptance rules here are deterministic and version
 this module — the ``reviewer`` seam is injectable (a different certified model, a human, a test stub) and
 its output is ACCEPTED or REJECTED by rule, never by trust.
 
-Sycophancy is refused mechanically: an AGREE that merely restates the claim, or carries no independent
-sourced check, is REJECTED_SYCOPHANTIC. A REFUTE with no sourced counter-evidence is an opinion, not a
-challenge, and is downgraded to INSUFFICIENT_EVIDENCE. A number in the reviewer's argument that appears
-in none of its evidence (nor the claim) is an unsourced number -> REJECTED_UNSOURCED (§0 #16-19).
+Sycophancy is refused mechanically: an AGREE that merely restates the claim (or its rationale), or
+carries no independent sourced check, is REJECTED_SYCOPHANTIC. Restatement is measured as COVERAGE OF THE
+CLAIM (|argument ∩ claim| / |claim|) — padding a verbatim restatement with filler words cannot dilute it.
+An empty or under-3-word argument is REJECTED_MALFORMED (nothing to evaluate). A REFUTE with no sourced
+counter-evidence is an opinion, not a challenge, and is downgraded to INSUFFICIENT_EVIDENCE. A number in
+the reviewer's argument that appears in none of its evidence (nor the claim) is an unsourced number ->
+REJECTED_UNSOURCED (§0 #16-19). A check/counter item vouches only if it carries a REF in the known
+vocabulary — a ``reader:key`` source (repo_inspect:…, kpi_history:…, audit:<event_id>), an id key from
+``explain._REF_KEYS`` (audit_id/event_id/job_id/mission_id/…) or a URL; a free string ('trust me') is a note.
 
 The reviewer≠author rule is ``capability.coding.assert_independent_reviewer`` — the SAME rule that
-certifies worker results (no second rule). Evidence quality is ``health_score.evidence_quality`` (§58) —
-the same grader the rest of the holding OS uses. The challenge is ADVISORY: KAI (the caller) stays the
-final governed coordinator (§165); this module executes nothing (§79 bounded: one reviewer call).
+certifies worker results (no second rule; it also refuses an empty/None author or reviewer and compares
+identities normalized). Evidence quality is ``health_score.evidence_quality`` (§58) — the same grader the
+rest of the holding OS uses. The challenge is ADVISORY: KAI (the caller) stays the final governed
+coordinator (§165); this module executes nothing (§79 bounded: one reviewer call).
 """
 from __future__ import annotations
 
 import re
 
 from app.services.capability.coding import assert_independent_reviewer
+from app.services.holding.explain import _ref_of
 from app.services.holding.health_score import evidence_quality, _source_of
 
-CHALLENGE_RULES_VERSION = "1.0.0"
+CHALLENGE_RULES_VERSION = "1.1.0"
 
 STANCES = ("AGREE", "REFUTE", "INSUFFICIENT_EVIDENCE")
 # outcomes
@@ -31,10 +38,14 @@ REJECTED_SYCOPHANTIC = "REJECTED_SYCOPHANTIC"
 REJECTED_MALFORMED = "REJECTED_MALFORMED"
 REJECTED_UNSOURCED = "REJECTED_UNSOURCED"
 
-# An AGREE argument sharing this fraction of its words with the claim is a restatement, not a review.
+# An AGREE argument covering this fraction of the claim's words is a restatement, not a review.
 SYCOPHANCY_OVERLAP = 0.6
+MIN_ARGUMENT_WORDS = 3
 _WORD = re.compile(r"[a-z0-9]{3,}")
+_TOKEN = re.compile(r"[a-z0-9]+")
 _NUMBER = re.compile(r"(?<![a-z§#\w])\d+(?:[.,]\d+)?%?")
+# A ref in the known vocabulary: ``reader:key`` (the shape the holding readers emit) or a URL.
+_REF = re.compile(r"^(?:[a-z][a-z0-9_]*:\S+|https?://\S+)$", re.I)
 
 
 def refute_brief(recommendation: dict) -> dict:
@@ -58,18 +69,27 @@ def _words(s) -> set:
     return set(_WORD.findall(str(s or "").lower()))
 
 
-def _overlap(argument: str, claim: str) -> float:
-    """Fraction of the ARGUMENT's words that already appear in the claim (containment, not Jaccard —
-    padding a restatement with filler must not dilute it below the bar)."""
+def _coverage(argument: str, claim: str) -> float:
+    """Fraction of the CLAIM's words that the argument repeats (|arg ∩ claim| / |claim|). Measured over the
+    claim, not the argument, so padding a verbatim restatement with filler words cannot dilute it."""
     wa, wb = _words(argument), _words(claim)
     if not wa or not wb:
         return 0.0
-    return len(wa & wb) / len(wa)
+    return len(wa & wb) / len(wb)
 
 
 def _sourced(items) -> list:
-    """Only evidence items naming a REAL source count (placeholders UNKNOWN/UNAVAILABLE do not)."""
-    return [e for e in (items or []) if isinstance(e, dict) and _source_of(e)]
+    """Only items carrying a REF in the known vocabulary vouch: the source ``health_score._source_of`` reads
+    (source/source_type/source_key/evidence_ref, event_id→audit:, state→drift:) or an id key from
+    ``explain._REF_KEYS`` (audit_id/job_id/mission_id/…), and the ref must be ``reader:key``-shaped or a URL.
+    Placeholders (UNKNOWN/UNAVAILABLE) and free strings ('trust me') are notes, not sources."""
+    out = []
+    for e in items or []:
+        if isinstance(e, dict):
+            ref = _source_of(e) or _ref_of(e)          # the two existing readers, composed — no third one
+            if ref and _REF.match(str(ref)):
+                out.append(e)
+    return out
 
 
 def _unsourced_numbers(argument: str, *texts) -> list:
@@ -89,11 +109,15 @@ def challenge(recommendation: dict, *, reviewer, reviewer_id: str) -> dict:
     base = {"version": CHALLENGE_RULES_VERSION, "recommendation_id": recommendation.get("id"),
             "author": author, "reviewer": reviewer_id, "final_decision_by": "KAI coordinator (caller)",
             "advisory": True}
+    def _malformed(flag: str, argument: str = "") -> dict:
+        return {**base, "outcome": REJECTED_MALFORMED, "flags": [flag], "argument": argument,
+                "counter_evidence": [], "checks": [], "counter_evidence_quality": "LOW"}
     if not isinstance(raw, dict) or raw.get("stance") not in STANCES:
-        return {**base, "outcome": REJECTED_MALFORMED, "flags": ["stance missing or not in STANCES"],
-                "counter_evidence": [], "counter_evidence_quality": "LOW", "argument": ""}
+        return _malformed("stance missing or not in STANCES")
     stance = raw["stance"]
     argument = str(raw.get("argument") or "")
+    if len(_TOKEN.findall(argument.lower())) < MIN_ARGUMENT_WORDS:
+        return _malformed(f"argument empty or under {MIN_ARGUMENT_WORDS} words — nothing to evaluate", argument)
     counter = _sourced(raw.get("counter_evidence"))
     checks = _sourced(raw.get("checks"))
     flags = []
@@ -110,12 +134,13 @@ def challenge(recommendation: dict, *, reviewer, reviewer_id: str) -> dict:
             flags.append("REFUTE without sourced counter-evidence is an opinion, not a challenge")
             outcome = INSUFFICIENT_EVIDENCE
     elif stance == "AGREE":
-        ov = _overlap(argument, f"{brief['claim']} {brief['rationale']}")
+        # restating EITHER the claim or its rationale is a restatement; take the larger coverage
+        ov = max(_coverage(argument, brief["claim"]), _coverage(argument, brief["rationale"]))
         if not checks:
             flags.append("AGREE without an independent sourced check")
             outcome = REJECTED_SYCOPHANTIC
         elif ov >= SYCOPHANCY_OVERLAP:
-            flags.append(f"AGREE argument restates the claim (overlap {ov:.2f} >= {SYCOPHANCY_OVERLAP})")
+            flags.append(f"AGREE argument restates the claim (coverage {ov:.2f} >= {SYCOPHANCY_OVERLAP})")
             outcome = REJECTED_SYCOPHANTIC
         else:
             outcome = UPHELD

@@ -69,6 +69,28 @@ def run() -> bool:
     ck("identity rule IS capability.coding.assert_independent_reviewer; verifier seam IS certify_worker_result",
        rp.assert_independent_reviewer is coding.assert_independent_reviewer
        and rp.certify_worker_result is coding.certify_worker_result)
+    # H3 — identities are compared normalized (strip+casefold); case/whitespace variants are the SAME identity
+    wr = WorkerResult(task="impl", worker="codex", tests_run=4, tests_passed=4, tests_failed=0)
+    p = _panel(INDEPENDENT_VERIFIER=_role("Codex "))
+    try:
+        convene(wr, panel=p); ok = False
+    except ValueError:
+        ok = True
+    ck("H3: verifier 'Codex ' over worker 'codex' -> ValueError (no case/whitespace bypass); nobody invoked, result untouched",
+       ok and _calls(p) == 0 and wr.certified is False and wr.reviewed is False)
+    p = _panel(INDEPENDENT_VERIFIER=_role("Claude-Planner"))
+    try:
+        convene(PLAN, author="a", panel=p); ok = False
+    except ValueError:
+        ok = True
+    ck("H3: verifier 'Claude-Planner' vs planner 'claude-planner' -> ValueError (distinctness uses the same normalization)",
+       ok and _calls(p) == 0)
+    p = _panel(DOMAIN_EXPERT=_role(""))
+    try:
+        convene(PLAN, author="a", panel=p); ok = False
+    except ValueError:
+        ok = True
+    ck("H3: an empty reviewer identity in any role -> ValueError (fail closed); nobody invoked", ok and _calls(p) == 0)
 
     # ── completeness ──────────────────────────────────────────────────────────────────────────────
     p = _panel(); del p["SECURITY_REVIEWER"]
@@ -77,13 +99,26 @@ def run() -> bool:
        inc["outcome"] == "INCOMPLETE" and inc["missing_roles"] == ["SECURITY_REVIEWER"] and _calls(p) == 0)
     ck("ROLES are exactly planner / domain-expert / security-reviewer / independent-verifier",
        ROLES == ("PLANNER", "DOMAIN_EXPERT", "SECURITY_REVIEWER", "INDEPENDENT_VERIFIER"))
+    # L3 — one identity wearing three hats is not a panel
+    p = _panel(PLANNER=_role("x"), DOMAIN_EXPERT=_role("x"), SECURITY_REVIEWER=_role("x"))
+    two = convene(PLAN, author="a", panel=p)
+    ck("L3: 2 distinct identities across 4 roles -> INCOMPLETE with reason, distinct_reviewers reported, nobody invoked",
+       two["outcome"] == "INCOMPLETE" and two["distinct_reviewers"] == 2 and "distinct" in two["reason"]
+       and two["missing_roles"] == [] and _calls(p) == 0)
+    p = _panel(PLANNER=_role("X"), DOMAIN_EXPERT=_role("x "), SECURITY_REVIEWER=_role("x"))
+    ck("L3: the distinct count uses the same normalization ('X' / 'x ' / 'x' are ONE identity) -> INCOMPLETE",
+       convene(PLAN, author="a", panel=p)["outcome"] == "INCOMPLETE" and _calls(p) == 0)
+    p = _panel(DOMAIN_EXPERT=_role("claude-planner"))
+    ck("L3: 3 distinct identities (planner also domain-expert) is the floor -> panel runs",
+       convene(PLAN, author="a", panel=p)["outcome"] == "APPROVED" and _calls(p) == 4)
 
     # ── plan review: aggregate rules ──────────────────────────────────────────────────────────────
     p = _panel()
     ap = convene(PLAN, author="a", panel=p)
     ck("all four APPROVE with sourced evidence -> APPROVED, advisory, KAI coordinator decides",
        ap["outcome"] == "APPROVED" and ap["advisory"] is True and "KAI" in ap["final_decision_by"]
-       and ap["version"] == PANEL_RULES_VERSION == "1.0.0" and ap["certified"] is None)
+       and ap["version"] == PANEL_RULES_VERSION == "1.1.0" and ap["certified"] is None
+       and ap["distinct_reviewers"] == 4)
     ck("bounded: exactly one call per role (§79); each role sees the plan view + its role",
        _calls(p) == 4 and all(len(fn.calls) == 1 and fn.calls[0][1] == role and fn.calls[0][0]["kind"] == "plan"
                               for role, (_, fn) in p.items()))
@@ -115,6 +150,19 @@ def run() -> bool:
     ck("tests_ok=False from the caller overrides -> not certified, REJECTED",
        convene(WorkerResult(task="i", worker="codex", tests_run=2, tests_passed=2), panel=_panel(),
                tests_ok=False)["outcome"] == "REJECTED")
+    # M4 — a rejected panel never leaves a certified record behind (a2_framework gates READY_FOR_REVIEW on it)
+    vrej = WorkerResult(task="impl", worker="codex", tests_run=4, tests_passed=4, tests_failed=0)
+    vr = convene(vrej, panel=_panel(INDEPENDENT_VERIFIER=_role("cline-verifier", "REJECT", findings=["wrong fix"])))
+    ck("M4: verifier REJECT over PASSING tests -> REJECTED and the result is NOT certified (reviewed stays true)",
+       vr["outcome"] == "REJECTED" and vrej.certified is False and vr["certified"] is False and vrej.reviewed is True)
+    srej = WorkerResult(task="impl", worker="codex", tests_run=4, tests_passed=4, tests_failed=0)
+    sr = convene(srej, panel=_panel(SECURITY_REVIEWER=_role("codex-sec", "REJECT", findings=["secret in diff"])))
+    ck("M4: verifier APPROVE + passing tests but SECURITY REJECT -> REJECTED, not certified (aggregate gates the flag)",
+       sr["outcome"] == "REJECTED" and srej.certified is False and sr["certified"] is False)
+    nrej = WorkerResult(task="impl", worker="codex", tests_run=4, tests_passed=4, tests_failed=0)
+    nr = convene(nrej, panel=_panel(PLANNER=_role("claude-planner", evidence=[])))
+    ck("M4: NEEDS_CHANGES aggregate -> not certified either (only APPROVED certifies)",
+       nr["outcome"] == "NEEDS_CHANGES" and nrej.certified is False and nr["certified"] is False)
     ck("deterministic: same subject + same replies -> identical report",
        convene(PLAN, author="a", panel=_panel()) == convene(PLAN, author="a", panel=_panel()))
     src = Path(rp.__file__).read_text()
