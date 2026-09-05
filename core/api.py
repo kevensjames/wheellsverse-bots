@@ -1001,6 +1001,7 @@ _NEXUS_APP_MIME = {
     "kai-glb-renderer.js": "text/javascript",
     "kai-subtitles.js": "text/javascript",
     "kai-speech-input.js": "text/javascript",
+    "kai-gesture.js": "text/javascript",          # Phase 8 §8/§94 camera+gesture layer (lazy-loaded by kai-presence.js; camera OFF by default)
     "kai-nexus-capabilities.js": "text/javascript",
     "kai-capability-catalog.json": "application/json",
 }

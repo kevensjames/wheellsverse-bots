@@ -34,6 +34,17 @@
 //   • A ?q= deep link only PREFILLS the input — URL text is never auto-submitted.
 //   • A voice-channel approval is POSTed with interaction_mode=voice and is REFUSED by policy (§75);
 //     the refusal is surfaced and the owner is routed to the typed, durable approval.
+//
+// Phase 8 CAMERA + GESTURE (§8/§94, PRIVACY-CRITICAL):
+//   • Camera OFF by default. It opens ONLY from the explicit §67 control ('Enable camera for this session —
+//     local only'), inside that click's user activation, and ONLY when the backend says camera AVAILABLE_SESSION
+//     (KAI_CAMERA_ENABLED). The ONE getUserMedia call lives in kai-gesture.js (lazy-loaded) — this file never calls it.
+//   • The session flag is memory-only (settings always persist camera_enabled=false). A fixed CAMERA ON banner +
+//     orb badge are mandatory while open. Closed on KAI.stop, tab hidden, pagehide, sign-out, mute, settings
+//     toggle off — never auto-restarted. KAI.gesture.start() from the API is always refused (NOT_EXPLICIT).
+//   • No recognizer is shipped (RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED): no frame is ever read. Gesture events map
+//     through the backend's closed vocabulary to non-consequential helpers only (KAI.stop, drawer, chip focus) —
+//     never to ask / holdingCommand / postConfirm; the gesture channel carries no authority (§75).
 // ============================================================================
 
 // ---- tiny pub/sub -----------------------------------------------------------
@@ -81,7 +92,7 @@ const SETTINGS_DEFAULTS = Object.freeze({
   speak_responses: 'nexus',          // never | nexus | always — answers to TYPED questions (voice turns always answer aloud)
   auto_speak_critical: true,         // only critical severity may auto-speak through quiet hours
   wake_word_enabled: false,          // requires a genuinely LOCAL engine — none exists → stays false
-  gesture_enabled: false, camera_enabled: false,   // Phase 8 seams: no pipeline exists; nothing can turn these on
+  gesture_enabled: false, camera_enabled: false,   // §8/§94: NEVER persisted as on — the camera enable is per-session, in memory only (kai-gesture.js)
   quiet_hours: { enabled: false, start: 22, end: 7 },   // local hours
   notification_severity: 'high',     // critical | high | medium | all — gates toast + spoken arrival
 });
@@ -124,6 +135,7 @@ const state = {
   forcedEntity: null,       // entity passed to KAI.ask() for this turn
   settings: null,           // §67 (loaded at module eval below)
   voiceCaps: null,          // backend truth from /admin/kai/holding/voice/capabilities (null = not probed)
+  gestureCaps: null,        // backend truth from /admin/kai/holding/gesture/capabilities (null = not probed)
 };
 try { state.conversationId = localStorage.getItem('kai.conv') || null; } catch { state.conversationId = null; }
 state.settings = loadSettings();
@@ -146,6 +158,7 @@ const voice = {
   note: '', noteErr: false, // noteErr: the note is a real failure (permission denied, load failure) → amber
 };
 const avatar = { driver: null, glb: null, host: null, mode: 'NONE' };
+const cam = { session: null, note: '' };   // §8/§94 KaiCameraSession (lazy) — the ON flag lives inside it, in memory only; never persisted
 
 // Public API — the ONE provider, reusable by the Nexus shell and by page actions.
 let _readyResolve;
@@ -155,14 +168,17 @@ export const KAI = {
   open: () => openDrawer(),
   ask: (t, o) => ask(t, o),                      // the ONE dispatcher; o = {entity_type, entity_id, mode} or 'voice'
   setState: s => setKaiState(s),                 // the nexus shell keeps ONE state path through this
-  stop: r => { stopListening('user'); return stopAll(r || 'user-stop'); },   // §52 the ONE stop: mic closed + TTS/stream cancelled
+  stop: r => { stopListening('user'); stopCamera(r || 'user-stop'); return stopAll(r || 'user-stop'); },   // §52 the ONE stop: mic + camera closed, TTS/stream cancelled
   speak: t => speak(t),
-  voice: { status: () => voiceStatus(), start: why => startListening(why || 'api'), stop: () => stopListening('user'), setMode: m => setPrivacyMode(m), mute: b => setMuted(!!b) },
-  settings: { get: () => ({ ...state.settings }), set: patch => { Object.assign(state.settings, patch || {}); state.settings = loadSettingsFrom(state.settings); saveSettings(); paintVoice(); } },
-  // Phase 8 seams (read-only descriptors): nothing here opens a camera or reads gestures.
+  // trigger-blind: the public API can never name a trusted trigger ('ptt-press'/'session-button' are reachable only from the internal mic handlers)
+  voice: { status: () => voiceStatus(), start: () => startListening('api'), stop: () => stopListening('user'), setMode: m => setPrivacyMode(m), mute: b => setMuted(!!b) },
+  settings: { get: () => ({ ...state.settings }), set: patch => { Object.assign(state.settings, patch || {}); state.settings = loadSettingsFrom(state.settings); saveSettings(); if (state.settings.muted) KAI.stop('user-stop'); paintVoice(); } },
+  // §8/§94 camera + gesture seam. start() from the API is ALWAYS refused (NOT_EXPLICIT): only the §67 control opens the camera.
+  gesture: { status: () => gestureStatus(), start: () => startCamera('api'), stop: r => stopCamera(r || 'user'), registerRecognizer: fn => ensureGesture().then(s => s.registerRecognizer(fn)) },
+  // Phase 8 seams (live read-only descriptors): nothing here opens a camera or reads a frame.
   seams: Object.freeze({
-    gesture: Object.freeze({ status: 'NOT_BUILT', phase: 8, authority: 'NONE', note: 'gestures will never authorize actions (§75)' }),
-    camera: Object.freeze({ status: 'OFF', pipeline: 'NONE', note: 'no camera pipeline exists; camera stays OFF' }),
+    get gesture() { const g = gestureStatus(); return { built: true, phase: 8, authority: 'NONE', recognizer: g.recognizer, camera: g.camera, inference: 'LOCAL_ONLY', biometrics: 'NONE', approval_by_gesture: 'REFUSED', note: 'gestures never authorize actions (§75)' }; },
+    get camera() { return { status: gestureStatus().camera, pipeline: 'NONE', note: 'opens only from the explicit per-session owner control (§67); local only; never persisted' }; },
   }),
 };
 function loadSettingsFrom(obj) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj)); } catch {} return loadSettings(); }
@@ -292,9 +308,9 @@ async function login(secret) {
   return ok && !!state.principal;
 }
 async function logout() {
-  stopAll('teardown');
+  stopAll('teardown'); stopCamera('logout');
   try { await fetch('/admin/session/logout', { method: 'POST', credentials: 'same-origin' }); } catch {}
-  state.principal = null; state.voiceCaps = null; emit('principal', state.principal);
+  state.principal = null; state.voiceCaps = null; state.gestureCaps = null; emit('principal', state.principal);
   setKaiState('offline'); paintVoice();
 }
 
@@ -310,7 +326,7 @@ function mountOrb() {
   orbEl.type = 'button';
   orbEl.title = 'KAI (⌘K)';
   orbEl.setAttribute('aria-label', 'Open KAI');
-  orbEl.innerHTML = '<span class="kaip-orb-dot"></span><span class="kaip-orb-label">KAI</span><span class="kaip-orb-mic" aria-hidden="true">● MIC</span>';
+  orbEl.innerHTML = '<span class="kaip-orb-dot"></span><span class="kaip-orb-label">KAI</span><span class="kaip-orb-mic" aria-hidden="true">● MIC</span><span class="kaip-orb-cam" aria-hidden="true">● CAM</span>';
   orbEl.addEventListener('click', () => openDrawer());
   document.body.appendChild(orbEl);
   paintOrb();
@@ -320,6 +336,7 @@ function paintOrb() {
   if (!orbEl) return;
   orbEl.dataset.state = state.kaiState;
   orbEl.dataset.mic = voice.listening ? '1' : '0';
+  orbEl.dataset.cam = cam.session && cam.session.on ? '1' : '0';   // §8 badge: driven by the REAL session flag
   orbEl.querySelector('.kaip-orb-label').textContent = 'KAI ' + (ORB_TEXT[state.kaiState] || '');
 }
 
@@ -639,16 +656,21 @@ function stopAll(reason) {
 // §6/§7 VOICE — status truth, listening (browser STT), the command loop, TTS + subtitles
 // ============================================================================
 const hasSR = () => !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-async function refreshVoiceCaps() {
-  if (!(state.flags.kai_bridge_enabled && isOwner())) { state.voiceCaps = null; return; }
+// Backend truth, or an honest UNREACHABLE-with-reason — never a fabricated 'enabled'.
+async function probeCaps(path, what) {
+  const W = what[0].toUpperCase() + what.slice(1);
   try {
-    const r = await fetch('/admin/kai/holding/voice/capabilities', { credentials: 'include' });
-    if (r.ok) state.voiceCaps = await r.json();
-    else state.voiceCaps = { status: 'UNREACHABLE', enabled: false, reason:
-      r.status === 404 ? 'Holding command API is not enabled (KAI_HOLDING_COMMAND_ENABLED off) — voice has no backend.'
-      : r.status === 403 ? 'Owner access is required for voice.' : `Voice backend returned HTTP ${r.status}.` };
-  } catch { state.voiceCaps = { status: 'UNREACHABLE', enabled: false, reason: 'Voice backend unreachable (bridge or App B down).' }; }
-  emit('voice', state.voiceCaps);
+    const r = await fetch(path, { credentials: 'include' });
+    if (r.ok) return await r.json();
+    return { status: 'UNREACHABLE', enabled: false, reason:
+      r.status === 404 ? `Holding command API is not enabled (KAI_HOLDING_COMMAND_ENABLED off) — ${what} has no backend.`
+      : r.status === 403 ? `Owner access is required for ${what}.` : `${W} backend returned HTTP ${r.status}.` };
+  } catch { return { status: 'UNREACHABLE', enabled: false, reason: `${W} backend unreachable (bridge or App B down).` }; }
+}
+async function refreshVoiceCaps() {
+  if (!(state.flags.kai_bridge_enabled && isOwner())) { state.voiceCaps = null; state.gestureCaps = null; return; }
+  [state.voiceCaps, state.gestureCaps] = await Promise.all([probeCaps('/admin/kai/holding/voice/capabilities', 'voice'), probeCaps('/admin/kai/holding/gesture/capabilities', 'the camera')]);
+  emit('voice', state.voiceCaps); emit('gesture', state.gestureCaps);
 }
 // DISABLED-WITH-REASON, in governing order. ok=true only when EVERY gate is real.
 function voiceStatus() {
@@ -675,6 +697,61 @@ function setPrivacyMode(m) {
 }
 function setMuted(b) { state.settings.muted = !!b; if (b) KAI.stop('user-stop'); saveSettings(); paintVoice(); }
 function setVoiceNote(t, err) { voice.note = t || ''; voice.noteErr = !!err; paintVoice(); }
+
+// ============================================================================
+// §8/§94 CAMERA + GESTURE — the presence-side policy gate and the lazy seam. This file never calls getUserMedia:
+// the ONE capture call is kai-gesture.js#start, reachable only through startCamera('owner-click') from the §67 control.
+// ============================================================================
+// DISABLED-WITH-REASON, in governing order (mirrors voiceStatus). ok=true ONLY when the backend says AVAILABLE_SESSION.
+function cameraStatus() {
+  const c = state.gestureCaps;
+  if (!state.flags.kai_bridge_enabled) return { ok: false, code: 'BRIDGE_OFF', reason: 'KAI bridge is not enabled on this deployment — the camera has no governed backend.' };
+  if (!state.principal) return { ok: false, code: 'NO_SESSION', reason: 'Sign in as owner to enable the camera.' };
+  if (!isOwner()) return { ok: false, code: 'NOT_OWNER', reason: `Signed in as ${state.principal.role}; owner access is required for the camera.` };
+  if (!c) return { ok: false, code: 'NOT_PROBED', reason: 'Camera backend not probed yet.' };
+  if (c.status === 'UNREACHABLE') return { ok: false, code: 'BACKEND_UNREACHABLE', reason: c.reason || 'Camera backend unreachable.' };
+  if (c.camera !== 'AVAILABLE_SESSION') return { ok: false, code: 'FLAG_OFF', reason: 'KAI_CAMERA_ENABLED is off on the backend — the camera never opens by default.' };
+  if (state.settings.muted) return { ok: false, code: 'MUTED', reason: 'Muted (§68 hard mute) — nothing is captured. Unmute to enable the camera.' };
+  return { ok: true, code: 'AVAILABLE_SESSION', reason: 'Available for THIS session only (never persisted) — local only, nothing leaves this device; the CAMERA ON indicator is mandatory.' };
+}
+function gestureStatus() {
+  const s = cam.session ? cam.session.status() : null, r = state.gestureCaps && state.gestureCaps.recognizer;
+  return { ...cameraStatus(), camera: s ? s.camera : 'OFF', recognizer: s ? s.recognizer : ((r && r.status) || 'RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED'), approval_by_gesture: 'REFUSED', last: s ? s.last : null };
+}
+let _gesture = null;
+// Lazy: kai-gesture.js loads only when the owner reaches a camera control. The injected actions are the ONLY things a
+// gesture can do — non-consequential UI helpers; never ask / holdingCommand / postConfirm (test_kai_gesture.js scans this literal).
+function ensureGesture() {
+  return _gesture || (_gesture = loadScript('/admin/kai-gesture.js').then(() => {
+    cam.session = new window.KaiGesture.KaiCameraSession({
+      allowed: cameraStatus,
+      actions: { stop: () => KAI.stop('gesture'), dismiss: () => dismissUI(), next: () => focusChip(1), previous: () => focusChip(-1), open_drawer: () => openDrawer() },
+      onChange: ev => { cam.note = ev.on ? '' : `Camera closed (${ev.reason}).`; paintOrb(); syncSettingsForm(); emit('camera', ev); },
+    });
+    return cam.session;
+  }).catch(e => { _gesture = null; throw e; }));
+}
+// Called ONLY from the §67 control's change handler (trigger 'owner-click', inside its user activation) and from
+// KAI.gesture.start ('api' — always refused by the module). Every refusal is surfaced with its reason.
+async function startCamera(trigger) {
+  const st = cameraStatus();
+  if (!st.ok) { syncSettingsForm(); return { started: false, code: st.code, reason: st.reason }; }
+  let s;
+  try { s = await ensureGesture(); } catch { cam.note = 'kai-gesture.js failed to load — camera unavailable.'; syncSettingsForm(); return { started: false, code: 'LOAD_FAILED', reason: cam.note }; }
+  const r = await s.start(trigger);
+  if (!r.started) cam.note = r.reason;
+  syncSettingsForm();
+  return r;
+}
+function stopCamera(reason) { if (cam.session) cam.session.stop(reason); }
+// Gesture helpers — navigation only. next/previous move focus across the suggestion / follow-up chips.
+function focusChip(dir) {
+  const chips = [...document.querySelectorAll('.kaip-chip')];
+  if (!chips.length) return;
+  const i = chips.indexOf(document.activeElement);
+  chips[(i + dir + chips.length) % chips.length].focus();
+}
+function dismissUI() { if (settingsEl && !settingsEl.hidden) closeSettings(); else if (drawerEl && drawerEl.classList.contains('open')) closeDrawer(); }
 
 // The recognizer starts ONLY here, and this is called ONLY from explicit owner input handlers
 // (mic button pointer/keyboard) or KAI.voice.start() invoked by a page action INSIDE a user activation. Never on boot.
@@ -1046,6 +1123,7 @@ function openSettings() {
   syncSettingsForm();
   settingsEl.hidden = false; settingsEl.setAttribute('aria-hidden', 'false');
   fillVoiceList();
+  if (cameraStatus().ok) ensureGesture().catch(() => {});   // loads the seam script only (opens nothing) so the click→camera window stays short
   setTimeout(() => settingsEl.querySelector('#ks-greeting').focus(), 50);
 }
 function closeSettings() {
@@ -1088,12 +1166,13 @@ function mountSettings() {
         <label class="kaip-set-field">Notification severity
           <select id="ks-notification_severity"><option value="critical">Critical only</option><option value="high">High and above</option><option value="medium">Medium and above</option><option value="all">All</option></select></label>
       </fieldset>
-      <fieldset><legend>Camera / gesture · Phase 8 seams</legend>
-        <label class="kaip-set-row"><input id="ks-camera_enabled" type="checkbox" disabled> Camera — OFF. No camera pipeline exists; nothing here can turn it on.</label>
-        <label class="kaip-set-row"><input id="ks-gesture_enabled" type="checkbox" disabled> Gesture — NOT BUILT (Phase 8). Gestures will never authorize actions (§75).</label>
+      <fieldset><legend>Camera / gesture · §8/§94</legend>
+        <label class="kaip-set-row"><input id="ks-camera_enabled" type="checkbox" disabled> Enable camera for this session — local only. Never persisted; a visible CAMERA ON indicator is mandatory; closes on Stop, tab hidden, sign-out, mute — never auto-restarts.</label>
+        <div class="kaip-set-note" id="ks-cam-note" role="status" aria-live="polite"></div>
+        <label class="kaip-set-row"><input id="ks-gesture_enabled" type="checkbox" disabled> Gesture — DISABLED: no certified local recognizer (RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED); no frame is read. Gestures will never authorize actions (§75).</label>
         <label class="kaip-set-row"><input id="ks-wake_word_enabled" type="checkbox" disabled> Wake word — requires a genuinely on-device engine (none present); cloud fallback is forbidden.</label>
       </fieldset>
-      <div class="kaip-set-note kaip-set-lock">🔒 Security settings cannot disable required critical audit: final commands and responses are audited server-side (§92) regardless of these preferences. Raw audio is never persisted or logged. Stored locally in this browser only.</div>
+      <div class="kaip-set-note kaip-set-lock">🔒 Security settings cannot disable required critical audit: final commands and responses are audited server-side (§92) regardless of these preferences. Raw audio is never persisted or logged. Stored locally in this browser only.<span id="ks-lock-cam"></span></div>
       <div class="kaip-set-actions"><button type="button" id="ks-reset" class="kaip-vbtn">Reset to privacy defaults</button><span class="kaip-set-saved" id="ks-saved" role="status" aria-live="polite"></span></div>
     </div>`;
   document.body.appendChild(settingsEl);
@@ -1121,7 +1200,9 @@ function mountSettings() {
   q('ks-speed').addEventListener('input', e => { state.settings.speed = Number(e.target.value); q('ks-speed-out').textContent = state.settings.speed.toFixed(2) + '×'; saveSettings(); saved(); });
   const qh = () => { state.settings.quiet_hours = { enabled: q('ks-qh').checked, start: +q('ks-qh-start').value || 0, end: +q('ks-qh-end').value || 0 }; state.settings = loadSettingsFrom(state.settings); saveSettings(); saved(); paintVoice(); };
   ['ks-qh', 'ks-qh-start', 'ks-qh-end'].forEach(id => q(id).addEventListener('change', qh));
-  q('ks-reset').addEventListener('click', () => { try { localStorage.removeItem(SETTINGS_KEY); } catch {} stopListening('reset'); state.settings = loadSettings(); saveSettings(); syncSettingsForm(); paintVoice(); saved('Reset to privacy defaults.'); });
+  // §8/§94 the ONLY path that opens the camera: the owner's click on this control (its change event runs inside the user activation).
+  q('ks-camera_enabled').addEventListener('change', e => { if (e.target.checked) startCamera('owner-click'); else { stopCamera('settings-off'); syncSettingsForm(); } });
+  q('ks-reset').addEventListener('click', () => { try { localStorage.removeItem(SETTINGS_KEY); } catch {} stopListening('reset'); stopCamera('reset'); state.settings = loadSettings(); saveSettings(); syncSettingsForm(); paintVoice(); saved('Reset to privacy defaults.'); });
   function saved(t) { q('ks-saved').textContent = t || 'Saved.'; clearTimeout(q('ks-saved')._t); q('ks-saved')._t = setTimeout(() => { q('ks-saved').textContent = ''; }, 1800); }
 }
 function syncSettingsForm() {
@@ -1135,7 +1216,14 @@ function syncSettingsForm() {
   q('ks-speak_responses').value = s.speak_responses; q('ks-auto_speak_critical').checked = s.auto_speak_critical;
   q('ks-qh').checked = s.quiet_hours.enabled; q('ks-qh-start').value = s.quiet_hours.start; q('ks-qh-end').value = s.quiet_hours.end;
   q('ks-notification_severity').value = s.notification_severity;
-  q('ks-camera_enabled').checked = false; q('ks-gesture_enabled').checked = false; q('ks-wake_word_enabled').checked = false;
+  // §8/§94: the control reflects the REAL in-memory session flag and is enabled ONLY when the backend says AVAILABLE_SESSION
+  // (or to turn an open camera off). The honest reason is always shown; gesture stays disabled (no certified recognizer).
+  const cs = cameraStatus(), camOn = !!(cam.session && cam.session.on);
+  q('ks-camera_enabled').checked = camOn; q('ks-camera_enabled').disabled = !cs.ok && !camOn;
+  q('ks-cam-note').textContent = [camOn ? 'CAMERA ON — this session only, local only, nothing leaves this device.' : (cs.ok ? 'CAMERA OFF · ' + cs.reason : 'CAMERA DISABLED — ' + cs.reason),
+    'Recognizer: ' + gestureStatus().recognizer + ' (no frames read).', cam.note].filter(Boolean).join(' · ');
+  q('ks-lock-cam').textContent = camOn ? ' Camera: ON for this session only — never persisted; closes on Stop, sign-out, mute, tab hidden.' : ' Camera: OFF — never persisted as on.';
+  q('ks-gesture_enabled').checked = false; q('ks-wake_word_enabled').checked = false;
 }
 async function fillVoiceList() {
   if (!settingsEl) return;

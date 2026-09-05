@@ -70,6 +70,13 @@ class Settings(BaseSettings):
     # is never covert (a visible indicator is mandatory), and WAKE_WORD_LOCAL is UNAVAILABLE unless a
     # genuinely on-device engine is present (no cloud continuous-audio fallback).
     KAI_VOICE_ENABLED: bool = False
+    # §8/§94 Camera + gesture (Phase 8). Default OFF. Even when True the camera stays closed until the
+    # owner gives an explicit PER-SESSION enable (never persisted as ON); a visible indicator is mandatory
+    # whenever it is open; inference is LOCAL-ONLY (no frame ever leaves the device); no biometric /
+    # identity / emotion inference; gestures map only to non-consequential UI actions and can NEVER
+    # approve/confirm/execute (approval_dialog refuses the gesture channel like voice, §75). There is NO
+    # certified local recognizer in this repo — the seam reports RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED.
+    KAI_CAMERA_ENABLED: bool = False
     # Cyber Operations (Phase A) — governed READ-ONLY defensive security endpoints. Default OFF:
     # when False the admin_security router is not mounted at all (zero new surface). All empty secret
     # refs below fail SOFT to NOT_CONNECTED (never raise, never fabricate a zero) — see arch §7.
