@@ -174,7 +174,9 @@ export const KAI = {
   voice: { status: () => voiceStatus(), start: () => startListening('api'), stop: () => stopListening('user'), setMode: m => setPrivacyMode(m), mute: b => setMuted(!!b) },
   settings: { get: () => ({ ...state.settings }), set: patch => { Object.assign(state.settings, patch || {}); state.settings = loadSettingsFrom(state.settings); saveSettings(); if (state.settings.muted) KAI.stop('user-stop'); paintVoice(); } },
   // §8/§94 camera + gesture seam. start() from the API is ALWAYS refused (NOT_EXPLICIT): only the §67 control opens the camera.
-  gesture: { status: () => gestureStatus(), start: () => startCamera('api'), stop: r => stopCamera(r || 'user'), registerRecognizer: fn => ensureGesture().then(s => s.registerRecognizer(fn)) },
+  // registerRecognizer is gated on BACKEND truth (gesture_policy.recognizer_status.available) — the browser seam alone can never
+  // declare a recognizer certified; without backend availability the call is refused (false) and no frame is ever handed out.
+  gesture: { status: () => gestureStatus(), start: () => startCamera('api'), stop: r => stopCamera(r || 'user'), registerRecognizer: fn => recognizerCertified() ? ensureGesture().then(s => s.registerRecognizer(fn)) : Promise.resolve(false) },
   // Phase 8 seams (live read-only descriptors): nothing here opens a camera or reads a frame.
   seams: Object.freeze({
     get gesture() { const g = gestureStatus(); return { built: true, phase: 8, authority: 'NONE', recognizer: g.recognizer, camera: g.camera, inference: 'LOCAL_ONLY', biometrics: 'NONE', approval_by_gesture: 'REFUSED', note: 'gestures never authorize actions (§75)' }; },
@@ -714,9 +716,14 @@ function cameraStatus() {
   if (state.settings.muted) return { ok: false, code: 'MUTED', reason: 'Muted (§68 hard mute) — nothing is captured. Unmute to enable the camera.' };
   return { ok: true, code: 'AVAILABLE_SESSION', reason: 'Available for THIS session only (never persisted) — local only, nothing leaves this device; the CAMERA ON indicator is mandatory.' };
 }
+// Backend truth for the recognizer seam: only gesture_policy.recognizer_status() may say a recognizer is available/certified.
+const recognizerCertified = () => !!(state.gestureCaps && state.gestureCaps.recognizer && state.gestureCaps.recognizer.available === true);
 function gestureStatus() {
   const s = cam.session ? cam.session.status() : null, r = state.gestureCaps && state.gestureCaps.recognizer;
-  return { ...cameraStatus(), camera: s ? s.camera : 'OFF', recognizer: s ? s.recognizer : ((r && r.status) || 'RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED'), approval_by_gesture: 'REFUSED', last: s ? s.last : null };
+  const backendRec = (r && r.status) || 'RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED';
+  // The session's 'REGISTERED' is reported only when the backend says the recognizer is available; otherwise backend truth wins.
+  const recognizer = (s && s.recognizer === 'REGISTERED' && recognizerCertified()) ? 'REGISTERED' : backendRec;
+  return { ...cameraStatus(), camera: s ? s.camera : 'OFF', recognizer, recognizer_certified: recognizerCertified(), approval_by_gesture: 'REFUSED', last: s ? s.last : null };
 }
 let _gesture = null;
 // Lazy: kai-gesture.js loads only when the owner reaches a camera control. The injected actions are the ONLY things a

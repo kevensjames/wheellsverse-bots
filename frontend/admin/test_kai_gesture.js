@@ -230,6 +230,16 @@ test('static: the gesture actions injected by kai-presence.js are exactly the vo
   assert.deepStrictEqual(keys, [...G.ACTIONS].sort());
   for (const bad of ['ask', 'holdingCommand', 'postConfirm', 'confirm', 'fetch', 'submit', 'login', 'approve', 'speak', 'startListening', 'startCamera']) assert.ok(!new RegExp('\\b' + bad + '\\b').test(m[1]), 'forbidden helper in gesture actions: ' + bad);
 });
+test('static: the recognizer seam is gated on BACKEND truth — KAI.gesture.registerRecognizer refuses unless gesture_policy says available; gestureStatus never reports REGISTERED over backend truth; the banner never asserts certification', () => {
+  const src = stripComments(readAdmin('kai-presence.js'));
+  assert.ok(/recognizerCertified\s*=\s*\(\)\s*=>\s*!!\(state\.gestureCaps\s*&&\s*state\.gestureCaps\.recognizer\s*&&\s*state\.gestureCaps\.recognizer\.available\s*===\s*true\)/.test(src), 'recognizerCertified reads gestureCaps.recognizer.available === true (backend recognizer_status)');
+  const reg = src.split('\n').find(l => l.includes('registerRecognizer: fn =>'));
+  assert.ok(reg && reg.includes('recognizerCertified() ? ensureGesture()') && reg.includes('Promise.resolve(false)'), 'registerRecognizer is gated on recognizerCertified(): ' + reg);
+  assert.ok(src.includes("s.recognizer === 'REGISTERED' && recognizerCertified()) ? 'REGISTERED' : backendRec"), 'gestureStatus reports REGISTERED only when the backend says available');
+  const gsrc = stripComments(readAdmin('kai-gesture.js'));
+  assert.ok(!gsrc.includes('frames processed on this device only'), 'the module banner does not assert local-only certification on its own');
+  assert.ok(gsrc.includes('certification per backend'), 'banner defers certification to the backend');
+});
 
 (async () => {
   for (const [name, fn] of tests) {

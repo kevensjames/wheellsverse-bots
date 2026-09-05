@@ -143,7 +143,8 @@
       b.appendChild(dot); b.appendChild(text); b.appendChild(sub); b.appendChild(btn);
       d.body.appendChild(b); this._banner = b; this._bannerSub = sub;
     }
-    this._bannerSub.textContent = this.recognizer ? 'recognizer registered · frames processed on this device only' : 'no frames read · recognizer ' + RECOGNIZER_STATUS;
+    // The banner never asserts certification on its own — that is backend truth (gesture_policy.recognizer_status), gated by the presence layer.
+    this._bannerSub.textContent = this.recognizer ? 'recognizer registered (certification per backend) · no frame leaves this device' : 'no frames read · recognizer ' + RECOGNIZER_STATUS;
     this._banner.hidden = false;
   };
   P._hideBanner = function () { if (this._banner) this._banner.hidden = true; };
