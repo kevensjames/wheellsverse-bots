@@ -60,12 +60,21 @@ def _deployment() -> dict:
     return deployment_view(settings, source_head=sha, peer_shas={})
 
 
+FLAG_KEYS = (
+    "MONEY_MODE", "KAI_A2_EXECUTION_ENABLED", "HOLDING_AUTONOMY_ENABLED",
+    "KAI_CAPABILITY_EXECUTION_ENABLED", "KAI_SELF_IMPROVEMENT_ENABLED", "APP_ENV",
+    # §98/§119 the remaining real authority/surface flags (read by capabilities_answer / worker_health)
+    "KAI_SELF_IMPROVEMENT_DETECT_ENABLED", "KAI_HOLDING_ENABLED", "KAI_HOLDING_COMMAND_ENABLED",
+    "KAI_HOLDING_WATCH_ENABLED", "KAI_HOLDING_BRIEFING_ENABLED", "KAI_HOLDING_DELIVERY_ENABLED",
+    "KAI_PROACTIVE_ENABLED", "KAI_HOLDING_CYCLE_ENABLED", "KAI_VOICE_ENABLED", "KAI_CYBER_OPS_ENABLED",
+)
+
+
 def _flags() -> dict:
-    """Real runtime authority flags — the source for live-derived limitations (§63/§99)."""
+    """Real runtime authority flags — the ONE reader for live-derived limitations (§63/§99) and the
+    §98/§119 capability/worker answers. Presence of a flag only; never a secret value."""
     from app.config import settings
-    keys = ("MONEY_MODE", "KAI_A2_EXECUTION_ENABLED", "HOLDING_AUTONOMY_ENABLED",
-            "KAI_CAPABILITY_EXECUTION_ENABLED", "KAI_SELF_IMPROVEMENT_ENABLED", "APP_ENV")
-    return {k: getattr(settings, k, None) for k in keys}
+    return {k: getattr(settings, k, None) for k in FLAG_KEYS}
 
 
 def _finance_available() -> bool:
@@ -116,6 +125,11 @@ _DEFAULT_SOURCES: dict[str, Callable[[], Any]] = {
 _INVARIANT_LIMITATIONS = [
     "I cannot self-approve a production merge, deploy, destructive, financial, or policy change — those are owner-only (policy §0 #11).",
     "I make no claim to consciousness, sentience, or emotions; my self-awareness is operational only.",
+    # §99 policy invariants — each names the module that enforces it (never a static marketing claim).
+    "I cannot expose credentials or secret values — audit/inputs are redacted and only key PRESENCE is ever reported (governance.audit_log._redact, status.telegram_status).",
+    "I cannot run restricted-security capabilities arbitrarily — RESTRICTED / tier-3+ capabilities are never auto-selected and need an authorized mission + allowlisted target (capability.manifest.auto_selectable, security_tier).",
+    "I cannot trust an uncertified repository or worker output — nothing is 'done' until an independent reviewer and passing tests certify it (capability.coding.certify_worker_result).",
+    "I cannot claim unavailable data is healthy — an unconnected or missing source is INSUFFICIENT_DATA / UNAVAILABLE, never scored OK (health_score, eval_harness).",
 ]
 
 
@@ -137,7 +151,7 @@ def _derive_limitations(flags: dict, *, finance_available: bool, coding_workers:
         if isinstance(w, dict) and not w.get("available", True):
             nm = w.get("name") or w.get("id") or "a coding worker"
             out.append(f"The {nm} coding worker is not AVAILABLE ({w.get('state', 'uncertified')}) — "
-                       "it cannot execute coding tasks until certified.")
+                       "it cannot execute coding tasks until it is AVAILABLE: certified, credentialed and observed live.")
     return out
 
 

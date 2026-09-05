@@ -24,7 +24,7 @@ class _DisabledResult:
 
 def build_live_engine(*, autonomy_on: bool | None = None, execution_on: bool | None = None,
                       a2_on: bool | None = None, company_autonomy: dict | None = None,
-                      a2_framework=None) -> HoldingAutonomousWorkEngine:
+                      a2_framework=None, stop_store=None) -> HoldingAutonomousWorkEngine:
     """Construct the engine the persistent cron uses, wiring the emergency brakes from config so the
     operator can stop activity without a code rollback:
       • KAI_CAPABILITY_EXECUTION_ENABLED (brake #1) OFF → the executor returns CAPABILITY_UNAVAILABLE
@@ -35,13 +35,20 @@ def build_live_engine(*, autonomy_on: bool | None = None, execution_on: bool | N
         task stays NEEDS_CERTIFICATION (no isolated-worktree write). A2 is wired ONLY when a framework is
         INJECTED here AND brake #1 AND brake #3 are on (autonomy is the step-1 kill switch). Production
         injects no framework, so A2 never runs there regardless of the flag — prepare-only, never merge.
-    Overrides are for tests; production reads app.config.settings."""
+    Overrides are for tests; production reads app.config.settings.
+      • §97 STOP_AUTONOMOUS_EXECUTION (brakes.stop_engaged — engaged OR unreadable → fail closed) forces
+        every CONFIG-READ brake OFF; explicit overrides are untouched (tests). It halts the NEXT engine
+        build only — an already-built engine is not undone."""
     if autonomy_on is None or execution_on is None or a2_on is None:
         try:
             from app.config import settings
-            autonomy_on = bool(getattr(settings, "HOLDING_AUTONOMY_ENABLED", False)) if autonomy_on is None else autonomy_on
-            execution_on = bool(getattr(settings, "KAI_CAPABILITY_EXECUTION_ENABLED", False)) if execution_on is None else execution_on
-            a2_on = bool(getattr(settings, "KAI_A2_EXECUTION_ENABLED", False)) if a2_on is None else a2_on
+            from app.services.holding.brakes import stop_engaged
+            stopped = stop_engaged(stop_store)
+            def _cfg(flag):
+                return False if stopped else bool(getattr(settings, flag, False))
+            autonomy_on = _cfg("HOLDING_AUTONOMY_ENABLED") if autonomy_on is None else autonomy_on
+            execution_on = _cfg("KAI_CAPABILITY_EXECUTION_ENABLED") if execution_on is None else execution_on
+            a2_on = _cfg("KAI_A2_EXECUTION_ENABLED") if a2_on is None else a2_on
         except Exception:
             # config unavailable → fail CLOSED (every brake engaged) — never assume-on for a brake
             autonomy_on = False if autonomy_on is None else autonomy_on

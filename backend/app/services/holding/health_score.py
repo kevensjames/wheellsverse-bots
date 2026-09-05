@@ -179,7 +179,7 @@ def compute_health(*, availability=None, security=None, deployment_health=None,
 
 
 # ── §58 evidence-quality confidence — HIGH/MEDIUM/LOW from EXPLICIT evidence, NOT token probability ──
-_PLACEHOLDER = {"UNKNOWN", "UNAVAILABLE", "", None}
+_PLACEHOLDER = ("UNKNOWN", "UNAVAILABLE", "", None)   # tuple: membership must not crash on an unhashable value
 
 
 def _source_of(item: dict):
