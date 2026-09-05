@@ -211,6 +211,16 @@ def run() -> bool:
     ck("voice_session.py never calls a cloud recognizer / continuous mic loop (no recognize_google / Microphone)",
        "recognize_google" not in src and "Microphone" not in src and "pyaudio" not in src)
 
+    # ── Phase 7b: the presence layer's honest capability probe (owner-only router, dormant with the flag) ──
+    rsrc = (Path(__file__).resolve().parents[2] / "routers" / "admin_holding_command.py").read_text()
+    ck("router exposes GET /voice/capabilities from VoiceSessionManager.capabilities() (no second truth)",
+       '@router.get("/voice/capabilities")' in rsrc and ".capabilities()" in rsrc
+       and '"approval_by_voice": "REFUSED"' in rsrc)
+    ck("capabilities() reports enabled=False by default + PTT default + wake-word UNAVAILABLE for the UI",
+       VoiceSessionManager().capabilities()["enabled"] is False
+       and VoiceSessionManager().capabilities()["default_privacy_mode"] == "PUSH_TO_TALK"
+       and VoiceSessionManager().capabilities()["wake_word"]["status"] == "UNAVAILABLE")
+
     n = len(res); ok = sum(res)
     print(f"\nVOICE COMMAND CENTER (§135) TESTS: {ok}/{n} —", "PASS" if ok == n else "FAIL")
     return ok == n

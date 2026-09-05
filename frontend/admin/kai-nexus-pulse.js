@@ -19,6 +19,7 @@
     offline: 'Offline', online: 'Ready', idle: 'Ready',
     listening: 'Listening…', thinking: 'Thinking…', researching: 'Researching…',
     speaking: 'Responding…', alert: 'Attention',
+    working: 'Working…', waiting: 'Awaiting your approval', degraded: 'Degraded',   // Phase 7b presence states
   };
   function humanState(s) { return STATE_LABEL[String(s || 'online').toLowerCase()] || 'Ready'; }
   function activityLabel(kaiState) { return humanState(kaiState); }

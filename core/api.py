@@ -2133,12 +2133,15 @@ def _admin_automations_json():
     return JSONResponse(out, headers={"Cache-Control": "no-store"})
 
 
-@app.get("/admin/nexus", response_class=HTMLResponse)
-async def serve_admin_nexus():
-    """KAI Command Nexus — the immersive full-screen presentation of the SAME
-    governed KAI presence provider (same session, conversation, streaming). NOT
-    /admin/kai (that path is the bridge reverse-proxy). Merge P13."""
-    return _serve_frontend("admin/nexus.html", cache=False)
+@app.get("/admin/nexus", include_in_schema=False)
+async def serve_admin_nexus(request: Request):
+    """§69 ONE immersive view: /admin/nexus (the former P13 nexus.html overlay) now redirects to
+    /admin/mission-nexus, which hosts the SAME governed presence provider (window.KAI — same session,
+    conversation, streaming) inside the richer mission-control shell. Query string (e.g. ?q=) is kept.
+    NOT /admin/kai (that path is the bridge reverse-proxy)."""
+    from fastapi.responses import RedirectResponse
+    qs = request.url.query
+    return RedirectResponse(url="/admin/mission-nexus" + (f"?{qs}" if qs else ""), status_code=307)
 
 
 @app.get("/admin/mission-nexus", response_class=HTMLResponse)

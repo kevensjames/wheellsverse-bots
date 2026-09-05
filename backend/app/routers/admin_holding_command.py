@@ -212,6 +212,20 @@ def holding_command(body: HoldingCommandBody):
                                   "consequential). Nothing ran.", "provenance": "REAL"})
 
 
+@router.get("/voice/capabilities")
+def holding_voice_capabilities():
+    """§6/§7 honest voice capability truth for the presence layer (Phase 7b). Read-only; nothing listens.
+    Reports the REAL KAI_VOICE_ENABLED flag, the PUSH_TO_TALK default, wake-word UNAVAILABLE (no on-device
+    engine; cloud continuous audio is forbidden), BROWSER_LIMITED transcription, and that the voice channel
+    can NEVER authorize (§75). The frontend renders DISABLED-WITH-REASON from this — never a fake-working mic."""
+    from app.services.holding.voice_session import VoiceSessionManager
+    caps = VoiceSessionManager(environment=_env()).capabilities()
+    caps.update({"approval_by_voice": "REFUSED", "audio_persisted": False,
+                 "contract": "FINAL transcript TEXT → POST /admin/holding/command[/stream] (interaction_mode=voice)",
+                 "timestamp": _now(), "provenance": "REAL"})
+    return JSONResponse(status_code=200, content=caps, headers={"Cache-Control": "no-store"})
+
+
 class ConfirmBody(BaseModel):
     """§24 approval-turn envelope. Descriptive only — the server derives the owner principal + channel;
     a forged role/authority is not modeled and is ignored (extra='ignore')."""
