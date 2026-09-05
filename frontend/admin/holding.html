@@ -627,8 +627,8 @@ function renderWorking(v){
   const el=$('workBody');
   if(failed(v)){ el.innerHTML = honest(v,'KAI working'); return; }
   const rows = arr(v.missions).filter(m=>_WORKING.has(m.status));
-  if(!rows.length){ el.innerHTML = emptyMsg('KAI is not working on any mission now — the persistent cycle is not running live (honestly idle, not fabricated).'); return; }
   let h='';
+  if(!rows.length){ h+=emptyMsg('KAI is not working on any mission now — the persistent cycle is not running live (honestly idle, not fabricated).'); }
   for(const m of rows){
     const writes = m.writes;
     const wlabel = (!writes || writes==='NONE' || (Array.isArray(writes)&&!writes.length)) ? badge('DISABLED','writes: NONE') : '<span class="badge warn"><span class="bi" aria-hidden="true">✎</span>writes: '+arr(writes).length+'</span>';
@@ -638,6 +638,20 @@ function renderWorking(v){
         +(m.worker?(' · worker '+esc(m.worker)):'')+' · started '+fmtTs(m.started_at)+'</div>'
       +'<div class="meta">next: '+esc(m.next_step||'—')+' · progress '+esc(m.progress||'0/0')+' · '+wlabel+'</div>'
       +'<div class="chips">'+evBtn('Mission evidence · '+(m.objective||m.mission_id), m.evidence, {subtitle:'mission '+esc(m.mission_id)})+'</div></div>';
+  }
+  // §26 READY_FOR_REVIEW bucket + §27 self-improvement (READY_FOR_REVIEW only) — same /view payload, no private reasoning
+  const rfr = arr((v.kai_working||{}).ready_for_review), sis = arr(v.self_improvement_ready);
+  h+='<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:12px 0 4px">Ready for review ('+rfr.length+')</div>';
+  if(!rfr.length) h+=emptyMsg('Nothing ready for review.');
+  for(const it of rfr){ h+='<div class="row"><span>'+badge(it.status)+' <code>'+esc(it.company)+'</code> · '+esc(it.task||'')+(it.capability?(' · '+esc(it.capability)):'')+(it.reason?(' · '+esc(it.reason)):'')+'</span></div>'; }
+  h+='<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:12px 0 4px">Self-Improvement — ready for review ('+sis.length+')</div>';
+  if(!sis.length) h+=emptyMsg('Nothing prepared for review.');
+  for(const s of sis){
+    h+='<div class="item"><div class="itemhead">'+badge('READY_FOR_REVIEW')+'<b>'+esc(s.problem)+'</b></div>'
+      +'<div class="meta">tests before '+esc(s.tests_before)+' · after '+esc(s.tests_after)+' · review: '+esc(s.independent_review)+'</div>'
+      +'<div class="meta">files: '+esc(arr(s.files_changed).join(', '))+' · rollback: '+esc(s.rollback)+'</div>'
+      +'<div class="meta">owner action: '+esc(s.owner_action)+'</div>'
+      +'<div class="chips">'+evBtn('Self-improvement evidence · '+(s.problem||''), s.evidence, {})+'</div></div>';
   }
   el.innerHTML = h;
 }
