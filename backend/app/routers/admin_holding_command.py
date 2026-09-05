@@ -226,6 +226,20 @@ def holding_voice_capabilities():
     return JSONResponse(status_code=200, content=caps, headers={"Cache-Control": "no-store"})
 
 
+@router.get("/gesture/capabilities")
+def holding_gesture_capabilities():
+    """§8/§94 honest camera/gesture capability truth for the presence layer (Phase 8). Read-only; nothing
+    opens a camera. Reports the REAL KAI_CAMERA_ENABLED flag (camera OFF | AVAILABLE_SESSION — a per-session
+    owner enable is still required and never persisted), indicator REQUIRED, inference LOCAL_ONLY, the
+    recognizer seam RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED (no certified local model in this repo), and that a
+    gesture can NEVER authorize (§75). The frontend renders DISABLED-WITH-REASON from this."""
+    from app.config import settings
+    from app.services.holding.gesture_policy import GestureSessionPolicy
+    caps = GestureSessionPolicy.capabilities(settings)
+    caps.update({"timestamp": _now(), "provenance": "REAL"})
+    return JSONResponse(status_code=200, content=caps, headers={"Cache-Control": "no-store"})
+
+
 class ConfirmBody(BaseModel):
     """§24 approval-turn envelope. Descriptive only — the server derives the owner principal + channel;
     a forged role/authority is not modeled and is ignored (extra='ignore')."""
