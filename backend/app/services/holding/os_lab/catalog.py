@@ -4,9 +4,9 @@ CATALOG-FIRST (§115). This module is METADATA and a STATE MACHINE, nothing else
 subprocess, no git, no filesystem write (a test asserts the source contains none of them). Nothing
 here can clone/fetch/build/run an OS. Pipeline execution is a later, separately gated step.
 
-Zero-fabrication (§0 #16-19): ``canonical_source``/``website`` are recorded from well-known upstream
-locations and were NOT fetched; every upstream fact (license, languages, architecture, maturity, repo
-liveness) starts UNVERIFIED and is changed only by an audited lifecycle transition that carries evidence.
+Zero-fabrication (§0 #16-19): ``canonical_source``/``website`` are OPERATOR-STATED and were NOT fetched
+(UNVERIFIED); every upstream fact (license, languages, architecture, maturity, repo liveness) starts
+UNVERIFIED and is changed only by an audited lifecycle transition that carries evidence.
 ``description`` states the LAB'S INTENDED ROLE for the entry, not an upstream claim.
 
 §113: every entry starts UNTRUSTED/DISCOVERED and moves only along the explicit chain
@@ -112,6 +112,9 @@ _NEXT: dict[LabState, frozenset[LabState]] = {
 
 GOVERNED_ACTORS = frozenset({"operator", "kai"})   # the only principals that may transition (§113)
 _SHA_RE = re.compile(r"[0-9a-f]{40}")               # §41 pin = a full commit SHA, nothing looser
+# A review state is reachable only after the thing it reviews actually happened (runtimes.EXECUTED ledger).
+_NEEDS_EXECUTED = {LabState.BUILD_REVIEW: "build", LabState.ISOLATED_EXECUTION: "qemu_boot"}
+_UNDECIDED = frozenset({"SKIPPED", "PENDING", "UNVERIFIED"})   # a report step status that decides nothing
 
 
 def allowed_transitions(state: LabState) -> frozenset[LabState]:
@@ -207,6 +210,12 @@ def advance(entry: OsCatalogEntry, to: LabState, *, actor: str, reason: str,
         raise ValueError(f"{entry.name}: SOURCE_VERIFIED requires evidence['verified_at']")
     if to == LabState.PINNED and not _SHA_RE.fullmatch(str(ev.get("sha", ""))):
         raise ValueError(f"{entry.name}: PINNED requires evidence['sha'] = full 40-hex commit sha (§41)")
+    if to in _NEEDS_EXECUTED:
+        from app.services.holding.os_lab.runtimes import EXECUTED   # lazy: runtimes imports this module
+        key = _NEEDS_EXECUTED[to]
+        if not EXECUTED.get(key):
+            raise ValueError(f"{entry.name}: {to.value} refused — EXECUTED[{key!r}] is False: nothing was "
+                             f"{key}-executed in this phase, so there is nothing to review (§113)")
     if to in ADOPTED:
         if actor != "operator":
             raise PermissionError(f"{entry.name}: only the operator may adopt ({to.value}) — no self-approval (§0 #11)")
@@ -227,27 +236,45 @@ def advance(entry: OsCatalogEntry, to: LabState, *, actor: str, reason: str,
 
 def record_verdict(entry: OsCatalogEntry, verdict: Verdict, *, actor: str, reason: str,
                    evidence: dict, at: str = "UNKNOWN") -> dict:
-    """§114 — the ONLY writer of ``certification``. Allowed only while in SECURITY_REVIEW, with a report."""
+    """§114 — the ONLY writer of ``certification``. Allowed only while in SECURITY_REVIEW, with a report.
+    Fail-closed direction: kai may record SUSPICIOUS / REJECTED / UNVERIFIED; the clean-scope verdict is
+    operator-only and needs a FULL-scope report in which every step actually decided (no SKIPPED / PENDING /
+    UNVERIFIED). Any verdict must agree with the verdict the attached report carries."""
     _governed(actor, reason)
+    verdict = Verdict(verdict)
+    clean = verdict == Verdict.NO_MALICIOUS_BEHAVIOR_DETECTED_IN_CERTIFIED_SCOPE
+    if clean and actor != "operator":
+        raise PermissionError(f"{entry.name}: only the operator may record {verdict.value} — "
+                              f"{actor!r} may only record SUSPICIOUS / REJECTED / UNVERIFIED (§0 #11, §114)")
     if entry.state != LabState.SECURITY_REVIEW:
         raise ValueError(f"{entry.name}: a verdict may only be recorded in SECURITY_REVIEW (state {entry.state.value})")
-    if not evidence:
-        raise ValueError(f"{entry.name}: a verdict requires its report as evidence (§114)")
-    verdict = Verdict(verdict)
+    if not isinstance(evidence, dict) or not evidence:
+        raise ValueError(f"{entry.name}: a verdict requires its report (dict) as evidence (§114)")
+    if "verdict" in evidence and str(evidence["verdict"]) != verdict.value:
+        raise ValueError(f"{entry.name}: recorded verdict contradicts the attached report")
+    if clean:
+        steps = evidence.get("steps")
+        statuses = [s.get("status") if isinstance(s, dict) else None for s in (steps if isinstance(steps, list) else [])]
+        if evidence.get("scope") != "FULL" or not statuses or any(st is None or st in _UNDECIDED for st in statuses):
+            raise ValueError(f"{entry.name}: {verdict.value} requires a FULL-scope report with every step decided "
+                             f"(no SKIPPED/PENDING/UNVERIFIED) — a STATIC_ONLY/partial report cannot certify (§114)")
     rec = _audit(entry, kind="verdict", to=verdict.value, actor=actor, reason=reason, evidence=evidence, at=at)
     entry.certification = verdict
     return rec
 
 
-def justify_adoption(entry: OsCatalogEntry, *, gap: str, why_existing_insufficient: str,
+def justify_adoption(entry: OsCatalogEntry, *, actor: str, gap: str, why_existing_insufficient: str,
                      alternatives_considered: tuple[str, ...] | list[str], at: str = "UNKNOWN") -> GapJustification:
-    """§117 — record the concrete-gap justification. Operator-only; every field non-empty."""
+    """§117 — record the concrete-gap justification. Operator-only (no self-justified adoption); every field non-empty."""
+    _governed(actor, gap)
+    if actor != "operator":
+        raise PermissionError(f"{entry.name}: only the operator may record a §117 justification (actor {actor!r})")
     alts = tuple(a for a in alternatives_considered if a and a.strip())
-    if not (gap and gap.strip()) or not (why_existing_insufficient and why_existing_insufficient.strip()) or not alts:
+    if not (why_existing_insufficient and why_existing_insufficient.strip()) or not alts:
         raise ValueError(f"{entry.name}: §117 justification needs gap, why_existing_insufficient and ≥1 alternative")
-    gj = GapJustification(gap=gap, why_existing_insufficient=why_existing_insufficient, alternatives_considered=alts)
-    _audit(entry, kind="gap_justification", to=entry.state.value, actor="operator", reason=gap,
-           evidence=asdict(gj), at=at)
+    gj = GapJustification(gap=gap, why_existing_insufficient=why_existing_insufficient, alternatives_considered=alts,
+                          recorded_by=actor)
+    _audit(entry, kind="gap_justification", to=entry.state.value, actor=actor, reason=gap, evidence=asdict(gj), at=at)
     entry.gap_justification = gj
     return gj
 
@@ -260,7 +287,7 @@ def record_repo_instruction(entry: OsCatalogEntry, text: str) -> LabState:
 
 
 # ── §115/§116 curated initial catalog ─────────────────────────────────────────
-_NOT_FETCHED = "canonical_source recorded from the well-known upstream location; NOT fetched in this phase (§115 catalog-first)."
+_NOT_FETCHED = "canonical_source is operator-stated upstream, NOT fetched, UNVERIFIED (§115 catalog-first)."
 
 
 def initial_catalog() -> list[OsCatalogEntry]:
@@ -270,7 +297,8 @@ def initial_catalog() -> list[OsCatalogEntry]:
         E("Ultron OS", "https://github.com/aswinmohanme/ultronOS", OsCategory.EDUCATIONAL_REFERENCE,
           (Disposition.EDUCATIONAL_SANDBOX,), RiskClass.HIGH,
           description="§40 educational OS sandbox candidate — isolated QEMU only, production=NO.",
-          notes=_NOT_FETCHED + " Small-author repo: provenance, license and activity all UNVERIFIED."),
+          notes=_NOT_FETCHED + " Several projects carry the name 'Ultron': SOURCE_VERIFIED must confirm this "
+                "operator-stated URL. Small-author repo: provenance, license and activity all UNVERIFIED."),
         E("virtme-ng", "https://github.com/arighi/virtme-ng", OsCategory.RESTRICTED_SECURITY_LAB,
           (Disposition.RESTRICTED_KERNEL_TEST_CANDIDATE,), RiskClass.RESTRICTED,
           description="§42 restricted kernel-test tooling candidate — default OFF, prod DISABLED.",

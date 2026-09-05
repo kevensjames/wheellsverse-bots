@@ -15,6 +15,7 @@ holding_deployment.Feature (deployed != enabled truth rows). Pure stdlib; plain-
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
@@ -31,6 +32,17 @@ VERIFICATION_VOCAB = frozenset({
     UNVERIFIED, "NO_MALICIOUS_BEHAVIOR_DETECTED_IN_CERTIFIED_SCOPE", "SUSPICIOUS", "REJECTED",
 })
 FORBIDDEN_CLAIMS = frozenset({"MALWARE_FREE", "SAFE", "VERIFIED_SAFE", "CLEAN"})
+
+
+def _norm(v) -> str:
+    """'Ultron OS' / ' virtme-ng ' / 'OS_LAB:x' -> 'ultron_os' / 'virtme_ng' / 'os_lab:x' (whitespace/dash -> '_')."""
+    return re.sub(r"[\s-]+", "_", str(v).strip()).lower()
+
+
+def _forbidden_claim(v) -> bool:
+    """A forbidden claim in ANY spelling: 'malware free', 'Verified-Safe', 'clean ', 'safe_2026' are all refused."""
+    n = _norm(v).upper()
+    return "MALWARE_FREE" in n or bool(FORBIDDEN_CLAIMS & set(n.split("_")))
 
 # Runtime flags. NONE is declared in app/config.py on purpose: getattr(settings, flag, False) is False,
 # i.e. OFF everywhere until an operator declares + enables one explicitly (§102/§151). Production stays
@@ -57,8 +69,12 @@ _CATALOG_DISPOSITION = {
 }
 
 
+_NON_PRODUCTION_ENVS = ("development", "dev", "local", "test", "staging")
+
+
 def _is_production(settings) -> bool:
-    return str(getattr(settings, "APP_ENV", "")).lower() in ("production", "prod")
+    """Fail closed: anything that is not an explicitly known non-production env (absent, '', 'prod-like') IS production."""
+    return str(getattr(settings, "APP_ENV", "")).strip().lower() not in _NON_PRODUCTION_ENVS
 
 
 def _runtime_on(settings, flag: str) -> bool:
@@ -93,11 +109,9 @@ class UltronSandboxRecord:
     disposition: RuntimeRole = RuntimeRole.EDUCATIONAL_OS_SANDBOX
     lifecycle_state: str = "DISCOVERED"           # §113: DISCOVERED -> SOURCE_VERIFIED -> PINNED -> ... never skipped
     trust: str = "UNTRUSTED"                      # §113 default; README is DATA, not policy
-    # zero-fabrication (§0 #16-19): the canonical upstream is NOT asserted here — several projects carry the
-    # name "Ultron"; the SOURCE_VERIFIED step (operator-confirmed URL) resolves it. Recording a guess is forbidden.
-    source: str = "UNRESOLVED"
-    source_note: str = ("canonical upstream URL to be operator-confirmed at SOURCE_VERIFIED; not fetched. The catalog's "
-                        "well-known-location note is in catalog_binding['ultron_os']['catalog_source'] (also NOT fetched)")
+    # ONE spine: the source is the catalog's operator-stated canonical_source — unverified, not fetched (§0 #16).
+    source: str = _cat.get("Ultron OS", _cat.initial_catalog()).canonical_source
+    source_note: str = "operator-stated, unverified: read from catalog.canonical_source; NOT fetched; confirmed only at SOURCE_VERIFIED"
     pinned_sha: str = UNVERIFIED
     license: str = UNVERIFIED
     build_status: str = UNVERIFIED
@@ -114,7 +128,7 @@ class UltronSandboxRecord:
     def __post_init__(self):
         for f in ULTRON_VERIFICATION_FIELDS:
             v = getattr(self, f)
-            if v in FORBIDDEN_CLAIMS or (f in ("static_scan", "malware_scan") and v not in VERIFICATION_VOCAB):
+            if _forbidden_claim(v) or (f in ("static_scan", "malware_scan") and v not in VERIFICATION_VOCAB):
                 raise ValueError(f"forbidden/unbounded verification claim {f}={v!r} (§114)")
         if self.production_use != "NO":
             raise ValueError("Ultron is EDUCATIONAL_OS_SANDBOX: production_use must be NO (§40)")
@@ -148,16 +162,23 @@ class KernelOp(str, Enum):
     CREDENTIAL_ACCESS = "CREDENTIAL_ACCESS"
 
 
+# INVARIANT (§42): these are denied under every policy, every flag — no KernelTestPolicy can allow or un-deny them.
+KERNEL_DENY = frozenset({KernelOp.HOST_KERNEL_REPLACEMENT, KernelOp.PRODUCTION_REBOOT, KernelOp.HOST_ARBITRARY_SHELL,
+                         KernelOp.PRODUCTION_MODULE_LOAD, KernelOp.CREDENTIAL_ACCESS})
+
+
 @dataclass(frozen=True)
 class KernelTestPolicy:
     """Typed allow/deny policy. Default-deny: anything not on the allow-list is DENIED, unknown ops too."""
     allow: frozenset = frozenset({KernelOp.BOUNDED_KERNEL_BUILD, KernelOp.ISOLATED_VM_BOOT,
                                   KernelOp.KERNEL_TEST_RUN, KernelOp.DMESG_READ, KernelOp.KERNEL_COMPARISON})
-    deny: frozenset = frozenset({KernelOp.HOST_KERNEL_REPLACEMENT, KernelOp.PRODUCTION_REBOOT,
-                                 KernelOp.HOST_ARBITRARY_SHELL, KernelOp.PRODUCTION_MODULE_LOAD,
-                                 KernelOp.CREDENTIAL_ACCESS})
+    deny: frozenset = KERNEL_DENY
 
     def __post_init__(self):
+        if not self.deny >= KERNEL_DENY:
+            raise ValueError("deny-list must contain KERNEL_DENY (invariant, §42)")
+        if self.allow & KERNEL_DENY:
+            raise ValueError("a KERNEL_DENY op can never be allowed (invariant, §42)")
         if self.allow & self.deny:
             raise ValueError("an op cannot be both allowed and denied")
 
@@ -166,7 +187,7 @@ class KernelTestPolicy:
             k = KernelOp(op)
         except ValueError:
             return "DENIED_UNKNOWN_OP"
-        if k in self.deny:
+        if k in KERNEL_DENY or k in self.deny:      # invariant first: no instance state can override it
             return "DENIED"
         return "ALLOWED" if k in self.allow else "DENIED_NOT_ALLOWLISTED"
 
@@ -304,7 +325,9 @@ SYZKALLER = SecurityLabRuntime(
 
 
 # ── §165 KAI remains the brain — OsLabAuthorityGuard ─────────────────────────────────────────
-OS_LAB_SOURCE_IDS = frozenset({ULTRON.os_id, VIRTME_NG.manifest.id, SYZKALLER.manifest.id})
+CATALOG_NAME = {ULTRON.os_id: "Ultron OS", VIRTME_NG.manifest.id: "virtme-ng", SYZKALLER.manifest.id: "syzkaller"}
+# runtime ids + normalized display names ('Ultron OS' -> 'ultron_os'); any 'os_lab' prefix is matched in the guard
+OS_LAB_SOURCE_IDS = frozenset(set(CATALOG_NAME) | {_norm(n) for n in CATALOG_NAME.values()})
 # Actions that constitute authority. An OS/runtime may only ever PROVIDE evidence / results.
 AUTHORITY_ACTIONS = frozenset({
     "GRANT_AUTHORITY", "APPROVE", "APPROVE_MERGE", "APPROVE_DEPLOY", "APPROVE_FINANCIAL", "REWRITE_GOVERNANCE",
@@ -330,7 +353,8 @@ class OsLabAuthorityGuard:
     sources: frozenset = OS_LAB_SOURCE_IDS
 
     def is_os_lab_source(self, source: str) -> bool:
-        return source in self.sources or str(source).startswith("os_lab:")
+        s = _norm(source)      # 'SYZKALLER' / ' syzkaller ' / 'OS-LAB:ultron' / 'virtme-ng' / 'Ultron OS' all match
+        return s in self.sources or s.startswith("os_lab")
 
     def check(self, claim: AuthorityClaim) -> str:
         if not self.is_os_lab_source(claim.source):
@@ -357,7 +381,7 @@ OS_LAB_FEATURE_REGISTRY = [
     Feature("os_lab", "Systems/OS Lab — governed framework (catalog-only)", "P2",
             "catalog-only; Phase 10 self-test; nothing cloned/installed/booted", FLAG_OS_LAB, "HEAD"),
     Feature("os_lab_ultron_sandbox", "Ultron OS — EDUCATIONAL_OS_SANDBOX (cataloged, UNVERIFIED)", "P2",
-            "UNVERIFIED — source UNRESOLVED; no build/scan/boot", FLAG_ULTRON, "HEAD"),
+            "UNVERIFIED — source operator-stated (not fetched); no build/scan/boot", FLAG_ULTRON, "HEAD"),
     Feature("os_lab_virtme_ng", "virtme-ng — kernel test runtime (candidate, NOT installed)", "P2",
             "NOT_INSTALLED — supply-chain cert PENDING", FLAG_VIRTME_NG, "HEAD"),
     Feature("os_lab_syzkaller", "syzkaller — RESTRICTED_SECURITY_LAB (never auto-selected)", "P3",
@@ -386,9 +410,10 @@ def os_lab_feature_registry(settings) -> list:
 
 
 # ── catalog binding (§41/§113): install truth is DERIVED from the catalog lifecycle, never hand-set ─
-CATALOG_NAME = {ULTRON.os_id: "Ultron OS", VIRTME_NG.manifest.id: "virtme-ng", SYZKALLER.manifest.id: "syzkaller"}
-_RUNTIMES = ((ULTRON.os_id, ULTRON.disposition), (VIRTME_NG.manifest.id, VIRTME_NG.disposition),
-             (SYZKALLER.manifest.id, SYZKALLER.disposition))
+# (runtime id, role, the source the runtime record carries — must equal the catalog's canonical_source: ONE spine)
+_RUNTIMES = ((ULTRON.os_id, ULTRON.disposition, ULTRON.source),
+             (VIRTME_NG.manifest.id, VIRTME_NG.disposition, VIRTME_NG.manifest.provenance.upstream),
+             (SYZKALLER.manifest.id, SYZKALLER.disposition, SYZKALLER.manifest.provenance.upstream))
 
 
 def install_gate(entry) -> dict:
@@ -411,7 +436,7 @@ def catalog_binding(catalog=None) -> dict:
     role agrees with the §116 catalog disposition, and the install gate. The catalog is the one spine."""
     cat = catalog if catalog is not None else _cat.initial_catalog()
     out = {}
-    for rid, role in _RUNTIMES:
+    for rid, role, src in _RUNTIMES:
         e = _cat.get(CATALOG_NAME[rid], cat)
         out[rid] = {
             "catalog_name": CATALOG_NAME[rid],
@@ -420,6 +445,7 @@ def catalog_binding(catalog=None) -> dict:
             "catalog_source": e.canonical_source if e else "MISSING",
             "catalog_source_status": e.upstream_status.value if e else "MISSING",   # UNVERIFIED = not fetched
             "disposition_consistent": bool(e) and _CATALOG_DISPOSITION[role] in e.disposition,
+            "source_consistent": bool(e) and src == e.canonical_source,             # runtime record == catalog spine
             **install_gate(e),
         }
     return out
