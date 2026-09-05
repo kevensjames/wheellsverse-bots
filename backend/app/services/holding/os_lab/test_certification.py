@@ -1,9 +1,13 @@
 """OS Lab §41/§114/§143 certification checks — zero-framework (mirrors holding/test_registry.py). Run (from backend/):
     PYTHONPATH=backend:. DATABASE_URL=postgresql://u:p@localhost:5432/x python3 -m app.services.holding.os_lab.test_certification
 """
+import dataclasses
+import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))   # backend/ on path so `app` is a package
@@ -142,8 +146,10 @@ def run() -> bool:
     # ── (9) secrets in a scanned file never leak into the report ──
     leak = c.run_static(_inv({**CLEAN, "cfg.py": 'AWS_KEY = "AKIAIOSFODNN7EXAMPLE"'}))
     js = c.to_json(leak)
-    ck("AWS key in a scanned file is flagged (HIGH) but the key never appears in the JSON report",
-       leak.verdict == Verdict.REJECTED and "AKIAIOSFODNN7EXAMPLE" not in js and "[REDACTED]" in js)
+    ck("AWS key in a scanned file is flagged at the core table's severity (MEDIUM → credential_reads FAIL → SUSPICIOUS) "
+       "but the key never appears in the JSON report",
+       leak.verdict == Verdict.SUSPICIOUS and leak.step("credential_reads").status == c.StepStatus.FAIL
+       and "AKIAIOSFODNN7EXAMPLE" not in js and "[REDACTED]" in js)
     ck("report is plain-JSON serializable with per-severity counts", isinstance(json.loads(js)["findings_by_severity"], dict))
 
     # ── (10) coordination with catalog.py: the report is evidence for the §113 lifecycle, never an authority ──
@@ -155,12 +161,124 @@ def run() -> bool:
     rec = catalog.advance(e, LabState.REJECTED, actor="kai", reason="static cert REJECTED", evidence=rep.to_dict())
     ck("a REJECTED static report drives STATIC_REVIEW → REJECTED via catalog.advance (audited, evidence = report)",
        e.state == LabState.REJECTED and rec["evidence"]["verdict"] == "REJECTED" and e.certification == Verdict.UNVERIFIED)
-    bad = False
+    CLEAN_V = Verdict.NO_MALICIOUS_BEHAVIOR_DETECTED_IN_CERTIFIED_SCOPE
+
+    def _raises(exc, fn):
+        try:
+            fn()
+        except exc:
+            return True
+        except Exception as ex:                    # wrong exception type is a FAIL, not a pass
+            print(f"      (raised {type(ex).__name__}: {ex})")
+        return False
+
+    ck("record_verdict refused outside SECURITY_REVIEW even for the operator with a real report (the report cannot self-certify)",
+       _raises(ValueError, lambda: catalog.record_verdict(e, CLEAN_V, actor="operator", reason="t", evidence=r1.to_dict()))
+       and e.certification == Verdict.UNVERIFIED)
+    ck("H1: kai may never record the clean-scope verdict — PermissionError before any other check, even with a real report",
+       _raises(PermissionError, lambda: catalog.record_verdict(e, CLEAN_V, actor="kai", reason="t", evidence=r1.to_dict()))
+       and e.certification == Verdict.UNVERIFIED)
+
+    # ── (11) H1: reports and their steps are FROZEN — a STATIC_ONLY report cannot be flipped to FULL/PASS in place ──
+    ck("H1: CertificationReport + StepResult are frozen dataclasses; steps is a tuple",
+       isinstance(rep.steps, tuple) and all(isinstance(s, c.StepResult) for s in rep.steps)
+       and _raises(dataclasses.FrozenInstanceError, lambda: setattr(rep, "scope", "FULL"))
+       and _raises(dataclasses.FrozenInstanceError, lambda: setattr(rep, "verdict", CLEAN_V))
+       and _raises(dataclasses.FrozenInstanceError, lambda: setattr(rep.step("qemu_vm_exec"), "status", c.StepStatus.PASS))
+       and _raises(AttributeError, lambda: rep.steps.append(None))
+       and rep.scope == "STATIC_ONLY" and rep.verdict == Verdict.REJECTED
+       and rep.step("qemu_vm_exec").status == c.StepStatus.SKIPPED)
+
+    # ── (12) M2/M3: inventory_from_dir follows nothing, opens only what it hashes fully, reports what it skipped ──
+    # (tempfile/os/chmod live in THIS test only — the AST/regex scans over the non-test modules stay clean)
+    with tempfile.TemporaryDirectory() as td:
+        root, outside = Path(td) / "repo", Path(td) / "outside"
+        root.mkdir(); outside.mkdir(); (root / ".aws").mkdir(); (root / "secrets").mkdir()
+        (outside / "leak.txt").write_text("OUTSIDE_SECRET_ZZ9")
+        (root / "LICENSE").write_text("MIT")
+        (root / "main.c").write_text("int main(void){return 0;}")
+        os.symlink(outside / "leak.txt", root / "linkfile")             # file symlink → target outside the root
+        os.symlink(outside, root / "linkdir")                            # dir symlink → target outside the root
+        (root / ".env").write_text("DB_PASSWORD=FORBIDDEN_BODY_QQ7")     # §30 forbidden AND a dotfile
+        (root / ".aws" / "credentials").write_text("aws_secret_access_key = FORBIDDEN_BODY_AWS8")
+        (root / "secrets" / "token.txt").write_text("FORBIDDEN_BODY_TOK5")
+        (root / "server.pem").write_text("FORBIDDEN_BODY_PEM4")
+        (root / "NOTES.md").write_text("see key:\n-----BEGIN OPENSSH PRIVATE KEY-----\nKEYBODY_OPENSSH_ABC123\n-----END OPENSSH PRIVATE KEY-----\n")
+        (root / "howto.txt").write_text("-----BEGIN RSA PRIVATE KEY-----\nKEYBODY_RSA_QWERTY987\n-----END RSA PRIVATE KEY-----\n")
+        (root / "tele.py").write_text("x = telemetry  # POSTMATCH_TAIL_WORD\n")
+        exact = b"\0" + b"x" * (c._MAX_READ - 1)                          # == _MAX_READ → opened, hashed fully (binary)
+        (root / "exact.dat").write_bytes(exact)
+        (root / "huge.dat").write_bytes(b"y" * (c._MAX_READ + 1))        # > _MAX_READ → stat only
+        os.chmod(root / "huge.dat", 0)                                   # unreadable: any open() would raise
+        try:
+            inv = c.inventory_from_dir(root, name="t", canonical_source="https://example.invalid/t")
+            capped = c.inventory_from_dir(root, name="t", canonical_source="https://example.invalid/t", max_files=2)
+        finally:
+            os.chmod(root / "huge.dat", 0o600)
+        by = {f.path: f for f in inv.files}
+        rep2 = c.run_static(inv)
+        js2 = c.to_json(rep2)
+        fi = rep2.step("file_inventory")
+        ck("M2: symlinks (file + dir) are recorded with content '' / sha256 None / skipped='symlink' and NEVER followed",
+           all(p in by and by[p].content == "" and by[p].sha256 is None and by[p].skipped == "symlink" for p in ("linkfile", "linkdir"))
+           and "OUTSIDE_SECRET_ZZ9" not in js2 and not any("OUTSIDE_SECRET_ZZ9" in (f.content or "") for f in inv.files)
+           and not any(f.path.startswith("linkdir/") for f in inv.files))
+        ck("M2: check_file_inventory → UNVERIFIED with a 'symlink not followed' finding per symlink",
+           fi.status == c.StepStatus.UNVERIFIED
+           and {f.path for f in fi.findings if "symlink not followed" in f.detail} == {"linkfile", "linkdir"})
+        ck("M2: every path resolves under the root (guard present; rglob never descends a symlinked dir here)",
+           "is_relative_to(r)" in SRC and "resolves outside the root" in SRC)
+        ck("M2: §30 forbidden targets (.env / .aws/credentials / secrets/ / *.pem) are recorded, NOT opened, NOT hidden by the dotfile filter",
+           all(p in by and by[p].skipped == "forbidden" and by[p].content is None and by[p].sha256 is None and by[p].size > 0
+               for p in (".env", ".aws/credentials", "secrets/token.txt", "server.pem"))
+           and not any(b in js2 for b in ("FORBIDDEN_BODY_QQ7", "FORBIDDEN_BODY_AWS8", "FORBIDDEN_BODY_TOK5", "FORBIDDEN_BODY_PEM4")))
+        cr = rep2.step("credential_reads")
+        ck("M2: each forbidden target yields a credential_reads MEDIUM 'shipped in the repo (§30) — not opened' finding → step FAIL",
+           cr.status == c.StepStatus.FAIL
+           and {f.path for f in cr.findings if "not opened" in f.detail} == {".env", ".aws/credentials", "secrets/token.txt", "server.pem"})
+        ck("M2: private-key material in a .md and a .txt (doc extensions) is still flagged — key bodies never reach the report",
+           {"NOTES.md", "howto.txt"} <= {f.path for f in cr.findings}
+           and "KEYBODY_OPENSSH_ABC123" not in js2 and "KEYBODY_RSA_QWERTY987" not in js2)
+        ck("M2: a finding snippet carries NOTHING after the match (0 post-match chars)",
+           any(f.path == "tele.py" for f in rep2.step("telemetry").findings) and "POSTMATCH_TAIL_WORD" not in js2)
+        ck("M3: a file of exactly _MAX_READ bytes is read + hashed FULLY (digest of the whole content, not a prefix)",
+           by["exact.dat"].sha256 == hashlib.sha256(exact).hexdigest() and by["exact.dat"].size == c._MAX_READ
+           and by["exact.dat"].skipped == "" and by["exact.dat"].is_binary)
+        ck("M3: a file > _MAX_READ is NOT opened (unreadable file raised nothing): size recorded, sha256 None, skipped='truncated'",
+           by["huge.dat"].size == c._MAX_READ + 1 and by["huge.dat"].sha256 is None and by["huge.dat"].content is None
+           and by["huge.dat"].skipped == "truncated")
+        ck("M3: oversize → file_inventory UNVERIFIED finding + binary_blobs MEDIUM 'oversize' finding (step FAIL); no prefix digest anywhere",
+           any(f.path == "huge.dat" and "not opened" in f.detail for f in fi.findings)
+           and any(f.path == "huge.dat" and f.severity == "MEDIUM" and "oversize" in f.detail for f in rep2.step("binary_blobs").findings)
+           and rep2.step("binary_blobs").status == c.StepStatus.FAIL
+           and all(f.sha256 is None or len(f.sha256) == 64 for f in inv.files))
+        ck("M3: rglob is consumed lazily (no sorted() over the generator); max_files caps the walk; result sorted afterwards",
+           "sorted(r.rglob" not in SRC and "sorted(Path(root)" not in SRC and len(capped.files) == 2
+           and [f.path for f in inv.files] == sorted(f.path for f in inv.files))
+        ck("M2/M3: the walk is still read-only (no open(), no write/mkdir/unlink/chmod in certification.py)",
+           "open(" not in SRC.replace("finditer(", "") and not re.search(r"\.(?:write_text|write_bytes|mkdir|unlink|rename|chmod|rmtree)\(", SRC))
+
+    # ── (13) M6: core.security_scanner._COMPILED_PATTERNS is the ONE base table; nothing duplicated locally ──
+    ck("M6: core table imported once at module top (try/except) and every core row is routed to exactly one OS-lab step",
+       c._CORE is not None and len(c._CORE) >= 18
+       and sum(len(c.core_for(s)) for s in c.CORE_STEPS) == len(c._CORE)
+       and c.CORE_STEPS == {"network_destinations", "downloaded_binaries", "credential_reads", "privileged_ops", "obfuscation"})
+    ck("M6: the 9 formerly-duplicated generic regexes are gone from certification.py (reverse shells, curl|bash, rm -rf, dd, mkfs, AKIA, RSA/EC key header, eval(base64))",
+       not any(lit in SRC for lit in ("AKIA", "mkfs", "base64_decode", "/dev/tcp", "rm\\s+-rf", "dd\\s+if", "DROP\\s+TABLE",
+                                       "|\\s*bash", "-O\\s*-", "(?:RSA |EC )?PRIVATE KEY-----\"")))
+    saved = c._CORE
     try:
-        catalog.record_verdict(e, Verdict.NO_MALICIOUS_BEHAVIOR_DETECTED_IN_CERTIFIED_SCOPE, actor="kai", reason="t", evidence=r1.to_dict())
-    except ValueError:
-        bad = True
-    ck("record_verdict refused outside SECURITY_REVIEW (the report cannot self-certify)", bad and e.certification == Verdict.UNVERIFIED)
+        c._CORE = None
+        nocore = c.run_static(inv_fx := c.fixture_inventory())
+    finally:
+        c._CORE = saved
+    ck("M6: without the core table every core-backed step is UNVERIFIED with reason 'core scanner table unavailable' — never a silent built-in-only sweep",
+       all(nocore.step(s).status == c.StepStatus.UNVERIFIED and nocore.step(s).note == c.CORE_UNAVAILABLE for s in c.CORE_STEPS)
+       and all(rep.step(s).note != c.CORE_UNAVAILABLE for s in c.CORE_STEPS))
+    ck("M6: OS-lab-specific local findings still surface without the core table, and local HIGHs still REJECT",
+       any(f.path == "keyreader.py" for f in nocore.step("credential_reads").findings)
+       and nocore.step("persistence").status == c.StepStatus.FAIL and nocore.verdict == Verdict.REJECTED
+       and len(inv_fx.files) == 8)
 
     n, ok = len(res), sum(res)
     print(f"\nOS LAB CERTIFICATION TESTS: {ok}/{n} —", "PASS" if ok == n else "FAIL")

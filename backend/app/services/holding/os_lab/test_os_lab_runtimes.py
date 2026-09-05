@@ -20,6 +20,13 @@ _EXEC_RE = re.compile(r"^\s*(import|from)\s+(subprocess|socket|urllib|requests|h
                       re.M)
 
 
+def _enforce_raises(guard, source) -> bool:
+    try:
+        guard.enforce(R.AuthorityClaim(source, "APPROVE_DEPLOY")); return False
+    except R.OsLabAuthorityViolation:
+        return True
+
+
 def run() -> bool:
     res = []
     def ck(n, ok):
@@ -41,8 +48,11 @@ def run() -> bool:
     ck("Ultron: production_use=NO, installed=False, disposition EDUCATIONAL_OS_SANDBOX, trust UNTRUSTED",
        u.production_use == "NO" and u.installed is False
        and u.disposition == R.RuntimeRole.EDUCATIONAL_OS_SANDBOX and u.trust == "UNTRUSTED")
-    ck("Ultron: source not asserted (UNRESOLVED + note) — zero-fabrication §0 #16",
-       u.source == "UNRESOLVED" and "not fetched" in u.source_note)
+    ck("M5: Ultron source is the catalog's OPERATOR-STATED canonical_source (ONE spine, read not fetched); note says operator-stated + unverified; "
+       "no UNRESOLVED constant remains",
+       u.source == C.get("Ultron OS", C.initial_catalog()).canonical_source == "https://github.com/aswinmohanme/ultronOS"
+       and "operator-stated" in u.source_note and "unverified" in u.source_note.lower() and "NOT fetched" in u.source_note
+       and not hasattr(R, "UNRESOLVED") and "UNRESOLVED" not in (_HERE / "runtimes.py").read_text(encoding="utf-8"))
     c = u.constraints
     ck("Ultron constraints: isolated QEMU/container only, no credentials, bounded host fs, no prod network",
        c.isolation == "ISOLATED_QEMU_OR_CONTAINER_ONLY" and c.credentials_allowed is False
@@ -56,6 +66,21 @@ def run() -> bool:
             ok = True
         ck(f"Ultron record rejects {bad}", ok)
     ck("Ultron to_dict carries all_unverified=True", u.to_dict()["all_unverified"] is True)
+    # L2: forbidden claims are refused in ANY spelling, on EVERY verification field (normalized token match)
+    SPELLINGS = ("malware free", "Malware-Free", "MALWARE_FREE_2026", "malware\tfree", "verified-safe", "Verified Safe",
+                 " clean ", "Clean", "safe_2026", "SAFE", "not safe", "safe-ish")
+
+    def _refused_claim(field, value):
+        try:
+            R.UltronSandboxRecord(**{field: value}); return False
+        except ValueError:
+            return True
+    ck("L2: every FORBIDDEN_CLAIMS spelling (case/space/dash/suffix variants, MALWARE_FREE substring) is refused on all 9 verification fields",
+       len(R.ULTRON_VERIFICATION_FIELDS) == 9
+       and all(_refused_claim(f, v) for f in R.ULTRON_VERIFICATION_FIELDS for v in SPELLINGS))
+    ck("L2: a bounded, non-claim value still constructs (risk=HIGH, build_status=FAILED, last_verified=date); static_scan outside the §114 vocab does not",
+       R.UltronSandboxRecord(risk="HIGH", build_status="FAILED", last_verified="2026-09-04").risk == "HIGH"
+       and _refused_claim("static_scan", "HIGH") and _refused_claim("malware_scan", "PASSED") and _refused_claim("pinned_sha", "safe"))
 
     # ── §42 virtme-ng — type MCP / KERNEL_TEST_RUNTIME, default OFF, prod DISABLED, typed allow/deny ──
     v = R.VIRTME_NG
@@ -79,11 +104,26 @@ def run() -> bool:
     ck("deny-list enforced: every denied op → DENIED", all(p.decide(op) == "DENIED" for op in deny))
     ck("allow-list: every allowed op → ALLOWED (policy only — not a run)", all(p.decide(op) == "ALLOWED" for op in allow))
     ck("unknown op → DENIED_UNKNOWN_OP (default-deny)", p.decide("rm -rf /") == "DENIED_UNKNOWN_OP")
-    try:
-        R.KernelTestPolicy(allow=frozenset({R.KernelOp.DMESG_READ}), deny=frozenset({R.KernelOp.DMESG_READ})); ok = False
-    except ValueError:
-        ok = True
-    ck("a policy cannot allow and deny the same op", ok)
+    def _no_policy(**kw):
+        try:
+            R.KernelTestPolicy(**kw); return False
+        except ValueError:
+            return True
+    ck("a policy cannot allow and deny the same op",
+       _no_policy(allow=frozenset({R.KernelOp.DMESG_READ}), deny=R.KERNEL_DENY | {R.KernelOp.DMESG_READ}))
+    # M4: the deny-list is an INVARIANT hoisted to KERNEL_DENY — no policy can allow or un-deny those ops
+    ck("M4: KERNEL_DENY is hoisted, is exactly the 5 §42 never-ops, and the default policy's deny == KERNEL_DENY",
+       {k.value for k in R.KERNEL_DENY} == deny and R.KernelTestPolicy().deny == R.KERNEL_DENY)
+    ck("M4: a permissive policy that allows HOST_ARBITRARY_SHELL (or any KERNEL_DENY op) refuses to construct",
+       all(_no_policy(allow=frozenset({op})) for op in R.KERNEL_DENY)
+       and _no_policy(allow=R.KernelTestPolicy().allow | {R.KernelOp.HOST_ARBITRARY_SHELL}))
+    ck("M4: a policy whose deny-list drops any KERNEL_DENY op refuses to construct",
+       _no_policy(deny=frozenset()) and all(_no_policy(deny=R.KERNEL_DENY - {op}) for op in R.KERNEL_DENY))
+    hacked = R.KernelTestPolicy()
+    object.__setattr__(hacked, "allow", hacked.allow | R.KERNEL_DENY)     # force past the frozen dataclass
+    object.__setattr__(hacked, "deny", frozenset())
+    ck("M4: even with frozen fields forced permissive (allow ⊇ KERNEL_DENY, deny = ∅), decide() still DENIES every KERNEL_DENY op — invariant checked first",
+       all(hacked.decide(op) == "DENIED" for op in R.KERNEL_DENY) and hacked.decide("DMESG_READ") == "ALLOWED")
     off = NS()                                                     # flags absent from config → OFF
     staging_on = NS(APP_ENV="staging", KAI_OS_LAB_ENABLED=True, KAI_OS_LAB_VIRTME_NG_ENABLED=True,
                     KAI_OS_LAB_ULTRON_RUNTIME_ENABLED=True, KAI_OS_LAB_SYZKALLER_ENABLED=True)
@@ -93,6 +133,15 @@ def run() -> bool:
        and v.to_dict(off)["runtime_enabled"] is False)
     ck("virtme-ng production DISABLED even with every flag on", R._runtime_on(prod_on, R.FLAG_VIRTME_NG) is False
        and v.to_dict(prod_on)["runtime_enabled"] is False)
+    # L1: _is_production fails CLOSED — only an explicitly known non-production env is non-production
+    ck("L1: absent / '' / None / 'prod' / 'PRODUCTION ' / 'stage' / 'qa' APP_ENV → production",
+       all(R._is_production(NS(**kw)) for kw in ({}, {"APP_ENV": ""}, {"APP_ENV": None}, {"APP_ENV": "prod"},
+                                                 {"APP_ENV": "PRODUCTION "}, {"APP_ENV": "stage"}, {"APP_ENV": "qa"})))
+    ck("L1: only development/dev/local/test/staging (trimmed, case-insensitive) are non-production",
+       not any(R._is_production(NS(APP_ENV=v)) for v in ("development", "dev", "local", "test", "staging", " Staging ", "DEV")))
+    ck("L1: every flag on but APP_ENV absent → runtime still OFF (fail closed)",
+       R._runtime_on(NS(KAI_OS_LAB_ENABLED=True, KAI_OS_LAB_VIRTME_NG_ENABLED=True), R.FLAG_VIRTME_NG) is False
+       and all(r["runtime_enabled"] is False for r in R.os_lab_feature_registry(NS(KAI_OS_LAB_ENABLED=True, KAI_OS_LAB_VIRTME_NG_ENABLED=True))))
     ck("virtme-ng can_run: False for an ALLOWED op even in staging with flags on (not installed, not selectable)",
        v.can_run("DMESG_READ", staging_on) is False)
     ck("virtme-ng can_run: False for a DENIED op under every settings",
@@ -146,6 +195,15 @@ def run() -> bool:
     ck("guard.enforce raises OsLabAuthorityViolation(PermissionError) on OS-sourced governance rewrite", ok)
     ck("guard: a non-OS principal is NOT judged here (existing seams govern it)",
        g.check(R.AuthorityClaim("operator", "APPROVE")) == "NOT_OS_LAB_SOURCE")
+    # L3: the source is normalized (strip / lower / '-' and ' ' → '_') against runtime ids, display names, and the os_lab prefix
+    ck("L3: 'SYZKALLER' / ' syzkaller ' / 'OS_LAB:ultron' / 'os-lab:ultron' / 'virtme-ng' / 'Ultron OS' / 'ultron-os' / 'Virtme NG' / 'OS LAB' → REJECTED on APPROVE",
+       all(g.is_os_lab_source(s) and g.check(R.AuthorityClaim(s, "APPROVE")) == "REJECTED"
+           for s in ("SYZKALLER", " syzkaller ", "OS_LAB:ultron", "os-lab:ultron", "virtme-ng", "Ultron OS", "ultron-os", "Virtme NG", "OS LAB")))
+    ck("L3: normalized variants also raise on enforce() and stay EVIDENCE_ONLY for evidence actions",
+       all(g.check(R.AuthorityClaim(s, "REPORT_RESULT")) == "EVIDENCE_ONLY" for s in ("Ultron OS", "SYZKALLER", "os-lab:x"))
+       and all(_enforce_raises(g, s) for s in ("Ultron OS", " syzkaller ", "os-lab:ultron")))
+    ck("L3: non-OS principals stay NOT_OS_LAB_SOURCE after normalization",
+       all(g.check(R.AuthorityClaim(s, "APPROVE")) == "NOT_OS_LAB_SOURCE" for s in ("operator", " Operator ", "kai", "KAI")))
     ck("guard: AUTHORITY_ACTIONS covers grant/approve/deploy/financial/governance/flag/role/host/auto-select",
        {"GRANT_AUTHORITY", "APPROVE", "APPROVE_DEPLOY", "APPROVE_FINANCIAL", "REWRITE_GOVERNANCE", "SET_POLICY",
         "ENABLE_FLAG", "ESCALATE_ROLE", "EXECUTE_ON_HOST", "AUTO_SELECT_RUNTIME"} <= R.AUTHORITY_ACTIONS)
@@ -163,6 +221,17 @@ def run() -> bool:
                and x["catalog_source_status"] == "UNVERIFIED" and x["disposition_consistent"] for x in b.values()))
     ck("binding: install_allowed False for all, with named reasons (§113 state, §114 verdict, §117 justification)",
        all(x["install_allowed"] is False and len(x["reasons"]) == 3 for x in b.values()))
+    # M5: ONE spine — the source each runtime record carries must equal the catalog's canonical_source
+    ck("M5: binding.source_consistent is True for all three runtimes (record source == catalog canonical_source)",
+       all(x["source_consistent"] is True and x["catalog_source"].startswith("https://") for x in b.values())
+       and b["ultron_os"]["catalog_source"] == R.ULTRON.source
+       and b["virtme_ng"]["catalog_source"] == R.VIRTME_NG.manifest.provenance.upstream
+       and b["syzkaller"]["catalog_source"] == R.SYZKALLER.manifest.provenance.upstream)
+    cat2 = C.initial_catalog(); C.get("Ultron OS", cat2).canonical_source = "https://example.invalid/forked"
+    b2 = R.catalog_binding(cat2)
+    ck("M5: a drifted catalog source → source_consistent False for that runtime only (drift is visible, never silent)",
+       b2["ultron_os"]["source_consistent"] is False and b2["virtme_ng"]["source_consistent"] is True
+       and b2["syzkaller"]["source_consistent"] is True)
     ck("install_gate(None) → not allowed", R.install_gate(None)["install_allowed"] is False)
     # a hypothetical adopted entry opens the gate only with ALL three: adopted state + verdict + justification
     e = C.get("virtme-ng", cat)
