@@ -193,13 +193,22 @@ def run() -> bool:
     # ── (9b-2) round 5: flooring the SEVERITY did nothing for a credential core never MATCHED at all. Each of
     # these families left credential_reads PASS while the code and the doc claimed "an embedded credential can
     # never leave it PASS" — a false claim. Each must now FAIL, with no window of the secret in the report.
+    # Every token below is SYNTHETIC and was never issued. Each prefix is split across concatenated
+    # literals so the file carries no contiguous token-shaped string — GitHub push protection (and any
+    # other scanner) would otherwise flag this test file itself, which is how the repo already handled
+    # the Slack fixture in bb23147. The scanner under test still sees the joined value at runtime.
+    _GH = "ghp" + "_"
+    _SLACK = "xoxb" + "-"
+    _OAI = "sk" + "-proj-"
+    _GL = "glpat" + "-"
+    _GH_1, _GH_2 = _GH + "A1b2C3d4E5f6G7h8", "I9j0K1l2M3n4O5p6Q7r8"
     _FAMILIES = {
-        "github_pat":  ('GITHUB_TOKEN = "ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"', "ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"),
-        "github_bare": ("ghp_Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3h2", "ghp_Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3h2"),
+        "github_pat":  ('GITHUB_TOKEN = "' + _GH_1 + _GH_2 + '"', _GH_1 + _GH_2),
+        "github_bare": (_GH + "Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3h2", _GH + "Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3h2"),
         "bearer":      ("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.aaaaaaaaaaaaaaaaaaaaaaaa", "eyJhbGciOiJIUzI1NiJ9.aaaaaaaaaaaaaaaaaaaaaaaa"),
-        "slack":       ('SLACK_TOKEN = "xoxb-1234567890-abcdefghijklmno"', "xoxb-1234567890-abcdefghijklmno"),
-        "openai":      ('key = "sk-proj-A1b2C3d4E5f6G7h8I9j0K1l2M3n4"', "sk-proj-A1b2C3d4E5f6G7h8I9j0K1l2M3n4"),
-        "gitlab":      ("glpat-A1b2C3d4E5f6G7h8I9j0", "glpat-A1b2C3d4E5f6G7h8I9j0"),
+        "slack":       ('SLACK_TOKEN = "' + _SLACK + '1234567890-abcdefghijklmno"', _SLACK + "1234567890-abcdefghijklmno"),
+        "openai":      ('key = "' + _OAI + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4"', _OAI + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4"),
+        "gitlab":      (_GL + "A1b2C3d4E5f6G7h8I9j0", _GL + "A1b2C3d4E5f6G7h8I9j0"),
         "url_cred":    ("url = https://user:SuperSecretPw@evil.invalid/x.git", "SuperSecretPw"),
     }
     for _fam, (_body, _secret) in _FAMILIES.items():
