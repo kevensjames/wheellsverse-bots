@@ -1154,9 +1154,8 @@ function checkViewContract(v){
    stall the fast panels' first paint (§72). Every fetch returns a typed marker on
    failure — never rejects — so honest NOT_CONNECTED states are always shown.
    ════════════════════════════════════════════════════════════════════════════ */
-function boot(){
-  // whoami — best-effort context; the shell renders regardless.
-  api('/admin/session/whoami').then(w=>{
+function refreshAuthBanner(){
+  return api('/admin/session/whoami').then(w=>{
     const bar=$('authbar');
     if(failed(w) || !w.authenticated || w.role!=='owner'){
       // C7: sign-in happens ON THIS PAGE. The presence layer this page loads owns the owner sign-in form
@@ -1165,7 +1164,7 @@ function boot(){
       bar.className='authbar show';
       bar.innerHTML='Owner sign-in required for live holding data. Sign in here: the <b>KAI orb</b> in the '
         + 'bottom-right corner of this page opens the KAI panel, which carries the owner sign-in form. '
-        + 'Sign in there, then reload. '
+        + 'These panels refresh themselves the moment you sign in — no reload needed. '
         + '<button class="btn ghost" id="signinBtn" style="margin-left:4px;padding:3px 10px;font-size:11px">Open KAI sign-in</button> '
         + '<span class="dim" id="signinNote" style="font-size:11px"></span>';
       $('signinBtn').addEventListener('click', ()=>{
@@ -1173,8 +1172,15 @@ function boot(){
         $('signinNote').textContent='The KAI presence layer has not loaded yet — use the orb in the bottom-right corner once it appears.';
       });
     } else { bar.className='authbar'; bar.innerHTML=''; }
+    return w;
   });
+}
 
+// Every data fetch lives here so it can run again after sign-in. The page loads before the operator has a
+// session, so the first pass legitimately renders NOT_CONNECTED (401) on every panel; signing in through the
+// orb previously left those 401 panels on screen until a manual reload, which reads as "signed in, still
+// broken". loadAll() is re-run on the presence layer's 'principal' event instead.
+function loadAll(){
   // §148 aggregate — one fetch powers TODAY/ATTENTION/WORKING/PROBLEMS/OPPS/COMPANIES/MISSIONS/
   // CAPABILITIES/AUTONOMY/DEPLOY/SELF-MODEL/HEALTH/GRAPH/TIMELINE. On failure each renders NOT_CONNECTED.
   const viewP = api('/admin/kai/holding/view');
@@ -1197,9 +1203,30 @@ function boot(){
 
   // FINANCE needs both overview + view — render when both settle (honest either way)
   Promise.all([ovP, viewP]).then(([ov,v])=>renderFinance(ov,v));
+}
 
-  // decision actions (approve/reject/execute) — delegated on the panel
+function boot(){
+  refreshAuthBanner();
+  loadAll();
+  // decision actions (approve/reject/execute) — delegated on the panel. Bound ONCE, not per refresh.
   $('decBody').addEventListener('click', onDecisionAction);
+
+  // Re-fetch when the owner signs in (or out) through the orb. The presence layer emits 'principal'; if it
+  // has not mounted yet, kai:ready tells us when KAI.on exists. Guarded so a presence layer without the
+  // subscribe API simply leaves today's behaviour unchanged rather than throwing.
+  let lastRole = null;
+  const subscribe = () => {
+    if (!(window.KAI && typeof window.KAI.on === 'function')) return false;
+    window.KAI.on('principal', p => {
+      const role = p && p.role ? p.role : null;
+      if (role === lastRole) return;          // idempotent: ignore repeat emissions of the same state
+      lastRole = role;
+      refreshAuthBanner();
+      loadAll();                              // panels re-render from the authenticated responses
+    });
+    return true;
+  };
+  if (!subscribe()) window.addEventListener('kai:ready', subscribe, { once: true });
 }
 boot();
 </script>
