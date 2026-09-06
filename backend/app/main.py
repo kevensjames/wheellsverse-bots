@@ -53,6 +53,16 @@ async def lifespan(app: FastAPI):
     _log = logging.getLogger(__name__)
 
     # ── Startup ──────────────────────────────────────────────────────────────
+    # Config integrity: Settings uses extra="ignore", so an env var whose name is a near-miss of a
+    # declared flag (KAI_VOICE_ENABLE, KAI_VOICE, KAI_VOCIE_ENABLED, ...) is SILENTLY DROPPED — no
+    # error, no log, and every surface honestly reports the DEFAULT. Say so LOUDLY at boot. This
+    # only reports: a suspect name never binds and never enables anything (fail closed).
+    try:
+        from app.services.holding.self_model import flag_misconfigurations
+        for _m in flag_misconfigurations():
+            _log.warning("CONFIG WARNING: %s", _m["detail"])
+    except Exception as e:
+        _log.warning("flag misconfiguration check skipped: %s", e)
     # KAI Supreme scheduler — opt-in via KAI_SUPREME_ENABLED=1. Background
     # thread runs scan cycles every N seconds while the daemon is alive,
     # replacing the standalone WheellsverseNarAISupreme.app Login Item.

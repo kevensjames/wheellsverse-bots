@@ -455,6 +455,8 @@ const STATE_META = {
   INSUFFICIENT_DATA:{c:'off',i:'○'}, PHASE_C_PENDING:{c:'info',i:'⧗'},
   REQUIRES_OPERATOR_CONFIRMATION:{c:'warn',i:'⚑'},
   REAL:{c:'ok',i:'●'}, DERIVED:{c:'info',i:'◐'},
+  LIVE_STAGING:{c:'info',i:'▸'}, LIVE_PROD:{c:'ok',i:'✓'}, PRE_DEPLOY:{c:'off',i:'○'},
+  ALWAYS_ON:{c:'ok',i:'✓'}, NOT_DECLARED:{c:'warn',i:'⚠'},
   HIGH:{c:'ok',i:'▲'}, LOW:{c:'off',i:'▽'},
 };
 function badge(state, label){
@@ -843,17 +845,29 @@ function renderDeploy(v){
   const dp=v.deployment||{}, dr=dp.drift||{}, feats=arr(dp.features);
   let h='<div class="kvs" style="margin-bottom:8px">'
     +'<span class="kv">environment <b>'+esc((dp.environment||'?').toUpperCase())+'</b></span>'
+    +'<span class="kv">release '+badge(dp.deployment_state||'UNAVAILABLE')+'</span>'
     +'<span class="kv">running SHA <b><code>'+esc(dp.this_app_sha||'?')+'</code></b></span>'
     +'<span class="kv">drift <b>'+esc(dr.state||'UNKNOWN')+'</b></span>'
     +'<span class="kv">money mode <b class="info">'+esc(dp.money_mode||'MOCK')+'</b></span>'
     +'<span class="kv">source <b><code>'+esc((dp.shas||{}).source_head||'UNKNOWN')+'</code></b></span></div>';
+  /* A near-miss env var binds to NOTHING, so a feature below can read DISABLED while the operator
+     believes they enabled it. Say so above the registry, never quietly. */
+  for(const m of arr(dp.flag_misconfigurations)){
+    h+='<div class="row"><span>'+badge('REQUIRES_OPERATOR_CONFIRMATION','CONFIG WARNING')+' <code>'
+      +esc(m.env_var)+'</code> is set but binds to nothing — did you mean <code>'
+      +esc(m.suspected_flag)+'</code>?</span>'
+      +'<span>'+badge('DISABLED', m.suspected_flag+' still '+(m.effective_value?'ON':'OFF'))+'</span></div>'
+      +'<div class="meta">'+esc(m.detail)+'</div>';
+  }
   if(feats.length){
     h+='<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Feature registry (deployed ≠ enabled)</div>';
     for(const f of feats){
       h+='<div class="row"><span><b>'+esc(f.name)+'</b> <span class="badge off">'+esc(f.risk_class||'')+'</span></span>'
-        +'<span style="display:flex;gap:5px;align-items:center">'+badge('READY','deployed')+' '
-        +badge(f.runtime_enabled?'ENABLED':'DISABLED')+'</span></div>'
-        +(f.certification?'<div class="meta">'+esc(f.certification)+'</div>':'');
+        +'<span style="display:flex;gap:5px;align-items:center">'
+        +badge(f.deployment_state||'UNAVAILABLE')+' '
+        +badge(f.flag_state||(f.runtime_enabled?'ENABLED':'DISABLED'))+'</span></div>'
+        +(f.certification?'<div class="meta">'+esc(f.certification)+'</div>':'')
+        +(f.deployed?'':'<div class="meta">not deployed here — '+esc(f.deployment_reason||'no release evidence')+'</div>');
     }
   }
   el.innerHTML = h;

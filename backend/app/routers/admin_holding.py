@@ -424,7 +424,12 @@ def holding_deployment(principal=Depends(require_kai_ultra)):
     ENABLED per feature) + drift. Read-only; enables nothing. The dashboard renders this so the operator can
     always see what is built, deployed, disabled, staging-only, and running — never discovering drift from chat."""
     from app.config import settings
-    from app.services.holding.holding_deployment import deployment_view, deployed_sha
+    from app.services.holding.holding_deployment import (
+        deployment_view, deployed_sha, mark_hosted_route_served)
+    # Reaching this line means a route mounted on the running app served an authenticated request.
+    # That is the hosted-route evidence a LIVE_STAGING/LIVE_PROD claim requires; it is an observation
+    # made from inside the served request, and no import, flag or unit test can reach it.
+    mark_hosted_route_served("/admin/holding/deployment")
     sha = deployed_sha()
     return deployment_view(settings, source_head=sha, peer_shas={"app_b": sha})
 

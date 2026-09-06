@@ -304,8 +304,16 @@ def run() -> bool:
     ids = {"os_lab", "os_lab_ultron_sandbox", "os_lab_virtme_ng", "os_lab_syzkaller"}
     rows = {r["feature_id"]: r for r in R.os_lab_feature_registry(off)}
     ck("feature rows present (os_lab, ultron, virtme_ng, syzkaller)", set(rows) == ids)
-    ck("feature rows: deployed=True, runtime_enabled=False (dark), production_use NO — flags absent",
-       all(r["deployed"] is True and r["runtime_enabled"] is False and r["production_use"] == "NO" for r in rows.values()))
+    # Was: deployed is True on every row. That asserted the hardcode, not the system. An OS-Lab runtime
+    # that is cataloged-but-never-installed must never read as deployed just because its row renders.
+    ck("feature rows: no deployed claim without release evidence, runtime_enabled=False (dark), production_use NO",
+       all(r["deployed"] is False and r["deployment_state"] == "UNAVAILABLE"
+           and r["runtime_enabled"] is False and r["production_use"] == "NO" for r in rows.values()))
+    _live = {r["feature_id"]: r for r in R.os_lab_feature_registry(
+        off, evidence={"state": "LIVE_STAGING", "reason": "test evidence"})}
+    ck("feature rows: given staging release evidence the rows report LIVE_STAGING and stay dark",
+       all(r["deployment_state"] == "LIVE_STAGING" and r["deployed"] is True
+           and r["runtime_enabled"] is False for r in _live.values()))
     ck("feature rows: only the framework is 'installed'; every runtime installed=False + UNVERIFIED",
        rows["os_lab"]["installed"] is True and rows["os_lab"]["verification"] == "SELF_TEST"
        and all(rows[i]["installed"] is False and rows[i]["verification"] == "UNVERIFIED" for i in ids - {"os_lab"}))
@@ -319,7 +327,8 @@ def run() -> bool:
     ck("feature rows: production with every flag on → runtime_enabled still False for all",
        all(r["runtime_enabled"] is False for r in prod_rows.values()))
     ck("feature rows use the holding_deployment.Feature shape (same keys + extras), additive — FEATURE_REGISTRY untouched",
-       {"feature_id", "name", "risk_class", "certification", "runtime_flag", "introduced_sha", "runtime_enabled", "deployed"}
+       {"feature_id", "name", "risk_class", "certification", "runtime_flag", "introduced_sha", "runtime_enabled",
+        "deployed", "deployment_state", "flag_state"}
        <= set(rows["os_lab"]) and not any(f.feature_id.startswith("os_lab") for f in __import__(
            "app.services.holding.holding_deployment", fromlist=["FEATURE_REGISTRY"]).FEATURE_REGISTRY))
     ck("no OS-lab flag is declared in app/config.py (absent → OFF everywhere, §102)",

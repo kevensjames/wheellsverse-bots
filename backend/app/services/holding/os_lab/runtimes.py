@@ -25,7 +25,7 @@ from app.services.capability.manifest import (
     CapabilityManifest as CM, CapabilityType as CT, RiskClass as RK, ActionClass as AC,
     ActivationMode as AM, Availability as AV, Certification as CE, Provenance,
 )
-from app.services.holding.holding_deployment import Feature
+from app.services.holding.holding_deployment import Feature, release_evidence
 from app.services.holding.os_lab import catalog as _cat
 
 UNVERIFIED = "UNVERIFIED"
@@ -418,12 +418,15 @@ _ROW_EXTRAS = {
 }
 
 
-def os_lab_feature_registry(settings) -> list:
+def os_lab_feature_registry(settings, *, env: dict | None = None, evidence: dict | None = None) -> list:
     """Same record shape as holding_deployment.feature_registry, plus installed/disposition/verification and a
-    production override: a lab runtime is DISABLED in production regardless of its flag."""
+    production override: a lab runtime is DISABLED in production regardless of its flag.
+    Release evidence is resolved through the SAME function the deployment panel uses, so this panel can
+    never claim a different deployment state for the same build."""
+    ev = evidence if evidence is not None else release_evidence(settings, env)
     rows = []
     for f in OS_LAB_FEATURE_REGISTRY:
-        d = f.record(settings)
+        d = f.record(settings, ev)
         d["runtime_enabled"] = _runtime_on(settings, f.runtime_flag) if f.feature_id != "os_lab" \
             else (d["runtime_enabled"] and not _is_production(settings))
         d["production_use"] = "NO"
