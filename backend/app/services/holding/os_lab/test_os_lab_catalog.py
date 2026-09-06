@@ -60,14 +60,10 @@ def walk_to(entry, target, actor="kai"):
 @contextmanager
 def executed(**flags):
     """TEST-ONLY: simulate a later phase's ledger (the gated build/boot actually ran) so the chain past
-    STATIC_REVIEW can be exercised. Restored on exit — the real ledger stays all-False."""
-    old = dict(R.EXECUTED)
-    R.EXECUTED.update(flags)
-    try:
+    STATIC_REVIEW can be exercised. L1 round 4: the ledger is a READ-ONLY mapping — this delegates to the
+    module's own rebinding seam, which restores the real all-False ledger on exit."""
+    with R.simulated_ledger(**flags):
         yield
-    finally:
-        R.EXECUTED.clear()
-        R.EXECUTED.update(old)
 
 
 def pipeline_steps(status="PASS", first=None):
@@ -316,6 +312,28 @@ def run() -> bool:
                   evidence=full_report(steps=pipeline_steps(first={"findings": [{"severity": sv}]})))
            for sv in BAD_SEV)
        and e4.certification == V.UNVERIFIED)
+    # M1 round 4 — a malformed findings container is REFUSED, not silently dropped. Filtering non-dict rows
+    # let a CRITICAL smuggled inside one slip past BOTH the MEDIUM+ gate and the fail-closed severity gate.
+    SMUGGLED = (["CRITICAL"], [{"severity": "LOW"}, "CRITICAL"], [("severity", "CRITICAL")], [None], [9])
+    ck("M1: a non-dict finding ROW is REFUSED (its severity cannot be read) — a CRITICAL smuggled inside a "
+       f"string/tuple/None/int container can no longer ride a clean verdict through: {SMUGGLED}",
+       all(raises(ValueError, record_verdict, e4, CLEAN, actor="operator", reason="r",
+                  evidence=full_report(steps=pipeline_steps(first={"findings": fs})))
+           for fs in SMUGGLED)
+       and e4.certification == V.UNVERIFIED)
+    NOT_A_LIST = ("CRITICAL", {"severity": "CRITICAL"}, 9, True)
+    ck(f"M1: a 'findings' value that is not a list/tuple is REFUSED, never coerced or ignored: {NOT_A_LIST}",
+       all(raises(ValueError, record_verdict, e4, CLEAN, actor="operator", reason="r",
+                  evidence=full_report(steps=pipeline_steps(first={"findings": fs})))
+           for fs in NOT_A_LIST)
+       and e4.certification == V.UNVERIFIED)
+    ck("M1: an empty list / empty tuple / None findings value still certifies — the refusal is about SHAPE, "
+       "not about a step having no findings",
+       all(record_verdict(e4, CLEAN, actor="operator", reason="r",
+                          evidence=full_report(steps=pipeline_steps(first={"findings": fs})))["to"] == CLEAN.value
+           for fs in ([], (), None))
+       and e4.certification == CLEAN)
+    record_verdict(e4, V.UNVERIFIED, actor="kai", reason="reset", evidence={"memo": "re-run"})
     ck("H2: a KNOWN non-escalating severity (INFO / LOW) still certifies — fail-closed, not a blanket refusal",
        all(record_verdict(e4, CLEAN, actor="operator", reason="r",
                           evidence=full_report(steps=pipeline_steps(first={"findings": [{"severity": sv}]})))["to"]

@@ -169,29 +169,41 @@ def run() -> bool:
 
     # ── (9b) H1: when the MATCH IS the secret, no snippet is emitted at all (truncation can't leak a prefix) ──
     # (inert scan input: a shape-valid AWS STS key id that was never issued, and a 120-char secret value)
+    # M2 round 4: the two defects are scanned SEPARATELY — together, the MEDIUM AWS-key row masked the fact
+    # that the LOW 'Hardcoded credential candidate' row alone left credential_reads PASS.
     ASIA_ID = "ASIA" + "Q7WZ3KLMNPRSTUVX"
     LONG_SECRET = "z9Q" * 40                       # 120 chars: the closing quote fell past the old 100-char cut
+    id_only = c.run_static(_inv({**CLEAN, "cfg2.py": f'AWS_ID = "{ASIA_ID}"\n'}))
+    id_js, cr2 = c.to_json(id_only), id_only.step("credential_reads")
+    ck("H1/M2: a key id ALONE → credential_reads FAIL with one path+line+label finding; the key id appears "
+       "nowhere in the JSON report",
+       cr2.status == c.StepStatus.FAIL and {f.path for f in cr2.findings} == {"cfg2.py"} and len(cr2.findings) == 1
+       and all(f.line > 0 and "withheld" in f.detail for f in cr2.findings)
+       and ASIA_ID not in id_js and "AROA" not in id_js)
+    val_only = c.run_static(_inv({**CLEAN, "cfg3.py": f'secret = "{LONG_SECRET}"\n'}))
+    val_js, cr3 = c.to_json(val_only), val_only.step("credential_reads")
+    ck("M2: a 120-char hardcoded secret ALONE (core rates it LOW) is FLOORED to MEDIUM so credential_reads "
+       "FAILs → SUSPICIOUS — an embedded credential can never yield an all-PASS static pipeline; the value "
+       "and every 20-char window of it stay out of the JSON report",
+       cr3.status == c.StepStatus.FAIL and val_only.verdict == Verdict.SUSPICIOUS
+       and {f.path for f in cr3.findings} == {"cfg3.py"} and len(cr3.findings) == 1
+       and all(f.severity in c.ESCALATES and f.line > 0 and "withheld" in f.detail for f in cr3.findings)
+       and not any(LONG_SECRET[i:i + 20] in val_js for i in range(len(LONG_SECRET) - 19))
+       and not any(s.status == c.StepStatus.PASS and s.id == "credential_reads" for s in val_only.steps))
     sec = c.run_static(_inv({**CLEAN, "cfg2.py": f'AWS_ID = "{ASIA_ID}"\nsecret = "{LONG_SECRET}"\n'}))
     sec_js = c.to_json(sec)
-    cr2 = sec.step("credential_reads")
-    ck("H1: an ASIA key id and a 120-char hardcoded secret are still FLAGGED (path + line + label) but neither "
-       "the key id, the value, nor any 20+ char prefix of it appears anywhere in the JSON report",
-       cr2.status == c.StepStatus.FAIL and {f.path for f in cr2.findings} == {"cfg2.py"} and len(cr2.findings) == 2
-       and all(f.line > 0 and "withheld" in f.detail for f in cr2.findings)
-       and ASIA_ID not in sec_js and LONG_SECRET[:20] not in sec_js and "AROA" not in sec_js)
+    ck("H1: both together → 2 findings, still path + line + label only, neither value in the JSON report",
+       sec.step("credential_reads").status == c.StepStatus.FAIL and len(sec.step("credential_reads").findings) == 2
+       and ASIA_ID not in sec_js and LONG_SECRET[:20] not in sec_js)
     ck("H1: task_resolver.redact itself now knows ASIA/AROA key ids (not just AKIA)",
        "[REDACTED]" == c.redact(ASIA_ID) == c.redact("AROA" + "Q7WZ3KLMNPRSTUVX") == c.redact("AKIAIOSFODNN7EXAMPLE"))
     e5 = catalog.get("Nanos", catalog.initial_catalog())
-    old_led = dict(runtimes.EXECUTED)
-    runtimes.EXECUTED.update(build=True, qemu_boot=True)        # TEST-ONLY: simulate a later phase's ledger
-    try:
+    with runtimes.simulated_ledger(build=True, qemu_boot=True):   # TEST-ONLY seam: simulate a later phase's ledger
         for st, evd in ((LabState.SOURCE_VERIFIED, {"verified_at": "T"}), (LabState.PINNED, {"sha": "c" * 40}),
                         (LabState.QUARANTINED, {"p": 1}), (LabState.STATIC_REVIEW, {"p": 1}),
                         (LabState.BUILD_REVIEW, {"p": 1}), (LabState.ISOLATED_EXECUTION, {"p": 1}),
                         (LabState.SECURITY_REVIEW, {"p": 1})):
             catalog.advance(e5, st, actor="operator", reason="t", evidence=evd)
-    finally:
-        runtimes.EXECUTED.clear(); runtimes.EXECUTED.update(old_led)
     catalog.record_verdict(e5, Verdict.SUSPICIOUS, actor="kai", reason="secret material", evidence=sec.to_dict())
     hist = json.dumps(e5.history, default=str)
     ck("H1: the same report recorded as audited catalog evidence leaks neither the key id nor the secret value "
@@ -217,17 +229,49 @@ def run() -> bool:
        any("…" in f.detail for f in c.run_static(_inv({**CLEAN, "t.py": "x = telemetry\n"})).step("telemetry").findings)
        and c._MAX_MATCH <= 40)
 
-    # ── (9d) H3: the deep freeze must not break redaction — the frozen mappings are dict SUBCLASSES ──
-    GM_PW = "SuperSecretPw"      # inert: a password embedded in a .gitmodules URL (scan input, never used)
-    gm = c.run_static(_inv({**CLEAN, ".gitmodules": f'[submodule "x"]\n\turl = https://u:{GM_PW}@evil.invalid/x.git\n'}))
-    gm_ev = gm.step("submodules").evidence
+    # ── (9e) M3 round 4: a SHORT match now carries the MATCH ALONE — the 20-char PRE-context is gone ──
+    # (inert scan input: a 42-char token redact() cannot know, sitting immediately before a short match)
+    PRE = "Q7w" * 14
+    m3 = c.run_static(_inv({**CLEAN, "pre.py": f"auth {PRE} telemetry\n"}))
+    m3_js, tf = c.to_json(m3), m3.step("telemetry").findings
+    ck("M3: an unredactable token ABUTTING a short match contributes NOTHING to the snippet — not one 6-char "
+       "window of it reaches the JSON report; the finding is label + the matched text and nothing else",
+       tf and all(f.line > 0 for f in tf)
+       and not any(PRE[i:i + 6] in m3_js for i in range(len(PRE) - 5))
+       and any(f.detail == "telemetry: …telemetry…" for f in tf))
+
+    # ── (9d) H1 round 4: a .gitmodules URL can EMBED a credential. The finding text was redacted but the
+    #        step's EVIDENCE carried the URL verbatim into the JSON artifact and the audited history.
+    #        (inert scan input: a password inside a submodule URL — nothing connects to anything)
+    GM_PW = "Sup3rSecretPw" + "Q7wZ3kLmNpRs"          # 25 chars → real 20-char windows to hunt for
+    GM_TEXT = ('[submodule "a"]\n'                     # url on line 2
+               f'\turl = https://u:{GM_PW}@evil.invalid/a.git\n'
+               '[submodule "b"]\n'                     # url on line 4
+               '\turl = https://example.invalid/b.git\n')
+    gm = c.run_static(_inv({**CLEAN, ".gitmodules": GM_TEXT}))
+    sm = gm.step("submodules")
+    gm_ev, gm_js = sm.evidence, c.to_json(gm)
     catalog.record_verdict(e5, Verdict.SUSPICIOUS, actor="kai", reason="submodule urls",
                            evidence={"submodules": gm_ev})
-    ck("H3: a step's frozen evidence is STILL a real dict, so task_resolver.redact traverses it — the "
-       ".gitmodules password is redacted and never reaches the append-only catalog history",
-       isinstance(gm_ev, dict) and GM_PW in json.dumps(gm_ev)
-       and GM_PW not in json.dumps(c.redact(gm_ev)) and GM_PW not in json.dumps(e5.history, default=str)
-       and not any(GM_PW in f.detail for f in gm.step("submodules").findings))
+    ck("H1: the submodule password appears NOWHERE — not one of its 20-char windows is in the JSON report, "
+       "and it is absent from evidence['urls'], the finding text, and the append-only catalog history",
+       not any(GM_PW[i:i + 20] in gm_js for i in range(len(GM_PW) - 19))
+       and GM_PW not in json.dumps(gm_ev) and gm_ev["urls"][0] == "[REDACTED]"
+       and not any(GM_PW in f.detail for f in sm.findings)
+       and GM_PW not in json.dumps(e5.history, default=str))
+    ck("H1: the step still refuses to PASS (UNVERIFIED — each submodule is a separate, uncertified supply "
+       "chain), both URLs are still reported, and each finding carries a REAL line number (2 and 4, not 0)",
+       sm.status == c.StepStatus.UNVERIFIED and len(sm.findings) == 2 and [f.line for f in sm.findings] == [2, 4]
+       and gm_ev["urls"][1] == "https://example.invalid/b.git")
+    ck("H1: defence in depth — StepResult REDACTS evidence where it is BUILT, so no future step can leak raw "
+       "scanned text through the same door (to_dict/history copy evidence straight out)",
+       c.StepResult("x", "x", "STATIC", evidence={"note": "password=hunter2hunter2",
+                                                  "u": ["https://a:pw123456@h/x"]}).evidence
+       == {"note": "[REDACTED]", "u": ["[REDACTED]"]})
+    ck("H3: the frozen mappings are real dict SUBCLASSES, so task_resolver.redact still traverses them "
+       "(a MappingProxyType would have been walked straight past, unredacted)",
+       isinstance(gm_ev, dict) and isinstance(c._Frozen({"api_key": "sk-abcdefghijklmnopqrst"}), dict)
+       and c.redact(c._Frozen({"api_key": "sk-abcdefghijklmnopqrst"}))["api_key"] == "[REDACTED]")
     ck("H3: the freeze still holds (every mutating method raises TypeError), the honesty ledger stays False, "
        "and dataclasses.asdict(report) now SUCCEEDS",
        all(_raises(TypeError, fn) for fn in (lambda: _write(gm_ev, "urls", []), lambda: gm_ev.update(urls=[]),

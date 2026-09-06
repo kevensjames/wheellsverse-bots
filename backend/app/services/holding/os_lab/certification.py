@@ -16,8 +16,9 @@ inventory returns UNVERIFIED, never PASS (a walk truncated at ``max_files`` is r
 A finding carries NO snippet when the match IS or may CONTAIN the secret — the credential_reads step, a
 key/credential/secret/token/password core row, or ANY match longer than ``_MAX_MATCH`` (the greedy
 line-spanning rows: pipe-to-shell, download-an-archive — a custom auth header sits INSIDE such a match and
-``redact`` only knows the standard header names). Every other snippet is ``redact``-ed BEFORE truncation and
-carries no post-match context (a matched key header never drags its key body into the report).
+``redact`` only knows the standard header names). Every other snippet is the MATCHED TEXT ALONE — no context
+before it, none after it — ``redact``-ed BEFORE truncation, and every step's EVIDENCE is ``redact``-ed where
+the StepResult is built, so nothing reaches the JSON artifact or the audited history unredacted.
 
 Pattern base: ``core.security_scanner._COMPILED_PATTERNS`` is the ONE base table for generic malicious
 patterns (reverse shells, pipe-to-shell, disk wipes, key material, eval+base64 …) — one pattern, one
@@ -40,7 +41,7 @@ from pathlib import Path, PurePosixPath
 
 from app.services.holding.task_resolver import redact, is_forbidden_repo_target
 from app.services.holding.os_lab.catalog import Verdict, _SHA_RE
-from app.services.holding.os_lab.runtimes import EXECUTED
+from app.services.holding.os_lab import runtimes as _runtimes   # L1: read the LIVE ledger, not a pinned copy
 
 try:   # the ONE base table: (compiled pattern, severity, description). Needs the repo root on the path.
     from core.security_scanner import _COMPILED_PATTERNS as _CORE
@@ -243,8 +244,14 @@ class StepResult:
     note: str = ""
     evidence: dict = field(default_factory=dict)
 
-    def __post_init__(self):    # L1: deep freeze — rep.step(x).evidence['k']=v must raise, not mutate a result
-        object.__setattr__(self, "evidence", _Frozen(self.evidence))
+    def __post_init__(self):
+        # L1: deep freeze — rep.step(x).evidence['k']=v must raise, not mutate a result.
+        # H1 round 4: evidence is REDACTED here, at the ONE place a step's evidence becomes part of a report.
+        # ``to_dict`` copies evidence verbatim into the JSON artifact and ``record_verdict`` copies it into the
+        # append-only history, so a step that puts raw scanned text in evidence (submodule URLs did) leaked
+        # past the redacted FINDING text beside it. Redacting at construction closes that door for every
+        # future step, not just the one that was found leaking.
+        object.__setattr__(self, "evidence", _Frozen(redact(dict(self.evidence))))
 
     def to_dict(self) -> dict:
         return {"id": self.id, "title": self.title, "phase": self.phase,
@@ -264,7 +271,7 @@ class CertificationReport:
     scope: str = "NOT_RUN"                   # NOT_RUN | STATIC_ONLY | FULL (FULL only after gated steps)
     steps: tuple[StepResult, ...] = ()
     verdict: Verdict = Verdict.UNVERIFIED
-    executed: dict = field(default_factory=lambda: dict(EXECUTED))
+    executed: dict = field(default_factory=lambda: dict(_runtimes.EXECUTED))
     generated_at: str = "UNKNOWN"            # caller stamps (no clock here)
     authority_plane: str = "KAI"             # §165 — a report is evidence, never an authority
 
@@ -384,16 +391,16 @@ def _hit(step: str, sev: str, f: InvFile, m: re.Match, label: str = "") -> Findi
     """H1 — when the match IS or may CONTAIN the secret (anything routed to credential_reads, a core row whose
     description names a key/credential/secret/token/password, or ANY match longer than ``_MAX_MATCH``) the
     finding is path + line + label ONLY: no snippet at all — sufficient signal for every step, and it takes
-    the "which labels are secret-named" judgement call off the leak boundary. Every other step gets 20 chars
-    of context BEFORE the match, the match, and NOTHING after it, REDACTED BEFORE the 100-char cut (truncating
-    first can slice a secret out of its redactable pattern)."""
+    the "which labels are secret-named" judgement call off the leak boundary. Every other finding carries the
+    MATCHED TEXT AND NOTHING ELSE — no context before it, none after it — ``redact``-ed BEFORE the 100-char
+    cut (truncating first can slice a secret out of its redactable pattern)."""
     line = f.content.count("\n", 0, m.start()) + 1 if f.content else 0
     if step == "credential_reads" or _SECRET_LABEL.search(label) or m.end() - m.start() > _MAX_MATCH:
         return Finding(step, sev, f.path, f"{label or 'match'} — snippet withheld: the match is/may contain the secret", line)
-    # ponytail: the 20-char PRE-context of a SHORT match can still carry ~18 chars of an adjacent
-    # unredactable secret (a custom auth header immediately before a URL) — bounded, never a full 20-char
-    # window (a test pins that). Drop the pre-context entirely if even a fragment is too much.
-    snippet = f.content[max(0, m.start() - 20):m.end()].replace("\n", " ").strip() if f.content else ""
+    # M3 round 4: the pre-context is GONE. 20 chars before a SHORT match could carry a FULL 20-char window of
+    # an adjacent unredactable secret (a custom auth header immediately before a URL) — exactly what the
+    # withheld branch above exists to prevent. The matched text alone is enough signal for these steps.
+    snippet = m.group(0).replace("\n", " ").strip() if f.content else ""
     return Finding(step, sev, f.path, redact(f"{label + ': ' if label else ''}…{redact(snippet)[:100]}…"), line)
 
 
@@ -401,12 +408,22 @@ def _sweep(step: str, files: list[InvFile], pats, sev: str, label: str = "") -> 
     return [_hit(step, sev, f, m, label) for f in files for p in pats for m in p.finditer(f.content)]
 
 
-def _routed(step: str, files: list[InvFile], local: list[Finding], evidence: dict | None = None):
-    """A core-backed step: local OS-lab findings + the core rows routed to this step (core's own severity).
+def _floor(sev: str, floor: str) -> str:
+    """M2: raise a core row's severity to at least ``floor`` (both must be known SEVERITIES; an unknown
+    severity is left exactly as it came so the catalog's fail-closed severity gate still sees it)."""
+    if not floor or sev not in SEVERITIES:
+        return sev
+    return sev if SEVERITIES.index(sev) >= SEVERITIES.index(floor) else floor
+
+
+def _routed(step: str, files: list[InvFile], local: list[Finding], evidence: dict | None = None, *, floor: str = ""):
+    """A core-backed step: local OS-lab findings + the core rows routed to this step (core's own severity,
+    raised to ``floor`` when the step owns a category the core table rates below its own escalation bar).
     Without the core table the step is UNVERIFIED — never a silent 'built-in only' result."""
     if _CORE is None:
         return StepStatus.UNVERIFIED, local, CORE_UNAVAILABLE, evidence or {}
-    fnd = local + [_hit(step, sev, f, m, d) for f in files for p, sev, d in core_for(step) for m in p.finditer(f.content)]
+    fnd = local + [_hit(step, _floor(sev, floor), f, m, d)
+                   for f in files for p, sev, d in core_for(step) for m in p.finditer(f.content)]
     return _status(fnd), fnd, "", evidence or {}
 
 
@@ -475,9 +492,16 @@ def check_submodules(inv):
     gm = next((f for f in inv.files if f.name == ".gitmodules"), None)
     if gm is None:
         return StepStatus.PASS, [], "no .gitmodules", {}
-    urls = re.findall(r"url\s*=\s*(\S+)", gm.content or "")
-    return StepStatus.UNVERIFIED, [Finding("submodules", "LOW", gm.path, redact(f"submodule: {u}")) for u in urls], \
-        f"{len(urls)} submodule(s) — each is a separate supply chain needing its own certification", {"urls": urls}
+    # H1 round 4: a submodule URL can EMBED a credential (https://user:pw@host/x.git). The finding text was
+    # redacted but the evidence carried the URL VERBATIM into the report artifact and the audited history —
+    # redact at the source. finditer (not findall) so the finding carries a REAL line number.
+    text = gm.content or ""
+    hits = list(re.finditer(r"url\s*=\s*(\S+)", text))
+    fnd = [Finding("submodules", "LOW", gm.path, redact(f"submodule: {m.group(1)}"),
+                   text.count("\n", 0, m.start()) + 1) for m in hits]
+    return StepStatus.UNVERIFIED, fnd, \
+        f"{len(hits)} submodule(s) — each is a separate supply chain needing its own certification", \
+        {"urls": [redact(m.group(1)) for m in hits]}
 
 
 def check_git_lfs(inv):
@@ -570,12 +594,16 @@ def check_privileged_ops(inv):
 
 def check_credential_reads(inv):
     """Paths to secret stores (code files) + embedded credential MATERIAL over ALL text files, docs included —
-    a private key in a .txt/.md is still a private key. Shipped §30 forbidden targets were never opened: flagged by path."""
+    a private key in a .txt/.md is still a private key. Shipped §30 forbidden targets were never opened: flagged by path.
+
+    M2 round 4: the core rows this step owns are FLOORED at MEDIUM. Core rates 'Hardcoded credential candidate'
+    LOW, and ``_status`` escalates only MEDIUM+, so a repo whose sole defect was an embedded 120-char secret
+    left this step PASS — and an all-PASS static pipeline. An embedded credential can never leave it PASS now."""
     fnd = _sweep("credential_reads", _code(inv), _CRED_PATH, "HIGH", "credential path")
     fnd += _sweep("credential_reads", inv.text_files(), _CRED_MATERIAL, "MEDIUM", "private key material")
     fnd += [Finding("credential_reads", "MEDIUM", f.path, "secret-bearing file shipped in the repo (§30) — not opened")
             for f in inv.files if f.skipped == "forbidden"]
-    return _routed("credential_reads", inv.text_files(), fnd)
+    return _routed("credential_reads", inv.text_files(), fnd, floor="MEDIUM")
 
 
 def check_persistence(inv):
