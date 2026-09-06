@@ -15,7 +15,7 @@
 | HEAD SHA | `8799db9` (`git rev-parse --short HEAD`) |
 | working tree | clean (`git status --porcelain` → empty) |
 | deployment state | **NOTHING DEPLOYED, NOTHING MERGED, NO PR.** Production (release #67, `4fbfb8e`, App A `app.wheellsverse.com` + App B `kai-prod`) is UNCHANGED by this build. |
-| authority state | all 9 flags default **False** in `backend/app/config.py` (lines 64/72/79/83/101/106/111/115/128); `MONEY_MODE` not declared in App B Settings → reported UNAVAILABLE, never narrated as MOCK |
+| authority state | 9 flags default **False** in `backend/app/config.py` — **8 on `release/kai-holding-os`**, where `KAI_CYBER_OPS_ENABLED` is removed because nothing read or enforced it (lines 64/72/79/83/101/106/111/115/128 on `feat/kai-cyber-operations`; 64/72/79/102/107/112/116/129 for the eight that remain on `release/kai-holding-os`); `MONEY_MODE` not declared in App B Settings → reported UNAVAILABLE, never narrated as MOCK |
 | suite sweep (this reconciliation) | 67 test modules under `backend/app/services/holding/` + `os_lab/` → **1521 checks, 1520 PASS** at HEAD `8799db9`. Stated exactly: the 67-module sweep was measured per-file at `749fa78` (1452 / 1451) and the three `os_lab/` suites were **re-measured at HEAD** (83 · 92 · 80 = **255**, up from 226); `git diff --stat 749fa78..8799db9` shows the three new commits touch only `os_lab/` + the OS-Lab doc, so 1452 + 29 = 1521 — the os_lab part measured, the rest carried forward on that diff evidence, not presented as a fresh full sweep. Was **1437 / 1436 PASS** at `83f6050`; the single failure is `test_si_calc_guard` `bucket(0)` (6 passed, 1 failed), the deliberate BEFORE-state self-improvement fixture that fails identically on the pre-omnipresence base `d881cf2^` |
 | frontend sweep | 18 node suites, **263 checks**, all pass (`frontend/admin/test_*.js`) — was 258 at `83f6050`; `test_kai_gesture` 27 → **27** |
 | regression sweep | 133 test files outside `holding/` run per-file on `83f6050` and on `d881cf2^` — **zero diff** (the App B `tests/*.py` fixture errors are identical on the baseline = pre-existing environment errors). Not re-run at `8799db9`: none of `9e0df08`, `749fa78`, `ed00e4e`, `79062c4`, `8799db9` touches a file outside `holding/` + `os_lab/` + `frontend/admin/kai-{gesture,presence}.js` |
@@ -26,10 +26,10 @@
 
 | status | count |
 |--------|-------|
-| SATISFIED | 79 |
+| SATISFIED | 78 |
 | PARTIAL | 74 |
 | GAP | 7 |
-| DEFERRED | 6 |
+| DEFERRED | 7 |
 | N-A | 1 |
 | **total** | **167** |
 
@@ -102,7 +102,7 @@ asserts deployment, enablement, or production certification of this build.
 | 45 | Finance | PARTIAL | `holding.html` Finance & Customer panel (honest markers), `health_score.py` §45 dimension, `digital_twin` `fact()`→UNAVAILABLE | `test_health_score` 16/16, `test_holding_ui_contract` 7/7 | MONEY_MODE undeclared → **UNAVAILABLE** (not MOCK); panel renders `REQUIRES_OPERATOR_CONFIRMATION` | No cash/runway/P&L data. Real data gated on operator provisioning (Stripe/billing) `[G:OPS]`. |
 | 46 | Customer intelligence | PARTIAL | same panel; twin `customers_summary` Fact→UNAVAILABLE | `test_holding_ui_contract` 7/7 | honest marker rendered | No leads/subs/support/churn model; gated on CRM/billing provisioning `[G:OPS]`. |
 | 47 | Marketing/sales | GAP | — (only the §47 responsive/no-overflow reference in `holding.html`) | — | — | No analyze/recommend/draft/prepare engine; external-send approval gating not built. |
-| 48 | Security center | SATISFIED | `services/security/{evidence_bus,posture,risk_score,aikido_adapter}.py`, `routers/admin_security.py` (10 read-only), `cyber-operations.html` | `test_security` **44/44** (re-run at `83f6050`; `services/security/` untouched since) | flag `KAI_CYBER_OPS_ENABLED` default False | Defensive-only; 6-lens review-triad clean. Certified-but-**undeployed**. Cyber Ops phases C–F not built. |
+| 48 | Security center | DEFERRED | `services/security/{evidence_bus,posture,risk_score,aikido_adapter}.py`, `routers/admin_security.py` (10 read-only), `cyber-operations.html` | `test_security` **44/44** (re-run at `83f6050`; `services/security/` untouched since) | flag `KAI_CYBER_OPS_ENABLED` default False | Defensive-only; 6-lens review-triad clean. Certified-but-**undeployed**. Cyber Ops phases C–F not built. **NOT SHIPPED on `release/kai-holding-os`** — `routers/admin_security.py`, `cyber-operations.html`, `evidence_bus.py`, `posture.py`, `risk_score.py`, `aikido_adapter.py` and `test_security.py` are all ABSENT from that candidate, and `KAI_CYBER_OPS_ENABLED` is removed. Only `security/models.py` + `security/capabilities.py` ship there, as pure read-only policy manifests that the §97 brakes board names as a prerequisite; no executor, router, worker or activation path ships with them. The evidence below describes `feat/kai-cyber-operations`, where it remains accurate and undeployed. |
 | 49 | Digital human | PARTIAL | `kai-nexus-embodiment.js`, `kai-subtitles.js`, TTS, barge-in, wired to the shared presence provider (`85b5de0`) | `test_nexus_embodiment` 9, `test_kai_subtitles` 8 | video fallback wired to presence state | GLB `ASSET_UNAVAILABLE`; no biometric inference; facial/viseme blocked on a rigged asset. |
 | 50 | Voice personality | PARTIAL | `kai-presence.js::_pickVoice`, `kai-tts-provider.js::scoreVoice` | `test_kai_speech` 21 | — | No calm/concise/executive personality layer; TTS rate/pitch still hardcoded. |
 | 51 | Speech length | SATISFIED | `voice_session.py` speech decision + `kai-presence.js` `speak()` truncation / subtitle cap | `test_voice_session` 36/36 | — | Summary-first voice with depth on the dashboard. |

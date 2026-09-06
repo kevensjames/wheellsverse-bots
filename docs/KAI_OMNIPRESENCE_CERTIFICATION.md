@@ -31,7 +31,7 @@ is **UNCHANGED** by this build.
 | G1 | Provision an isolated Railway staging environment | **PENDING** — none exists (baseline OQ #6, MEMORY) | G2, G3, G4 |
 | G2 | Hosted-edge certification on that staging environment | **PENDING** (blocked by G1) | G3, G4 |
 | G3 | Production merge / deploy go-ahead | **PENDING** | any prod presence |
-| G4 | Any authority enable — deploy ≠ enable (ADR-007), one flag at a time | **PENDING** | all 9 flags in §4 |
+| G4 | Any authority enable — deploy ≠ enable (ADR-007), one flag at a time | **PENDING** | the 8 flags in §4 (was 9; `KAI_CYBER_OPS_ENABLED` removed — nothing read it) |
 | G5 | Credential provisioning (finance/customer sources, provider keys) | **PENDING** | §45/§46 real values (OQ #5) |
 | G6 | Restricted-security activation (syzkaller is never auto-selected) | **PENDING** | §43 / OS Lab execution |
 
@@ -134,7 +134,9 @@ see §5), so it is named here rather than silently absorbed. Both totals are hon
 
 ## 4. FLAGS — DEPLOYMENT ≠ ENABLEMENT (§0 #12 / ADR-007)
 
-All nine default `False` in `backend/app/config.py`. Verified by grep at `83f6050`; `config.py` is
+All nine default `False` in `backend/app/config.py`. **On `release/kai-holding-os` the flag is REMOVED and Cyber Operations is NOT SHIPPED**: no `routers/admin_security.py`, no `cyber-operations.html`, no `evidence_bus`/`posture`/`risk_score`/`aikido_adapter`, no `test_security.py`. Only the two pure policy manifests (`security/models.py`, `security/capabilities.py`) are present, as a named prerequisite of the §97 brakes board, read-only with no executor. Nothing read or enforced the flag, so declaring it was a control surface with nothing behind it. The candidate therefore has **eight** authority flags, not nine; the count is not preserved with a placeholder. The flag returns only alongside a real gated implementation and tests proving both OFF and ON behaviour.
+
+On the branch this section was written against: Verified by grep at `83f6050`; `config.py` is
 untouched by `9e0df08`, `749fa78`, `ed00e4e`, `79062c4` and `8799db9` (`git diff --stat
 749fa78..8799db9` touches only `os_lab/` + the OS-Lab doc), so the posture is unchanged at HEAD
 `8799db9`.
@@ -146,12 +148,12 @@ did not enable it.
 | `KAI_HOLDING_COMMAND_ENABLED` | `config.py:64` | `False` | typed Holding Command API (P5) |
 | `KAI_VOICE_ENABLED` | `config.py:72` | `False` | VoiceSessionManager (P7a/P7b) |
 | `KAI_CAMERA_ENABLED` | `config.py:79` | `False` | camera + gesture (P8) |
-| `KAI_CYBER_OPS_ENABLED` | `config.py:83` | `False` | Cyber Ops Phase A/B |
-| `KAI_HOLDING_CYCLE_ENABLED` | `config.py:101` | `False` | bounded cycle scheduling (grants NO authority) |
-| `KAI_PROACTIVE_ENABLED` | `config.py:106` | `False` | proactive engine (P3b) |
-| `KAI_CAPABILITY_EXECUTION_ENABLED` | `config.py:111` | `False` | brake #1 — capability execution |
-| `HOLDING_AUTONOMY_ENABLED` | `config.py:115` | `False` | brake #2 — global autonomy |
-| `KAI_A2_EXECUTION_ENABLED` | `config.py:128` | `False` | brake #3 — A2 prepare-only |
+| ~~`KAI_CYBER_OPS_ENABLED`~~ | *removed* | *n/a* | **NOT SHIPPED on `release/kai-holding-os`** — declared but never read or enforced; removed rather than left as an inert control |
+| `KAI_HOLDING_CYCLE_ENABLED` | `config.py:102` | `False` | bounded cycle scheduling (grants NO authority) |
+| `KAI_PROACTIVE_ENABLED` | `config.py:107` | `False` | proactive engine (P3b) |
+| `KAI_CAPABILITY_EXECUTION_ENABLED` | `config.py:112` | `False` | brake #1 — capability execution |
+| `HOLDING_AUTONOMY_ENABLED` | `config.py:116` | `False` | brake #2 — global autonomy |
+| `KAI_A2_EXECUTION_ENABLED` | `config.py:129` | `False` | brake #3 — A2 prepare-only |
 
 `MONEY_MODE` is **not declared** in App B `Settings` — see N5. Readers default `MOCK`; Phase 9
 reports it **UNAVAILABLE** when undeclared and derives the FINANCIAL brake from the real Sol/Dwolla
@@ -305,7 +307,8 @@ Strictly in order. KAI passes none of these.
    `False` first: the dark-build posture must be provable on a hosted edge before any flag moves.
 4. **G4 — Enable by flag, ONE at a time, on staging only.** Suggested order, least authority first:
    `KAI_HOLDING_COMMAND_ENABLED` → `KAI_VOICE_ENABLED` → `KAI_CAMERA_ENABLED` →
-   `KAI_HOLDING_CYCLE_ENABLED` → `KAI_PROACTIVE_ENABLED` → `KAI_CYBER_OPS_ENABLED`. The three brakes
+   `KAI_HOLDING_CYCLE_ENABLED` → `KAI_PROACTIVE_ENABLED`. (`KAI_CYBER_OPS_ENABLED` is absent from this
+   candidate — there is no Cyber Ops implementation to enable.) The three brakes
    (`KAI_CAPABILITY_EXECUTION_ENABLED`, `HOLDING_AUTONOMY_ENABLED`, `KAI_A2_EXECUTION_ENABLED`) are
    last and separate. After each single flag: re-certify, confirm the dashboard reflects the new
    exists/deployed/enabled state, then stop.

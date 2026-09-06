@@ -41,7 +41,11 @@ Every consequential flag remains UNSET (default `False`) on staging, confirmed a
 
 `KAI_HOLDING_COMMAND_ENABLED` · `KAI_CAPABILITY_EXECUTION_ENABLED` · `HOLDING_AUTONOMY_ENABLED` ·
 `KAI_A2_EXECUTION_ENABLED` · `KAI_HOLDING_CYCLE_ENABLED` · `KAI_PROACTIVE_ENABLED` ·
-`KAI_VOICE_ENABLED` · `KAI_CAMERA_ENABLED` · `KAI_CYBER_OPS_ENABLED` · `MONEY_MODE`
+`KAI_VOICE_ENABLED` · `KAI_CAMERA_ENABLED` · `MONEY_MODE`
+
+(`KAI_CYBER_OPS_ENABLED` was in this list when the run was made. It is REMOVED on
+`release/kai-holding-os`: nothing read or enforced it, and Cyber Operations is not shipped there.
+Eight authority flags remain, all default `False`.)
 
 Observable consequence, and the correct one: `/admin/holding/voice/capabilities` and
 `/gesture/capabilities` return **404** on staging — their command router is genuinely not mounted.
