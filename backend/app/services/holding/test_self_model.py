@@ -91,6 +91,13 @@ def t_no_owner_actions_when_queue_empty():
     assert _model(open_proposals=lambda: []).what_do_you_need_from_me() == []
 
 
+def t_money_mode_undeclared_is_not_a_mock_claim():
+    """Review M1: flags MONEY_MODE None (undeclared — the LIVE value in this app) must never narrate MOCK."""
+    lims = _model(flags=lambda: {"MONEY_MODE": None}).snapshot()["known_limitations"]
+    assert not any("MONEY_MODE=MOCK" in l or "never move money" in l for l in lims), lims
+    assert any("MONEY_MODE is not declared" in l and "UNAVAILABLE" in l for l in lims), lims
+
+
 for _n, _f in list(globals().items()):
     if _n.startswith("t_"):
         test(_n[2:], _f)

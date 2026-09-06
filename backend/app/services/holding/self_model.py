@@ -139,8 +139,16 @@ def _derive_limitations(flags: dict, *, finance_available: bool, coding_workers:
     present; the rest reflect the CURRENT runtime posture, so the panel can never over-claim authority."""
     flags = flags or {}
     out = list(_INVARIANT_LIMITATIONS)
-    if (flags.get("MONEY_MODE") or "MOCK") == "MOCK":
+    mm = flags.get("MONEY_MODE")
+    if mm is None:      # undeclared in this app's Settings (the LIVE value) — a reader default is NOT an observation
+        out.append("MONEY_MODE is not declared in this app's Settings — money posture UNAVAILABLE; the only money path "
+                   "(routers/sol.py → scope sol.transfer → DwollaClient sandbox-lock) is reported from its own switches, "
+                   "never from a reader default.")
+    elif mm == "MOCK":
         out.append("MONEY_MODE=MOCK — I never move money, trade, pay out, or change budgets.")
+    else:
+        out.append(f"MONEY_MODE={mm} (declared) — money movement is owner-only / RESTRICTED: I never move money, trade, "
+                   "pay out, or change budgets autonomously; every call needs owner authority (§0 #11 FINANCIAL class).")
     if not flags.get("KAI_A2_EXECUTION_ENABLED", False):
         out.append("Production A2 execution is DISABLED — I prepare changes for review, but execute none.")
     if not flags.get("HOLDING_AUTONOMY_ENABLED", False):

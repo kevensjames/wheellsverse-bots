@@ -77,6 +77,15 @@ ck("§63 auth-blocked coding worker surfaces as a live limitation",
 _lim_fin = _derive_limitations({"MONEY_MODE": "MOCK"}, finance_available=True, coding_workers=[])
 ck("§63 finance limitation drops when a live feed is wired",
    any("No live finance" in l for l in _lim_a2_off) and not any("No live finance" in l for l in _lim_fin))
+# review M1: MONEY_MODE is a tri-state. None = undeclared in this app's Settings (the LIVE value) — NOT a MOCK observation
+_lim_none = _derive_limitations({"MONEY_MODE": None}, finance_available=False, coding_workers=[])
+_lim_live = _derive_limitations({"MONEY_MODE": "LIVE"}, finance_available=False, coding_workers=[])
+ck("M1: MONEY_MODE None -> NO 'MONEY_MODE=MOCK' / 'never move money' line; posture UNAVAILABLE, naming the real money path's switches",
+   not any("MONEY_MODE=MOCK" in l or "never move money" in l for l in _lim_none)
+   and any("MONEY_MODE is not declared" in l and "UNAVAILABLE" in l and "sol.transfer" in l for l in _lim_none))
+ck("M1: tri-state — a DECLARED MOCK keeps the MOCK line; a declared non-MOCK mode -> owner-only/RESTRICTED line, never the MOCK claim",
+   any("MONEY_MODE=MOCK" in l for l in _lim_fin) and not any("MONEY_MODE=MOCK" in l for l in _lim_live)
+   and any("MONEY_MODE=LIVE" in l and "RESTRICTED" in l for l in _lim_live))
 
 # ── §16 digital_twin.fact() carries confidence + evidence_ref, additively/back-compat ──
 _f_bare = fact("v", "src", observed_at="2026-09-01", fact_type="money", today="2026-09-01")

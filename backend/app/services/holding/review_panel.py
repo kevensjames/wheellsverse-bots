@@ -48,6 +48,19 @@ def convene(subject, *, author: str = "", panel: dict, tests_ok: bool | None = N
     {verdict, findings[], evidence[]}``. ``author`` is the plan's author; for a WorkerResult the author is
     always ``result.worker`` (the record is the truth, a caller cannot relabel it). ``tests_ok`` feeds the
     verifier's certify_worker_result call (defaults to tests_failed == 0)."""
+    report = _deliberate(subject, author=author, panel=panel, tests_ok=tests_ok)
+    # the ONE epilogue — EVERY return (INCOMPLETE included) passes here: a WorkerResult stays certified ONLY
+    # under an APPROVED aggregate, so a pre-certified record can never survive a panel that did not approve it
+    certified = None
+    if isinstance(subject, WorkerResult):
+        subject.certified = bool(subject.certified and report["outcome"] == "APPROVED")
+        certified = subject.certified
+    return {**report, "certified": certified}
+
+
+def _deliberate(subject, *, author: str, panel: dict, tests_ok: bool | None) -> dict:
+    """The panel body: identity rules (raise), completeness (INCOMPLETE), one call per role, aggregate.
+    Returns the report WITHOUT ``certified`` — ``convene``'s epilogue owns that flag."""
     if isinstance(subject, WorkerResult):
         author = subject.worker
     author = str(author or "")
@@ -98,13 +111,7 @@ def convene(subject, *, author: str = "", panel: dict, tests_ok: bool | None = N
     verdicts = [r["verdict"] for r in reviews]
     outcome = ("REJECTED" if "REJECT" in verdicts else
                "NEEDS_CHANGES" if "NEEDS_CHANGES" in verdicts else "APPROVED")
-    certified = None
-    if isinstance(subject, WorkerResult):
-        # a panel that did not APPROVE leaves NOTHING certified — the seam's tests-based flag stands only
-        # under an APPROVED aggregate (APPROVED ⇒ the verifier said APPROVE); ``reviewed`` stays the truth
-        subject.certified = bool(subject.certified and outcome == "APPROVED")
-        certified = subject.certified
-    return {**base, "outcome": outcome, "reviews": reviews, "certified": certified}
+    return {**base, "outcome": outcome, "reviews": reviews}
 
 
 if __name__ == "__main__":

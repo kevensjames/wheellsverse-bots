@@ -163,6 +163,16 @@ def run() -> bool:
     nr = convene(nrej, panel=_panel(PLANNER=_role("claude-planner", evidence=[])))
     ck("M4: NEEDS_CHANGES aggregate -> not certified either (only APPROVED certifies)",
        nr["outcome"] == "NEEDS_CHANGES" and nrej.certified is False and nr["certified"] is False)
+    # L1 — the INCOMPLETE early returns pass the SAME epilogue: a pre-certified record never survives a non-APPROVED panel
+    pre = WorkerResult(task="impl", worker="codex", tests_run=4, tests_passed=4, tests_failed=0, reviewed=True, certified=True)
+    p = _panel(); del p["SECURITY_REVIEWER"]
+    inc = convene(pre, panel=p)
+    pre2 = WorkerResult(task="impl", worker="codex", tests_run=4, tests_passed=4, tests_failed=0, reviewed=True, certified=True)
+    p2 = _panel(PLANNER=_role("x"), DOMAIN_EXPERT=_role("x"), SECURITY_REVIEWER=_role("x"))
+    inc2 = convene(pre2, panel=p2)
+    ck("L1: a PRE-CERTIFIED WorkerResult + missing role / too few identities -> INCOMPLETE clamps certified False (report says so); nobody invoked",
+       inc["outcome"] == "INCOMPLETE" and pre.certified is False and inc["certified"] is False and _calls(p) == 0
+       and inc2["outcome"] == "INCOMPLETE" and pre2.certified is False and inc2["certified"] is False and _calls(p2) == 0)
     ck("deterministic: same subject + same replies -> identical report",
        convene(PLAN, author="a", panel=_panel()) == convene(PLAN, author="a", panel=_panel()))
     src = Path(rp.__file__).read_text()

@@ -214,6 +214,9 @@ def run() -> bool:
        row(nomode, "money.move")["status"] == UNAVAILABLE
        and row(nomode, "money.move")["why"].startswith("MONEY_MODE not declared in this app's Settings (readers default MOCK)")
        and nomode["authority"]["MONEY_MODE"] is None)
+    ck("M1: MONEY_MODE None -> the 'cannot' list carries NO 'MONEY_MODE=MOCK' / 'never move money' claim beside the UNAVAILABLE money.move row; a declared MOCK still does",
+       not any("MONEY_MODE=MOCK" in l or "never move money" in l for l in nomode["cannot"])
+       and any("MONEY_MODE is not declared" in l for l in nomode["cannot"]) and any("MONEY_MODE=MOCK" in l for l in a["cannot"]))
     ck("M6: the false 'no money moves' observation is gone; the §99 invariant is phrased as POLICY ('without owner authority') on every finance row",
        not any("no money moves" in r["why"] for r in rows(a) + rows(nomode))
        and all("without owner authority" in row(x, cid)["why"] for x in (a, nomode) for cid in ("money.move", "finance.sol_transfer")))
