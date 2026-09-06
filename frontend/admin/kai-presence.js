@@ -177,6 +177,10 @@ export const KAI = {
   // registerRecognizer is gated on BACKEND truth (gesture_policy.recognizer_status.available) — the browser seam alone can never
   // declare a recognizer certified; without backend availability the call is refused (false) and no frame is ever handed out.
   gesture: { status: () => gestureStatus(), start: () => startCamera('api'), stop: r => stopCamera(r || 'user'), registerRecognizer: fn => recognizerCertified() ? ensureGesture().then(s => s.registerRecognizer(fn)) : Promise.resolve(false) },
+  // Subscribe to presence events. 'principal' is the one a host page needs: it fires when the owner signs
+  // in or out THROUGH THE ORB, so a page that fetched its data before sign-in can refetch instead of telling
+  // the operator to reload. Returns an unsubscribe function. Read-only: subscribing performs no action.
+  on: (evt, fn) => on(evt, fn),
   // Phase 8 seams (live read-only descriptors): nothing here opens a camera or reads a frame.
   seams: Object.freeze({
     get gesture() { const g = gestureStatus(); return { built: true, phase: 8, authority: 'NONE', recognizer: g.recognizer, camera: g.camera, inference: 'LOCAL_ONLY', biometrics: 'NONE', approval_by_gesture: 'REFUSED', note: 'gestures never authorize actions (§75)' }; },

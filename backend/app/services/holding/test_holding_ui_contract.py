@@ -20,7 +20,11 @@ def test(name, fn):
 
 
 HTML = _HTML.read_text()
-BOOT = HTML[HTML.index("function boot()"):]
+# The data fetches moved out of boot() into loadAll() so they can RE-RUN when the owner signs in through the
+# orb — before that, the 401 panels rendered at page load stayed on screen until a manual reload, which reads
+# as "signed in, still broken". The contract is unchanged (one /view fetch powers every aggregate section),
+# so BOOT now slices from loadAll(); boot() itself is asserted separately to still drive it.
+BOOT = HTML[HTML.index("function loadAll()"):]
 
 
 def _fn(name, end="\n}\n"):
@@ -30,10 +34,29 @@ def _fn(name, end="\n}\n"):
 
 
 def t_fetches_view_endpoint():
-    """boot() fetches /view once and renders every aggregate-powered section from it."""
+    """The page fetches /view once and renders every aggregate-powered section from it."""
     assert "api('/admin/kai/holding/view')" in BOOT
     for r in ("renderToday(v)", "renderWorking(v)", "renderProblems(v)", "renderAutonomy(v)", "renderSelfModel(v)"):
-        assert r in BOOT, f"boot() does not render {r} from the /view payload"
+        assert r in BOOT, f"loadAll() does not render {r} from the /view payload"
+
+
+def t_panels_refresh_on_sign_in():
+    """Signing in through the orb must re-fetch — not leave the 401 panels up until a manual reload.
+
+    The page necessarily loads before the operator has a session, so the first pass renders NOT_CONNECTED
+    on every panel. Without this the operator signs in, sees 'OWNER · GOVERNED' on the orb, and still reads
+    'HTTP 401' on every card.
+    """
+    boot = _fn("boot")
+    assert "loadAll()" in boot, "boot() must drive the data load"
+    assert "refreshAuthBanner()" in boot, "boot() must render the auth banner"
+    assert "KAI.on('principal'" in boot, "boot() must subscribe to the presence principal event"
+    assert "loadAll()" in boot[boot.index("KAI.on('principal'"):], "the principal handler must re-run loadAll()"
+    assert "kai:ready" in boot, "must fall back to kai:ready when the presence layer has not mounted yet"
+    # the subscribe path must not throw when the presence layer lacks the API
+    assert "typeof window.KAI.on === 'function'" in boot, "the subscription must be feature-guarded"
+    # and the banner must no longer instruct a manual reload
+    assert "then reload" not in HTML, "the banner should not tell the operator to reload"
 
 
 def t_today_is_first_operational_section():
@@ -110,7 +133,9 @@ def t_stale_backend_contract_banner():
 
 def t_signin_guidance_is_actionable_on_this_page():
     """C7: the banner must point at this page's presence orb (which mints the owner cookie), not elsewhere."""
-    boot_auth = BOOT[BOOT.index("/admin/session/whoami"):BOOT.index("holding/view")]
+    # whoami + the banner moved into refreshAuthBanner() so sign-in can re-render them without a reload.
+    boot_auth = _fn("refreshAuthBanner")
+    assert "/admin/session/whoami" in boot_auth
     assert "KAI orb" in boot_auth and "bottom-right" in boot_auth
     assert "Command Center" not in boot_auth, "sign-in guidance still sends the operator to another page"
     assert "window.KAI.open()" in boot_auth, "the call-to-action does not open the presence drawer"
