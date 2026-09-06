@@ -293,21 +293,39 @@ async function refreshPrincipal() {
 // ---- owner session login/logout (certified /admin/session/*) ----------------
 // The secret lives only transiently in the request body over HTTPS — it is never
 // stored, never logged, never placed in a URL. The real session cookie is HttpOnly.
+// Returns {ok, reason} — the reason distinguishes the failure modes an operator can actually act on.
+// A pasted key routinely carries surrounding whitespace (copying from a CLI table, a wrapped line, or a
+// double-click selection); the server compares EXACTLY, so an untrimmed value is a 401 that looks
+// identical to a wrong key. Trim before sending, and report which failure actually happened.
 async function login(secret) {
-  let ok = false;
-  try {
-    const r = await fetch('/admin/session/login', {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret }),
-    });
-    ok = r.ok;
-  } catch { ok = false; }
+  let ok = false, reason = '';
+  const clean = String(secret == null ? '' : secret).trim();
+  if (!clean) {
+    reason = 'Enter the owner access key.';
+  } else {
+    try {
+      const r = await fetch('/admin/session/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: clean }),
+      });
+      ok = r.ok;
+      if (!ok) {
+        if (r.status === 401 || r.status === 403) reason = 'That key was not accepted (HTTP ' + r.status + '). Check you are using THIS deployment’s owner key — staging and production have different keys.';
+        else if (r.status === 422) reason = 'The sign-in request was malformed (HTTP 422) — this is a client bug, not your key.';
+        else if (r.status === 404) reason = 'Owner sign-in is not available on this deployment (HTTP 404).';
+        else reason = 'Sign-in failed (HTTP ' + r.status + ').';
+      }
+    } catch (e) { ok = false; reason = 'Could not reach the sign-in endpoint (network or CORS).'; }
+  }
   await refreshPrincipal();
   setKaiState(state.principal ? 'online' : 'offline');
   await refreshVoiceCaps(); paintVoice();
   if (ok && state.principal) arrival();
-  return ok && !!state.principal;
+  // A 200 that yields no principal means the cookie was set but not returned to us (third-party-cookie
+  // blocking, or a Secure cookie on a non-HTTPS origin) — name that instead of blaming the key.
+  if (ok && !state.principal) reason = 'The key was accepted, but the session cookie was not stored by the browser — check that this page is HTTPS and that cookies are not blocked for this site.';
+  return { ok: ok && !!state.principal, reason };
 }
 async function logout() {
   stopAll('teardown'); stopCamera('logout');
@@ -419,10 +437,10 @@ function mountDrawer() {
     const msg = drawerEl.querySelector('#kaip-auth-msg');
     const secret = inp.value;
     inp.value = '';                    // clear the field immediately — never persisted
-    if (!secret) { msg.textContent = 'Enter the owner access key.'; return; }
+    if (!secret.trim()) { msg.textContent = 'Enter the owner access key.'; return; }
     msg.textContent = 'Signing in…';
-    const ok = await login(secret);
-    msg.textContent = ok ? '' : 'Sign-in failed. Check the owner access key.';
+    const { ok, reason } = await login(secret);
+    msg.textContent = ok ? '' : reason;   // the specific cause, not a single catch-all line
     renderAuthState();
     if (ok && canGovernedChat()) addMessage('kai', "I'm KAI. Ask me about this page — I'll stream a governed answer.");
   });
