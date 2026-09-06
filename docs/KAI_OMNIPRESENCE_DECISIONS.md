@@ -11,6 +11,13 @@
 > The seven §163-mandated decisions are all present below: event-driven-not-infinite-loop
 > (ADR-002), mic-off-PTT (ADR-003), gesture-no-consequential (ADR-004), self-model-not-sentience
 > (ADR-005), repo-quarantine (ADR-006), deployed!=enabled (ADR-007), KAI-is-brain (ADR-008).
+>
+> **ADR-001 – ADR-009** were decided at program start (2026-09-03) and are binding for the program.
+> **ADR-010 – ADR-024** were decided during the build (2026-09-04/05) and record what the phases
+> actually settled; each cites the file and symbol that enforces it. **ADR-024** is the review-method
+> decision the Phase-10 credential-leak line forced: iterated adversarial refutation, its stopping
+> rule, and the fact that a fix can introduce a worse defect than it closes. Certification evidence for all
+> of them is in `docs/KAI_OMNIPRESENCE_CERTIFICATION.md` (§159).
 
 ---
 
@@ -273,6 +280,388 @@ proposals + worker_jobs + CycleRecord), they do not replace them. Idea mode exte
 **Spec refs:** §7/§10/§32/§36/§37 (reuse certified impls); §22 (single prioritization ladder); §69 (one immersive
 view); §78 (resource governance — not `budget_manager`); §27/§28 (Mission wraps, not replaces); §21 (idea mode extends
 `proposals_store`); baseline OQ #8 (duplication traps).
+
+---
+
+## ADR-010 — One dispatcher: `ask()` with typed-intent-first fallthrough
+**Date:** 2026-09-04 · **Status:** ACCEPTED
+
+**Context.** Phase 7b added voice on top of an already-crowded input surface: typed text, suggestion
+chips, page actions (`[data-kai-ask]`), the Cmd/Ctrl+K palette, and now a microphone. The obvious
+shape — a voice path that talks to the model directly — would have created a second governed turn
+path with its own audit trail, its own rate limit, and its own approval semantics.
+
+**Decision.** There is **ONE dispatcher**: `ask()` in `frontend/admin/kai-presence.js:479`. Every
+governed turn — typed, chip, page action, voice — enters there. It tries the **typed Holding Command
+API first** (`POST /admin/holding/command[/stream]`), and only falls through to the chat brain when
+the router declines: `fallthrough='COMMAND_API_OFF'` on 404/405 (`:847`, i.e.
+`KAI_HOLDING_COMMAND_ENABLED` off) or `fallthrough='NOT_HOLDING_INTENT'` on an `UNKNOWN` status
+(`:854`). Voice changes `interaction_mode` and **nothing else** (`:814`). The voice path is
+deliberately NOT also called from the command path — that would double-dispatch and double-audit one
+turn (`:824`).
+
+**Rationale.** ADR-009's reuse rule applied to input: a second turn path is a second ranker by
+another name. Typed-intent-first means a real holding intent is answered by the deterministic,
+audited, policy-checked router, and only genuinely conversational text reaches the LLM — so the
+governed surface is the default, not the fallback. One dispatcher also means one place where
+`interaction_mode` is stamped, which is what makes ADR-011/ADR-012's channel refusal enforceable.
+
+**Consequences.** Any new input surface (mobile PTT, a future gesture chip, an arrival trigger) wires
+to `window.KAI.ask()` (`kai-presence.js:169`) and inherits governance for free. Adding a second
+dispatcher is a review-gate failure. Verify: `test_kai_speech_input` (11 checks), `test_kai_gesture`
+(22 checks).
+
+**Spec refs:** §8 (natural command router); §53 (command palette); §54 (global context); §7 (voice
+command center); §92 (voice audit — one turn, one record).
+
+---
+
+## ADR-011 — TTS and mic are gated on BACKEND truth; the public APIs are trigger-blind
+**Date:** 2026-09-04 · **Status:** ACCEPTED
+
+**Context.** A voice UI can trivially lie: render a live-looking mic button when `KAI_VOICE_ENABLED`
+is off, or let any caller claim a trusted trigger and start listening without a user gesture.
+
+**Decision.** Capability truth comes from the **backend**, never from the frontend's optimism:
+`GET /admin/holding/voice/capabilities` (`backend/app/routers/admin_holding_command.py:215`) reports
+the REAL `KAI_VOICE_ENABLED`, the `PUSH_TO_TALK` default, `WAKE_WORD_LOCAL` **UNAVAILABLE** (no
+on-device engine; cloud continuous audio is forbidden), `BROWSER_LIMITED` transcription,
+`approval_by_voice: "REFUSED"` and `audio_persisted: false`. The frontend renders
+**DISABLED-WITH-REASON** from that payload — never a fake-working mic. The public API is
+**trigger-blind**: `kai-presence.js:173` — the public API can never name a trusted trigger; the two
+trusted triggers (`'ptt-press'`, `'session-button'`) are reachable only from the internal mic
+handlers, and `startListening` refuses without a live user activation otherwise (`:770`).
+
+**Rationale.** §64 (never fake presence) and §155 (executive trust standard) forbid a control that
+implies a capability the system does not have. ADR-003 fixed PTT as the privacy-preserving default;
+this ADR is what makes it non-bypassable: if the trigger came from the public API it is not trusted,
+so no amount of caller cleverness produces a mic start. There is exactly **ONE** `voice.stt.start`
+call site in the whole admin frontend (`kai-presence.js:789`) — a property that is greppable and
+therefore reviewable.
+
+**Consequences.** Every new voice affordance reads its enablement from the capabilities endpoint;
+none may hardcode a state. Phase 7b's post-commit refuter found the one hole in this rule
+(`voice.start` trigger passthrough) and it was fixed in `efb05c6`. Verify: `test_voice_session`
+(36/36), `test_kai_speech_input` (11).
+
+**Spec refs:** §6 (always-listen privacy); §7 (voice command center); §64 (never fake presence);
+§92 (voice audit / ephemeral audio); §135 (voice cert); §151 (production safety defaults).
+
+---
+
+## ADR-012 — The gesture recognizer arrives only through supply-chain certification; the camera is session-only
+**Date:** 2026-09-04 · **Status:** ACCEPTED
+
+**Context.** Phase 8 needed a gesture layer, and a gesture layer needs a recognizer model. Pulling a
+model from a CDN or `npm` is the single fastest way to put unvetted third-party code in front of the
+owner's camera stream.
+
+**Decision.** No recognizer model ships in this build. The seam reports
+`RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED` (`GestureSessionPolicy.capabilities`, surfaced by
+`GET /admin/holding/gesture/capabilities`, `admin_holding_command.py:229`), and any future model must
+pass the **same** capability/manifest supply-chain certification as any other external artifact —
+never a direct dependency add. The camera is **session-only**: `KAI_CAMERA_ENABLED` (`config.py:79`)
+default `False`, plus a per-session owner enable that is **never persisted**; indicator REQUIRED;
+inference `LOCAL_ONLY`. There is exactly **ONE** `getUserMedia` call site across the whole admin
+frontend — `kai-gesture.js:90`, requesting `{video: true, audio: false}` (audio is never requested).
+
+**Rationale.** ADR-004 made "gesture never authorizes" a hard boundary; ADR-006 made every external
+artifact untrusted-by-default. A recognizer is an external artifact pointed at a camera — the union
+of both rules, so the strictest applies. Making the single capture call site a **statically asserted**
+property (`test_kai_gesture.js:109` — exactly one call in the file; `:117` — exactly one across the
+whole admin frontend, `kai-presence.js` has none) converts a policy into something a reviewer can
+grep in one command.
+
+**Consequences.** Gesture is convenience input with no recognizer today; the surface renders
+DISABLED-WITH-REASON. `kai-gesture.js` is lazy-loaded and `kai-presence.js` never calls
+`getUserMedia` (documented at `:21`, `:41`, `:704`). Phase 8's consolidation lens found one MED here
+and it was fixed in `17ec7ce` (recognizer seam gated on backend certification truth). The
+The privacy/authority/safety lens has since **reported and closed** — verdict FAIL, 2 HIGH + 2 MED +
+1 LOW, all fixed in `9e0df08`. Verify at HEAD: `test_gesture_policy` **55/55**, `test_kai_gesture`
+**27** (was 51/51 and 22 when this ADR was written).
+
+**Spec refs:** §8/§9 (gesture); §93 (gesture audit); §94 (camera privacy); §113/§114 (quarantine /
+supply-chain cert); §130 (gesture-spoofing defense); §136 (gesture cert).
+
+---
+
+## ADR-013 — §97 STOP fails closed (unreadable ⇒ ENGAGED) and is wired into `build_live_engine` + `a2_dispatch`
+**Date:** 2026-09-04 · **Status:** ACCEPTED
+
+**Context.** A kill switch that cannot be read is worse than no kill switch: it invites the caller to
+assume "no record ⇒ not stopped" and keep running. §0 #15 forbids a switch that claims to disable
+what it does not control.
+
+**Decision.** `stop_state()` (`backend/app/services/holding/brakes.py`) returns `None` (released),
+`STOP_ENGAGED`, or `STOP_UNREADABLE` — and an **unreadable** durable record is treated as
+**ENGAGED**. It is wired into the two seams that actually start consequential work:
+`holding_cycle.build_live_engine` (`holding_cycle.py:46-58`) forces **every config-read brake OFF**
+when STOP is engaged or unreadable, and records **why** on the engine as `brake_override`
+(`None | STOP_ENGAGED | STOP_UNREADABLE | CONFIG_UNAVAILABLE`) so a 0-execution cycle can say so
+instead of being silently empty; and `a2_dispatch.enqueue_a2_coding_job` (`a2_dispatch.py:40-46`)
+refuses with `STOP_ENGAGED`. Unreadable **config** independently fails closed to
+`CONFIG_UNAVAILABLE` (`holding_cycle.py:55-59`). Explicit test overrides are untouched.
+
+**Rationale.** Same convention as the existing `cycle_store.try_lock` ("DB down → do not run"), so
+there is one failure posture in the codebase, not two. Recording `brake_override` matters as much as
+the refusal: a silent zero is indistinguishable from "nothing to do", which is exactly the ambiguity
+§65 (failure communication) forbids. STOP explicitly does **not** mutate config, env, or
+`MONEY_MODE` — statically asserted at `test_brakes.py:374`.
+
+**Consequences.** STOP halts the **next** engine build / A2 enqueue; an already-built engine finishes
+its bounded cycle and claimed jobs run to lease expiry — it does not preempt, and that limit is
+documented rather than implied (recorded as gap #7 in
+`docs/KAI_OMNIPRESENCE_COMPARTMENTALIZATION.md`). Verify: `test_brakes` 63/63 with a reachable local
+Postgres, 62/62 without (the one conditional `[db]` roundtrip check at `test_brakes.py:393`).
+
+**Spec refs:** §97 (kill switch / brakes); §0 #12/#15; §65 (failure communication); §79 (bounded
+automation).
+
+---
+
+## ADR-014 — The FINANCIAL brake is derived from the real Sol/Dwolla switches; MONEY_MODE is tri-state
+**Date:** 2026-09-05 · **Status:** ACCEPTED
+
+**Context.** Every money-posture reader in App B defaulted to `MOCK` when `MONEY_MODE` was absent —
+and `MONEY_MODE` is **not declared** in App B's `Settings` at all. The dashboard was therefore
+narrating a reader default as if it were an observation, and deriving a FINANCIAL "safe" state from
+a value nobody had ever set. The Phase-9 refuter flagged exactly this.
+
+**Decision.** Two changes, both binding. (1) **MONEY_MODE is tri-state**: declared value ·
+`MOCK` when explicitly declared · **`UNAVAILABLE` when undeclared** — a reader default is never
+reported as an observation. Implemented once and read from one place:
+`status.py:96 _money_mode()` (via the ONE flag reader `self_model._flags`),
+`self_model.py:142-150` (`_derive_limitations`), `capabilities_answer.py:178-185`. (2) The
+**FINANCIAL brake is not derived from MONEY_MODE at all** — it is derived from the switches that
+actually gate the real money path in this app (`app/main.py` mounts `routers/sol.py`):
+`brakes.py:246 _FIN_CONTROLS = ("KAI_SCOPE_SOL_TRANSFER", "DWOLLA_ENV", "DWOLLA_ALLOW_PRODUCTION",
+"DWOLLA credentials (presence only)")`, evaluated at `:251-284`; unreadable readers yield
+`UNAVAILABLE`, never a fake OFF.
+
+**Rationale.** §155 (executive trust standard) and §64 (never fake presence): "MONEY_MODE=MOCK"
+asserted from a default is a fabricated safety claim, which is worse than "UNAVAILABLE" because it
+invites trust. Deriving the brake from `KAI_SCOPE_SOL_TRANSFER` / `DWOLLA_ENV` /
+`DWOLLA_ALLOW_PRODUCTION` also fixes a real correctness bug: those are the switches an operator would
+actually flip, so the board now tracks the thing it claims to track. Credentials are reported by
+**presence only**, never value (§120).
+
+**Consequences.** `status.py` contains **no** literal `"MOCK"` and no literal `"DISABLED"` — both
+rows are derived, and that is statically asserted. Any new money-posture surface reads
+`_money_mode()`; adding a second reader is a review-gate failure. Verify: `test_status` 8/8,
+`test_brakes` 63/63, `test_capabilities_answer` 45/45 (`83f6050`).
+
+**Spec refs:** §45 (finance); §63/§99 (limitations); §64 (never fake presence); §97 (brakes);
+§120 (credential presence, never value); §155 (executive trust standard).
+
+---
+
+## ADR-015 — The OS-Lab clean verdict is operator-only and is re-derived from the attached steps
+**Date:** 2026-09-04 · **Status:** ACCEPTED
+
+**Context.** A certification pipeline whose own runner can stamp "clean" is a self-approval machine
+with extra steps — and the strongest possible temptation, because the runner has all the evidence
+right there.
+
+**Decision.** The bounded §114 vocabulary is `UNVERIFIED` ·
+`NO_MALICIOUS_BEHAVIOR_DETECTED_IN_CERTIFIED_SCOPE` · `SUSPICIOUS` · `REJECTED`; `MALWARE_FREE` /
+`SAFE` / `CLEAN` **do not exist** and are refused at construction in any spelling
+(`os_lab/runtimes.py:34/:42`). `record_verdict` (`os_lab/catalog.py:237`) has a **fail-closed
+direction**: KAI may record only `SUSPICIOUS` / `REJECTED` / `UNVERIFIED`; the clean-scope verdict is
+**operator-only** (`PermissionError` at `:247`), must **agree with the attached report's own
+verdict**, requires `scope == FULL`, and requires that no step is left `SKIPPED` / `PENDING` /
+`UNVERIFIED`. The runner cannot reach it: every executable step is `SKIPPED` with reason
+`EXECUTION_GATED`, so `derive_verdict` (`certification.py:262`) over a static-only run can at best
+return `UNVERIFIED` (`certification.py:548`). Adoption (`CERTIFIED` *and* `RESTRICTED`) is
+operator-only (`catalog.py:221`), as is the §117 `GapJustification` (`:271`).
+
+**Rationale.** §0 #11 (KAI never self-approves) and §114's bounded vocabulary, applied to the one
+place where a machine verdict would carry the most weight. Re-deriving the recorded verdict from the
+attached steps — rather than trusting the number a caller passes — is the same discipline as ADR-014:
+report what the evidence says, not what the caller asserts. This is also the strongest form of
+ADR-006's "a README is DATA, not policy": a certification report is evidence, never an authority
+(`certification.py:243 authority_plane = "KAI"`).
+
+**Consequences.** With the real (all-False) `EXECUTED` ledger the lifecycle stops at `STATIC_REVIEW`;
+`BUILD_REVIEW` and `ISOLATED_EXECUTION` are refused for **every** actor while the reviewed thing has
+not happened. The P10 refuter's re-derivation hardening landed as the **P10 round-2 fix `749fa78`**
+— and that was **not** the end of it: `ed00e4e` additionally required the step ids to cover the
+pipeline and, for a FULL-scope report, executed `build`+`qemu_boot` (the round-2 re-derivation had
+only validated the *shape* of whatever step list it was handed — a one-step stub, the gated six
+alone, or 26 copies of one certified step all passed), and `79062c4` made a malformed finding row a
+**refusal** rather than a silent drop. See **ADR-024** for why this line took four refuter rounds.
+Verify at HEAD `8799db9`: `test_os_lab_catalog` **83/83**, `test_certification` **80/80** (needs the
+repo root on `PYTHONPATH` — see ADR-017).
+
+**Spec refs:** §41 (OS supply-chain cert); §113 (quarantine lifecycle); §114 (verdict vocabulary);
+§117 (adoption gate); §0 #11 (no self-approval); §165 (KAI remains the brain).
+
+---
+
+## ADR-016 — Ultron's source is OPERATOR-STATED and UNVERIFIED, read from ONE spine
+**Date:** 2026-09-04 · **Status:** ACCEPTED
+
+**Context.** Phase 10 needed a canonical upstream for Ultron OS. The operator supplied one. A second
+copy of that string inside the runtime record would be a divergence waiting to happen, and treating
+it as a *verified* fact would be a fabrication.
+
+**Decision.** `UltronSandboxRecord.source` is read from the catalog entry, not restated:
+`os_lab/runtimes.py:113` — `source: str = _cat.get("Ultron OS", _cat.initial_catalog()).canonical_source`.
+**One spine.** Its status is **OPERATOR-STATED, NOT FETCHED, UNVERIFIED** — the feature row says so
+in words (`runtimes.py:384`: "UNVERIFIED — source operator-stated (not fetched); no build/scan/boot"),
+and `is_fully_unverified()` (`:137`) asserts every one of the nine `ULTRON_VERIFICATION_FIELDS` is
+`UNVERIFIED`. Disposition is `EDUCATIONAL_OS_SANDBOX` and `production_use` must be `NO` — enforced at
+construction (`:134`).
+
+**Rationale.** ADR-006 starts every external repo UNTRUSTED and confirms upstream only at
+`SOURCE_VERIFIED`; a catalog `canonical_source` is a *note*, not a verified fact. ADR-009's
+one-authority rule applied to a string: two copies of an upstream URL is exactly the false-friend
+pattern (`budget_manager`) that the reuse discipline exists to prevent. MEMORY's live reminder that
+`free-llm-api-resources` was REMOVED upstream is the standing argument for never treating an
+unfetched source as real.
+
+**Consequences.** Changing the upstream means editing the catalog entry, and everything downstream
+follows. Nothing about Ultron was cloned, downloaded, installed, built, or QEMU-booted. Verify:
+`test_os_lab_runtimes` 85/85 (including the forbidden-claim spelling sweep at `:78`).
+
+**Spec refs:** §40 (Ultron OS sandbox); §113 (SOURCE_VERIFIED); §115/§116 (catalog ingestion /
+dispositions); §114 (verdict vocabulary); §102/§150 (feature registry rows).
+
+---
+
+## ADR-017 — Per-file test harness, because the zero-framework runners exit at import
+**Date:** 2026-09-05 · **Status:** ACCEPTED
+
+**Context.** The holding suites are deliberately zero-framework: each `test_*.py` is a plain
+`python3` script with `ck(...)` assertions and a printed total. That style raises `SystemExit` at
+import time, so a single `pytest` run over the whole `app/` directory `INTERNALERROR`s and reports
+nothing — which reads like "the suite is broken" when it is not.
+
+**Decision.** **Per-file execution is the harness.** Each module is run on its own
+(`PYTHONPATH=..:. DATABASE_URL=... python3 -m app.services.holding.test_<name>` from `backend/`, or
+as a plain script), and the regression sweep is per-file on both HEAD and the pre-omnipresence base
+`d881cf2^`, diffed. The repo root must be on `PYTHONPATH` alongside `backend/`, because
+`os_lab/certification.py:42` imports the shared core scanner table
+(`core.security_scanner._COMPILED_PATTERNS`) from App A — without it the module honestly sets
+`_CORE = None` and the five core-backed steps report `UNVERIFIED` / "core scanner table unavailable"
+(58/58 with the root on the path, 45/58 without).
+
+**Rationale.** The zero-framework style is the right call for these modules (no fixtures, no plugins,
+runnable by anyone with `python3`), so the harness adapts to it rather than the reverse — the lazy
+option that does not require rewriting 65 test modules. Diffing per-file results against `d881cf2^`
+is also what makes "ZERO regressions" a *measurement* instead of an assertion: the 133 test files
+outside `holding/` produce byte-identical results on both, and the App B `tests/*.py` fixture errors
+(`admin_chat` 15, `auth` 16, `browser` 59, `planning` 95, …) are proven **pre-existing** rather than
+argued to be.
+
+**Consequences.** Any new holding/os_lab test module follows the same shape (`run()` +
+`test_<name>()`, no `SystemExit` at import, pytest-discoverable). CI, when it exists, iterates files;
+it does not invoke `pytest app/`. Environment-dependent counts (`test_brakes` 63 vs 62,
+`test_certification` 58 vs 45) are reported with their condition, never as a single number.
+
+**Spec refs:** §142 (regression suite); §144 (evidence over assertion); §161/§162 (requirements
+ledger + evidence matrix — a count must be reproducible to be citable).
+
+---
+
+## ADR-018 — Commit after EVERY phase: the session limit kills agent returns, file edits persist
+**Date:** 2026-09-05 · **Status:** ACCEPTED
+
+**Context.** Phase 3b was built and then **lost** to a session reset (MEMORY: the `/private/tmp`
+scratch was wiped and uncommitted Phase 3b work went with it). It had to be rebuilt from scratch —
+see `261931e`, whose message says "rebuilt after reset loss".
+
+**Decision.** **Commit after every phase**, on the durable worktree
+`/Users/jhonwheeler/wheellsverse-cyberops` — never a `/private/tmp` scratch, never a multi-phase
+batch. Each phase commit is self-contained (modules + tests + doc rows) and each review-fix pass gets
+its own commit (`ac9fcff`, `58a4227`, `17ec7ce`, `543da39`, `83f6050`, `9e0df08`, `749fa78`,
+`ed00e4e`, `79062c4`, `8799db9`) so a refuter's findings and their remediation are separately
+citable. That separability is what made ADR-024's five-round history reconstructable at all.
+
+**Rationale.** An agent's *return value* does not survive a session limit; **file edits and commits
+do**. Committing per phase converts an unbounded loss into a bounded one and makes the review ledger
+mechanically traceable — every row in the certification report cites a SHA because a SHA existed at
+the moment the work finished. It is also the cheapest possible insurance: one command per phase
+against re-doing thousands of lines.
+
+**Consequences.** The 24-commit history in `docs/KAI_OMNIPRESENCE_CERTIFICATION.md` §1 is the
+artifact of this rule. A phase that ends without a commit is not finished. Work in progress that
+cannot yet be committed is named as IN FLIGHT with an explicit unresolved-SHA placeholder rather than
+being described as done — as the P10 round-2 fix was until it landed as `749fa78`, and the P8
+privacy-lens fixes until they landed as `9e0df08`. **Both placeholders are retired: no
+unresolved-SHA placeholder remains anywhere in the doc set, and no code sits outside a commit.**
+The inverse use of the rule — naming an unreported review in words, because an unrun refuter is not
+a finding of "clean" — was exercised on the refuter of `749fa78` and is now **also retired**: four
+refuter rounds ran (`ed00e4e`, `79062c4`, `8799db9` are their remediations) and **no refuter is in
+flight**. There is a further lesson the round-2 case taught, recorded separately as **ADR-024**: a
+committed fix that a refuter has not yet attacked must never be written up as though the defect
+class were closed. `749fa78` was, and three more rounds proved that wrong.
+
+**Spec refs:** §159 (final certification — every claim traceable to a SHA); §162 (evidence matrix);
+§160 (proceed on authorized reversible work); §0 #13/#14 (COMPLETE means evidenced).
+
+---
+
+## ADR-024 — Iterated adversarial refutation with a growing probe corpus, and the stopping rule
+**Date:** 2026-09-05 · **Status:** ACCEPTED
+
+**Context.** The Phase-10 credential-leak line was reviewed by two structured lenses (fixed in
+`58a4227`) and then by **four independent refuter rounds**, where each round's refuter attacked the
+**previous round's fix** rather than re-attacking the original code, carrying forward and extending
+the probe corpus each time (128 assertions at round 3, 201 at round 4, 451 at round 5).
+
+Every intermediate round genuinely believed the defect was closed, and the docs said so. The record:
+
+| Round | Fix | What the NEXT refuter found in it |
+|---|---|---|
+| lenses | `58a4227` | findings **embedded the matched secret** and were truncated **before** `redact()` — AWS `ASIA`/`AROA` ids and ~72 chars of a long secret reached the report *and* the audited history (**HIGH**) |
+| 2 | `749fa78` | withholding keyed on the **label**, so a greedy pattern whose match **spanned** the secret still emitted it — **101 distinct 20-char windows** of a 120-char secret (**HIGH**); the severity gate failed **OPEN** (**HIGH**); **and a regression this very fix introduced** (**HIGH**, below) |
+| 3 | `ed00e4e` | a `.gitmodules` submodule-URL **password written verbatim** into step evidence and copied unredacted into the report artifact — beside a finding text that *was* redacted, which is what made it easy to miss (**HIGH**) |
+| 4 | `79062c4` | seven credential families the pattern tables never **matched at all** left `credential_reads` **PASS**, while the module docstring and the OS-Lab doc both asserted no embedded credential could — **the claim was false as written**, a zero-fabrication violation independent of detection quality (**HIGH**) |
+| 5 | `8799db9` | bounded, **named residual R7** — no reachable defect |
+
+**Four HIGH defects and one self-inflicted regression that single-pass review had passed as clean.**
+
+**Decision.** For any security-relevant control, run **iterated refutation**: each round's reviewer
+attacks the **previous round's fix**, with the probe corpus growing rather than resetting. A single
+adversarial pass is treated as evidence about the *original* code, never as evidence about the fix
+that pass produced.
+
+**The stopping rule actually used — the one to reuse.** Stop when a round's findings are **bounded,
+named residuals rather than reachable defects.** Rounds 2, 3 and 4 each produced a *reachable* defect
+(a concrete input that put secret material into the report or certified something it should not), so
+each was continued. Round 5's output was R7 — "credential detection is a pattern list, not proof",
+a stated limit of the approach with its reachability written down and bounded by an independent
+control (nothing certifies on a static-only report; the clean verdict also needs full pipeline
+coverage and `executed` `build`+`qemu_boot` true). That is a residual, not a defect, so the line
+stopped there.
+
+Explicitly **not** the stopping rule: "the tests pass", "the fix was re-verified before commit", or
+"the round found fewer things than the last one". All three were true of `749fa78`, and `749fa78`
+was wrong in two independent ways.
+
+**A fix can introduce a worse defect than it closes.** Round 2 deep-froze `executed`/`evidence` with
+`MappingProxyType` to protect the "nothing was built or booted" ledger. But `MappingProxyType` is not
+a `dict` subclass, and `task_resolver.redact` dispatches on `isinstance(obj, dict)` — so a
+**hardening** change **silently disabled redaction** of evidence written to the append-only history
+and broke `dataclasses.asdict`. It made the exact leak it was committed alongside *more* likely, it
+raised no error, and no test at the time caught it. Two operating consequences: (1) a fix is in scope
+for the next round's refuter, always; (2) a type substitution that changes `isinstance` behaviour
+must be checked against **every dispatch site keyed on the old type** — `grep` for
+`isinstance(.*dict)` before swapping a mapping type. The replacement is a mutation-refusing `dict`
+subclass: `isinstance` stays True, `redact` traverses, `asdict` works, mutation still raises.
+
+**Consequences.** os_lab checks grew 216 → **255** (catalog 83 · runtimes 92 · certification 80),
+almost entirely as *negative* checks pinning each refuted route. The certification report's §6 ledger
+records all four rounds with their assertion counts rather than a single "reviewed → fixed" line, §8
+carries **F6** (five-round history, not struck through) and **F6a** (the regression, recorded rather
+than buried), and **N1 reads PARTIAL, not PASS**, because R7 makes the credential guarantee
+per-listed-family rather than universal. A limitations ledger that hides a self-inflicted regression,
+or a non-negotiable upgraded to PASS to make a report look finished, would defeat the purpose of
+having run the rounds at all.
+
+**Spec refs:** §159 (final certification — every claim traceable); §162 (evidence matrix); §163
+(decision log); §0 #13/#14 (COMPLETE means evidenced); zero-fabrication (a claim wider than the code
+is a violation regardless of how good the code is).
 
 ---
 
