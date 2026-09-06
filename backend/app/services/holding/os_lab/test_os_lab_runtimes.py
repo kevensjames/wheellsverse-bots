@@ -41,6 +41,39 @@ def run() -> bool:
     ck("EXECUTED ledger is all False (no clone/download/install/build/qemu/network/new dependency)",
        not any(R.EXECUTED.values()) and set(R.EXECUTED) >= {"clone", "install", "build", "qemu_boot", "new_dependency"})
 
+    # ── L1 round 4: the ledger is the SOLE gate catalog.advance() consults — it must not be writable ──
+    def _write(mapping, key, value):        # item assignment as a statement, so _raises can catch it
+        mapping[key] = value
+
+    def _raises(exc, fn):
+        try:
+            fn()
+        except exc:
+            return True
+        except Exception as ex:
+            print(f"      (raised {type(ex).__name__}: {ex})")
+        return False
+
+    real = R.EXECUTED
+    ck("L1: EXECUTED is a READ-ONLY mapping — item assignment / update / pop / clear / setdefault all refused, "
+       "so no in-process importer can flip the build/qemu_boot gate in place",
+       _raises(TypeError, lambda: _write(R.EXECUTED, "build", True))
+       and all(_raises(AttributeError, fn) for fn in (lambda: R.EXECUTED.update(build=True),
+                                                      lambda: R.EXECUTED.pop("build"),
+                                                      lambda: R.EXECUTED.clear(),
+                                                      lambda: R.EXECUTED.setdefault("x", 1)))
+       and R.EXECUTED["build"] is False and not any(R.EXECUTED.values()))
+    with R.simulated_ledger(build=True) as led:
+        ck("L1: simulated_ledger REBINDS the module attribute (a different, still read-only mapping) instead of "
+           "mutating the real one; only the named key changes",
+           R.EXECUTED is led and R.EXECUTED is not real and R.EXECUTED["build"] is True
+           and R.EXECUTED["qemu_boot"] is False and _raises(TypeError, lambda: _write(R.EXECUTED, "qemu_boot", True)))
+    ck("L1: the real all-False ledger is restored on exit — the identical object, not a rebuilt copy",
+       R.EXECUTED is real and not any(R.EXECUTED.values()))
+    ck("L1: an unknown ledger key is refused — the seam cannot invent a gate, and the real ledger is untouched",
+       _raises(ValueError, lambda: R.simulated_ledger(bogus=True).__enter__())
+       and R.EXECUTED is real and not any(R.EXECUTED.values()))
+
     # ── §40 Ultron — EDUCATIONAL_OS_SANDBOX, all verification fields UNVERIFIED, production_use=NO ──
     u = R.ULTRON
     ck("Ultron: every verification field UNVERIFIED (pinned_sha/license/build/static_scan/qemu/network/risk/"

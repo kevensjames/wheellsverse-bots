@@ -16,8 +16,10 @@ holding_deployment.Feature (deployed != enabled truth rows). Pure stdlib; plain-
 from __future__ import annotations
 
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass, field, asdict
 from enum import Enum
+from types import MappingProxyType
 
 from app.services.capability.manifest import (
     CapabilityManifest as CM, CapabilityType as CT, RiskClass as RK, ActionClass as AC,
@@ -473,8 +475,30 @@ def catalog_binding(catalog=None) -> dict:
 
 
 # What this phase has EXECUTED against external OS repositories. All False, by construction.
-EXECUTED = {"clone": False, "download": False, "install": False, "build": False, "qemu_boot": False,
-            "network_fetch": False, "new_dependency": False}
+# L1 round 4: READ-ONLY. This ledger is the sole gate catalog.advance() consults for BUILD_REVIEW /
+# ISOLATED_EXECUTION, so a plain writable dict let any in-process importer flip the gate with one
+# assignment. A MappingProxyType refuses every mutation; the only way to change it is ``simulated_ledger``,
+# which REBINDS the module attribute for the duration of a block and restores it afterwards.
+EXECUTED = MappingProxyType({"clone": False, "download": False, "install": False, "build": False,
+                             "qemu_boot": False, "network_fetch": False, "new_dependency": False})
+
+
+@contextmanager
+def simulated_ledger(**flags):
+    """The ONE seam for a ledger that is not this phase's all-False one: rebinds ``EXECUTED`` to a new
+    read-only mapping for the block, then restores the previous one. Used by the suites to exercise the
+    chain past STATIC_REVIEW without ever mutating the real ledger in place. Only known ledger keys may
+    be set — a typo cannot invent a gate."""
+    global EXECUTED
+    unknown = sorted(set(flags) - set(EXECUTED))
+    if unknown:
+        raise ValueError(f"unknown ledger key(s) {unknown} — the ledger is {sorted(EXECUTED)}")
+    prev = EXECUTED
+    EXECUTED = MappingProxyType({**prev, **flags})
+    try:
+        yield EXECUTED
+    finally:
+        EXECUTED = prev
 
 
 def os_lab_view(settings, catalog=None) -> dict:

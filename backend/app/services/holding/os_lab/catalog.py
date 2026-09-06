@@ -246,7 +246,8 @@ def record_verdict(entry: OsCatalogEntry, verdict: Verdict, *, actor: str, reaso
     Fail-closed direction: kai may record SUSPICIOUS / REJECTED / UNVERIFIED; the clean-scope verdict is
     operator-only and needs a FULL-scope report whose steps ARE the §41 pipeline, whose ledger says the gated
     build+qemu_boot actually happened, in which every step actually decided (no SKIPPED / PENDING / UNVERIFIED),
-    every step PASS, every finding severity a known one (fail closed) and none of them MEDIUM+, and a verdict
+    every step PASS, every 'findings' a list of dicts (a malformed row is REFUSED, never dropped — M1 round 4),
+    every finding severity a known one (fail closed) and none of them MEDIUM+, and a verdict
     RE-DERIVED from those steps that equals the recorded one (M1: the report's own 'verdict' key is evidence,
     not authority). Any verdict must agree with the verdict the attached report carries."""
     _governed(actor, reason)
@@ -270,9 +271,21 @@ def record_verdict(entry: OsCatalogEntry, verdict: Verdict, *, actor: str, reaso
                              f"(no SKIPPED/PENDING/UNVERIFIED) — a STATIC_ONLY/partial report cannot certify (§114)")
         # M1: the report's self-declared verdict is not trusted — re-derive it from the attached steps.
         from app.services.holding.os_lab import certification as _cert   # lazy: certification imports this module
+        # M1 round 4: REFUSE a malformed findings container, never filter it. Dropping non-dict rows meant a
+        # CRITICAL smuggled inside one (findings=['CRITICAL'] / {'severity': 'CRITICAL'}) vanished before both
+        # the MEDIUM+ and the fail-closed-severity gates below, and the clean verdict was recorded.
+        for s in steps:
+            fs = s.get("findings") or []
+            if not isinstance(fs, (list, tuple)):
+                raise ValueError(f"{entry.name}: {verdict.value} refused — step {s.get('id')!r} has a 'findings' "
+                                 f"value of type {type(fs).__name__}, not a list (fail-closed: an unreadable "
+                                 f"findings container is never clean)")
+            bad = [f for f in fs if not isinstance(f, dict)]
+            if bad:
+                raise ValueError(f"{entry.name}: {verdict.value} refused — step {s.get('id')!r} carries a "
+                                 f"non-dict finding row {bad[0]!r}; its severity cannot be read (fail-closed)")
         rows = [_cert.StepResult(str(s.get("id", "")), "", "", _val(s.get("status")), tuple(
-            _cert.Finding("", _val(f.get("severity")), "", "") for f in (s.get("findings") or [])
-            if isinstance(f, dict))) for s in steps]
+            _cert.Finding("", _val(f.get("severity")), "", "") for f in (s.get("findings") or []))) for s in steps]
         # M1 round 3: those steps must BE the pipeline, and a FULL report must carry the ledger that makes it
         # full — otherwise a one-step stub or the 20 static steps alone re-derive a clean verdict.
         missing = {s.id for s in _cert.PIPELINE} - {r.id for r in rows}
