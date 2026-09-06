@@ -300,6 +300,21 @@ def run() -> bool:
     ck("the store is reachable again after the simulated outage (the probe restored the real seam)",
        tl.view(limit=1)["store"] in ("CONNECTED", "UNAVAILABLE") and tl.SessionLocal is _real_session)
 
+    # ── the deployment event must name the environment it actually observed ───────────────────────
+    # Found on the hosted staging run: the event read "in production" while running on staging, because
+    # the live call site omitted env and the keyword defaulted to "production". No test caught it because
+    # every existing test injected its own env. These pin BOTH the call site and the default.
+    class _S:
+        APP_ENV = "staging"
+    _ev_stg = tl.events_from_deployment("abc123abc123", features=[], env=_S.APP_ENV)
+    ck("deployment event names the environment it was given",
+       _ev_stg and "in staging" in _ev_stg[0]["summary"] and "production" not in _ev_stg[0]["summary"])
+    ck("an OMITTED env is UNKNOWN, never silently 'production'",
+       "in UNKNOWN" in tl.events_from_deployment("abc123abc123", features=[])[0]["summary"])
+    _src = (pathlib.Path(__file__).resolve().parent / "timeline.py").read_text()
+    ck("the live _resolve_deployment passes APP_ENV through rather than relying on the default",
+       "features=feature_registry(settings), env=env" in _src and 'env: str = "production"' not in _src)
+
     # ── boundary: every surface that can expose the timeline is owner-gated ───────────────────────
     # The two readers are GET /admin/holding/timeline and the /view payload's timeline section. Neither
     # carries its own dependency: the gate is declared ONCE on the router, which is what makes it hold

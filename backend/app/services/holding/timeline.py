@@ -306,7 +306,7 @@ def events_from_missions(headers: list) -> list:
     return out
 
 
-def events_from_deployment(sha: str, *, features: list | None = None, env: str = "production") -> list:
+def events_from_deployment(sha: str, *, features: list | None = None, env: str = "UNKNOWN") -> list:
     """The deployed-SHA truth → ONE OBSERVABLE deployment event. An UNKNOWN sha yields NO event (honest —
     no real deployment evidence, never a fabricated deploy). ts is first-observed time; the stable event_id
     (keyed by sha) keeps that first observation. Pure."""
@@ -484,7 +484,12 @@ def _resolve_deployment(deployment) -> tuple[list, bool]:
     try:
         from app.services.holding.holding_deployment import deployed_sha, feature_registry
         from app.config import settings
-        return events_from_deployment(deployed_sha(), features=feature_registry(settings)), True
+        # env MUST come from the running settings. Letting it fall back to the "production" default wrote
+        # "in production" onto a staging timeline — the same defect class as the hardcoded
+        # OperationalSelfModel(environment="production") fixed in 9200706, in a different surface.
+        # Found on the hosted staging run, not by a test: no test asserted the env of a real ingest.
+        env = str(getattr(settings, "APP_ENV", "") or "").strip() or "UNKNOWN"
+        return events_from_deployment(deployed_sha(), features=feature_registry(settings), env=env), True
     except Exception:
         return [], False
 
