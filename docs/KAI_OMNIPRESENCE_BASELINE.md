@@ -7,11 +7,41 @@
 >
 > **Spec-tail warning:** the operator's source message was cut at "exceeded 50,000 char limit".
 > §90's tail and any §91+ are MISSING. Phase 5 (Holding Command API) is the section most likely
-> to be under-specified as a result — do not treat §90 as complete.
+> to be under-specified as a result — do not treat §90 as complete. (The §91–§166 continuation
+> arrived later in the program and is indexed — see `KAI_OMNIPRESENCE_DECISIONS.md` closing note.)
+>
+> ## STATUS — this baseline has been superseded as the program's status source
+>
+> **The program's current status lives in `docs/KAI_OMNIPRESENCE_CERTIFICATION.md` (§159 final
+> pre-production certification report).** This document remains the authoritative **starting
+> baseline** — the §2 release state below and the §0–§90 gap matrix in Section 2 record where the
+> program began, and are deliberately NOT rewritten as phases land. Read them as the "before"
+> picture; read the certification report for what was built, what was tested, what was reviewed,
+> and what is still gated.
+>
+> Build head: `8799db9` on `feat/kai-cyber-operations` (worktree
+> `/Users/jhonwheeler/wheellsverse-cyberops`). Verdict: **PRE-PRODUCTION CERTIFIED — DARK BUILD
+> (undeployed, nothing enabled); NOT production-certified: gates remain.** Nothing has been
+> deployed or merged; all nine feature flags default `False`; production release #67 / SHA
+> `4fbfb8e` is unchanged. The head moved `749fa78` → `ed00e4e` → `79062c4` → `8799db9` because the
+> Phase-10 credential-leak line took **five rounds** to close: four independent refuters, each
+> attacking the previous round's *fix*, found four HIGH defects plus one self-inflicted regression
+> (`749fa78`'s `MappingProxyType` freeze silently disabled `redact()`). Certification N1 reads
+> **PARTIAL**, not PASS, on residual **R7**. See ADR-024.
+>
+> Companion docs: `KAI_OMNIPRESENCE_REQUIREMENTS.md` (§161 ledger) ·
+> `KAI_OMNIPRESENCE_EVIDENCE_MATRIX.md` (§162 evidence) · `KAI_OMNIPRESENCE_DECISIONS.md` (§163
+> ADR-001 – ADR-024) · `KAI_OMNIPRESENCE_THREAT_MODEL.md` ·
+> `KAI_OMNIPRESENCE_COMPARTMENTALIZATION.md` (§44) · `KAI_OMNIPRESENCE_OS_LAB.md` (§39–44).
 
 ---
 
 ## 1. §2 CURRENT RELEASE STATE — SATISFIED
+
+> **Still SATISFIED and still the certified floor.** The omnipresence build did not deploy, merge,
+> or enable anything, so everything in this section remains true as written. See
+> `docs/KAI_OMNIPRESENCE_CERTIFICATION.md` §0 (verdict) and §9 (operator gates) for what would have
+> to happen before this floor changes.
 
 **§2 is DONE this session. Recorded here per the spec's instruction.**
 
