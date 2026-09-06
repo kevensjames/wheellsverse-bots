@@ -24,6 +24,7 @@ Pure stdlib + capability.manifest; DB-free; testable as a plain python3 script (
 """
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from enum import Enum
 
@@ -92,6 +93,8 @@ def map_gesture(name, confidence, principal_role) -> GestureDecision:
         c = float(confidence)
     except (TypeError, ValueError):
         c = 0.0
+    if not math.isfinite(c):        # NaN beats every comparison, so it would slip past the threshold gate below.
+        c = 0.0                     # Fail closed, matching the frontend's MALFORMED refusal (one seam, one rule).
     if principal_role != "owner":
         out = GestureDecision(n, c, REFUSED, "gestures never bypass auth — owner session required (§75)")
     elif n not in Gesture.__members__:

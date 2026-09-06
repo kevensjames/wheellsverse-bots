@@ -1049,6 +1049,9 @@ function renderVoiceBar(container, compact) {
     <div class="kaip-voice-reason" id="kaip-voice-reason" role="status" aria-live="polite"></div>`;
   const mic = container.querySelector('#kaip-mic');
   const press = e => {
+    // Only a REAL press may mint the activation-exempt 'ptt-press'/'session-button' triggers (e === null is the
+    // keyboard path, which its own handler guards). A synthetic pointerdown is refused here, at the DOM edge.
+    if (e && e.isTrusted === false) return;
     if (e && e.button != null && e.button !== 0) return;
     if (e && e.preventDefault) e.preventDefault();
     if (state.settings.privacy_mode === 'SESSION_LISTENING') { voice.listening ? stopListening('user') : startListening('session-button'); return; }
@@ -1064,7 +1067,7 @@ function renderVoiceBar(container, compact) {
   mic.addEventListener('pointerup', release);
   mic.addEventListener('pointercancel', release);
   mic.addEventListener('lostpointercapture', release);
-  mic.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); press(null); } });
+  mic.addEventListener('keydown', e => { if (e.isTrusted === false) return; if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); press(null); } });
   mic.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); release(); } });
   mic.addEventListener('click', e => e.preventDefault());
   container.querySelector('#kaip-stoplisten').addEventListener('click', () => { stopListening('user'); setVoiceNote('Listening stopped.'); });
@@ -1208,7 +1211,9 @@ function mountSettings() {
   const qh = () => { state.settings.quiet_hours = { enabled: q('ks-qh').checked, start: +q('ks-qh-start').value || 0, end: +q('ks-qh-end').value || 0 }; state.settings = loadSettingsFrom(state.settings); saveSettings(); saved(); paintVoice(); };
   ['ks-qh', 'ks-qh-start', 'ks-qh-end'].forEach(id => q(id).addEventListener('change', qh));
   // §8/§94 the ONLY path that opens the camera: the owner's click on this control (its change event runs inside the user activation).
-  q('ks-camera_enabled').addEventListener('change', e => { if (e.target.checked) startCamera('owner-click'); else { stopCamera('settings-off'); syncSettingsForm(); } });
+  // isTrusted: a script-forged change event is NOT an owner click — without this a page script could mint the
+  // 'owner-click' trigger by dispatching on this control while piggybacking any unrelated real click's activation.
+  q('ks-camera_enabled').addEventListener('change', e => { if (!e.isTrusted) return; if (e.target.checked) startCamera('owner-click'); else { stopCamera('settings-off'); syncSettingsForm(); } });
   q('ks-reset').addEventListener('click', () => { try { localStorage.removeItem(SETTINGS_KEY); } catch {} stopListening('reset'); stopCamera('reset'); state.settings = loadSettings(); saveSettings(); syncSettingsForm(); paintVoice(); saved('Reset to privacy defaults.'); });
   function saved(t) { q('ks-saved').textContent = t || 'Saved.'; clearTimeout(q('ks-saved')._t); q('ks-saved')._t = setTimeout(() => { q('ks-saved').textContent = ''; }, 1800); }
 }

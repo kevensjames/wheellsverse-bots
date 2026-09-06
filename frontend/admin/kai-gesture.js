@@ -91,7 +91,15 @@
     catch (e) { this._starting = false; return no('CAPTURE_FAILED', String(e && e.message || e)); }
     return Promise.resolve(p).then(function (stream) {
       self._starting = false;
-      if (epoch !== self._epoch || self.on) { stopTracks(stream); return { started: false, code: 'STOPPED_DURING_START', reason: 'stop() was called while the camera was opening' }; }
+      // The gate is re-checked HERE — the moment the camera actually turns on — because start() has an async
+      // gap (script load + getUserMedia) in which a stop / sign-out / mute / tab-hide can arrive. One guard at
+      // the root covers every one of those races; per-caller guards would miss the in-flight window.
+      var g2 = self.allowed() || {};
+      if (epoch !== self._epoch || self.on || !g2.ok || (self.doc && self.doc.hidden)) {
+        stopTracks(stream);
+        return { started: false, code: 'STOPPED_DURING_START',
+                 reason: 'state changed while the camera was opening (' + (g2.ok ? (self.doc && self.doc.hidden ? 'tab hidden' : 'stopped') : (g2.code || 'not permitted')) + ') — nothing was captured' };
+      }
       self.stream = stream; self.on = true;
       self._bind(); self._showBanner(); self._attachRecognizer();
       self.onChange({ on: true, reason: trigger });
@@ -132,7 +140,8 @@
   // Mandatory indicator — created next to the capture call so no caller can open the camera without it.
   P._showBanner = function () {
     var d = this.doc, self = this;
-    if (!this._banner) {
+    // Rebuilt when missing OR detached — the mandatory indicator is re-enforced on every open, never cached blindly.
+    if (!this._banner || !this._banner.isConnected) {
       var b = d.createElement('div'); b.className = 'kaip-cam-banner';
       b.setAttribute('role', 'status'); b.setAttribute('aria-live', 'assertive');
       var dot = d.createElement('span'); dot.className = 'kaip-cam-dot'; dot.setAttribute('aria-hidden', 'true');

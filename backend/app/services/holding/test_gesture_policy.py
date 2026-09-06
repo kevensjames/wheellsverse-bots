@@ -153,8 +153,14 @@ def run() -> bool:
     src = (Path(__file__).resolve().parent / "gesture_policy.py").read_text()
     imports = [ln for ln in src.splitlines() if ln.startswith(("import ", "from "))]
     ck("gesture_policy imports only stdlib + capability.manifest (no mediapipe/tf/onnx/cv2/requests)",
-       all(any(ln.startswith(p) for p in ("from __future__", "from dataclasses", "from enum",
+       all(any(ln.startswith(p) for p in ("from __future__", "import math", "from dataclasses", "from enum",
                                           "from app.services.capability.manifest")) for ln in imports))
+    # Review fix (P8 privacy lens, LOW): NaN beats every comparison, so a NaN confidence slipped past the
+    # threshold gate and got MAPPED. Non-finite must fail closed — the frontend already refuses it as MALFORMED.
+    for _bad in (float("nan"), float("inf"), float("-inf")):
+        ck(f"non-finite confidence {_bad!r} fails closed to REFUSED (one rule with the frontend seam)",
+           map_gesture("OPEN_PALM", _bad, "owner").action == REFUSED)
+    ck("a finite in-threshold confidence still maps", map_gesture("OPEN_PALM", 0.9, "owner").action == "stop")
     ck("no model file / CDN / fetch / camera API reference in the policy source",
        not any(s in src for s in ("mediapipe", "tensorflow", ".tflite", ".onnx", "cdn.", "http://", "https://",
                                   "fetch(", "getUserMedia", "cv2", "urlopen")))

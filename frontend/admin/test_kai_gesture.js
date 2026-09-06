@@ -16,7 +16,8 @@ const readAdmin = f => fs.readFileSync(path.join(__dirname, f), 'utf8');
 // ── fakes (no DOM, no camera) ─────────────────────────────────────────────────
 function fakeEl() {
   return { hidden: false, textContent: '', className: '', attrs: {}, kids: [], handlers: {},
-    setAttribute(k, v) { this.attrs[k] = v; }, appendChild(c) { this.kids.push(c); return c; }, addEventListener(t, f) { this.handlers[t] = f; } };
+    setAttribute(k, v) { this.attrs[k] = v; }, appendChild(c) { this.kids.push(c); c.isConnected = true; return c; },
+    remove() { this.isConnected = false; }, addEventListener(t, f) { this.handlers[t] = f; } };
 }
 function fakeDoc() { const d = { hidden: false, handlers: {}, body: fakeEl(), createElement: () => fakeEl(), addEventListener(t, f) { d.handlers[t] = f; }, removeEventListener(t) { delete d.handlers[t]; } }; return d; }
 function fakeWin() { const w = { handlers: {}, addEventListener(t, f) { w.handlers[t] = f; }, removeEventListener(t) { delete w.handlers[t]; } }; return w; }
@@ -209,7 +210,66 @@ test('registerRecognizer(fn): attached with the stream + emit, typed events flow
   s.stop('user-stop'); assert.strictEqual(disposed, 1);
 });
 
+// ── P8 privacy-lens review fixes: the gate is re-checked at the moment the camera turns ON ──
+// start() has an async gap (lazy script load + getUserMedia). A stop / sign-out / mute / tab-hide arriving in
+// that window used to be lost, and the camera came on afterwards — including inside an already-hidden tab.
+test('start(): a stop() during the async gap closes the resolved stream instead of turning the camera on', async () => {
+  let release; const { s, md } = mk({ mediaDevices: fakeMedia(() => new Promise(r => { release = r; })) });
+  const p = s.start('owner-click');
+  s.stop('user-stop');                                   // arrives while getUserMedia is still pending
+  const stream = fakeStream(); md.streams.push(stream); release(stream);
+  const out = await p;
+  assert.strictEqual(out.started, false);
+  assert.strictEqual(out.code, 'STOPPED_DURING_START');
+  assert.strictEqual(s.status().camera, 'OFF');
+  assert.strictEqual(stream.stopped, 1, 'the resolved stream must be stopped, not leaked live');
+});
+test('start(): the policy gate is re-read on resolve — a sign-out during the gap leaves the camera OFF', async () => {
+  let release, ok = true;
+  const { s, md } = mk({ mediaDevices: fakeMedia(() => new Promise(r => { release = r; })),
+                         allowed: () => ok ? { ok: true, code: 'AVAILABLE_SESSION' } : { ok: false, code: 'NO_SESSION', reason: 'signed out' } });
+  const p = s.start('owner-click');
+  ok = false;                                            // owner signs out mid-open
+  const stream = fakeStream(); md.streams.push(stream); release(stream);
+  const out = await p;
+  assert.strictEqual(out.started, false);
+  assert.ok(/NO_SESSION|not permitted/.test(out.reason + out.code));
+  assert.strictEqual(s.status().camera, 'OFF');
+  assert.strictEqual(stream.stopped, 1);
+});
+test('start(): a tab hidden during the async gap never leaves a live camera in a background tab', async () => {
+  let release; const { s, doc, md } = mk({ mediaDevices: fakeMedia(() => new Promise(r => { release = r; })) });
+  const p = s.start('owner-click');
+  doc.hidden = true;                                     // hidden before the listeners are even bound
+  const stream = fakeStream(); md.streams.push(stream); release(stream);
+  const out = await p;
+  assert.strictEqual(out.started, false);
+  assert.strictEqual(s.status().camera, 'OFF');
+  assert.strictEqual(stream.stopped, 1);
+});
+test('the mandatory CAMERA ON banner is rebuilt when detached — never a live camera with no indicator', async () => {
+  const { s, doc } = mk();
+  await s.start('owner-click');
+  const first = doc.body.kids.find(k => k.className === 'kaip-cam-banner');
+  assert.ok(first && first.hidden === false, 'banner mounted on the first open');
+  s.stop('user-stop');
+  first.remove();                                        // something removed the node from the document
+  await s.start('owner-click');
+  const live = doc.body.kids.filter(k => k.className === 'kaip-cam-banner' && k.isConnected && !k.hidden);
+  assert.strictEqual(s.status().camera, 'ON_SESSION');
+  assert.strictEqual(live.length, 1, 'a connected, visible CAMERA ON banner exists while the stream is live');
+});
+
 // ── kai-presence.js wiring (static — the module needs a DOM; these pin the contract) ──
+test('static: script-forged events cannot mint a trusted trigger — the camera control and the mic press check isTrusted', () => {
+  const src = stripComments(readAdmin('kai-presence.js'));
+  const camLine = src.split('\n').find(l => l.includes("startCamera('owner-click')"));
+  assert.ok(/!e\.isTrusted\)\s*return/.test(camLine), 'the §67 camera control refuses untrusted events: ' + camLine);
+  const press = src.slice(src.indexOf('const press = e =>'), src.indexOf('const release ='));
+  assert.ok(/e\.isTrusted === false\) return/.test(press), 'the mic press refuses untrusted events (it mints the activation-exempt ptt-press trigger)');
+  const keydown = src.split('\n').find(l => l.includes("addEventListener('keydown'") && l.includes('press(null)'));
+  assert.ok(/isTrusted === false\) return/.test(keydown), 'the mic keydown refuses untrusted events: ' + keydown);
+});
 test('static: kai-presence.js opens the camera ONLY from the #ks-camera_enabled control (owner-click); the API start is "api"; settings never persist camera on', () => {
   const src = stripComments(readAdmin('kai-presence.js'));
   const explicit = src.match(/startCamera\('owner-click'\)/g) || [];
