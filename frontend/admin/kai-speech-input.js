@@ -27,6 +27,11 @@
     this.onResult = typeof opts.onResult === 'function' ? opts.onResult : function () {};
     this.onError = typeof opts.onError === 'function' ? opts.onError : function () {};
     this.onEnd = typeof opts.onEnd === 'function' ? opts.onEnd : function () {};
+    // Phase 7b indicator hooks (§6): audio capture is a DISTINCT state from "listening armed" —
+    // onAudioStart/onAudioEnd bracket the window in which audio is actually being captured (and, for a
+    // network-backed recognizer, leaving the device). Optional; default no-ops keep older callers intact.
+    this.onAudioStart = typeof opts.onAudioStart === 'function' ? opts.onAudioStart : function () {};
+    this.onAudioEnd = typeof opts.onAudioEnd === 'function' ? opts.onAudioEnd : function () {};
     this.now = opts.now || function () { return 0; };
     this.state = 'IDLE';
     this.error = null;
@@ -52,8 +57,10 @@
     return { available: true, reason: 'BROWSER_LIMITED' };   // present ≠ guaranteed; caller must handle permission denial
   };
 
-  // arm/disarm the input-side barge-in (caller sets armed=true while KAI is SPEAKING)
-  P.armBargeIn = function (on) { this._armed = !!on; };
+  // arm/disarm the input-side barge-in (caller sets armed=true while KAI is SPEAKING).
+  // Re-arming re-opens the one-shot: a session that already fired an onset (or spoke during a
+  // previous utterance) can barge in again on KAI's NEXT utterance.
+  P.armBargeIn = function (on) { this._armed = !!on; if (on) this._firedOnset = false; };
 
   P.start = function (config) {
     if (!this.SR) { this.state = 'ERROR'; this.error = 'no_speech_recognition_api'; return { started: false, reason: this.error }; }
@@ -65,7 +72,8 @@
     rec.interimResults = config && config.interim != null ? config.interim : true;
     rec.lang = (config && config.lang) || 'en-US';
     rec.onspeechstart = function () { self._onset(); };
-    rec.onaudiostart = function () { /* audio captured; onset waits for speech to avoid false triggers */ };
+    rec.onaudiostart = function () { self.onAudioStart({ at: self.now() }); };   // capture began (onset still waits for speech)
+    rec.onaudioend = function () { self.onAudioEnd({ at: self.now() }); };
     rec.onresult = function (ev) {
       // onset can also be inferred from the first (even interim) result, in case onspeechstart is absent
       self._onset();
@@ -96,8 +104,11 @@
     } catch (e) { return { transcript: '', isFinal: false, confidence: 0 }; }
   };
 
-  P.stop = function () {
-    if (this._rec) { try { this._rec.abort ? this._rec.abort() : this._rec.stop(); } catch (e) { /* ignore */ } }
+  // stop({graceful:true}) uses rec.stop() so a pending FINAL result still flushes (push-to-talk release);
+  // default abort() discards everything immediately (barge-in / teardown).
+  P.stop = function (o) {
+    var graceful = !!(o && o.graceful);
+    if (this._rec) { try { (!graceful && this._rec.abort) ? this._rec.abort() : this._rec.stop(); } catch (e) { /* ignore */ } }
     this._rec = null;
     if (this.state === 'LISTENING') this.state = 'STOPPED';
     return this.state;

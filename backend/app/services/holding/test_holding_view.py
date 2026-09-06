@@ -64,6 +64,23 @@ def t_kai_work_buckets():
             {"company_id": "nex", "task_id": "t3", "outcome": "BLOCKED_CAPABILITY"}]
     v = build_holding_view(twin_snapshot=_twin(), self_model=_sm(), kai_work=work)
     assert len(v["kai_working"]["ready_for_review"]) == 1 and len(v["kai_working"]["blocked"]) == 1
+    assert v["kai_working"]["working_now"] == []   # §29 — no missions supplied → empty (never fabricated)
+
+
+def t_kai_working_now_from_missions():
+    """§29 — the enriched KAI-WORKING-NOW view is derived from injected mission aggregates; a read-only
+    mission shows real fields with writes='NONE' (no fabricated progress)."""
+    from app.services.holding.mission import MissionHeader, mission_view
+    mv = mission_view(MissionHeader(mission_id="m1", company="sol", objective="Investigate incident",
+                                    root_signature="R1"),
+                      worker_jobs=[{"status": "running", "worker": "kai",
+                                    "task": {"capability": "holding.health", "autonomy": 0}, "id": 7}],
+                      plan_tasks=[{"task_id": "t", "goal": "probe", "status": "ACTIVE",
+                                   "assigned_to": "KAI", "autonomy": 0}])
+    v = build_holding_view(twin_snapshot=_twin(), self_model=_sm(), missions=[mv])
+    wn = v["kai_working"]["working_now"]
+    assert len(wn) == 1 and wn[0]["company"] == "sol" and wn[0]["action"] == "holding.health"
+    assert wn[0]["writes"] == "NONE" and wn[0]["progress"] == "0/1"
 
 
 def t_self_improvement_ready_only():

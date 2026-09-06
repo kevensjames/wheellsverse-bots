@@ -53,6 +53,16 @@ async def lifespan(app: FastAPI):
     _log = logging.getLogger(__name__)
 
     # ── Startup ──────────────────────────────────────────────────────────────
+    # Config integrity: Settings uses extra="ignore", so an env var whose name is a near-miss of a
+    # declared flag (KAI_VOICE_ENABLE, KAI_VOICE, KAI_VOCIE_ENABLED, ...) is SILENTLY DROPPED — no
+    # error, no log, and every surface honestly reports the DEFAULT. Say so LOUDLY at boot. This
+    # only reports: a suspect name never binds and never enables anything (fail closed).
+    try:
+        from app.services.holding.self_model import flag_misconfigurations
+        for _m in flag_misconfigurations():
+            _log.warning("CONFIG WARNING: %s", _m["detail"])
+    except Exception as e:
+        _log.warning("flag misconfiguration check skipped: %s", e)
     # KAI Supreme scheduler — opt-in via KAI_SUPREME_ENABLED=1. Background
     # thread runs scan cycles every N seconds while the daemon is alive,
     # replacing the standalone WheellsverseNarAISupreme.app Login Item.
@@ -173,6 +183,31 @@ app = FastAPI(
 # Wire the shared limiter so route decorators (@limiter.limit("...")) take effect.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# ── Validation errors must never reflect the submitted body (security) ────────────────────────────
+# FastAPI's DEFAULT RequestValidationError handler serialises exc.errors(), and every entry carries an
+# "input" key holding THE VALUE THE CALLER SUBMITTED. On /admin/session/login that means a malformed
+# body echoes the operator credential straight back to the caller. That is not theoretical: it is
+# exactly how a staging owner key reached an assistant transcript and had to be rotated. The route
+# handler was always careful ("never echoed back"), but a validation error is raised BEFORE the handler
+# runs, so the handler's care never applied.
+# This strips "input" and "ctx" (which can also carry submitted values) from every validation error,
+# app-wide. Callers still learn WHICH field was wrong and why, which is all they need to fix a request.
+def _install_safe_validation_handler(fastapi_app) -> None:
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.responses import JSONResponse
+    from starlette.requests import Request as _Rq
+
+    async def _handler(request: "_Rq", exc: RequestValidationError):
+        safe = []
+        for err in exc.errors():
+            e = {k: v for k, v in err.items() if k not in ("input", "ctx", "url")}
+            safe.append(e)
+        return JSONResponse(status_code=422, content=jsonable_encoder({"detail": safe}))
+
+    fastapi_app.add_exception_handler(RequestValidationError, _handler)
+
+_install_safe_validation_handler(app)
 app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
@@ -211,6 +246,12 @@ app.include_router(admin_chat.router)
 if settings.KAI_HOLDING_ENABLED:
     from app.routers import admin_holding
     app.include_router(admin_holding.router)
+# §90 Holding Command API — ONE typed governed command entrypoint, mounted ONLY when enabled
+# (default off → route absent, zero new surface). TYPED routing over the existing Brain/knowledge
+# index, never NL-to-shell; consequential intents fail closed to REQUIRE_APPROVAL.
+if getattr(settings, "KAI_HOLDING_COMMAND_ENABLED", False):
+    from app.routers import admin_holding_command
+    app.include_router(admin_holding_command.router)
 app.include_router(admin_supreme.router)
 app.include_router(admin_briefing.router)
 app.include_router(admin_presets.router)

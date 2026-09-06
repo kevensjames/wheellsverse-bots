@@ -24,7 +24,7 @@ class _DisabledResult:
 
 def build_live_engine(*, autonomy_on: bool | None = None, execution_on: bool | None = None,
                       a2_on: bool | None = None, company_autonomy: dict | None = None,
-                      a2_framework=None) -> HoldingAutonomousWorkEngine:
+                      a2_framework=None, stop_store=None) -> HoldingAutonomousWorkEngine:
     """Construct the engine the persistent cron uses, wiring the emergency brakes from config so the
     operator can stop activity without a code rollback:
       • KAI_CAPABILITY_EXECUTION_ENABLED (brake #1) OFF → the executor returns CAPABILITY_UNAVAILABLE
@@ -35,15 +35,26 @@ def build_live_engine(*, autonomy_on: bool | None = None, execution_on: bool | N
         task stays NEEDS_CERTIFICATION (no isolated-worktree write). A2 is wired ONLY when a framework is
         INJECTED here AND brake #1 AND brake #3 are on (autonomy is the step-1 kill switch). Production
         injects no framework, so A2 never runs there regardless of the flag — prepare-only, never merge.
-    Overrides are for tests; production reads app.config.settings."""
+    Overrides are for tests; production reads app.config.settings.
+      • §97 STOP_AUTONOMOUS_EXECUTION (brakes.stop_state — engaged OR unreadable → fail closed) forces
+        every CONFIG-READ brake OFF; explicit overrides are untouched (tests). It halts the NEXT engine
+        build only — an already-built engine is not undone. WHY the config-read brakes were forced is
+        recorded on the engine as ``brake_override`` (None | STOP_ENGAGED | STOP_UNREADABLE |
+        CONFIG_UNAVAILABLE) so a cycle result can say so instead of a silent 0-execution."""
+    override = None
     if autonomy_on is None or execution_on is None or a2_on is None:
         try:
             from app.config import settings
-            autonomy_on = bool(getattr(settings, "HOLDING_AUTONOMY_ENABLED", False)) if autonomy_on is None else autonomy_on
-            execution_on = bool(getattr(settings, "KAI_CAPABILITY_EXECUTION_ENABLED", False)) if execution_on is None else execution_on
-            a2_on = bool(getattr(settings, "KAI_A2_EXECUTION_ENABLED", False)) if a2_on is None else a2_on
+            from app.services.holding.brakes import stop_state
+            override = stop_state(stop_store)        # None released | STOP_ENGAGED | STOP_UNREADABLE (fail closed)
+            def _cfg(flag):
+                return False if override else bool(getattr(settings, flag, False))
+            autonomy_on = _cfg("HOLDING_AUTONOMY_ENABLED") if autonomy_on is None else autonomy_on
+            execution_on = _cfg("KAI_CAPABILITY_EXECUTION_ENABLED") if execution_on is None else execution_on
+            a2_on = _cfg("KAI_A2_EXECUTION_ENABLED") if a2_on is None else a2_on
         except Exception:
             # config unavailable → fail CLOSED (every brake engaged) — never assume-on for a brake
+            override = override or "CONFIG_UNAVAILABLE"
             autonomy_on = False if autonomy_on is None else autonomy_on
             execution_on = False if execution_on is None else execution_on
             a2_on = False if a2_on is None else a2_on
@@ -55,9 +66,11 @@ def build_live_engine(*, autonomy_on: bool | None = None, execution_on: bool | N
         execute = lambda cap, op, inp, *, mission_id="": _DisabledResult("capability execution disabled (brake #1)")
     # brake #3: A2 prepare-only wired only when a framework is injected AND brakes #1 and #3 are both on.
     wired_a2 = a2_framework if (a2_framework is not None and execution_on and a2_on) else None
-    return HoldingAutonomousWorkEngine(execute=execute, resolver=make_engine_resolver(TaskCapabilityResolver()),
-                                       a2_framework=wired_a2,
-                                       global_autonomy=bool(autonomy_on), company_autonomy=company_autonomy or {})
+    engine = HoldingAutonomousWorkEngine(execute=execute, resolver=make_engine_resolver(TaskCapabilityResolver()),
+                                         a2_framework=wired_a2,
+                                         global_autonomy=bool(autonomy_on), company_autonomy=company_autonomy or {})
+    engine.brake_override = override   # §L2: why the config-read brakes were forced OFF; None = config authoritative
+    return engine
 
 # §19 bounded per-source-volatility intervals (seconds) — 90-day planning is NOT every 15 min.
 CYCLE_INTERVALS = {
@@ -156,6 +169,31 @@ def run_persistent_cycle(prev_snapshot, cur_snapshot, *, engine, cycle_id: str, 
         tasks_executed=res["auto_executed"], tasks_failed=res["failed"], tasks_blocked=res["blocked"],
         owner_actions_created=res["owner_queued"], autonomy_off=res.get("autonomy_off", 0),
         evidence_refs=evidence, status=(owner_status or res["verdict"]))
+
+
+# ── §30 scheduler wiring — a celery-beat entry for the bounded cycle, built by a PURE function so its ────
+# darkness is unit-testable without importing celery. Gated by the DEDICATED flag KAI_HOLDING_CYCLE_ENABLED
+# (default OFF → {} → no entry → the cron is DARK), decoupled from watch so enabling watch does NOT also
+# schedule the read-only cycle. NO new daemon (§79): the tick runs EXACTLY ONE existing cycle
+# (run_manual_cycle) on the existing celery-beat scheduler. Deploy-not-enable: the tick reuses
+# build_live_engine, whose 3 fail-closed brakes stay authoritative — scheduling grants NO execution
+# authority (with the brakes off, a no-change cycle yields 0 work).
+HOLDING_CYCLE_BEAT_MINUTES = 15   # matches the documented watch cadence (status.cron_status)
+
+
+def beat_schedule_entry(settings) -> dict:
+    """Return the {name: entry} celery-beat mapping for the bounded holding cycle, or {} when the schedule
+    is DARK (KAI_HOLDING_CYCLE_ENABLED off, or config unreadable → fail closed to dark). Pure: no side
+    effects; celery is imported only when an entry is actually produced."""
+    try:
+        on = bool(getattr(settings, "KAI_HOLDING_CYCLE_ENABLED", False))
+    except Exception:
+        on = False
+    if not on:
+        return {}
+    from celery.schedules import crontab
+    return {"holding-cycle": {"task": "app.workers.holding_tasks.holding_cycle_tick",
+                              "schedule": crontab(minute=f"*/{HOLDING_CYCLE_BEAT_MINUTES}")}}
 
 
 if __name__ == "__main__":

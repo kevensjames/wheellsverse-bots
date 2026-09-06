@@ -66,6 +66,20 @@ class DbCycleStore:
         except Exception:
             pass
 
+    def list_runs(self, limit: int = 200):
+        """§34 eval feed: newest-first stored CycleRecord dicts. [] if empty/DB down (never raises)."""
+        try:
+            db = SessionLocal()
+            try:
+                self._ensure(db)
+                rows = db.execute(text("SELECT record FROM holding_cycle_runs ORDER BY created_at DESC "
+                                       "LIMIT :l"), {"l": max(1, int(limit))}).fetchall()
+                return [r[0] if isinstance(r[0], dict) else json.loads(r[0]) for r in rows]
+            finally:
+                db.close()
+        except Exception:
+            return []
+
     def try_lock(self, holding_id, lease_s, now):
         """Single-flight: acquire only if no live lease (running_until null or in the past). Atomic.
         Returns a LEASE TOKEN (str) on success, else None — so only the holder can release it."""

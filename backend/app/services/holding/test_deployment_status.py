@@ -10,8 +10,30 @@ from app.services.holding.deployment_status import (  # noqa: E402
     MATCH, DEPLOYMENT_BEHIND, UNCOMPARABLE)
 
 _ROOT = str(Path(__file__).resolve().parents[4])   # monorepo root
+# Two commits that exist in the object store, used ONLY for the pure compare_shas() ancestry check.
 _HEAD = "ca791234d6fffb5f04115e43e249259778d36402"
-_OLD = "b82b873e36a49faaff01dc9be6114642f7fc5ead"   # HEAD~5 — an ancestor of HEAD
+_OLD = "b82b873e36a49faaff01dc9be6114642f7fc5ead"   # an ancestor of _HEAD
+
+
+def _ancestor_of_live_head(n: int = 5) -> str:
+    """A REAL ancestor of whatever this checkout's HEAD is.
+
+    The stale-discrimination check below resolves through the live repository head, not through _HEAD, so
+    a hardcoded "old" commit only works while the checkout descends from it. _OLD does not: it is an
+    ancestor of feat/kai-cyber-operations but NOT of production, so on a production-based branch the
+    comparison is honestly UNCOMPARABLE and the check failed for a reason that had nothing to do with the
+    code under test. Ask git for an ancestor instead of pinning one to a branch."""
+    import subprocess
+    try:
+        r = subprocess.run(["git", "-C", _ROOT, "rev-parse", f"HEAD~{n}"],
+                           capture_output=True, text=True, timeout=15)
+        sha = r.stdout.strip()
+        return sha if r.returncode == 0 and len(sha) == 40 else ""
+    except Exception:
+        return ""
+
+
+_LIVE_ANCESTOR = _ancestor_of_live_head()
 
 _p = 0
 
@@ -53,8 +75,10 @@ def t_sha_comparison_real_ancestry():
 
 def t_deployment_stale_discrimination():
     """§41 critical acceptance: source ahead of deployed → DEPLOYMENT_BEHIND (NOT a code-fix signal)."""
-    ev = _factory(_src(deployed_sha=_OLD))({"company_id": "kai", "service_id": "kai"})
-    assert ev["sha_comparison"] == DEPLOYMENT_BEHIND and ev["deployed_sha"] == _OLD
+    assert _LIVE_ANCESTOR, ("cannot resolve an ancestor of this checkout's HEAD (shallow clone or no git) "
+                            "— reported, never passed silently")
+    ev = _factory(_src(deployed_sha=_LIVE_ANCESTOR))({"company_id": "kai", "service_id": "kai"})
+    assert ev["sha_comparison"] == DEPLOYMENT_BEHIND and ev["deployed_sha"] == _LIVE_ANCESTOR
 
 
 def t_match_when_current():

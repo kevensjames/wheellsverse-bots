@@ -10,12 +10,13 @@ remaining frontend step.
 from __future__ import annotations
 
 from app.services.holding.briefing import today_for_you, NO_ACTION
+from app.services.holding import mission
 
 
 def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | None = None,
                        owner_actions=None, cycle_record: dict | None = None, kai_work=None,
                        self_improvements=None, improvement_watch: dict | None = None,
-                       deployment: dict | None = None) -> dict:
+                       deployment: dict | None = None, missions=None) -> dict:
     """Assemble the /admin/holding view model. Every section is derived from real state (§34: no orphan
     advice). owner_actions are proposal-shaped dicts; kai_work items are work-result-shaped dicts.
     improvement_watch is the DETECT_ONLY snapshot (detection candidates); it is DETECTION only — each row
@@ -44,12 +45,15 @@ def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | 
         # §25
         "today_for_you": brief["today_for_you"],
         "today_overflow": brief.get("today_overflow_grouped"),
-        # §26 KAI working
+        # §26/§29 KAI working. The coarse WorkResult buckets stay; `working_now` is the §29 enriched
+        # per-active-mission view (mission/company/action/capability/worker/started_at/progress/next_step/
+        # writes) derived live from the mission aggregate — writes='NONE' when read-only, no fabrication.
         "kai_working": {
             "currently_working": _bucket("ACTIVE"),
             "ready_for_review": _bucket("A2_READY_FOR_REVIEW"),
             "blocked": _bucket("BLOCKED_CAPABILITY") + _bucket("BLOCKED_WORKER"),
             "owner_queued": _bucket("OWNER_QUEUED"),
+            "working_now": mission.working_now(missions or []),   # §29
         },
         # §27 self-improvement (READY_FOR_REVIEW only; no private reasoning exposed)
         "self_improvement_ready": [{"problem": s.get("problem"), "evidence": s.get("evidence"),
@@ -79,17 +83,28 @@ def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | 
                            "owner_blocker": bool(c.get("owner_actions_required")),
                            "plan_freshness": c.get("source_freshness")}
                           for c in twin.get("companies", [])],
-        # §29 Operational Self Model (labelled; never sentient)
+        # §62 Operational Self Model — FULL field set (labelled; never sentient). Every value is taken
+        # straight from the self-model snapshot (REAL/DERIVED/UNAVAILABLE); the panel renders it verbatim.
         "operational_self_model": {
             "label": "Operational Self Model",
-            "identity": sm.get("identity", "KAI"), "software_version": sm.get("software_version"),
-            "environment": sm.get("environment"), "health": twin.get("autonomy_overall"),
+            "identity": sm.get("identity", "KAI"), "role": sm.get("system_role"),
+            "software_version": sm.get("software_version"),
+            "production_sha": sm.get("production_sha"), "staging_sha": sm.get("staging_sha"),
+            "environment": sm.get("environment"), "runtime": sm.get("runtime"),
+            "model": sm.get("model"), "model_provider": sm.get("model_provider"),
+            "model_latency_ms": sm.get("model_latency_ms"),
+            "autonomy_posture": twin.get("autonomy_overall"),  # §57 real health score is a later phase
+            "autonomy_class": sm.get("autonomy_class"),
+            "current_attention": sm.get("current_attention"),
             "current_mission": (cycle_record or {}).get("cycle_id"),
             "capabilities_ready": sm.get("available_capability_count"),
-            "workers_online": sm.get("workers_online"),
+            "capability_catalog_total": sm.get("capability_catalog_total"),
+            "workers_online": sm.get("workers_online"), "workers_known": sm.get("workers_known"),
             "last_holding_cycle": (cycle_record or {}).get("completed_at"),
+            "last_verified": sm.get("last_verified"),
             "owner_required_count": sm.get("owner_required_action_count"),
-            "claims_consciousness": False,   # invariant (§29) — never sentient
+            "limitations": list(sm.get("known_limitations", [])),   # LIVE-DERIVED (§63/§99)
+            "claims_consciousness": False,   # invariant (§29/§141) — never sentient
         },
         # §30 autonomy (backend authoritative)
         "autonomy": {
