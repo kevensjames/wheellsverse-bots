@@ -12,6 +12,28 @@ from app.routers.admin_chat import require_kai_ultra  # reuse the owner-only gat
 from app.services.holding import reports
 from app.services.holding.briefing import run_morning_briefing
 
+def _self_peer_shas(settings, sha: str) -> dict:
+    """This app authoritatively knows exactly ONE sha: its own. Label it by the environment it is
+    ACTUALLY running in.
+
+    Two mistakes were being made at once, and together they manufactured confidence out of nothing:
+      • this app's sha was passed as ``app_b``, the PRODUCTION App-B slot, on a STAGING box — which is
+        how the Operational Self Model came to report a production_sha with zero production evidence;
+      • the same sha was passed as ``source_head``, so compute_drift compared a value with itself and
+        could only ever answer IN_SYNC. That tautology then scored full marks for deployment_health and
+        was the single dimension holding the headline health score above its NO_SCORE floor.
+    A running container cannot know the repository's head commit, so source_head is not claimed at all.
+    Drift is then honestly UNKNOWN until a real cross-app resolver supplies genuine peers."""
+    env = str(getattr(settings, "APP_ENV", "") or "").strip().lower()
+    if not sha or sha == "UNKNOWN":
+        return {}
+    if env in ("staging", "stage"):
+        return {"staging": sha}
+    if env in ("production", "prod"):
+        return {"app_b": sha}
+    return {}
+
+
 def _record_hosted_route(request: Request) -> None:
     """Hosted-route evidence, written by EVERY route on this router.
 
@@ -443,7 +465,7 @@ def holding_deployment(principal=Depends(require_kai_ultra)):
     # Hosted-route evidence is recorded by this router's _record_hosted_route dependency, which runs for
     # EVERY route here — not just this one. See that function for why the single-handler version was wrong.
     sha = deployed_sha()
-    return deployment_view(settings, source_head=sha, peer_shas={"app_b": sha})
+    return deployment_view(settings, source_head="", peer_shas=_self_peer_shas(settings, sha))
 
 
 @router.get("/improvement-watch")
@@ -511,7 +533,7 @@ def _health_inputs() -> dict:
         from app.config import settings as _s
         from app.services.holding.holding_deployment import deployment_view, deployed_sha
         _sha = deployed_sha()
-        out["deployment_health"] = (deployment_view(_s, source_head=_sha, peer_shas={"app_b": _sha})
+        out["deployment_health"] = (deployment_view(_s, source_head="", peer_shas=_self_peer_shas(_s, _sha))
                                     .get("drift", {}).get("state"))
     except Exception:
         pass
@@ -772,7 +794,7 @@ def holding_view():
         from app.config import settings as _settings
         from app.services.holding.holding_deployment import deployment_view, deployed_sha
         _sha = deployed_sha()
-        deployment = deployment_view(_settings, source_head=_sha, peer_shas={"app_b": _sha})
+        deployment = deployment_view(_settings, source_head="", peer_shas=_self_peer_shas(_settings, _sha))
     except Exception:
         deployment = {}
     missions = _soft(_sec_missions, [])                # §29 — reuses the single mission builder (no dup)

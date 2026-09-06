@@ -196,7 +196,10 @@ def deployment_view(settings, *, env: dict | None = None, peer_shas: dict | None
         "money_mode": money,
         "deployment_state": ev["state"],
         "deployment_reason": ev["reason"],
-        "shas": {"source_head": source_head or "UNKNOWN", "app_b": peers.get("app_b", this),
+        # NEVER default a peer to this app's own sha. self_model._deployment() deliberately passes
+        # peer_shas={} so a staging box cannot mislabel its own sha as the PRODUCTION sha — that
+        # guard was defeated here, one layer down, by this default. An unknown peer is UNKNOWN.
+        "shas": {"source_head": source_head or "UNKNOWN", "app_b": peers.get("app_b", "UNKNOWN"),
                  "app_a": peers.get("app_a", "UNKNOWN"), "staging": peers.get("staging", "UNKNOWN")},
         "drift": compute_drift(source=source_head, staging=peers.get("staging", ""),
                                prod_a=peers.get("app_a", ""), prod_b=peers.get("app_b", "")),
@@ -281,6 +284,34 @@ def demo() -> None:
            for f in feature_registry(NS(APP_ENV="staging"), env=SHA) if f["runtime_flag"]))
     ck("a truthy-looking near miss on a DIFFERENT name does not enable the real flag",
        flag_state(NS(KAI_A2_EXECUTION_ENABLE=True), "KAI_A2_EXECUTION_ENABLED") == (FLAG_NOT_DECLARED, False))
+
+    # ── NO FABRICATED PEER, and no self-comparing drift ───────────────────────────────────────────
+    # Found by adversarial review of the hosted staging run, not by this suite: every existing check
+    # supplied BOTH peers, so the router's real one-peer shape was never exercised and four HIGH
+    # findings chained off it. These pin the shape the router actually uses.
+    v_np = deployment_view(NS(APP_ENV="staging", **flags), env=SHA, source_head="")
+    ck("an unsupplied peer is UNKNOWN, never this app's own sha",
+       v_np["shas"]["app_b"] == "UNKNOWN" and v_np["shas"]["app_a"] == "UNKNOWN")
+    ck("with no source head, drift is UNKNOWN rather than a self-comparison",
+       v_np["drift"]["state"] == "UNKNOWN")
+    ck("...and it says WHY", "source head" in v_np["drift"].get("reason", ""))
+    # the exact tautology that was live: own sha as BOTH the source head and the production peer
+    taut = deployment_view(NS(APP_ENV="staging", **flags), env=SHA, source_head="abcdef123456",
+                           peer_shas={"app_b": "abcdef123456"})
+    ck("REGRESSION GUARD: feeding this app's sha as source_head AND the prod peer yields IN_SYNC — "
+       "which is why the router must do neither", taut["drift"]["state"] == "IN_SYNC")
+    ck("a staging box must not report a production peer",
+       deployment_view(NS(APP_ENV="staging", **flags), env=SHA,
+                       peer_shas={"staging": "abcdef123456"})["shas"]["app_b"] == "UNKNOWN")
+    _src = __import__("pathlib").Path(__file__).resolve().parent
+    _rt = (_src.parents[1] / "routers" / "admin_holding.py").read_text()
+    ck("the router labels its own sha by environment via _self_peer_shas, at EVERY call site",
+       "def _self_peer_shas" in _rt and _rt.count("peer_shas=_self_peer_shas(") == 3
+       # no CALL SITE may hand deployment_view a hardcoded peer dict; the helper's own
+       # `return {"app_b": sha}` is the correct production branch and must survive this check
+       and 'peer_shas={"app_b"' not in _rt)
+    ck("...and no call site claims a source head the container cannot know",
+       _rt.count('source_head=""') == 3 and "source_head=sha" not in _rt and "source_head=_sha" not in _rt)
 
     # ── drift (unchanged) ─────────────────────────────────────────────────────────────────────────
     ck("IN_SYNC", compute_drift(source="a" * 12, staging="a" * 12, prod_a="a" * 12, prod_b="a" * 12)["state"] == "IN_SYNC")

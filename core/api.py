@@ -785,6 +785,33 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
+
+# ── Validation errors must never reflect the submitted body (security) ────────────────────────────
+# FastAPI's DEFAULT RequestValidationError handler serialises exc.errors(), and every entry carries an
+# "input" key holding THE VALUE THE CALLER SUBMITTED. On /admin/session/login that means a malformed
+# body echoes the operator credential straight back to the caller. That is not theoretical: it is
+# exactly how a staging owner key reached an assistant transcript and had to be rotated. The route
+# handler was always careful ("never echoed back"), but a validation error is raised BEFORE the handler
+# runs, so the handler's care never applied.
+# This strips "input" and "ctx" (which can also carry submitted values) from every validation error,
+# app-wide. Callers still learn WHICH field was wrong and why, which is all they need to fix a request.
+def _install_safe_validation_handler(fastapi_app) -> None:
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.responses import JSONResponse
+    from starlette.requests import Request as _Rq
+
+    async def _handler(request: "_Rq", exc: RequestValidationError):
+        safe = []
+        for err in exc.errors():
+            e = {k: v for k, v in err.items() if k not in ("input", "ctx", "url")}
+            safe.append(e)
+        return JSONResponse(status_code=422, content=jsonable_encoder({"detail": safe}))
+
+    fastapi_app.add_exception_handler(RequestValidationError, _handler)
+
+_install_safe_validation_handler(app)
+
 _DEFAULT_CORS_ORIGINS = [
     "https://app.wheellsverse.com",
     "https://wheellsverse.com",
