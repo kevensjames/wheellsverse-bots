@@ -477,8 +477,12 @@ function fmtTs(ts){
 }
 /* generic honest-failure body */
 function honest(d, what){
+  // A 404 means the endpoint is not mounted on this backend. honest() is the GENERIC renderer for every
+  // panel, so it cannot know WHICH flag gates the panel that failed — naming one (it used to name
+  // KAI_HOLDING_ENABLED unconditionally) sends the operator to change the wrong setting. The Security card,
+  // for instance, 404s because the cyber router is dark, nothing to do with the holding flag.
   const reason = d && d.__http ? ('HTTP '+d.__http+(d.__http===401||d.__http===403?' — owner sign-in required'
-      : d.__http===404?' — feature off (KAI_HOLDING_ENABLED) or no backend':''))
+      : d.__http===404?' — this endpoint is not mounted on the backend: its feature flag is off, or this release does not serve it':''))
     : d && d.__err ? d.__err : 'no backend reachable';
   return '<div>'+badge('NOT_CONNECTED')+'</div>'
     + '<div class="empty">'+esc(what)+' not connected: '+esc(reason)+'. No value is fabricated.</div>';

@@ -605,9 +605,22 @@ def _sec_proactive() -> dict:
                     opportunities=_soft(detect_opportunities, []))
 
 
+def _live_environment() -> str:
+    """The environment this process is ACTUALLY running in, from the one real source.
+
+    Both self-model call sites hardcoded ``environment="production"``, so on staging the Operational
+    Self Model asserted 'environment: production' in the SAME payload whose ``deployment.environment``
+    correctly read 'staging'. A module whose whole purpose is an honest account of KAI's own
+    operational state must not hardcode the most important fact about itself. Mirrors
+    holding_deployment.py:93, which already reads APP_ENV; unset reads UNAVAILABLE, never a guess.
+    """
+    from app.config import settings
+    return str(getattr(settings, "APP_ENV", "") or "").strip() or "UNAVAILABLE"
+
+
 def _sec_system_model() -> dict:
     from app.services.holding.self_model import OperationalSelfModel
-    return OperationalSelfModel(environment="production").snapshot()
+    return OperationalSelfModel(environment=_live_environment()).snapshot()
 
 
 @router.get("/health")
@@ -718,7 +731,7 @@ def holding_view():
     except Exception:
         twin = {}
     try:
-        sm = OperationalSelfModel(environment="production").snapshot()
+        sm = OperationalSelfModel(environment=_live_environment()).snapshot()
     except Exception:
         sm = {}
     try:
