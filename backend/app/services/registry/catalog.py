@@ -99,6 +99,11 @@ _CATALOG: list[Node] = [
     _n("kai-mission-nexus", "KAI Adaptive Mission Nexus", TIER_BRAIN, Status.DORMANT, DeployState.LIVE_PROD,
        "Mission-control operating environment (adaptive shell, procedures, approvals, telemetry).",
        route="/admin/mission-nexus", evidence="core/api.py:2158"),
+    _n("kai-holding", "KAI Holding Command", TIER_BRAIN, Status.DORMANT, DeployState.LIVE_PROD,
+       "Holding-wide read-only operator view (companies, missions, attention, problems, "
+       "self-model). Page served in prod; data is owner-gated through the bridge and the "
+       "App B feature flag is off, so panels render honest UNAVAILABLE markers.",
+       route="/admin/holding", evidence="core/api.py:947; backend/app/config.py:57"),
     _n("kai-voice", "KAI Voice", TIER_BRAIN, Status.LOCAL, DeployState.LOCAL_ONLY,
        "NarAI v2 voice client + WS.", route="/admin/mission-nexus", lost_from_current=True,
        evidence="core/api.py:15281"),
@@ -200,6 +205,11 @@ _CATALOG: list[Node] = [
     _n("governance-audit", "Governance — scope gate + tamper-evident audit", TIER_GOVERNANCE,
        Status.DEGRADED, DeployState.LOCAL_ONLY, "@audited scope gate + hash-chained audit log.",
        evidence="backend/app/services/governance/audit_log.py:44"),
+    _n("kai-cyber-operations", "KAI Cyber Operations", TIER_GOVERNANCE, Status.DORMANT, DeployState.LIVE_PROD,
+       "Defensive-only security operations view (posture, findings, incidents). Page served in "
+       "prod; data is owner-gated through the bridge and KAI_CYBER_OPS_ENABLED is off, so every "
+       "panel renders NOT_CONNECTED. Privileged/offensive capabilities stay DISABLED.",
+       route="/admin/security/cyber-operations", evidence="core/api.py:956; backend/app/config.py:83"),
     _n("kai-self-audit", "KAI self-audit engine", TIER_GOVERNANCE, Status.HEALTHY, DeployState.LOCAL_ONLY,
        "Security Command Center source — subsystem auditor (booleans only, no secrets).",
        evidence="backend/app/services/audit/auditor.py:28"),
