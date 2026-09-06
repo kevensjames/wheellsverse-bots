@@ -6,14 +6,29 @@ so a disabled deployment has ZERO new surface. All endpoints are GET/read-only a
 approval-gated by design.
 """
 from __future__ import annotations
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from app.routers.admin_chat import require_kai_ultra  # reuse the owner-only gate (no parallel auth)
 from app.services.holding import reports
 from app.services.holding.briefing import run_morning_briefing
 
+def _record_hosted_route(request: Request) -> None:
+    """Hosted-route evidence, written by EVERY route on this router.
+
+    The claim it supports is "this build is serving its hosted routes", which is a property of the
+    build, not of one endpoint. Writing it from a single handler made it order-dependent: a request to
+    /timeline arriving before /deployment saw an unverified build and recorded a feature count of 0
+    into a durable, first-write-wins timeline row. Observed on staging, both rows present in one store.
+    A router-level dependency runs for every route here, so ordering cannot change the answer."""
+    try:
+        from app.services.holding.holding_deployment import mark_hosted_route_served
+        mark_hosted_route_served(request.url.path)
+    except Exception:                              # evidence is never worth failing a request over
+        pass
+
+
 router = APIRouter(prefix="/admin/holding", tags=["holding"],
-                   dependencies=[Depends(require_kai_ultra)])
+                   dependencies=[Depends(require_kai_ultra), Depends(_record_hosted_route)])
 
 
 @router.get("/overview")
@@ -424,12 +439,9 @@ def holding_deployment(principal=Depends(require_kai_ultra)):
     ENABLED per feature) + drift. Read-only; enables nothing. The dashboard renders this so the operator can
     always see what is built, deployed, disabled, staging-only, and running — never discovering drift from chat."""
     from app.config import settings
-    from app.services.holding.holding_deployment import (
-        deployment_view, deployed_sha, mark_hosted_route_served)
-    # Reaching this line means a route mounted on the running app served an authenticated request.
-    # That is the hosted-route evidence a LIVE_STAGING/LIVE_PROD claim requires; it is an observation
-    # made from inside the served request, and no import, flag or unit test can reach it.
-    mark_hosted_route_served("/admin/holding/deployment")
+    from app.services.holding.holding_deployment import deployment_view, deployed_sha
+    # Hosted-route evidence is recorded by this router's _record_hosted_route dependency, which runs for
+    # EVERY route here — not just this one. See that function for why the single-handler version was wrong.
     sha = deployed_sha()
     return deployment_view(settings, source_head=sha, peer_shas={"app_b": sha})
 

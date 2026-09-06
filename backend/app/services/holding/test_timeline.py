@@ -315,13 +315,32 @@ def run() -> bool:
     ck("the live _resolve_deployment passes APP_ENV through rather than relying on the default",
        "features=feature_registry(settings), env=env" in _src and 'env: str = "production"' not in _src)
 
+    # ── the deployment event's feature count must not depend on request ORDER ────────────────────
+    # Observed on staging: two rows for the same 19-feature build, one recording 19 and one recording 0,
+    # differing only in which route was served first. The row is durable and first-write-wins, so an
+    # order-dependent count is a permanently wrong record. Presence is a property of the build.
+    _regA = [{"feature_id": f"f{i}", "deployed": True} for i in range(19)]
+    _regB = [{"feature_id": f"f{i}", "deployed": False} for i in range(19)]   # same build, not yet verified
+    _a = tl.events_from_deployment("aaa111aaa111", features=_regA, env="staging")[0]
+    _b = tl.events_from_deployment("aaa111aaa111", features=_regB, env="staging")[0]
+    ck("features_present is identical whether or not the rows are marked deployed",
+       _a["refs"][0]["features_present"] == _b["refs"][0]["features_present"] == 19)
+    ck("...and the two renderings of the same build produce the SAME event_id and summary",
+       _a["event_id"] == _b["event_id"] and _a["summary"] == _b["summary"])
+    _rt2 = (pathlib.Path(__file__).resolve().parents[2] / "routers" / "admin_holding.py").read_text()
+    ck("hosted-route evidence is recorded by a ROUTER dependency, so every route establishes it",
+       "Depends(_record_hosted_route)" in _rt2 and "def _record_hosted_route" in _rt2)
+    ck("...and the marker is called ONLY from that dependency, never from an individual handler",
+       _rt2.count("mark_hosted_route_served(") == 1
+       and "mark_hosted_route_served(request.url.path)" in _rt2)
+
     # ── boundary: every surface that can expose the timeline is owner-gated ───────────────────────
     # The two readers are GET /admin/holding/timeline and the /view payload's timeline section. Neither
     # carries its own dependency: the gate is declared ONCE on the router, which is what makes it hold
     # for a route someone adds later. Assert the declaration, not one endpoint, so removing it is caught.
     _rt = (pathlib.Path(__file__).resolve().parents[2] / "routers" / "admin_holding.py").read_text()
     ck("timeline surfaces are owner-gated at the ROUTER, so no endpoint on it can be added ungated",
-       "dependencies=[Depends(require_kai_ultra)]" in _rt
+       "dependencies=[Depends(require_kai_ultra)" in _rt        # the gate is FIRST in the dependency list
        and '@router.get("/timeline")' in _rt and '@router.get("/view")' in _rt)
     ck("the timeline query is ordered by a TOTAL order (ts, insertion time, then the primary key)",
        "ORDER BY ts DESC, created_at DESC, event_id DESC" in

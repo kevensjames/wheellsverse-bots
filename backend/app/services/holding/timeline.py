@@ -312,7 +312,10 @@ def events_from_deployment(sha: str, *, features: list | None = None, env: str =
     (keyed by sha) keeps that first observation. Pure."""
     if not sha or sha == "UNKNOWN":
         return []
-    n = len([f for f in (features or []) if (f.get("deployed") if isinstance(f, dict) else True)])
+    # "present" means present in this BUILD. Counting only rows whose deployed flag was true made
+    # this number a function of deployment state, and therefore of request order, inside a durable
+    # first-write-wins record. Presence is a property of the registry alone.
+    n = len(features or [])
     return [{
         "event_id": f"deployment:{sha}", "ts": _now(), "type": "deployment", "company": "holding",
         "summary": f"deployed SHA {sha} observed ({n} features present) in {env}",
