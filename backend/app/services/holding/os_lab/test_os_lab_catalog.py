@@ -9,6 +9,7 @@ Network-free by construction: a static AST scan asserts the package imports noth
 clone / fetch / build / boot (no subprocess, socket, urllib, requests, git, os.system …).
 """
 import ast
+import dataclasses
 import json
 import pathlib
 import sys
@@ -18,6 +19,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4]))   # backend
 
 from app.services.capability.manifest import RiskClass                  # noqa: E402
 from app.services.holding.os_lab import catalog as C, runtimes as R     # noqa: E402
+from app.services.holding.os_lab import certification as CERT           # noqa: E402  (StepStatus for L4)
 from app.services.holding.os_lab.catalog import (                        # noqa: E402
     LabState as S, Disposition as D, OsCategory as K, Verdict as V, UpstreamStatus as U, UNVERIFIED,
     initial_catalog, get, advance, record_verdict, justify_adoption, record_repo_instruction,
@@ -73,6 +75,14 @@ def full_report(verdict=CLEAN.value, scope="FULL", status="PASS"):
     return {"scope": scope, "verdict": verdict, "steps": [{"id": f"s{i}", "status": status} for i in range(3)]}
 
 
+@dataclasses.dataclass
+class _EvStep:
+    """A report step as ``dataclasses.asdict`` renders it: Enum members are PRESERVED, not stringified (L4)."""
+    id: str
+    status: object
+    findings: list = dataclasses.field(default_factory=list)
+
+
 def run() -> bool:
     res = []
 
@@ -86,7 +96,8 @@ def run() -> bool:
     FORBIDDEN_OS_CALLS = {"system", "popen", "spawn", "spawnl", "spawnv", "execv", "execl", "execvp", "fork"}
     CATALOG_IMPORT_ALLOW = {"__future__", "re", "dataclasses", "enum", "typing",
                             "app.services.capability.manifest", "app.services.holding.task_resolver",
-                            "app.services.holding.os_lab.runtimes"}     # lazy, for the EXECUTED ledger gate
+                            "app.services.holding.os_lab.runtimes",     # lazy, for the EXECUTED ledger gate
+                            "app.services.holding.os_lab"}              # lazy, for certification.derive_verdict (M1)
 
     def _imports(tree):
         for node in ast.walk(tree):
@@ -234,6 +245,7 @@ def run() -> bool:
     # ── (g) §117 no-runtime-explosion gate + §114 verdict + §0 #11 no self-approval ──────────────
     with executed(build=True, qemu_boot=True):                     # simulated later phase — see executed()
         e = walk_to(initial_catalog()[5], S.SECURITY_REVIEW)       # Unikraft → SECURITY_REVIEW
+        e4 = walk_to(initial_catalog()[6], S.SECURITY_REVIEW)      # Nanos → SECURITY_REVIEW (M1/L4 subject)
     ck("verdict may only be recorded in SECURITY_REVIEW", raises(ValueError, record_verdict, initial_catalog()[5], V.SUSPICIOUS, actor="kai", reason="r", evidence={"r": 1}))
     ck("verdict requires a report as evidence", raises(ValueError, record_verdict, e, V.SUSPICIOUS, actor="kai", reason="r", evidence={}))
     ck("verdict outside the bounded vocab refused", raises(ValueError, record_verdict, e, "MALWARE_FREE", actor="kai", reason="r", evidence={"r": 1}))
@@ -254,6 +266,27 @@ def run() -> bool:
        and raises(ValueError, record_verdict, e, CLEAN, actor="operator", reason="r", evidence={"scope": "FULL", "steps": []}))
     ck("H1: a report without a 'verdict' key (e.g. an operator memo) is not a contradiction for non-clean verdicts",
        record_verdict(e, V.UNVERIFIED, actor="kai", reason="reset", evidence={"memo": "re-run"})["to"] == "UNVERIFIED")
+    # M1 — the report's self-declared 'verdict' is evidence, not authority: it is RE-DERIVED from the steps
+    ck("M1: a FULL report with FAIL steps + CRITICAL findings that declares verdict=clean is REFUSED "
+       "(re-derived from the attached steps, not trusted)",
+       raises(ValueError, record_verdict, e4, CLEAN, actor="operator", reason="r",
+              evidence={"scope": "FULL", "verdict": CLEAN.value,
+                        "steps": [{"id": "s0", "status": "PASS", "findings": []},
+                                  {"id": "s1", "status": "FAIL", "findings": [{"severity": "CRITICAL", "detail": "d"}]}]})
+       and e4.certification == V.UNVERIFIED)
+    ck("M1: all steps PASS but one MEDIUM finding attached → still refused (no escalating finding may certify)",
+       raises(ValueError, record_verdict, e4, CLEAN, actor="operator", reason="r",
+              evidence={"scope": "FULL", "verdict": CLEAN.value,
+                        "steps": [{"id": "s0", "status": "PASS", "findings": [{"severity": "MEDIUM"}]}]})
+       and e4.certification == V.UNVERIFIED)
+    # L4 — evidence built with dataclasses.asdict keeps Enum MEMBERS; str(Verdict.X) is 'Verdict.X', so the old
+    # str() comparison mis-refused a perfectly valid report. Compared on .value it is accepted.
+    ENUM_EV = {"scope": "FULL", "verdict": CLEAN,
+               "steps": [dataclasses.asdict(_EvStep(f"s{i}", CERT.StepStatus.PASS)) for i in range(3)]}
+    ck("L4: an asdict-built report (Verdict / StepStatus Enum members, not strings) is ACCEPTED — compared on .value",
+       str(ENUM_EV["verdict"]) != CLEAN.value and ENUM_EV["steps"][0]["status"] is CERT.StepStatus.PASS
+       and record_verdict(e4, CLEAN, actor="operator", reason="asdict evidence", evidence=ENUM_EV)["to"] == CLEAN.value
+       and e4.certification == CLEAN)
     ck("kai may not adopt (no self-approval, §0 #11)", raises(PermissionError, advance, e, S.CERTIFIED, actor="kai", reason="r", evidence={"x": 1}))
     ck("operator adoption without a GapJustification refused (§117)",
        raises(ValueError, advance, e, S.CERTIFIED, actor="operator", reason="r", evidence={"x": 1})

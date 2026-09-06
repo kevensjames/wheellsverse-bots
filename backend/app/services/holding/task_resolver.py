@@ -48,7 +48,7 @@ _SECRET_PATTERNS = [
     re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b"),                          # OpenAI incl. modern sk-proj-/sk-svcacct-
     re.compile(r"\b(?:gh[opsur]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b"),  # GitHub tokens
     re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),                   # Slack tokens
-    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\b(?:AKIA|ASIA|AROA)[0-9A-Z]{16}\b"),                 # AWS key ids: long-term / STS / role
     re.compile(r"\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
     re.compile(r"(?i)\b(authorization|cookie|set-cookie|x-api-key)\b\s*[:=]\s*\S+"),
     # compound secret key names in a FLAT string — handles logfmt (password=x), JSON ("password":"x"),

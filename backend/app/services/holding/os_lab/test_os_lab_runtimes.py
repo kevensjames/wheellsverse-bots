@@ -68,14 +68,18 @@ def run() -> bool:
     ck("Ultron to_dict carries all_unverified=True", u.to_dict()["all_unverified"] is True)
     # L2: forbidden claims are refused in ANY spelling, on EVERY verification field (normalized token match)
     SPELLINGS = ("malware free", "Malware-Free", "MALWARE_FREE_2026", "malware\tfree", "verified-safe", "Verified Safe",
-                 " clean ", "Clean", "safe_2026", "SAFE", "not safe", "safe-ish")
+                 " clean ", "Clean", "safe_2026", "SAFE", "not safe", "safe-ish",
+                 # L2 round 2: any non-alphanumeric separator, and the separator-STRIPPED spelling
+                 "MALWARE.FREE", "malware/free", "malware(free)", "malwarefree", "MalwareFree", "VerifiedSafe",
+                 "SAFE!", "clean.", "#clean", "safe.2026")
 
     def _refused_claim(field, value):
         try:
             R.UltronSandboxRecord(**{field: value}); return False
         except ValueError:
             return True
-    ck("L2: every FORBIDDEN_CLAIMS spelling (case/space/dash/suffix variants, MALWARE_FREE substring) is refused on all 9 verification fields",
+    ck("L2: every FORBIDDEN_CLAIMS spelling (case/space/dash/dot/slash/punctuation, separator-stripped "
+       "'malwarefree'/'VerifiedSafe', MALWARE_FREE substring) is refused on all 9 verification fields",
        len(R.ULTRON_VERIFICATION_FIELDS) == 9
        and all(_refused_claim(f, v) for f in R.ULTRON_VERIFICATION_FIELDS for v in SPELLINGS))
     ck("L2: a bounded, non-claim value still constructs (risk=HIGH, build_status=FAILED, last_verified=date); static_scan outside the §114 vocab does not",
@@ -204,6 +208,15 @@ def run() -> bool:
        and all(_enforce_raises(g, s) for s in ("Ultron OS", " syzkaller ", "os-lab:ultron")))
     ck("L3: non-OS principals stay NOT_OS_LAB_SOURCE after normalization",
        all(g.check(R.AuthorityClaim(s, "APPROVE")) == "NOT_OS_LAB_SOURCE" for s in ("operator", " Operator ", "kai", "KAI")))
+    # L3 round 2: exact-match let decorated ids through — match by token containment of the runtime stems, fail closed
+    ck("L3: DECORATED ids ('ultron-os-runtime', 'syzkaller_vm_1', 'OS-Lab/qemu', 'virtme_ng_vm2', 'oslab:x') are "
+       "OS-lab sources → APPROVE REJECTED + enforce() raises (no fall-through to NOT_OS_LAB_SOURCE)",
+       all(g.is_os_lab_source(s) and g.check(R.AuthorityClaim(s, "APPROVE")) == "REJECTED" and _enforce_raises(g, s)
+           for s in ("ultron-os-runtime", "syzkaller_vm_1", "OS-Lab/qemu", "virtme_ng_vm2", "oslab:x", "ULTRON.OS")))
+    ck("L3: the governed-principal allowlist (operator / kai / owner:*) still stays NOT_OS_LAB_SOURCE, and an "
+       "unrelated principal does too",
+       all(g.check(R.AuthorityClaim(s, "APPROVE")) == "NOT_OS_LAB_SOURCE"
+           for s in ("operator", "kai", "owner", "owner:alice", "OWNER:kevens", "github_actions", "postgres")))
     ck("guard: AUTHORITY_ACTIONS covers grant/approve/deploy/financial/governance/flag/role/host/auto-select",
        {"GRANT_AUTHORITY", "APPROVE", "APPROVE_DEPLOY", "APPROVE_FINANCIAL", "REWRITE_GOVERNANCE", "SET_POLICY",
         "ENABLE_FLAG", "ESCALATE_ROLE", "EXECUTE_ON_HOST", "AUTO_SELECT_RUNTIME"} <= R.AUTHORITY_ACTIONS)
