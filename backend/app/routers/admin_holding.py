@@ -540,9 +540,15 @@ def _sec_system_graph() -> dict:
     return build_graph().view()                    # bounded structural overview (entities + §14 hierarchy)
 
 
-def _sec_timeline(*, type: str | None = None, company: str | None = None, limit: int = 100) -> list:
-    from app.services.holding.timeline import query
-    return query(type=type, company=company, limit=limit)
+_TIMELINE_UNAVAILABLE = {"events": [], "store": "UNAVAILABLE", "sources": []}
+
+
+def _sec_timeline(*, type: str | None = None, company: str | None = None, limit: int = 100) -> dict:
+    """§61 panel payload: the stored events PLUS the honest status of the store and of each real source.
+    timeline.view() ingests from those sources on the read path (idempotent — §79 allows no new
+    scheduler), so an empty list here is a fact about the sources, never an unwired panel."""
+    from app.services.holding.timeline import view
+    return view(type=type, company=company, limit=limit)
 
 
 def _sec_attention() -> dict:
@@ -646,9 +652,11 @@ def holding_system_graph(principal=Depends(require_kai_ultra)):
 @router.get("/timeline")
 def holding_timeline(type: str | None = None, company: str | None = None, limit: int = 100,
                      principal=Depends(require_kai_ultra)):
-    """§61 HoldingTimeline — bounded, newest-first observable events (optionally filtered by type/company).
-    Read-only; empty list when the store is unavailable or nothing has been ingested."""
-    return {"events": _soft(lambda: _sec_timeline(type=type, company=company, limit=limit), [])}
+    """§61 HoldingTimeline — bounded, newest-first observable events (optionally filtered by type/company),
+    ingested on read from the real sources (audit log / missions / proposals / deployment / security).
+    Also returns ``store`` and per-``sources`` status: an empty ``events`` list with nothing CONNECTED means
+    the sources are unreadable in this build, NOT that nothing happened. Read-only."""
+    return _soft(lambda: _sec_timeline(type=type, company=company, limit=limit), _TIMELINE_UNAVAILABLE)
 
 
 @router.get("/attention")
@@ -764,7 +772,7 @@ def holding_view():
     view.update({
         "health": _soft(_sec_health, {"score": "NO SCORE / INSUFFICIENT_DATA", "band": "INSUFFICIENT_DATA"}),
         "system_graph": _soft(_sec_system_graph, {"nodes": [], "edges": [], "summary": {}, **_UNAVAILABLE}),
-        "timeline": _soft(lambda: _sec_timeline(limit=25), []),
+        "timeline": _soft(lambda: _sec_timeline(limit=25), _TIMELINE_UNAVAILABLE),
         "attention": _soft(_sec_attention, _UNAVAILABLE),
         "missions": missions,
         "problems": _soft(_sec_problems, []),

@@ -145,6 +145,20 @@ def t_signin_guidance_is_actionable_on_this_page():
         assert bad not in shown.lower(), f"credential material in the rendered sign-in banner: {bad}"
 
 
+def t_timeline_empty_is_never_ambiguous():
+    """§61: an empty Timeline must say WHY. 'no events recorded' and 'no source is readable' are different
+    facts and must not share a message — otherwise the operator reads an unwired panel as 'nothing
+    happened'. (The rendered text of each state is asserted in frontend/admin/test_timeline_panel.js.)"""
+    rt = _fn("renderTimeline")
+    assert "tl.store" in rt and "s.status === 'CONNECTED'" in rt, "the panel ignores store/source status"
+    assert "does NOT mean nothing happened" in rt, "no explicit unavailable state for unreadable sources"
+    assert "No observable events recorded by the connected sources" in rt, "no honest-empty state"
+    # the two states are mutually exclusive branches of one condition, never the same string
+    assert "tl.store !== 'CONNECTED' || !live.length" in rt
+    # and nothing is ever rendered that did not come from the payload's stored events
+    assert "for(const e of evs)" in rt and "arr(tl.events)" in rt
+
+
 def t_mobile_and_money_mode():
     assert 'name="viewport"' in HTML and "width=device-width" in HTML     # mobile
     assert "auto-fill,minmax" in HTML                                     # responsive grid

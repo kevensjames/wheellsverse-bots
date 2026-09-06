@@ -943,17 +943,33 @@ function renderHealth(v){
   el.innerHTML = h;
 }
 
-/* §61 TIMELINE */
+/* §61 TIMELINE
+   An EMPTY timeline is ambiguous unless the panel says why, so the payload carries the store status and a
+   per-source status and this renderer keeps the two apart:
+     · store/sources readable, no rows → nothing observable was recorded (a fact)
+     · nothing readable                → UNAVAILABLE; the emptiness proves nothing and is labelled so
+   An event is only ever drawn from a real stored record — never inferred to fill the panel. */
 function renderTimeline(v){
   const el=$('tlBody');
   if(failed(v)){ el.innerHTML = honest(v,'Timeline'); return; }
   const raw = v.timeline;
-  const evs = Array.isArray(raw)?raw:arr(raw&&raw.events);
-  if(!evs.length){ el.innerHTML = emptyMsg('No observable events ingested yet (no fabricated history).'); return; }
+  const tl = (raw && !Array.isArray(raw)) ? raw : {events:arr(raw), store:'UNKNOWN', sources:[]};
+  const evs = arr(tl.events), srcs = arr(tl.sources);
+  const live = srcs.filter(s => s && s.status === 'CONNECTED');
   let h='';
   for(const e of evs){
     h+='<div class="row"><span>'+badge(e.provenance||'DERIVED')+' <span class="badge off">'+esc(e.type)+'</span> '+esc(e.summary)+'</span></div>'
       +'<div class="meta">'+fmtTs(e.ts)+' · '+esc(e.company)+' · <code>'+esc(e.source)+'</code></div>';
+  }
+  if(!evs.length){
+    h = (tl.store !== 'CONNECTED' || !live.length)
+      ? '<div class="row"><span>'+badge('UNAVAILABLE')+' No timeline source is readable on this backend, so an empty timeline here does NOT mean nothing happened.</span></div>'
+      : emptyMsg('No observable events recorded by the connected sources (nothing is fabricated to fill this panel).');
+  }
+  if(srcs.length){
+    h += '<div class="meta" style="margin-top:8px">Ingested live from: '
+      + srcs.map(s => '<code>'+esc(s.source)+'</code> '+badge(s.status)+' '+esc(s.events||0)+(s.events===1?' event':' events')).join(' · ')
+      + ' · store '+badge(tl.store||'UNKNOWN')+'</div>';
   }
   el.innerHTML = h;
 }

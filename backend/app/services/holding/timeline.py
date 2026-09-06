@@ -9,8 +9,19 @@ What it is NOT (the certified boundary):
   • It NEVER stores hidden chain-of-thought. append() REJECTS any event carrying a reasoning-trace /
     scratchpad / internal-monologue field (recursively) — only observable, published facts are stored.
   • It NEVER fabricates events. Events come from the EXISTING real sources via an injectable adapter
-    (audit_log / mission transitions / holding_deployment / security events). No source data → 0 events.
+    (audit_log / mission transitions / proposals / holding_deployment / security events). No source
+    data → 0 events.
   • Every event is provenance-tagged (REAL | DERIVED | UNAVAILABLE) and typed.
+
+HOW IT IS WIRED (the §61 read path). ``view()`` is THE panel payload and the only thing the router calls:
+it ``ingest()``s from the real sources and then returns the bounded stored view. Ingestion runs on the
+READ path deliberately — §79 forbids a new collector/daemon/scheduler, and append is idempotent, so the
+read seam is the wiring. Two consequences the operator is entitled to see, both carried in the payload:
+  • ``store``   — CONNECTED / UNAVAILABLE for the durable store itself.
+  • ``sources`` — one row per real source with CONNECTED / UNAVAILABLE + how many events it contributed.
+An UNREADABLE source (its module is not in this build, or the read failed) must therefore never render as
+"nothing happened": the panel states which sources are readable, so an empty timeline is a fact about the
+sources, not an inference. Nothing is ever synthesised to fill the gap.
 
 Durable store: the self-creating-table, fail-soft pattern of proposals_store / cycle_store / mission on
 App B's Postgres. append() is idempotent (ON CONFLICT (event_id) DO NOTHING) so re-ingesting the same
@@ -27,7 +38,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from app.database import SessionLocal
 
 # ── the observable event vocabulary (§61) ────────────────────────────────────────────────────────────
@@ -124,6 +135,18 @@ def _ensure(db) -> None:
         pass
 
 
+_INSERT = ("INSERT INTO holding_timeline (event_id, ts, type, company, summary, source, provenance, refs) "
+           "VALUES (:id, :ts, :ty, :co, :su, :sr, :pr, CAST(:rf AS JSONB)) "
+           "ON CONFLICT (event_id) DO NOTHING")
+
+
+def _row(event: dict) -> dict:
+    return {"id": event["event_id"], "ts": event["ts"], "ty": event["type"],
+            "co": event.get("company") or "holding", "su": event["summary"],
+            "sr": event["source"], "pr": event["provenance"],
+            "rf": json.dumps(event.get("refs") or [])}
+
+
 def append(event: dict) -> dict:
     """Validate then durably append ONE observable event. Idempotent (ON CONFLICT (event_id) DO NOTHING),
     so re-ingesting the same real source never duplicates. Returns {ok, inserted, reason}. A rejected
@@ -136,14 +159,7 @@ def append(event: dict) -> dict:
         db = SessionLocal()
         try:
             _ensure(db)
-            r = db.execute(text(
-                "INSERT INTO holding_timeline (event_id, ts, type, company, summary, source, provenance, refs) "
-                "VALUES (:id, :ts, :ty, :co, :su, :sr, :pr, CAST(:rf AS JSONB)) "
-                "ON CONFLICT (event_id) DO NOTHING RETURNING event_id"),
-                {"id": event["event_id"], "ts": event["ts"], "ty": event["type"],
-                 "co": event.get("company") or "holding", "su": event["summary"],
-                 "sr": event["source"], "pr": event["provenance"],
-                 "rf": json.dumps(event.get("refs") or [])}).fetchone()
+            r = db.execute(text(_INSERT + " RETURNING event_id"), _row(event)).fetchone()
             db.commit()
             return {"ok": True, "inserted": bool(r), "reason": "OK"}
         finally:
@@ -152,9 +168,53 @@ def append(event: dict) -> dict:
         return {"ok": False, "inserted": False, "reason": "PERSIST_FAILED"}
 
 
+def append_many(events: list) -> dict:
+    """Validate then durably append MANY observable events in ONE statement. Same admission rule as
+    append() — a rejected event (missing fields / unknown type / bad provenance / hidden chain-of-thought)
+    is NOT stored and is counted in ``rejected``. Idempotent: already-stored event_ids are skipped, so
+    re-ingesting the same real sources on every read never duplicates and never re-writes history.
+    Returns {ok, inserted, rejected}. Fails SOFT (ok=False) if the DB is down. Never raises.
+
+    This exists because ingest() runs on the read path: one session + one statement, not one session,
+    one CREATE-TABLE-IF-NOT-EXISTS and one round trip per candidate event."""
+    rows, rejected = [], 0
+    for ev in (events or []):
+        ok, _reason = validate_event(ev)
+        if ok:
+            rows.append(_row(ev))
+        else:
+            rejected += 1
+    if not rows:
+        return {"ok": True, "inserted": 0, "rejected": rejected}
+    try:
+        db = SessionLocal()
+        try:
+            _ensure(db)
+            ids = [r["id"] for r in rows]
+            seen = {x[0] for x in db.execute(
+                text("SELECT event_id FROM holding_timeline WHERE event_id IN :ids").bindparams(
+                    bindparam("ids", expanding=True)), {"ids": ids}).fetchall()}
+            new = [r for r in rows if r["id"] not in seen]
+            if new:
+                db.execute(text(_INSERT), new)      # executemany; ON CONFLICT covers a concurrent writer
+            db.commit()
+            return {"ok": True, "inserted": len(new), "rejected": rejected}
+        finally:
+            db.close()
+    except Exception:
+        return {"ok": False, "inserted": 0, "rejected": rejected}
+
+
 def query(*, type: str | None = None, company: str | None = None, limit: int = 100) -> list:
     """Bounded, newest-first timeline view, optionally filtered by type and/or company. limit is clamped
     to [1, 500]. Returns event dicts. Fails SOFT (returns []) if the DB is down. Never raises."""
+    return _query(type=type, company=company, limit=limit)[0]
+
+
+def _query(*, type: str | None = None, company: str | None = None, limit: int = 100) -> tuple[list, bool]:
+    """query() + whether the STORE was actually readable. The panel needs the difference: an empty list
+    from a healthy store means 'no events recorded', an empty list from an unreachable store means
+    'unknown' — and the two must never render the same way."""
     lim = max(1, min(int(limit or 100), 500))
     try:
         db = SessionLocal()
@@ -167,18 +227,22 @@ def query(*, type: str | None = None, company: str | None = None, limit: int = 1
                 q += " AND type = :ty"; params["ty"] = type
             if company:
                 q += " AND company = :co"; params["co"] = company
-            q += " ORDER BY ts DESC, created_at DESC LIMIT :lim"
+            # TOTAL order: ts, then insertion time, then the PRIMARY KEY. The last term is what makes
+            # it deterministic — append_many writes a whole batch in one transaction, so created_at
+            # (DEFAULT now() = transaction time) ties across it, and event_id is the only unique
+            # column left. Without it two reads of an unchanged store could order events differently.
+            q += " ORDER BY ts DESC, created_at DESC, event_id DESC LIMIT :lim"
             rows = db.execute(text(q), params).fetchall()
             out = []
             for r in rows:
                 refs = r[7] if isinstance(r[7], (list, dict)) else json.loads(r[7] or "[]")
                 out.append({"event_id": r[0], "ts": str(r[1]), "type": r[2], "company": r[3],
                             "summary": r[4], "source": r[5], "provenance": r[6], "refs": refs})
-            return out
+            return out, True
         finally:
             db.close()
     except Exception:
-        return []
+        return [], False
 
 
 # ── source adapters — map the EXISTING real sources to observable events (PURE, no fabrication) ─────────
@@ -256,6 +320,36 @@ def events_from_deployment(sha: str, *, features: list | None = None, env: str =
         "refs": [{"sha": sha, "features_present": n, "environment": env}]}]
 
 
+def events_from_proposals(rows: list) -> list:
+    """Owner-facing proposals → OBSERVABLE events, both timestamped by the row's OWN real columns:
+    ``created_at`` → the kai_recommendation KAI published, ``decided_at`` → the owner's approval decision.
+    An undecided proposal yields NO decision event (nothing is presumed); a row without its timestamp
+    yields nothing for that half. The reject_reason text is deliberately not carried — the decision is the
+    observable fact. Pure."""
+    out = []
+    for p in (rows or []):
+        d = p if isinstance(p, dict) else (p.as_dict() if hasattr(p, "as_dict") else dict(p))
+        pid = d.get("id")
+        if pid in (None, ""):
+            continue
+        title = d.get("title") or f"proposal {pid}"
+        co = d.get("entity") or "holding"
+        if d.get("created_at"):
+            out.append({
+                "event_id": f"proposal:{pid}:PROPOSED", "ts": d["created_at"], "type": "kai_recommendation",
+                "company": co, "summary": f"KAI proposed: {title}",
+                "source": "holding.proposals_store", "provenance": "REAL",
+                "refs": [{"proposal_id": pid, "severity": d.get("severity"), "status": d.get("status")}]})
+        status = str(d.get("status") or "").lower()
+        if d.get("decided_at") and status in ("approved", "rejected"):
+            out.append({
+                "event_id": f"proposal:{pid}:{status.upper()}", "ts": d["decided_at"], "type": "approval",
+                "company": co, "summary": f"owner {status} proposal: {title}",
+                "source": "holding.proposals_store", "provenance": "REAL",
+                "refs": [{"proposal_id": pid, "decision": status}]})
+    return out
+
+
 def events_from_security(sec_events: list) -> list:
     """Normalized SecurityEvents (evidence_bus.events) → OBSERVABLE security-event timeline entries. Pure."""
     out = []
@@ -274,77 +368,125 @@ def events_from_security(sec_events: list) -> list:
     return out
 
 
-def ingest(*, audit=None, missions=None, deployment=None, security=None, limit: int = 200) -> dict:
-    """Ingest observable events from the four EXISTING real sources and append them (idempotent). Each
-    source is INJECTABLE — pass a list to use a fixture; leave None to read the REAL source (fail-soft).
-    NOTHING is fabricated: a source with no data contributes 0 events. Returns per-source + total counts.
+def ingest(*, audit=None, missions=None, proposals=None, deployment=None, security=None,
+           limit: int = 200) -> dict:
+    """Ingest observable events from the EXISTING real sources and append them (idempotent). Each source
+    is INJECTABLE — pass a list to use a fixture; leave None to read the REAL source (fail-soft).
+    NOTHING is fabricated: a source with no data contributes 0 events, and a source that cannot be read
+    contributes 0 events AND is reported UNAVAILABLE so its silence is never mistaken for 'nothing
+    happened'.
 
     ``deployment`` (when None) is read as the current deployed SHA + feature registry; pass a dict
-    {"sha", "features", "env"} or a list of pre-built deployment events to inject."""
+    {"sha", "features", "env"} or a list of pre-built deployment events to inject.
+
+    Returns {candidates, inserted, rejected, sources:[{source, status, events}]}."""
+    plan = (
+        ("governance.audit_log", audit, _read_audit, events_from_audit),
+        ("holding.mission", missions, _read_missions, events_from_missions),
+        ("holding.proposals_store", proposals, _read_proposals, events_from_proposals),
+        ("security.evidence_bus", security, _read_security, events_from_security),
+    )
     events: list = []
+    sources: list = []
+    for name, injected, reader, adapt in plan:
+        recs, ok = (injected, True) if injected is not None else reader(limit)
+        evs = adapt(recs)
+        events += evs
+        sources.append({"source": name, "status": "CONNECTED" if ok else "UNAVAILABLE", "events": len(evs)})
 
-    recs = audit if audit is not None else _read_audit(limit)
-    events += events_from_audit(recs)
+    dep, dep_ok = _resolve_deployment(deployment)
+    events += dep
+    sources.append({"source": "holding.holding_deployment",
+                    "status": "CONNECTED" if dep_ok else "UNAVAILABLE", "events": len(dep)})
 
-    hdrs = missions if missions is not None else _read_missions(limit)
-    events += events_from_missions(hdrs)
-
-    events += _resolve_deployment(deployment)
-
-    secs = security if security is not None else _read_security(limit)
-    events += events_from_security(secs)
-
-    inserted = 0
-    rejected = 0
-    for ev in events:
-        r = append(ev)
-        if r.get("inserted"):
-            inserted += 1
-        elif not r.get("ok"):
-            rejected += 1
-    return {"candidates": len(events), "inserted": inserted, "rejected": rejected,
-            "by_source": {"audit": len(events_from_audit(recs)), "missions": len(events_from_missions(hdrs))}}
+    r = append_many(events)
+    return {"candidates": len(events), "inserted": r["inserted"], "rejected": r["rejected"],
+            "sources": sources}
 
 
-# ── real-source readers (fail-soft; the injection seams above bypass these in tests) ───────────────────
-def _read_audit(limit: int) -> list:
+def view(*, type: str | None = None, company: str | None = None, limit: int = 100) -> dict:
+    """THE §61 panel payload — the one function the router calls.
+
+    Ingests from the real sources (idempotent; on the read path because §79 forbids a new collector /
+    daemon / scheduler) and returns the bounded stored view TOGETHER with the honest status of the store
+    and of every source. The panel needs all three facts to tell the operator the truth:
+      events + sources CONNECTED           → these things happened
+      no events + a source CONNECTED       → no observable events recorded (a fact, not a gap)
+      no events + nothing CONNECTED        → UNAVAILABLE; the silence proves nothing
+    Never raises; never fabricates an event to fill an empty panel."""
+    try:
+        sources = ingest(limit=200).get("sources", [])
+    except Exception:                                       # fail closed: unknown sources, not "all fine"
+        sources = []
+    rows, store_ok = _query(type=type, company=company, limit=limit)
+    return {"events": rows, "store": "CONNECTED" if store_ok else "UNAVAILABLE", "sources": sources}
+
+
+# ── real-source readers — each returns (records, readable). "readable" is the honest difference between
+#    a source that is present and empty and one this build cannot read at all (module absent / read failed).
+def _read_audit(limit: int) -> tuple[list, bool]:
     try:
         from app.services.governance import list_actions
-        return list_actions(limit=limit)
+        return list_actions(limit=limit), True
     except Exception:
-        return []
+        return [], False
 
 
-def _read_missions(limit: int) -> list:
+def _db_ok() -> bool:
+    """Is Postgres actually reachable? The DB-backed readers below fail SOFT to [] internally, so an empty
+    result from them is ambiguous — this is the probe that resolves it. Only called when a source came back
+    empty, i.e. only when the distinction matters."""
+    try:
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+            return True
+        finally:
+            db.close()
+    except Exception:
+        return False
+
+
+def _read_missions(limit: int) -> tuple[list, bool]:
     try:
         from app.services.holding.mission import list_missions
-        return list_missions(limit=limit)
+        rows = list_missions(limit=limit)
+        return rows, (True if rows else _db_ok())
     except Exception:
-        return []
+        return [], False
 
 
-def _read_security(limit: int) -> list:
+def _read_proposals(limit: int) -> tuple[list, bool]:
+    try:
+        from app.services.holding.proposals_store import list_proposals
+        rows = list_proposals(limit=limit)
+        return rows, (True if rows else _db_ok())
+    except Exception:
+        return [], False
+
+
+def _read_security(limit: int) -> tuple[list, bool]:
     try:
         from app.services.security.evidence_bus import events as sec_events
-        return (sec_events(limit=limit) or {}).get("events", [])
+        return (sec_events(limit=limit) or {}).get("events", []), True
     except Exception:
-        return []
+        return [], False                    # not shipped in every build → UNAVAILABLE, never silent-empty
 
 
-def _resolve_deployment(deployment) -> list:
+def _resolve_deployment(deployment) -> tuple[list, bool]:
     if isinstance(deployment, list):
-        return deployment                                   # pre-built events injected
+        return deployment, True                             # pre-built events injected
     if isinstance(deployment, dict):
         return events_from_deployment(deployment.get("sha", ""), features=deployment.get("features"),
-                                      env=deployment.get("env", "production"))
+                                      env=deployment.get("env", "production")), True
     if deployment is not None:
-        return []
+        return [], True
     try:
         from app.services.holding.holding_deployment import deployed_sha, feature_registry
         from app.config import settings
-        return events_from_deployment(deployed_sha(), features=feature_registry(settings))
+        return events_from_deployment(deployed_sha(), features=feature_registry(settings)), True
     except Exception:
-        return []
+        return [], False
 
 
 if __name__ == "__main__":

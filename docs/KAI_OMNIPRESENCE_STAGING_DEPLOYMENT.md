@@ -98,8 +98,11 @@ The three defects that would have survived a perfect deploy (commit `45aa5bd`):
 - **No authenticated hosted BROWSER screenshot.** The authenticated chain was proven at the API layer;
   driving the browser through sign-in would have required putting the staging key into page context.
   The screenshot on file is the unauthenticated state.
-- **Timeline is empty by construction.** `timeline.ingest()` has no caller outside its own test, so the
-  panel stays empty even deployed and flagged on. Not a deployment fault.
+- **Timeline was empty by construction.** `timeline.ingest()` had no caller outside its own test, so the
+  panel stayed empty even deployed and flagged on. Not a deployment fault. **SUPERSEDED on
+  `release/kai-holding-os`:** `timeline.view()` now ingests from the real sources on the read path and the
+  payload/panel carry per-source status, so an empty timeline states whether the sources were readable.
+  The observation above remains the accurate record of what this staging run measured.
 - **Missions/working_now stay empty** while the A2 brakes are off — no `worker_jobs` are produced.
 - **Voice and camera were not exercised**, by design: their router is dark. Real-device media testing is
   **NOT RUN** (no consent given, no hardware harness).

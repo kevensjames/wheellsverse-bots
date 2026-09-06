@@ -7,12 +7,14 @@ real sources via injectable adapters (empty sources → 0 events, never fabricat
 query is newest-first and filterable. Pure logic is DB-free; a guarded Postgres smoke exercises the
 durable append/query + idempotency + the CoT rejection at the write boundary when a DB is reachable.
 """
+import pathlib
 import uuid
+from datetime import datetime, timezone
 
 from app.services.holding import timeline as tl
 from app.services.holding.timeline import (validate_event, EVENT_TYPES, events_from_audit,
                                            events_from_missions, events_from_deployment,
-                                           events_from_security, ingest)
+                                           events_from_proposals, events_from_security, ingest)
 
 res = []
 def ck(n, ok): res.append(bool(ok)); print(f"  [{'PASS' if ok else 'FAIL'}] {n}")
@@ -23,6 +25,11 @@ def _ev(**kw):
             "summary": "deployed x", "source": "test", "provenance": "REAL", "refs": []}
     base.update(kw)
     return base
+
+
+def _utc(s):
+    """The instant a timestamp names — Postgres hands it back in the server's own zone offset."""
+    return datetime.fromisoformat(str(s).replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
 def _db_up() -> bool:
@@ -108,10 +115,59 @@ def run() -> bool:
     ck("security adapter maps a SecurityEvent → a typed security_event (validates, REAL)",
        len(sec) == 1 and sec[0]["type"] == "security_event" and validate_event(sec[0])[0])
 
+    ck("proposals adapter: no rows → 0 events (honest empty)", events_from_proposals([]) == [])
+    props = events_from_proposals([
+        {"id": 7, "created_at": "2026-09-04T07:00:00Z", "entity": "sol", "title": "rotate API key",
+         "severity": "HIGH", "status": "approved", "decided_at": "2026-09-04T08:00:00Z"},
+        {"id": 8, "created_at": "2026-09-04T09:00:00Z", "entity": "kai", "title": "add index",
+         "severity": "LOW", "status": "proposed", "decided_at": None}])
+    ck("proposals adapter: a DECIDED proposal → recommendation + approval; an OPEN one → recommendation only",
+       [e["event_id"] for e in props] == ["proposal:7:PROPOSED", "proposal:7:APPROVED", "proposal:8:PROPOSED"])
+    ck("every proposal event traces to its real row id and carries THAT ROW's own timestamp (never synthesized)",
+       all(e["refs"][0]["proposal_id"] in (7, 8) and e["provenance"] == "REAL" for e in props)
+       and [e["ts"] for e in props] == ["2026-09-04T07:00:00Z", "2026-09-04T08:00:00Z", "2026-09-04T09:00:00Z"]
+       and all(validate_event(e)[0] and not tl._contains_cot(e) for e in props))
+    ck("a proposal row with no timestamps contributes NOTHING (an absent fact is never a placeholder event)",
+       events_from_proposals([{"id": 9, "title": "x", "status": "approved"}]) == [])
+
     # ── ingest is fully injectable; empty everywhere → 0 candidates (no fabrication) ─────────────────────
-    empty = ingest(audit=[], missions=[], deployment=[], security=[])
+    empty = ingest(audit=[], missions=[], proposals=[], deployment=[], security=[])
     ck("ingest with all sources empty → 0 candidates (events come from real sources only)",
        empty["candidates"] == 0 and empty["inserted"] == 0)
+
+    # ── §61 WIRING: the panel is fed on the read path, and an unreadable source is NEVER silently empty ──
+    ck("ingest reports one status row per real source (audit / mission / proposals / security / deployment)",
+       [s["source"] for s in empty["sources"]] == ["governance.audit_log", "holding.mission",
+        "holding.proposals_store", "security.evidence_bus", "holding.holding_deployment"])
+
+    _saved = (tl._read_audit, tl._read_missions, tl._read_proposals, tl._read_security, tl._resolve_deployment)
+    tl._read_audit = tl._read_missions = tl._read_proposals = tl._read_security = lambda _l: ([], False)
+    tl._resolve_deployment = lambda _d: ([], False)
+    dead = ingest()                       # every source unreadable — the "module not in this build" case
+    dead_view = tl.view(limit=5)
+    tl._read_audit, tl._read_missions, tl._read_proposals, tl._read_security, tl._resolve_deployment = _saved
+    ck("a source this build cannot read is reported UNAVAILABLE with 0 events — not a silent empty",
+       dead["candidates"] == 0 and all(s["status"] == "UNAVAILABLE" and s["events"] == 0
+                                       for s in dead["sources"]))
+    ck("view() with every source unreadable exposes it: 0 CONNECTED sources (the panel must NOT read as 'nothing happened')",
+       not [s for s in dead_view["sources"] if s["status"] == "CONNECTED"] and len(dead_view["sources"]) == 5)
+
+    live = tl.view(limit=5)               # NO injection: the REAL wiring against this build's sources
+    ck("view() returns the panel contract: events + store status + per-source status",
+       set(live) == {"events", "store", "sources"} and live["store"] in ("CONNECTED", "UNAVAILABLE")
+       and all(set(s) == {"source", "status", "events"} for s in live["sources"]))
+    ck("the REAL wiring resolves: the audit log + deployment sources are readable in this build (the panel is fed, not dormant)",
+       {s["source"] for s in live["sources"] if s["status"] == "CONNECTED"}
+       >= {"governance.audit_log", "holding.holding_deployment"})
+    ck("security.evidence_bus is absent from this build → UNAVAILABLE, stated rather than silently empty",
+       [s["status"] for s in live["sources"] if s["source"] == "security.evidence_bus"] == ["UNAVAILABLE"])
+    ck("every event view() returns is a stored record with a real source + provenance (nothing invented)",
+       all(e["source"] and e["provenance"] in ("REAL", "DERIVED", "UNAVAILABLE") and not tl._contains_cot(e)
+           for e in live["events"]))
+
+    ck("append_many applies the SAME admission rule (hidden CoT / malformed rejected, nothing stored, no DB touched)",
+       tl.append_many([{"bad": 1}, _ev(event_id="cot-batch", reasoning_trace="x")])
+       == {"ok": True, "inserted": 0, "rejected": 2} and tl.append_many([])["inserted"] == 0)
 
     # ── guarded Postgres smoke: durable append/query + idempotency + CoT rejection at the write boundary ─
     if _db_up():
@@ -123,52 +179,138 @@ def run() -> bool:
             db = SessionLocal(); db.execute(_t("DELETE FROM holding_timeline WHERE event_id LIKE :p"),
                                             {"p": f"%{tag}%"}); db.commit(); db.close()
 
+        def _tagged():
+            return [e for e in tl.query(limit=500) if tag in e["event_id"]]
+
         tl.append(_ev(event_id=f"seed:{tag}"))   # ensure table
         _clean()
-
-        e_dep = _ev(event_id=f"deployment:{tag}", type="deployment", company="holding", ts="2026-09-04T00:00:00Z")
-        e_mis = _ev(event_id=f"mission:{tag}", type="mission", company="sol", ts="2026-09-04T05:00:00Z",
-                    summary="mission COMPLETE: fix", source="holding.mission")
-        r1 = tl.append(e_dep)
-        ck("[db] append stores a valid observable event", r1["ok"] and r1["inserted"])
-        r2 = tl.append(e_dep)
-        ck("[db] append is idempotent — same event_id inserts once (re-ingest never duplicates)",
-           r2["ok"] and r2["inserted"] is False)
-        tl.append(e_mis)
-
-        cot = _ev(event_id=f"cot:{tag}", refs=[{"chain_of_thought": "secret plan"}])
-        r3 = tl.append(cot)
-        ck("[db] append REFUSES a hidden-chain-of-thought event at the write boundary (nothing stored)",
-           r3["ok"] is False and r3["reason"] == "REJECTED_CHAIN_OF_THOUGHT")
-        db = SessionLocal()
+      # Everything below writes REAL rows into the store DATABASE_URL names. try/finally is not tidiness:
+      # without it one exception leaves test events in a live timeline, where nothing distinguishes them
+      # from real ones. The finally removes them and the check after this block PROVES they are gone.
         try:
-            stored = db.execute(_t("SELECT count(*) FROM holding_timeline WHERE event_id = :i"),
-                                {"i": f"cot:{tag}"}).fetchone()[0]
+
+            e_dep = _ev(event_id=f"deployment:{tag}", type="deployment", company="holding", ts="2026-09-04T00:00:00Z")
+            e_mis = _ev(event_id=f"mission:{tag}", type="mission", company="sol", ts="2026-09-04T05:00:00Z",
+                        summary="mission COMPLETE: fix", source="holding.mission")
+            r1 = tl.append(e_dep)
+            ck("[db] append stores a valid observable event", r1["ok"] and r1["inserted"])
+            r2 = tl.append(e_dep)
+            ck("[db] append is idempotent — same event_id inserts once (re-ingest never duplicates)",
+               r2["ok"] and r2["inserted"] is False)
+            tl.append(e_mis)
+
+            cot = _ev(event_id=f"cot:{tag}", refs=[{"chain_of_thought": "secret plan"}])
+            r3 = tl.append(cot)
+            ck("[db] append REFUSES a hidden-chain-of-thought event at the write boundary (nothing stored)",
+               r3["ok"] is False and r3["reason"] == "REJECTED_CHAIN_OF_THOUGHT")
+            db = SessionLocal()
+            try:
+                stored = db.execute(_t("SELECT count(*) FROM holding_timeline WHERE event_id = :i"),
+                                    {"i": f"cot:{tag}"}).fetchone()[0]
+            finally:
+                db.close()
+            ck("[db] the rejected CoT event is genuinely NOT in the store", stored == 0)
+
+            allrows = [e for e in tl.query(limit=500) if tag in e["event_id"]]
+            ck("[db] query is newest-first (mission ts > deployment ts)",
+               [e["event_id"] for e in allrows][:2] == [f"mission:{tag}", f"deployment:{tag}"])
+            ck("[db] query filters by type", all(e["type"] == "mission"
+               for e in tl.query(type="mission", limit=500) if tag in e["event_id"]))
+            ck("[db] query filters by company",
+               [e["event_id"] for e in tl.query(company="sol", limit=500) if tag in e["event_id"]] == [f"mission:{tag}"])
+
+            # ingest end-to-end from injected REAL-shaped fixtures → durable rows, then honest empty re-ingest
+            ing = ingest(audit=[{"id": f"aud-{tag}", "action": "execute", "scope": "sol.deploy",
+                                 "approved": True, "success": True, "destructive": True,
+                                 "ts": "2026-09-04T06:00:00Z"}],
+                         missions=[], deployment=[], security=[])
+            ck("[db] ingest appends real-source events (1 approval from an approved audit record)",
+               ing["inserted"] == 1)
+            ck("[db] the ingested approval is queryable + observable (no CoT)",
+               any(e["event_id"] == f"approval:aud-{tag}" and not tl._contains_cot(e)
+                   for e in tl.query(type="approval", limit=500)))
+
+            # ── the read-path wiring, end to end: a REAL source row → a stored event the panel renders ───────
+            batch = [_ev(event_id=f"b1-{tag}"), _ev(event_id=f"b2-{tag}", type="mission",
+                                                    summary="mission COMPLETE: x", source="holding.mission"),
+                     _ev(event_id=f"b3-{tag}", type="gossip")]              # inadmissible → never stored
+            r4 = tl.append_many(batch)
+            ck("[db] append_many stores the admissible events in one statement and rejects the rest",
+               r4 == {"ok": True, "inserted": 2, "rejected": 1})
+            ck("[db] append_many is idempotent — re-ingesting the SAME sources on every read never duplicates",
+               tl.append_many(batch)["inserted"] == 0
+               and len([e for e in tl.query(limit=500) if e["event_id"] == f"b1-{tag}"]) == 1)
+            ck("[db] the inadmissible event is genuinely absent from the store",
+               not [e for e in tl.query(limit=500) if e["event_id"] == f"b3-{tag}"])
+
+            prow = {"id": f"p-{tag}", "created_at": "2026-09-04T10:00:00Z", "entity": "sol",
+                    "title": "rotate key", "severity": "HIGH", "status": "approved",
+                    "decided_at": "2026-09-04T11:00:00Z"}
+            ing2 = ingest(audit=[], missions=[], proposals=[prow], deployment=[], security=[])
+            got = {e["event_id"]: e for e in tl.query(limit=500) if tag in e["event_id"]}
+            ck("[db] a REAL proposal row ingests to stored events that trace back to that row",
+               ing2["inserted"] == 2
+               and got[f"proposal:p-{tag}:PROPOSED"]["refs"][0]["proposal_id"] == f"p-{tag}"
+               and _utc(got[f"proposal:p-{tag}:APPROVED"]["ts"]) == _utc("2026-09-04T11:00:00Z"))
+            ck("[db] ingest reports proposals CONNECTED and still 0 candidates from the sources that were empty",
+               [s for s in ing2["sources"] if s["source"] == "holding.proposals_store"]
+               == [{"source": "holding.proposals_store", "status": "CONNECTED", "events": 2}])
+            ck("[db] view() surfaces those stored events with the store CONNECTED",
+               tl.view(limit=500)["store"] == "CONNECTED"
+               and any(e["event_id"] == f"proposal:p-{tag}:APPROVED" for e in tl.view(limit=500)["events"]))
         finally:
-            db.close()
-        ck("[db] the rejected CoT event is genuinely NOT in the store", stored == 0)
+            _clean()
+        # Condition: a test run can never leave an event behind for the dashboard to render as real.
+        ck("[db] the suite's own events are GONE from the store afterwards (no test event can appear live)",
+           _tagged() == [] and not [e for e in tl.view(limit=500)["events"] if tag in e["event_id"]])
 
-        allrows = [e for e in tl.query(limit=500) if tag in e["event_id"]]
-        ck("[db] query is newest-first (mission ts > deployment ts)",
-           [e["event_id"] for e in allrows][:2] == [f"mission:{tag}", f"deployment:{tag}"])
-        ck("[db] query filters by type", all(e["type"] == "mission"
-           for e in tl.query(type="mission", limit=500) if tag in e["event_id"]))
-        ck("[db] query filters by company",
-           [e["event_id"] for e in tl.query(company="sol", limit=500) if tag in e["event_id"]] == [f"mission:{tag}"])
-
-        # ingest end-to-end from injected REAL-shaped fixtures → durable rows, then honest empty re-ingest
-        ing = ingest(audit=[{"id": f"aud-{tag}", "action": "execute", "scope": "sol.deploy",
-                             "approved": True, "success": True, "destructive": True,
-                             "ts": "2026-09-04T06:00:00Z"}],
-                     missions=[], deployment=[], security=[])
-        ck("[db] ingest appends real-source events (1 approval from an approved audit record)",
-           ing["inserted"] == 1)
-        ck("[db] the ingested approval is queryable + observable (no CoT)",
-           any(e["event_id"] == f"approval:aud-{tag}" and not tl._contains_cot(e)
-               for e in tl.query(type="approval", limit=500)))
-        _clean()
+        # Condition: ordering is a TOTAL order — two reads of an unchanged store agree, even when a whole
+        # batch shares one ts and therefore one created_at.
+        same_ts = [_ev(event_id=f"ord{i}-{tag}", ts="2026-09-04T09:00:00Z") for i in range(3)]
+        try:
+            tl.append_many(same_ts)
+            o1 = [e["event_id"] for e in tl.query(limit=500) if f"-{tag}" in e["event_id"]]
+            o2 = [e["event_id"] for e in tl.query(limit=500) if f"-{tag}" in e["event_id"]]
+            ck("[db] identical-ts events order deterministically and identically across reads",
+               o1 == o2 and o1 == sorted([f"ord{i}-{tag}" for i in range(3)], reverse=True))
+        finally:
+            _clean()
     else:
         ck("[db] Postgres smoke skipped (no DB reachable) — pure logic fully covered above", True)
+
+    # ── condition: an UNREACHABLE store is reported UNAVAILABLE, never as a healthy empty timeline ──
+    # This is the fact the panel's third state depends on. Mutation-testing found nothing asserted it:
+    # hardcoding store="CONNECTED" left the whole suite green while the dashboard would have rendered an
+    # unreachable store as "nothing happened". Simulate the outage at the one seam every read goes through.
+    _real_session = tl.SessionLocal
+
+    def _dead_session(*a, **k):
+        raise RuntimeError("simulated: Postgres unreachable")
+
+    try:
+        tl.SessionLocal = _dead_session
+        _down = tl.view(limit=50)
+        ck("an unreachable store reports store=UNAVAILABLE with no events (never a healthy empty panel)",
+           _down["store"] == "UNAVAILABLE" and _down["events"] == [])
+        ck("...and query() still fails soft to [] rather than raising", tl.query(limit=50) == [])
+        ck("...and append/append_many fail soft, storing nothing", tl.append(_ev(event_id="down-1"))["ok"] is False
+           and tl.append_many([_ev(event_id="down-2")])["ok"] is False)
+    finally:
+        tl.SessionLocal = _real_session
+    ck("the store is reachable again after the simulated outage (the probe restored the real seam)",
+       tl.view(limit=1)["store"] in ("CONNECTED", "UNAVAILABLE") and tl.SessionLocal is _real_session)
+
+    # ── boundary: every surface that can expose the timeline is owner-gated ───────────────────────
+    # The two readers are GET /admin/holding/timeline and the /view payload's timeline section. Neither
+    # carries its own dependency: the gate is declared ONCE on the router, which is what makes it hold
+    # for a route someone adds later. Assert the declaration, not one endpoint, so removing it is caught.
+    _rt = (pathlib.Path(__file__).resolve().parents[2] / "routers" / "admin_holding.py").read_text()
+    ck("timeline surfaces are owner-gated at the ROUTER, so no endpoint on it can be added ungated",
+       "dependencies=[Depends(require_kai_ultra)]" in _rt
+       and '@router.get("/timeline")' in _rt and '@router.get("/view")' in _rt)
+    ck("the timeline query is ordered by a TOTAL order (ts, insertion time, then the primary key)",
+       "ORDER BY ts DESC, created_at DESC, event_id DESC" in
+       (pathlib.Path(__file__).resolve().parent / "timeline.py").read_text())
 
     n = len(res); ok = sum(res)
     print(f"\nHOLDING TIMELINE TESTS: {ok}/{n} —", "PASS" if ok == n else "FAIL")
