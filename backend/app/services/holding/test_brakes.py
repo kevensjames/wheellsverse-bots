@@ -76,6 +76,9 @@ JOB_ROWS = [   # worker_jobs.list_jobs shape
 PLANE = {"counts": {"running": 1, "claimed": 1, "queued": 1, "succeeded": 1}, "rows": JOB_ROWS}
 
 
+_BRAKES_SRC = __import__("pathlib").Path(__file__).with_name("brakes.py").read_text()
+
+
 def run() -> bool:
     res = []
     def ck(n, ok):
@@ -233,6 +236,40 @@ def run() -> bool:
     ck("derived, not asserted: a selectable privileged cap → ON; manifests unreadable → UNAVAILABLE",
        rsel["RESTRICTED_SECURITY"]["state"] == ON and rsel["RESTRICTED_SECURITY"]["flags"]["selectable"] == ["SECURITY_CONTAIN"]
        and rerr["RESTRICTED_SECURITY"]["state"] == UNAVAILABLE)
+
+    # ── ACTUAL RELEASE BEHAVIOUR: restricted security is DEFERRED ────────────────────────────────
+    # This release ships ONLY the pure policy manifests (security/models.py, security/capabilities.py).
+    # No executor, router, worker or activation path ships. These pin that the absence is reported
+    # truthfully and that any request is DENIED — never a fake OFF, never a swallowed ImportError.
+    import importlib.util as _ilu
+    from app.services.holding.brakes import (security_provider_state, restricted_security_request,
+                                             NOT_INSTALLED)
+    st, why = security_provider_state()
+    ck("provider probe: the policy manifests ARE present in this release (INSTALLED, read-only)",
+       st == "INSTALLED" and "no executor" in why)
+    req = restricted_security_request("SECURITY_CONTAIN")
+    ck("a restricted-security request is DENIED even with the policy present → DEFERRED, no execution",
+       req["allowed"] is False and req["state"] == "DEFERRED" and "no executor" in req["reason"].lower())
+
+    _real = _ilu.find_spec
+    try:   # simulate the provider genuinely absent
+        _ilu.find_spec = lambda n, *a, **k: None if n.startswith("app.services.security") else _real(n, *a, **k)
+        st2, why2 = security_provider_state()
+        req2 = restricted_security_request("SECURITY_CONTAIN")
+        _, rmissing = board()
+        ck("provider absent → NOT_INSTALLED (a distinct state, never collapsed into OFF)",
+           st2 == NOT_INSTALLED and rmissing["RESTRICTED_SECURITY"]["state"] == NOT_INSTALLED
+           and rmissing["RESTRICTED_SECURITY"]["state"] != OFF)
+        ck("provider absent → the request is DENIED with a truthful NOT_INSTALLED reason",
+           req2["allowed"] is False and req2["state"] == NOT_INSTALLED
+           and "not installed" in req2["reason"].lower())
+    finally:
+        _ilu.find_spec = _real
+    ck("no broad swallowed ImportError: the provider is probed with find_spec, not try/except import",
+       "find_spec" in _BRAKES_SRC and "except ImportError" not in _BRAKES_SRC)
+    ck("this release ships NO restricted-security executor (policy files only)",
+       not any(__import__("pathlib").Path("backend/app/services/security").joinpath(f).exists()
+               for f in ("evidence_bus.py", "posture.py", "aikido_adapter.py", "risk_score.py", "__init__.py")))
 
     # ── OS_LAB_ACTIVE_RUNTIME: composes os_lab.runtimes._runtime_on / _is_production ─────────────────
     lab_on = S(APP_ENV="staging", **{FLAG_OS_LAB: True, FLAG_ULTRON: True})

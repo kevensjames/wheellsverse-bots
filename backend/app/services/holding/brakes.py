@@ -35,12 +35,17 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from app.services.holding.self_model import FLAG_KEYS
+from app.services.holding.self_model import FLAG_KEYS, flag_misconfigurations
 from app.services.holding.os_lab.runtimes import FLAG_OS_LAB, FLAG_ULTRON, FLAG_VIRTME_NG, FLAG_SYZKALLER
 
 BRAKES_VERSION = "1.1.0"
 
 ON, OFF, UNAVAILABLE, POLICY_LOCKED = "ON", "OFF", "UNAVAILABLE", "POLICY_LOCKED"
+# Restricted security is DEFERRED in this release: only the pure policy manifests
+# (security/models.py, security/capabilities.py) are present. No executor, router, worker or
+# activation path ships. NOT_INSTALLED is therefore a distinct, truthful state — it must never
+# be collapsed into OFF (which would imply an installed provider that is merely disabled).
+NOT_INSTALLED = "NOT_INSTALLED"
 ENGAGED, RELEASED = "ENGAGED", "RELEASED"
 STOP = "STOP_AUTONOMOUS_EXECUTION"
 STOP_ENGAGED, STOP_UNREADABLE = "STOP_ENGAGED", "STOP_UNREADABLE"   # stop_state(): WHY the readers refuse
@@ -148,6 +153,14 @@ _ALL_FLAGS = tuple(k for k in FLAG_KEYS if k.endswith("_ENABLED")) + OS_LAB_FLAG
 def _load_default_settings():
     from app.config import settings
     return settings
+
+
+def _misconfigurations(env: dict | None) -> list:
+    """Fail-soft wrapper over the ONE detector — reports only, never enables, never breaks the board."""
+    try:
+        return flag_misconfigurations(env if env is not None else os.environ)
+    except Exception:   # noqa: BLE001
+        return []
 
 
 def _read_flags(settings) -> dict:
@@ -288,12 +301,21 @@ def _financial_row(now: str) -> dict:
 def _restricted_security_row(flags: dict, now: str, *, manifests_loader=None) -> dict:
     """Read the REAL privileged security manifests: they ship DISABLED / never selectable by construction.
     If any ever became selectable this row would honestly say ON (it is derived, not asserted)."""
+    if manifests_loader is None:
+        provider, why = security_provider_state()
+        if provider == NOT_INSTALLED:
+            # Truthful absence, not a fake OFF and not a swallowed error.
+            return _row("RESTRICTED_SECURITY", NOT_INSTALLED, controlled_by=(), halted_by_stop=False, now=now,
+                        enforced_by="not shipped in this release",
+                        reasons=[why, "any restricted-security request is denied NOT_INSTALLED"],
+                        mutable_via="NONE (requires a separately authorized release)")
     try:
         load = manifests_loader or _default_security_manifests
         priv = load()
-    except Exception:   # noqa: BLE001
+    except Exception as exc:   # noqa: BLE001 — provider IS present, so a failure here is a real defect
         return _row("RESTRICTED_SECURITY", UNAVAILABLE, controlled_by=(), halted_by_stop=False, now=now,
-                    enforced_by="security.capabilities privileged manifests", reasons=["manifests unreadable"],
+                    enforced_by="security.capabilities privileged manifests",
+                    reasons=[f"manifests present but unreadable: {type(exc).__name__}"],
                     flags={"KAI_CYBER_OPS_ENABLED (read-only surface)": flags.get("KAI_CYBER_OPS_ENABLED", UNAVAILABLE)},
                     mutable_via=UNAVAILABLE)
     selectable = sorted(m.id for m in priv if m.selectable())
@@ -306,6 +328,37 @@ def _restricted_security_row(flags: dict, now: str, *, manifests_loader=None) ->
                 reasons=([f"privileged caps selectable: {selectable}"] if selectable else
                          ["contain/block/revoke/rollback are DISABLED and never selectable — no flag enables them"]),
                 mutable_via="NONE (manifest policy)")
+
+
+def security_provider_state() -> tuple[str, str]:
+    """Is the restricted-security POLICY provider importable? (state, reason) — never raises.
+
+    Probed with importlib.util.find_spec rather than a try/except around the import, so a genuine
+    defect inside a PRESENT module still propagates loudly instead of being misreported as absent.
+    A broad swallowed ImportError cannot tell "not shipped" from "shipped but broken"; this can.
+    """
+    import importlib.util
+    for mod in ("app.services.security.models", "app.services.security.capabilities"):
+        if importlib.util.find_spec(mod) is None:
+            return NOT_INSTALLED, f"{mod} is not part of this release (restricted security is deferred)"
+    return "INSTALLED", "policy manifests present (read-only; no executor ships in this release)"
+
+
+def restricted_security_request(action: str, *, provider_state: str | None = None) -> dict:
+    """Gate for ANY restricted-security request. Fail-closed and truthful.
+
+    This release ships the policy manifests only. There is no executor, so a request is DENIED with
+    the reason naming the real state — NOT_INSTALLED when the provider is absent, DEFERRED when the
+    policy is present but no execution path exists. It is never silently ignored, and never reported
+    as merely 'off', which would imply an installed capability awaiting a flag.
+    """
+    state = provider_state or security_provider_state()[0]
+    if state == NOT_INSTALLED:
+        return {"allowed": False, "state": NOT_INSTALLED, "action": action,
+                "reason": "restricted-security provider is not installed in this release"}
+    return {"allowed": False, "state": "DEFERRED", "action": action,
+            "reason": ("restricted-security policy is present but NO executor ships in this release; "
+                       "activation is deferred and separately authorized")}
 
 
 def _default_security_manifests():
@@ -377,6 +430,9 @@ def brakes(*, settings=None, load_settings: Callable | None = None, stop_store=N
     return {"version": BRAKES_VERSION, "observed_at": now, "stop_engaged": (True if stopped is None else stopped),
             "stop_record_state": rows[0]["state"], "brakes": rows,
             "flags": {k: (v if v is not None else UNAVAILABLE) for k, v in flags.items()},
+            # An OFF above can mean "the operator left it off" OR "the operator set a name that binds to
+            # nothing". The board must never let those look identical — the ONE detector says which.
+            "flag_misconfigurations": _misconfigurations(env),
             "vocabulary": {"state": [ON, OFF, UNAVAILABLE, POLICY_LOCKED], "stop": [ENGAGED, RELEASED, UNAVAILABLE]}}
 
 
