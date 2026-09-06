@@ -70,17 +70,29 @@ def executed(**flags):
         R.EXECUTED.update(old)
 
 
-def full_report(verdict=CLEAN.value, scope="FULL", status="PASS"):
+def pipeline_steps(status="PASS", first=None):
+    """Every §41 pipeline step id, decided (M1: a clean report's steps must BE the pipeline, not any list).
+    ``first`` overrides the first row's fields; its id is kept."""
+    rows = [{"id": s.id, "status": status, "findings": []} for s in CERT.PIPELINE]
+    if first:
+        rows[0] = {**rows[0], **first}
+    return rows
+
+
+def full_report(verdict=CLEAN.value, scope="FULL", status="PASS", steps=None, executed=True):
     """The minimal shape of a certification report as evidence (what CertificationReport.to_dict carries)."""
-    return {"scope": scope, "verdict": verdict, "steps": [{"id": f"s{i}", "status": status} for i in range(3)]}
+    return {"scope": scope, "verdict": verdict, "executed": {"build": executed, "qemu_boot": executed},
+            "steps": pipeline_steps(status) if steps is None else steps}
 
 
-@dataclasses.dataclass
-class _EvStep:
-    """A report step as ``dataclasses.asdict`` renders it: Enum members are PRESERVED, not stringified (L4)."""
-    id: str
-    status: object
-    findings: list = dataclasses.field(default_factory=list)
+def full_cert_report():
+    """A REAL CertificationReport whose gated steps decided — the shape ``dataclasses.asdict`` must be able
+    to render and ``record_verdict`` must accept (H3)."""
+    return CERT.CertificationReport(
+        subject="t", canonical_source="https://example.invalid/t", pinned_sha="a" * 40, scope="FULL",
+        steps=tuple(CERT.StepResult(s.id, s.title, s.phase.value, CERT.StepStatus.PASS, (), "", {"k": "v"})
+                    for s in CERT.PIPELINE),
+        verdict=CLEAN, executed={**R.EXECUTED, "build": True, "qemu_boot": True})
 
 
 def run() -> bool:
@@ -267,25 +279,55 @@ def run() -> bool:
     ck("H1: a report without a 'verdict' key (e.g. an operator memo) is not a contradiction for non-clean verdicts",
        record_verdict(e, V.UNVERIFIED, actor="kai", reason="reset", evidence={"memo": "re-run"})["to"] == "UNVERIFIED")
     # M1 — the report's self-declared 'verdict' is evidence, not authority: it is RE-DERIVED from the steps
-    ck("M1: a FULL report with FAIL steps + CRITICAL findings that declares verdict=clean is REFUSED "
+    ck("M1: a FULL report with a FAIL step + CRITICAL findings that declares verdict=clean is REFUSED "
        "(re-derived from the attached steps, not trusted)",
        raises(ValueError, record_verdict, e4, CLEAN, actor="operator", reason="r",
-              evidence={"scope": "FULL", "verdict": CLEAN.value,
-                        "steps": [{"id": "s0", "status": "PASS", "findings": []},
-                                  {"id": "s1", "status": "FAIL", "findings": [{"severity": "CRITICAL", "detail": "d"}]}]})
+              evidence=full_report(steps=pipeline_steps(first={"status": "FAIL",
+                                                               "findings": [{"severity": "CRITICAL", "detail": "d"}]})))
        and e4.certification == V.UNVERIFIED)
     ck("M1: all steps PASS but one MEDIUM finding attached → still refused (no escalating finding may certify)",
        raises(ValueError, record_verdict, e4, CLEAN, actor="operator", reason="r",
-              evidence={"scope": "FULL", "verdict": CLEAN.value,
-                        "steps": [{"id": "s0", "status": "PASS", "findings": [{"severity": "MEDIUM"}]}]})
+              evidence=full_report(steps=pipeline_steps(first={"findings": [{"severity": "MEDIUM"}]})))
        and e4.certification == V.UNVERIFIED)
-    # L4 — evidence built with dataclasses.asdict keeps Enum MEMBERS; str(Verdict.X) is 'Verdict.X', so the old
-    # str() comparison mis-refused a perfectly valid report. Compared on .value it is accepted.
-    ENUM_EV = {"scope": "FULL", "verdict": CLEAN,
-               "steps": [dataclasses.asdict(_EvStep(f"s{i}", CERT.StepStatus.PASS)) for i in range(3)]}
-    ck("L4: an asdict-built report (Verdict / StepStatus Enum members, not strings) is ACCEPTED — compared on .value",
-       str(ENUM_EV["verdict"]) != CLEAN.value and ENUM_EV["steps"][0]["status"] is CERT.StepStatus.PASS
-       and record_verdict(e4, CLEAN, actor="operator", reason="asdict evidence", evidence=ENUM_EV)["to"] == CLEAN.value
+    # M1 round 3 — the re-derivation is ceremonial unless the attached steps ARE the pipeline and the report's
+    # own ledger says the gated build/boot that makes a report FULL actually happened.
+    ONE_STEP = [{"id": "canonical_upstream", "status": "PASS", "findings": []}]
+    GATED = [{"id": s.id, "status": "PASS", "findings": []} for s in CERT.GATED_STEPS]
+    STATIC = [{"id": s.id, "status": "PASS", "findings": []} for s in CERT.STATIC_STEPS]
+    DUPES = [{"id": "canonical_upstream", "status": "PASS", "findings": []} for _ in CERT.PIPELINE]
+    ck("M1: a step set that is not the §41 pipeline is REFUSED even though it re-derives 'clean' — one-step "
+       "stub / the 6 gated steps alone / the 20 static steps alone / 26 copies of canonical_upstream",
+       all(raises(ValueError, record_verdict, e4, CLEAN, actor="operator", reason="r", evidence=full_report(steps=st))
+           for st in (ONE_STEP, GATED, STATIC, DUPES))
+       and e4.certification == V.UNVERIFIED)
+    ck("M1: a FULL report whose own 'executed' ledger does not say build AND qemu_boot happened is REFUSED "
+       "(absent / False / partial / truthy-but-not-True)",
+       all(raises(ValueError, record_verdict, e4, CLEAN, actor="operator", reason="r", evidence=ev)
+           for ev in ({k: v for k, v in full_report().items() if k != "executed"}, full_report(executed=False),
+                      {**full_report(), "executed": {"build": True}},
+                      {**full_report(), "executed": {"build": 1, "qemu_boot": "yes"}},
+                      {**full_report(), "executed": "FULL"}))
+       and e4.certification == V.UNVERIFIED)
+    # H2 round 3 — the severity gate fails CLOSED: an unrecognized severity is refused, never guessed clean
+    BAD_SEV = ("critical", "Critical", "CRITICAL ", "crit", 9, None, ["CRITICAL"], {"v": "CRITICAL"}, "")
+    ck("H2: a finding severity outside the exact SEVERITIES vocabulary is REFUSED, never treated as "
+       f"non-escalating — {BAD_SEV}",
+       all(raises(ValueError, record_verdict, e4, CLEAN, actor="operator", reason="r",
+                  evidence=full_report(steps=pipeline_steps(first={"findings": [{"severity": sv}]})))
+           for sv in BAD_SEV)
+       and e4.certification == V.UNVERIFIED)
+    ck("H2: a KNOWN non-escalating severity (INFO / LOW) still certifies — fail-closed, not a blanket refusal",
+       all(record_verdict(e4, CLEAN, actor="operator", reason="r",
+                          evidence=full_report(steps=pipeline_steps(first={"findings": [{"severity": sv}]})))["to"]
+           == CLEAN.value for sv in ("INFO", "LOW")))
+    # L4/H3 — evidence built with dataclasses.asdict keeps Enum MEMBERS (str(Verdict.X) is 'Verdict.X', so every
+    # comparison is on .value), and asdict works again now that the frozen ledgers are dict SUBCLASSES.
+    AS = dataclasses.asdict(full_cert_report())
+    ck("L4/H3: dataclasses.asdict(report) SUCCEEDS (the frozen ledgers are dict subclasses, not mappingproxies), "
+       "preserves Verdict/StepStatus members, and record_verdict ACCEPTS it — compared on .value",
+       isinstance(AS["verdict"], V) and str(AS["verdict"]) != CLEAN.value
+       and isinstance(AS["steps"][0]["status"], CERT.StepStatus) and isinstance(AS["executed"], dict)
+       and record_verdict(e4, CLEAN, actor="operator", reason="asdict evidence", evidence=AS)["to"] == CLEAN.value
        and e4.certification == CLEAN)
     ck("kai may not adopt (no self-approval, §0 #11)", raises(PermissionError, advance, e, S.CERTIFIED, actor="kai", reason="r", evidence={"x": 1}))
     ck("operator adoption without a GapJustification refused (§117)",
