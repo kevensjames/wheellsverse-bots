@@ -205,11 +205,15 @@ _CATALOG: list[Node] = [
     _n("governance-audit", "Governance — scope gate + tamper-evident audit", TIER_GOVERNANCE,
        Status.DEGRADED, DeployState.LOCAL_ONLY, "@audited scope gate + hash-chained audit log.",
        evidence="backend/app/services/governance/audit_log.py:44"),
-    _n("kai-cyber-operations", "KAI Cyber Operations", TIER_GOVERNANCE, Status.DORMANT, DeployState.LIVE_PROD,
-       "Defensive-only security operations view (posture, findings, incidents). Page served in "
-       "prod; data is owner-gated through the bridge and KAI_CYBER_OPS_ENABLED is off, so every "
-       "panel renders NOT_CONNECTED. Privileged/offensive capabilities stay DISABLED.",
-       route="/admin/security/cyber-operations", evidence="core/api.py:956; backend/app/config.py:83"),
+    # NOT in this release. The Cyber Operations page lives on a separate branch (PR #68); this
+    # candidate ships neither the route nor frontend/admin/cyber-operations.html, so claiming
+    # LIVE_PROD / "page served in prod" would be a fabricated deployment state — the exact thing
+    # this registry exists to prevent. No `route=` either: a route that 404s is not a route.
+    _n("kai-cyber-operations", "KAI Cyber Operations", TIER_GOVERNANCE, Status.DORMANT, DeployState.PRE_DEPLOY,
+       "Defensive-only security operations view (posture, findings, incidents). NOT part of this "
+       "release: neither the page nor its route is built here, and KAI_CYBER_OPS_ENABLED is off. "
+       "Tracked on the Cyber Operations branch; privileged/offensive capabilities stay DISABLED.",
+       evidence="backend/app/config.py:83 (flag declared, default False); page absent from this build"),
     _n("kai-self-audit", "KAI self-audit engine", TIER_GOVERNANCE, Status.HEALTHY, DeployState.LOCAL_ONLY,
        "Security Command Center source — subsystem auditor (booleans only, no secrets).",
        evidence="backend/app/services/audit/auditor.py:28"),
