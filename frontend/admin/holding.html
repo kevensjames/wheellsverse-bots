@@ -61,6 +61,8 @@
   .authbar{border:1px solid rgba(255,157,60,.35);background:rgba(255,157,60,.06);color:#ffd9a8;
     border-radius:10px;padding:9px 13px;font-size:12.5px;margin-bottom:14px;display:none}
   .authbar.show{display:block}
+  /* backend data-contract mismatch — page-level, deliberately distinct from a per-panel NOT_CONNECTED */
+  .authbar.crit{border-color:rgba(255,77,94,.45);background:rgba(255,77,94,.07);color:#ffc9cf}
 
   /* ── layout ──────────────────────────────────────────────── */
   .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
@@ -254,6 +256,7 @@
   </header>
 
   <div class="authbar" id="authbar" role="status"></div>
+  <div class="authbar" id="contractbar" role="status"></div>
 
   <main id="main">
   <div class="cols2">
@@ -1123,6 +1126,27 @@ $('palBack').addEventListener('click', closePalette);
 $('cmdkBtn').addEventListener('click', openPalette);
 document.addEventListener('keydown', e=>{ if((e.metaKey||e.ctrlKey) && (e.key==='k'||e.key==='K')){ e.preventDefault(); e.stopPropagation(); if($('palette').classList.contains('show')) closePalette(); else openPalette(); } }, true);
 
+/* ── BACKEND DATA-CONTRACT CHECK (C5) ────────────────────────────────────────
+   An OLDER backend answers /view with 200 but without the §148 Command-OS sections. failed() is false
+   on a 200, so every panel would render the SAME honest "unavailable" markers as a genuinely
+   disconnected source and the page would read as broken. Detect the missing keys and say so ONCE,
+   page-level. Presence is tested with `in` (an empty list / UNAVAILABLE marker is a COMPATIBLE answer,
+   not a missing key). No version is invented — the missing key names are the evidence. */
+const VIEW_CONTRACT_KEYS = ['health','attention','timeline','missions','system_model'];
+function checkViewContract(v){
+  const bar = $('contractbar');
+  if(failed(v) || !v || typeof v!=='object'){ bar.className='authbar'; bar.innerHTML=''; return null; }
+  const missing = VIEW_CONTRACT_KEYS.filter(k => !(k in v));
+  if(!missing.length){ bar.className='authbar'; bar.innerHTML=''; return null; }
+  bar.className='authbar crit show';
+  bar.innerHTML = '<b>Backend data-contract mismatch — the panels below are not populated.</b> '
+    + '<code>/admin/kai/holding/view</code> answered 200, but this backend is an older release that does not '
+    + 'serve this dashboard\'s data contract (missing: <code>'+esc(missing.join(', '))+'</code>). '
+    + 'The panels are empty for that reason, not because the underlying sources are down — and nothing on '
+    + 'this page is estimated or filled in. Deploy a backend release that serves these sections.';
+  return missing;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════
    BOOT — paint the shell, fetch each endpoint independently through the bridge,
    fill honestly. The /view aggregate powers most Command-OS surfaces in one fetch;
@@ -1135,8 +1159,19 @@ function boot(){
   api('/admin/session/whoami').then(w=>{
     const bar=$('authbar');
     if(failed(w) || !w.authenticated || w.role!=='owner'){
+      // C7: sign-in happens ON THIS PAGE. The presence layer this page loads owns the owner sign-in form
+      // (POST /admin/session/login → the HttpOnly owner cookie these panels need); the X-API-Key prompt on
+      // /admin never mints that cookie. Point at the orb, and open its panel directly when it has mounted.
       bar.className='authbar show';
-      bar.innerHTML='Owner sign-in required for live holding data. Open the KAI Command Center, sign in, then reload — every panel below shows its honest live connection state meanwhile.';
+      bar.innerHTML='Owner sign-in required for live holding data. Sign in here: the <b>KAI orb</b> in the '
+        + 'bottom-right corner of this page opens the KAI panel, which carries the owner sign-in form. '
+        + 'Sign in there, then reload. '
+        + '<button class="btn ghost" id="signinBtn" style="margin-left:4px;padding:3px 10px;font-size:11px">Open KAI sign-in</button> '
+        + '<span class="dim" id="signinNote" style="font-size:11px"></span>';
+      $('signinBtn').addEventListener('click', ()=>{
+        if(window.KAI && typeof window.KAI.open==='function'){ window.KAI.open(); return; }
+        $('signinNote').textContent='The KAI presence layer has not loaded yet — use the orb in the bottom-right corner once it appears.';
+      });
     } else { bar.className='authbar'; bar.innerHTML=''; }
   });
 
@@ -1144,6 +1179,7 @@ function boot(){
   // CAPABILITIES/AUTONOMY/DEPLOY/SELF-MODEL/HEALTH/GRAPH/TIMELINE. On failure each renders NOT_CONNECTED.
   const viewP = api('/admin/kai/holding/view');
   viewP.then(v=>{
+    checkViewContract(v);   // C5 — a 200 from a stale backend is never silently rendered as "unavailable"
     renderToday(v); renderAttention(v); renderWorking(v); renderProblems(v); renderOpps(v);
     renderMissions(v); renderCaps(v); renderAutonomy(v); renderDeploy(v); renderSelfModel(v);
     renderHealth(v); renderTimeline(v);

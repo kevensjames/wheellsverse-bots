@@ -92,6 +92,34 @@ def t_evidence_escaped_no_injection():
     assert not bare, f"un-escaped server field(s) interpolated into HTML: {sorted(set(bare))}"
 
 
+def t_stale_backend_contract_banner():
+    """C5: a 200 from an older backend must raise ONE page-level banner, not silent per-panel 'unavailable'."""
+    assert 'id="contractbar"' in HTML, "no page-level contract banner element"
+    cv = _fn("checkViewContract")
+    # required keys are tested for PRESENCE (an empty list / UNAVAILABLE marker is a compatible answer)
+    assert "VIEW_CONTRACT_KEYS.filter(k => !(k in v))" in cv
+    for k in ("health", "attention", "timeline", "missions", "system_model"):
+        assert "'" + k + "'" in HTML[HTML.index("const VIEW_CONTRACT_KEYS"):HTML.index("function checkViewContract")]
+    # transport failures stay the per-panel NOT_CONNECTED story; only a 200 can trip this banner
+    assert "if(failed(v)" in cv
+    # the banner names the missing keys and never invents a version/semver
+    assert "esc(missing.join(', '))" in cv
+    assert not re.search(r"v\d+\.\d+\.\d+", cv), "fabricated version string in the contract banner"
+    assert "checkViewContract(v)" in BOOT, "boot() never runs the contract check"
+
+
+def t_signin_guidance_is_actionable_on_this_page():
+    """C7: the banner must point at this page's presence orb (which mints the owner cookie), not elsewhere."""
+    boot_auth = BOOT[BOOT.index("/admin/session/whoami"):BOOT.index("holding/view")]
+    assert "KAI orb" in boot_auth and "bottom-right" in boot_auth
+    assert "Command Center" not in boot_auth, "sign-in guidance still sends the operator to another page"
+    assert "window.KAI.open()" in boot_auth, "the call-to-action does not open the presence drawer"
+    # the rendered banner never carries a credential, key or token (comments may name the mechanism)
+    shown = boot_auth[boot_auth.index("bar.innerHTML='Owner"):boot_auth.index("addEventListener")]
+    for bad in ("x-api-key", "api_key", "apikey", "secret", "token", "password"):
+        assert bad not in shown.lower(), f"credential material in the rendered sign-in banner: {bad}"
+
+
 def t_mobile_and_money_mode():
     assert 'name="viewport"' in HTML and "width=device-width" in HTML     # mobile
     assert "auto-fill,minmax" in HTML                                     # responsive grid
