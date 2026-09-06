@@ -66,7 +66,10 @@ FLAG_KEYS = (
     # §98/§119 the remaining real authority/surface flags (read by capabilities_answer / worker_health)
     "KAI_SELF_IMPROVEMENT_DETECT_ENABLED", "KAI_HOLDING_ENABLED", "KAI_HOLDING_COMMAND_ENABLED",
     "KAI_HOLDING_WATCH_ENABLED", "KAI_HOLDING_BRIEFING_ENABLED", "KAI_HOLDING_DELIVERY_ENABLED",
-    "KAI_PROACTIVE_ENABLED", "KAI_HOLDING_CYCLE_ENABLED", "KAI_VOICE_ENABLED", "KAI_CYBER_OPS_ENABLED",
+    "KAI_PROACTIVE_ENABLED", "KAI_HOLDING_CYCLE_ENABLED", "KAI_VOICE_ENABLED",
+    # §8/§94 camera authority — declared in config.py and enforced by gesture_policy.camera_open_allowed,
+    # but it was absent here, so NO surface reported it: the one reader must cover every real flag.
+    "KAI_CAMERA_ENABLED",
 )
 
 
@@ -75,6 +78,84 @@ def _flags() -> dict:
     §98/§119 capability/worker answers. Presence of a flag only; never a secret value."""
     from app.config import settings
     return {k: getattr(settings, k, None) for k in FLAG_KEYS}
+
+
+# ── config integrity: an env var that matches no declared field is SILENTLY DROPPED ──────────────
+# Settings uses ``extra="ignore"``, so ``KAI_VOICE_ENABLE=true`` (or any other near-miss) raises no
+# error and writes no log — the operator sets it, believes the feature is on, and every surface
+# honestly reports the DEFAULT. That gap is closed by REPORTING, never by binding: a suspect name is
+# surfaced loudly and enables nothing (fail closed).
+SUSPECTED_MISCONFIGURATION = "SUSPECTED_MISCONFIGURATION"
+_FLAG_SUFFIXES = ("_ENABLED", "_ENABLE", "_ON")
+
+
+def _stem(name: str) -> str:
+    for s in _FLAG_SUFFIXES:
+        if name.endswith(s):
+            return name[: -len(s)]
+    return name
+
+
+def declared_env_names() -> set:
+    """Every env name pydantic-settings will actually bind — Settings' declared fields, UPPERCASED.
+    ``case_sensitive=False``, so a declared name set in ANY case binds and is NOT a misconfiguration."""
+    from app.config import Settings
+    return {n.upper() for n in Settings.model_fields}
+
+
+def _nearest(name: str, targets) -> str:
+    """The declared flag ``name`` was probably meant to be, or "" — stem match first (KAI_VOICE,
+    KAI_VOICE_ENABLE → KAI_VOICE_ENABLED), then a close-ratio match (typos/transpositions)."""
+    import difflib
+    st = _stem(name)
+    for t in targets:
+        if st == _stem(t):
+            return t
+    m = difflib.get_close_matches(name, list(targets), n=1, cutoff=0.86)
+    return m[0] if m else ""
+
+
+def flag_misconfigurations(env=None, *, keys=FLAG_KEYS, declared=None, values=None) -> list:
+    """Env vars that LOOK like a declared flag but bind to NOTHING — reported, never honored.
+
+    Scans the process environment (the deployment surface; a typo inside a local ``.env`` is not
+    scanned) for names that are near-misses of the ONE flag vocabulary (``FLAG_KEYS`` plus every
+    declared Settings field — no second list). A name that binds case-insensitively to a declared
+    field is effective, so it is never a suspect. Each row carries the suspected flag's REAL
+    effective value, so a reader can never conclude the env var took effect. Names only: the
+    unknown var's VALUE is never read or reported (it may be a secret)."""
+    import os
+    env = os.environ if env is None else env
+    try:
+        declared = declared if declared is not None else declared_env_names()
+    except Exception:      # noqa: BLE001 — config unreadable: fall back to the flag vocabulary alone
+        declared = set(keys)
+    targets = sorted(set(keys) | set(declared))
+    vals = values if values is not None else _safe_flags()
+    out = []
+    for name in sorted(env):
+        up = str(name).upper()
+        if up in declared:                       # binds (case-insensitively) → effective, not a suspect
+            continue
+        near = _nearest(up, targets)
+        if not near:
+            continue
+        eff = vals.get(near, UNAVAILABLE)
+        out.append({
+            "env_var": str(name), "suspected_flag": near, "state": SUSPECTED_MISCONFIGURATION,
+            "effective_value": eff if eff is not None else UNAVAILABLE,
+            "detail": (f"{name} is set in the environment but is NOT a declared setting — Settings uses "
+                       f"extra='ignore', so it is SILENTLY DROPPED and enables nothing. {near} is "
+                       f"unchanged at its effective value {eff!r}. Rename the variable to {near} or unset it."),
+        })
+    return out
+
+
+def _safe_flags() -> dict:
+    try:
+        return _flags()
+    except Exception:      # noqa: BLE001 — config unreadable → values honestly UNAVAILABLE, never guessed
+        return {}
 
 
 def _finance_available() -> bool:
@@ -119,6 +200,7 @@ _DEFAULT_SOURCES: dict[str, Callable[[], Any]] = {
     "workers": _workers, "open_proposals": _open_proposals,
     "deployment": _deployment, "flags": _flags, "finance_available": _finance_available,
     "coding_workers": _coding_workers, "self_last_verified": _self_last_verified, "model": _model,
+    "flag_misconfigurations": flag_misconfigurations,
 }
 
 # Permanent policy-level invariants (§0#11, §1/§141) — always true regardless of flags.
@@ -226,9 +308,14 @@ class OperationalSelfModel:
         dep = self._get("deployment", {})
         flags = self._get("flags", {})
         model = self._get("model", {})
+        misconfig = self._get("flag_misconfigurations", [])
         prod_sha, staging_sha, money_mode = self._prod_staging_sha(dep)
         limitations = _derive_limitations(flags, finance_available=self._get("finance_available", False),
                                           coding_workers=self._get("coding_workers", []))
+        # LOUD: a suspected misconfiguration must never be quiet. It rides the limitations list the
+        # dashboard already renders, so a reader sees it beside the flag state it contradicts.
+        for m in misconfig:
+            limitations.append(f"CONFIG WARNING — {m['detail']}")
         return {
             "identity": self.IDENTITY,
             "system_role": self.SYSTEM_ROLE,
@@ -256,6 +343,7 @@ class OperationalSelfModel:
             "money_mode": money_mode,
             "owner_required_action_count": len(owner_actions),
             "known_limitations": limitations,               # LIVE-DERIVED (§63/§99), not static
+            "flag_misconfigurations": misconfig,            # env vars that bind to nothing — reported, never honored
             "last_verified": self._get("self_last_verified", "") or UNAVAILABLE,
             "claims_consciousness": False,      # invariant, asserted by the tests
         }

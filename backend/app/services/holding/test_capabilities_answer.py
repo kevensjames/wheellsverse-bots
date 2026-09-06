@@ -181,7 +181,7 @@ def run() -> bool:
     ck("every flag the answer reads is one of self_model.FLAG_KEYS (the ONE reader)",
        set(re.findall(r"\"((?:KAI_|HOLDING_)[A-Z_]+|MONEY_MODE|APP_ENV)\"", src)) <= set(FLAG_KEYS))
     ck("self_model.FLAG_KEYS extension: every key is a real Settings field (MONEY_MODE is env/App-A-owned) and _flags() returns exactly them",
-       set(_flags()) == set(FLAG_KEYS) and len(FLAG_KEYS) == 16
+       set(_flags()) == set(FLAG_KEYS) and len(FLAG_KEYS) == 16   # +KAI_CAMERA_ENABLED (declared+enforced, was unreported)
        and all(hasattr(__import__("app.config", fromlist=["settings"]).settings, k) for k in FLAG_KEYS if k != "MONEY_MODE"))
     pure_rows = ("holding.priorities", "holding.holding_problems", "holding.health_score", "holding.eval_harness",
                  "holding.explain", "holding.missions", "deployment.status")

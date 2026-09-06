@@ -77,10 +77,11 @@ class Settings(BaseSettings):
     # approve/confirm/execute (approval_dialog refuses the gesture channel like voice, §75). There is NO
     # certified local recognizer in this repo — the seam reports RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED.
     KAI_CAMERA_ENABLED: bool = False
-    # Cyber Operations (Phase A) — governed READ-ONLY defensive security endpoints. Default OFF:
-    # when False the admin_security router is not mounted at all (zero new surface). All empty secret
-    # refs below fail SOFT to NOT_CONNECTED (never raise, never fabricate a zero) — see arch §7.
-    KAI_CYBER_OPS_ENABLED: bool = False
+    # Cyber Operations is NOT part of this release: no admin_security router, no
+    # app/services/security executor, no page and no route ship here. KAI_CYBER_OPS_ENABLED is
+    # therefore NOT declared — a flag nothing reads or enforces can only produce a state report for a
+    # feature that does not exist. It returns in a future release together with a real gated
+    # implementation and tests proving both OFF and ON behaviour.
     AIKIDO_CLIENT_ID: str = ""            # empty -> Aikido source reports NOT_CONNECTED
     AIKIDO_CLIENT_SECRET: str = ""
     AIKIDO_REGION: str = "eu"             # eu|us — pins the public Aikido REST base URL

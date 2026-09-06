@@ -316,15 +316,12 @@ def _restricted_security_row(flags: dict, now: str, *, manifests_loader=None) ->
         return _row("RESTRICTED_SECURITY", UNAVAILABLE, controlled_by=(), halted_by_stop=False, now=now,
                     enforced_by="security.capabilities privileged manifests",
                     reasons=[f"manifests present but unreadable: {type(exc).__name__}"],
-                    flags={"KAI_CYBER_OPS_ENABLED (read-only surface)": flags.get("KAI_CYBER_OPS_ENABLED", UNAVAILABLE)},
                     mutable_via=UNAVAILABLE)
     selectable = sorted(m.id for m in priv if m.selectable())
     state = ON if selectable else POLICY_LOCKED
     return _row("RESTRICTED_SECURITY", state, controlled_by=(), halted_by_stop=False, now=now,
                 enforced_by="security.capabilities: PRIVILEGED caps availability=DISABLED, activation=DISABLED (manifest.selectable() False)",
-                flags={"KAI_CYBER_OPS_ENABLED (read-only surface only)": (flags.get("KAI_CYBER_OPS_ENABLED")
-                                                                          if flags.get("KAI_CYBER_OPS_ENABLED") is not None else UNAVAILABLE),
-                       "privileged_caps": sorted(m.id for m in priv), "selectable": selectable},
+                flags={"privileged_caps": sorted(m.id for m in priv), "selectable": selectable},
                 reasons=([f"privileged caps selectable: {selectable}"] if selectable else
                          ["contain/block/revoke/rollback are DISABLED and never selectable — no flag enables them"]),
                 mutable_via="NONE (manifest policy)")

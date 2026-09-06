@@ -140,7 +140,6 @@ def _service_entries(flags: dict, *, stopped, telegram: dict, autonomy: dict, fi
         ("analysis", "self_improvement.detect", "Self-improvement detection (read-only)", "KAI_SELF_IMPROVEMENT_DETECT_ENABLED"),
         ("communication", "holding.briefing", "Daily briefing routine", "KAI_HOLDING_BRIEFING_ENABLED"),
         ("communication", "voice.command_center", "Voice command center (§7, PTT, never authorizes)", "KAI_VOICE_ENABLED"),
-        ("security", "cyber.read_only_ops", "Cyber operations (defensive, read-only)", "KAI_CYBER_OPS_ENABLED"),
     ):
         s, why = _flag_status(f, key)
         add(area, cid, name, s, why, f"config.{key}")

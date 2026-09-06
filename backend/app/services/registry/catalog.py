@@ -211,7 +211,7 @@ _CATALOG: list[Node] = [
     # this registry exists to prevent. No `route=` either: a route that 404s is not a route.
     _n("kai-cyber-operations", "KAI Cyber Operations", TIER_GOVERNANCE, Status.DORMANT, DeployState.PRE_DEPLOY,
        "Defensive-only security operations view (posture, findings, incidents). NOT part of this "
-       "release: neither the page nor its route is built here, and KAI_CYBER_OPS_ENABLED is off. "
+       "release: neither the page, its route, its service package nor a gating flag is built here. "
        "Tracked on the Cyber Operations branch; privileged/offensive capabilities stay DISABLED.",
        evidence="backend/app/config.py:83 (flag declared, default False); page absent from this build"),
     _n("kai-self-audit", "KAI self-audit engine", TIER_GOVERNANCE, Status.HEALTHY, DeployState.LOCAL_ONLY,
