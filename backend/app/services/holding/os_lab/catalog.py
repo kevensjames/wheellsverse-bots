@@ -244,10 +244,11 @@ def record_verdict(entry: OsCatalogEntry, verdict: Verdict, *, actor: str, reaso
                    evidence: dict, at: str = "UNKNOWN") -> dict:
     """§114 — the ONLY writer of ``certification``. Allowed only while in SECURITY_REVIEW, with a report.
     Fail-closed direction: kai may record SUSPICIOUS / REJECTED / UNVERIFIED; the clean-scope verdict is
-    operator-only and needs a FULL-scope report in which every step actually decided (no SKIPPED / PENDING /
-    UNVERIFIED), every step PASS, no MEDIUM+ finding, and a verdict RE-DERIVED from those steps that equals
-    the recorded one (M1: the report's own 'verdict' key is evidence, not authority). Any verdict must agree
-    with the verdict the attached report carries."""
+    operator-only and needs a FULL-scope report whose steps ARE the §41 pipeline, whose ledger says the gated
+    build+qemu_boot actually happened, in which every step actually decided (no SKIPPED / PENDING / UNVERIFIED),
+    every step PASS, every finding severity a known one (fail closed) and none of them MEDIUM+, and a verdict
+    RE-DERIVED from those steps that equals the recorded one (M1: the report's own 'verdict' key is evidence,
+    not authority). Any verdict must agree with the verdict the attached report carries."""
     _governed(actor, reason)
     verdict = Verdict(verdict)
     clean = verdict == Verdict.NO_MALICIOUS_BEHAVIOR_DETECTED_IN_CERTIFIED_SCOPE
@@ -262,7 +263,7 @@ def record_verdict(entry: OsCatalogEntry, verdict: Verdict, *, actor: str, reaso
         raise ValueError(f"{entry.name}: recorded verdict contradicts the attached report")
     if clean:
         steps = evidence.get("steps")
-        steps = steps if isinstance(steps, list) else []
+        steps = list(steps) if isinstance(steps, (list, tuple)) else []   # asdict renders steps as a TUPLE
         statuses = [_val(s.get("status")) if isinstance(s, dict) else None for s in steps]
         if evidence.get("scope") != "FULL" or not statuses or any(st is None or st in _UNDECIDED for st in statuses):
             raise ValueError(f"{entry.name}: {verdict.value} requires a FULL-scope report with every step decided "
@@ -272,9 +273,26 @@ def record_verdict(entry: OsCatalogEntry, verdict: Verdict, *, actor: str, reaso
         rows = [_cert.StepResult(str(s.get("id", "")), "", "", _val(s.get("status")), tuple(
             _cert.Finding("", _val(f.get("severity")), "", "") for f in (s.get("findings") or [])
             if isinstance(f, dict))) for s in steps]
+        # M1 round 3: those steps must BE the pipeline, and a FULL report must carry the ledger that makes it
+        # full — otherwise a one-step stub or the 20 static steps alone re-derive a clean verdict.
+        missing = {s.id for s in _cert.PIPELINE} - {r.id for r in rows}
+        if missing:
+            raise ValueError(f"{entry.name}: {verdict.value} requires every §41 pipeline step in the attached "
+                             f"report — missing {sorted(missing)}")
+        ex = evidence.get("executed")
+        if not (isinstance(ex, dict) and ex.get("build") is True and ex.get("qemu_boot") is True):
+            raise ValueError(f"{entry.name}: a FULL-scope report must carry executed['build'] and "
+                             f"executed['qemu_boot'] True — nothing was built or booted, so the gated steps "
+                             f"cannot have decided anything (§113/§41)")
         if any(st != _cert.StepStatus.PASS.value for st in statuses):
             raise ValueError(f"{entry.name}: {verdict.value} requires EVERY step PASS — the attached report has "
                              f"{sorted(set(statuses) - {'PASS'})} (§114)")
+        # H2 round 3: fail CLOSED on an unknown severity. 'critical' / 'CRITICAL ' / 'crit' / 9 / None /
+        # ['CRITICAL'] are REFUSED, never guessed and never treated as non-escalating.
+        unknown = sorted({f.severity for r in rows for f in r.findings} - set(_cert.SEVERITIES))
+        if unknown:
+            raise ValueError(f"{entry.name}: {verdict.value} refused — finding severity {unknown!r} is not one "
+                             f"of {list(_cert.SEVERITIES)} (fail-closed: an unrecognized severity is never clean)")
         if any(f.severity in (_cert.REJECTS | _cert.ESCALATES) for r in rows for f in r.findings):
             raise ValueError(f"{entry.name}: {verdict.value} refused — the attached report carries "
                              f"MEDIUM/HIGH/CRITICAL findings (§114)")

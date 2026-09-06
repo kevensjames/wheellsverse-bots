@@ -213,6 +213,15 @@ def run() -> bool:
        "OS-lab sources → APPROVE REJECTED + enforce() raises (no fall-through to NOT_OS_LAB_SOURCE)",
        all(g.is_os_lab_source(s) and g.check(R.AuthorityClaim(s, "APPROVE")) == "REJECTED" and _enforce_raises(g, s)
            for s in ("ultron-os-runtime", "syzkaller_vm_1", "OS-Lab/qemu", "virtme_ng_vm2", "oslab:x", "ULTRON.OS")))
+    # L1 round 3: 'oslab' was matched ANYWHERE in the normalized source, annexing unrelated principals
+    ck("L1: the os_lab/oslab prefix is ANCHORED — 'chaos_labs' / 'chaos-lab' / 'photos_lab' / 'labs_os' are NOT "
+       "OS-lab sources (left to the existing seams), while every documented decorated case still matches and "
+       "the ultron/virtme/syzkaller runtime-stem containment is unchanged",
+       not any(g.is_os_lab_source(s) for s in ("chaos_labs", "chaos-lab", "photos_lab", "labs_os"))
+       and all(g.check(R.AuthorityClaim(s, "APPROVE")) == "NOT_OS_LAB_SOURCE"
+               for s in ("chaos_labs", "chaos-lab", "photos_lab"))
+       and all(g.is_os_lab_source(s) for s in ("OS-Lab/qemu", "oslab:x", "OS LAB", "os_lab:anything",
+                                               "ultron-os-runtime", "syzkaller_vm_1", "virtme_ng_vm2", "ULTRON.OS")))
     ck("L3: the governed-principal allowlist (operator / kai / owner:*) still stays NOT_OS_LAB_SOURCE, and an "
        "unrelated principal does too",
        all(g.check(R.AuthorityClaim(s, "APPROVE")) == "NOT_OS_LAB_SOURCE"

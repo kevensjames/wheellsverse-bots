@@ -366,13 +366,16 @@ class OsLabAuthorityGuard:
     def is_os_lab_source(self, source: str) -> bool:
         """'SYZKALLER' / ' syzkaller ' / 'OS-LAB:ultron' / 'virtme-ng' / 'Ultron OS' — and, fail-closed (L3),
         any DECORATED variant: 'ultron-os-runtime', 'syzkaller_vm_1', 'OS-Lab/qemu'. Only the governed
-        principals (operator / kai / owner:*) stay NOT_OS_LAB_SOURCE."""
+        principals (operator / kai / owner:*) stay NOT_OS_LAB_SOURCE. L1 round 3: the os_lab prefix is
+        ANCHORED — 'chaos_labs' / 'photos_lab' are unrelated principals this guard is documented to leave to
+        the existing seams, not OS-lab sources."""
         s = _norm(source)
         if s in self.sources:
             return True
         if s in NON_OS_PRINCIPALS or s.startswith("owner_"):
             return False
-        return "oslab" in s.replace("_", "") or any(stem in t for t in s.split("_") for stem in RUNTIME_STEMS)
+        return (s.startswith("os_lab") or s.startswith("oslab")
+                or any(stem in t for t in s.split("_") for stem in RUNTIME_STEMS))
 
     def check(self, claim: AuthorityClaim) -> str:
         if not self.is_os_lab_source(claim.source):
