@@ -321,8 +321,21 @@ _NET_CLIENT = _rx(r"nc\s+(?:-e|-c)\s")            # bare netcat -e; the bash/pyt
 _CRED_PATH = _rx(r"~/\.ssh/", r"\bid_(?:rsa|ed25519|ecdsa|dsa)\b", r"\.aws/credentials", r"\.netrc\b", r"/etc/shadow\b",
                  r"\.docker/config\.json", r"\.kube/config", r"\.gnupg/", r"\bkeychain\b", r"Login Data\b",
                  r"\.git-credentials", r"\.npmrc\b", r"\.pypirc\b")
-# key-header variants the core table lacks (it matches only RSA/EC/plain); mutually exclusive with core's regex
-_CRED_MATERIAL = _rx(r"-----BEGIN (?!(?:RSA |EC )?PRIVATE KEY)[A-Z ]+PRIVATE KEY-----")
+# Credential MATERIAL the core table lacks. Core carries only three credential rows (a password|secret|api_key=
+# heuristic, AWS key ids, RSA/EC/plain private-key headers), so an embedded GitHub PAT, Slack bot token, OpenAI
+# key or bearer value left credential_reads PASS while the code and doc both claimed it never could. These rows
+# make that claim true for the named families. ponytail: still a pattern list, not proof — an unlisted secret
+# shape remains a named residual in docs/KAI_OMNIPRESENCE_OS_LAB.md, not a silent gap.
+_CRED_MATERIAL = _rx(
+    r"-----BEGIN (?!(?:RSA |EC )?PRIVATE KEY)[A-Z ]+PRIVATE KEY-----",   # key-header variants core lacks
+    r"\bgh[pousr]_[A-Za-z0-9]{20,}",                     # GitHub PAT / OAuth / user / server / refresh
+    r"\bgithub_pat_[A-Za-z0-9_]{20,}",                   # GitHub fine-grained PAT
+    r"\bxox[baprs]-[A-Za-z0-9-]{10,}",                   # Slack bot / app / user / refresh tokens
+    r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}",                # OpenAI-style secret keys
+    r"\bglpat-[A-Za-z0-9_-]{20,}",                       # GitLab PAT
+    r"(?i)\b(?:bearer|authorization)\b\W{0,3}[A-Za-z0-9_\-.]{24,}",      # bearer / authorization header values
+    r"(?i)://[^/\s:@]+:[^/\s@]+@",                       # credential embedded in a URL (incl. a submodule URL)
+)
 _PERSIST = _rx(r"\bcrontab\b", r"@reboot\b", r"/etc/cron\.", r"systemctl\s+enable", r"\.(?:bashrc|zshrc|profile|bash_profile)\b",
                r"Launch(?:Agents|Daemons)", r"/etc/rc\.local", r"/etc/init\.d/", r"CurrentVersion\\+Run")
 _PRIV = _rx(r"\bsudo\b", r"\bset(?:uid|gid)\b", r"chmod\s+(?:[ugo]*\+s|[2467][0-7]{3})\b", r"--privileged\b", r"CAP_SYS_ADMIN",
@@ -598,9 +611,15 @@ def check_credential_reads(inv):
 
     M2 round 4: the core rows this step owns are FLOORED at MEDIUM. Core rates 'Hardcoded credential candidate'
     LOW, and ``_status`` escalates only MEDIUM+, so a repo whose sole defect was an embedded 120-char secret
-    left this step PASS — and an all-PASS static pipeline. An embedded credential can never leave it PASS now."""
+    left this step PASS — and an all-PASS static pipeline.
+
+    Round 5 closed the other half: flooring the severity did not help for a credential core never MATCHED at
+    all. A GitHub PAT, Slack/GitLab token, OpenAI key, bearer value or credential-in-a-URL left this step PASS
+    while this docstring claimed otherwise — a false claim, now removed. The honest statement: a credential of
+    a LISTED family (_CRED_MATERIAL + the core rows) can never leave this step PASS; an unlisted secret shape
+    still can, which is a named residual in docs/KAI_OMNIPRESENCE_OS_LAB.md rather than a silent gap."""
     fnd = _sweep("credential_reads", _code(inv), _CRED_PATH, "HIGH", "credential path")
-    fnd += _sweep("credential_reads", inv.text_files(), _CRED_MATERIAL, "MEDIUM", "private key material")
+    fnd += _sweep("credential_reads", inv.text_files(), _CRED_MATERIAL, "MEDIUM", "credential material")
     fnd += [Finding("credential_reads", "MEDIUM", f.path, "secret-bearing file shipped in the repo (§30) — not opened")
             for f in inv.files if f.skipped == "forbidden"]
     return _routed("credential_reads", inv.text_files(), fnd, floor="MEDIUM")

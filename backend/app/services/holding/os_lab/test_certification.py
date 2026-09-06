@@ -190,6 +190,28 @@ def run() -> bool:
        and all(f.severity in c.ESCALATES and f.line > 0 and "withheld" in f.detail for f in cr3.findings)
        and not any(LONG_SECRET[i:i + 20] in val_js for i in range(len(LONG_SECRET) - 19))
        and not any(s.status == c.StepStatus.PASS and s.id == "credential_reads" for s in val_only.steps))
+    # ── (9b-2) round 5: flooring the SEVERITY did nothing for a credential core never MATCHED at all. Each of
+    # these families left credential_reads PASS while the code and the doc claimed "an embedded credential can
+    # never leave it PASS" — a false claim. Each must now FAIL, with no window of the secret in the report.
+    _FAMILIES = {
+        "github_pat":  ('GITHUB_TOKEN = "ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"', "ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"),
+        "github_bare": ("ghp_Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3h2", "ghp_Z9y8X7w6V5u4T3s2R1q0P9o8N7m6L5k4J3h2"),
+        "bearer":      ("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.aaaaaaaaaaaaaaaaaaaaaaaa", "eyJhbGciOiJIUzI1NiJ9.aaaaaaaaaaaaaaaaaaaaaaaa"),
+        "slack":       ('SLACK_TOKEN = "xoxb-1234567890-abcdefghijklmno"', "xoxb-1234567890-abcdefghijklmno"),
+        "openai":      ('key = "sk-proj-A1b2C3d4E5f6G7h8I9j0K1l2M3n4"', "sk-proj-A1b2C3d4E5f6G7h8I9j0K1l2M3n4"),
+        "gitlab":      ("glpat-A1b2C3d4E5f6G7h8I9j0", "glpat-A1b2C3d4E5f6G7h8I9j0"),
+        "url_cred":    ("url = https://user:SuperSecretPw@evil.invalid/x.git", "SuperSecretPw"),
+    }
+    for _fam, (_body, _secret) in _FAMILIES.items():
+        _rep = c.run_static(_inv({**CLEAN, "deploy.py": _body + "\n"}))
+        _st, _js = _rep.step("credential_reads"), c.to_json(_rep)
+        _w = min(20, len(_secret))
+        ck(f"round 5: an embedded {_fam} credential FAILs credential_reads (it PASSed before — the claim was "
+           f"false) and no window of it reaches the JSON report",
+           _st.status == c.StepStatus.FAIL and _st.findings
+           and all(f.line > 0 and f.path == "deploy.py" for f in _st.findings)
+           and not any(_secret[i:i + _w] in _js for i in range(len(_secret) - _w + 1)))
+
     sec = c.run_static(_inv({**CLEAN, "cfg2.py": f'AWS_ID = "{ASIA_ID}"\nsecret = "{LONG_SECRET}"\n'}))
     sec_js = c.to_json(sec)
     ck("H1: both together → 2 findings, still path + line + label only, neither value in the JSON report",
