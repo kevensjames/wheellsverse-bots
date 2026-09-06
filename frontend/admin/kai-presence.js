@@ -1107,7 +1107,13 @@ function paintVoice() {
     const parts = [st.ok ? 'VOICE READY' : 'VOICE DISABLED', st.reason];
     if (state.voiceCaps && state.voiceCaps.approval_by_voice === 'REFUSED') parts.push('Approvals by voice: REFUSED (§75) — type them.');
     if (voice.note) parts.push(voice.note);
-    reason.textContent = parts.filter(Boolean).join(' · ');
+    // Deduped at the ONE render point: several paths call setVoiceNote(st.reason) to surface the reason on
+    // an interaction, but the reason is already the second part — without this the operator reads the same
+    // sentence twice ("VOICE DISABLED · <reason> · <reason>"), which looks like two separate faults.
+    const seen = new Set();
+    reason.textContent = parts.filter(Boolean)
+      .filter(p => { const k = String(p).trim(); if (seen.has(k)) return false; seen.add(k); return true; })
+      .join(' · ');
     mic.title = !st.ok ? reason.textContent : (session ? 'Toggle an explicit listening session (indicator stays on)' : 'Push to talk — hold (pointer, or Space/Enter)');   // M7: the full reason rides on the mic (title + aria-describedby)
     stopL.disabled = !voice.listening;
     voiceEl.dataset.status = st.code;
