@@ -117,6 +117,12 @@ _NEEDS_EXECUTED = {LabState.BUILD_REVIEW: "build", LabState.ISOLATED_EXECUTION: 
 _UNDECIDED = frozenset({"SKIPPED", "PENDING", "UNVERIFIED"})   # a report step status that decides nothing
 
 
+def _val(v):
+    """L4: report fields arrive either serialized ('PASS') or as (str, Enum) members (dataclasses.asdict
+    keeps Enum members) — str(StepStatus.PASS) is 'StepStatus.PASS', so compare on .value."""
+    return getattr(v, "value", str(v))
+
+
 def allowed_transitions(state: LabState) -> frozenset[LabState]:
     nxt = _NEXT[state]
     return nxt if state in TERMINAL else nxt | {LabState.REJECTED}
@@ -239,7 +245,9 @@ def record_verdict(entry: OsCatalogEntry, verdict: Verdict, *, actor: str, reaso
     """§114 — the ONLY writer of ``certification``. Allowed only while in SECURITY_REVIEW, with a report.
     Fail-closed direction: kai may record SUSPICIOUS / REJECTED / UNVERIFIED; the clean-scope verdict is
     operator-only and needs a FULL-scope report in which every step actually decided (no SKIPPED / PENDING /
-    UNVERIFIED). Any verdict must agree with the verdict the attached report carries."""
+    UNVERIFIED), every step PASS, no MEDIUM+ finding, and a verdict RE-DERIVED from those steps that equals
+    the recorded one (M1: the report's own 'verdict' key is evidence, not authority). Any verdict must agree
+    with the verdict the attached report carries."""
     _governed(actor, reason)
     verdict = Verdict(verdict)
     clean = verdict == Verdict.NO_MALICIOUS_BEHAVIOR_DETECTED_IN_CERTIFIED_SCOPE
@@ -250,14 +258,30 @@ def record_verdict(entry: OsCatalogEntry, verdict: Verdict, *, actor: str, reaso
         raise ValueError(f"{entry.name}: a verdict may only be recorded in SECURITY_REVIEW (state {entry.state.value})")
     if not isinstance(evidence, dict) or not evidence:
         raise ValueError(f"{entry.name}: a verdict requires its report (dict) as evidence (§114)")
-    if "verdict" in evidence and str(evidence["verdict"]) != verdict.value:
+    if "verdict" in evidence and _val(evidence["verdict"]) != verdict.value:   # L4: Enum member or its .value
         raise ValueError(f"{entry.name}: recorded verdict contradicts the attached report")
     if clean:
         steps = evidence.get("steps")
-        statuses = [s.get("status") if isinstance(s, dict) else None for s in (steps if isinstance(steps, list) else [])]
+        steps = steps if isinstance(steps, list) else []
+        statuses = [_val(s.get("status")) if isinstance(s, dict) else None for s in steps]
         if evidence.get("scope") != "FULL" or not statuses or any(st is None or st in _UNDECIDED for st in statuses):
             raise ValueError(f"{entry.name}: {verdict.value} requires a FULL-scope report with every step decided "
                              f"(no SKIPPED/PENDING/UNVERIFIED) — a STATIC_ONLY/partial report cannot certify (§114)")
+        # M1: the report's self-declared verdict is not trusted — re-derive it from the attached steps.
+        from app.services.holding.os_lab import certification as _cert   # lazy: certification imports this module
+        rows = [_cert.StepResult(str(s.get("id", "")), "", "", _val(s.get("status")), tuple(
+            _cert.Finding("", _val(f.get("severity")), "", "") for f in (s.get("findings") or [])
+            if isinstance(f, dict))) for s in steps]
+        if any(st != _cert.StepStatus.PASS.value for st in statuses):
+            raise ValueError(f"{entry.name}: {verdict.value} requires EVERY step PASS — the attached report has "
+                             f"{sorted(set(statuses) - {'PASS'})} (§114)")
+        if any(f.severity in (_cert.REJECTS | _cert.ESCALATES) for r in rows for f in r.findings):
+            raise ValueError(f"{entry.name}: {verdict.value} refused — the attached report carries "
+                             f"MEDIUM/HIGH/CRITICAL findings (§114)")
+        if _cert.derive_verdict(rows) != verdict:
+            raise ValueError(f"{entry.name}: verdict re-derived from the attached steps is "
+                             f"{_cert.derive_verdict(rows).value}, not {verdict.value} — the report's own "
+                             f"'verdict' key is not trusted (§114)")
     rec = _audit(entry, kind="verdict", to=verdict.value, actor=actor, reason=reason, evidence=evidence, at=at)
     entry.certification = verdict
     return rec

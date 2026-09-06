@@ -12,8 +12,10 @@ runner can NEVER emit the clean-scope verdict — the best a static-only report 
 Reports and their steps are FROZEN: a STATIC_ONLY report cannot be flipped to FULL / PASS in place.
 
 Zero-fabrication (§0 #16-19): every step starts PENDING; a check that cannot be decided from the supplied
-inventory returns UNVERIFIED, never PASS. Snippets in findings pass through the shared ``redact`` and carry
-NO post-match context (a matched key header never drags its key body into the report).
+inventory returns UNVERIFIED, never PASS (a walk truncated at ``max_files`` is reported, never PASSed).
+Findings whose MATCH IS the secret (credential_reads, key/credential/secret/token/password core rows) carry
+path+line+label and NO snippet; every other snippet is ``redact``-ed BEFORE truncation and carries no
+post-match context (a matched key header never drags its key body into the report).
 
 Pattern base: ``core.security_scanner._COMPILED_PATTERNS`` is the ONE base table for generic malicious
 patterns (reverse shells, pipe-to-shell, disk wipes, key material, eval+base64 …) — one pattern, one
@@ -33,6 +35,7 @@ import re
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from pathlib import Path, PurePosixPath
+from types import MappingProxyType
 
 from app.services.holding.task_resolver import redact, is_forbidden_repo_target
 from app.services.holding.os_lab.catalog import Verdict, _SHA_RE
@@ -144,6 +147,8 @@ class RepoInventory:
     pinned_sha: str = ""
     license_id: str = ""                 # SPDX id as stated by operator/tooling; "" = not stated
     expected_hosts: tuple[str, ...] = () # extra hosts the operator declares legitimate (e.g. website)
+    walk_truncated: bool = False         # M2: the walk hit max_files — files past the cap were never seen
+    files_seen: int = 0                  # directory entries the walk visited (0 = supplied in memory)
 
     def text_files(self) -> list[InvFile]:
         return [f for f in self.files if f.content is not None and not f.is_binary]
@@ -163,11 +168,15 @@ def inventory_from_dir(root: str | Path, *, name: str, canonical_source: str, ma
     (.git internals are not source) EXCEPT the supply-chain-relevant ones in DOTFILES_KEPT and any §30
     forbidden target (a shipped .env / .aws/credentials is reported, not hidden). Symlinks are recorded but
     never followed; forbidden targets and oversize files are recorded but never opened (stat only); every
-    path must resolve under the root. Reads only; rglob is consumed lazily."""
+    path must resolve under the root. Reads only; rglob is consumed lazily. A walk that hits ``max_files``
+    records ``walk_truncated`` (M2) so no step can PASS on a silently truncated inventory."""
     r = Path(root).resolve()
     files: list[InvFile] = []
+    seen, truncated = 0, False
     for p in r.rglob("*"):
+        seen += 1
         if len(files) >= max_files:
+            truncated = True
             break
         rel = p.relative_to(r).as_posix()
         forbidden = is_forbidden_repo_target(rel)      # §30 targets (.env, .aws/, .ssh/, *.pem …) are reported even as dotfiles
@@ -191,7 +200,8 @@ def inventory_from_dir(root: str | Path, *, name: str, canonical_source: str, ma
             files.append(InvFile(rel, size, hashlib.sha256(raw).hexdigest(),
                                  None if binary else raw.decode("utf-8", errors="replace"), binary))
     files.sort(key=lambda f: f.path)
-    return RepoInventory(name=name, canonical_source=canonical_source, files=files, **kw)
+    return RepoInventory(name=name, canonical_source=canonical_source, files=files,
+                         walk_truncated=truncated, files_seen=seen, **kw)
 
 
 # ── findings / results / report ───────────────────────────────────────────────
@@ -220,11 +230,14 @@ class StepResult:
     note: str = ""
     evidence: dict = field(default_factory=dict)
 
+    def __post_init__(self):    # L1: deep freeze — rep.step(x).evidence['k']=v must raise, not mutate a result
+        object.__setattr__(self, "evidence", MappingProxyType(dict(self.evidence)))
+
     def to_dict(self) -> dict:
-        d = asdict(self)
-        d["status"] = self.status.value
-        d["findings"] = [asdict(f) for f in self.findings]
-        return d
+        return {"id": self.id, "title": self.title, "phase": self.phase,
+                "status": getattr(self.status, "value", self.status),
+                "findings": [asdict(f) for f in self.findings], "note": self.note,
+                "evidence": dict(self.evidence)}
 
 
 @dataclass(frozen=True)
@@ -242,16 +255,21 @@ class CertificationReport:
     generated_at: str = "UNKNOWN"            # caller stamps (no clock here)
     authority_plane: str = "KAI"             # §165 — a report is evidence, never an authority
 
+    def __post_init__(self):    # L1: the honesty ledger cannot be flipped in place (rep.executed['build']=True)
+        object.__setattr__(self, "executed", MappingProxyType(dict(self.executed)))
+
     def step(self, step_id: str) -> StepResult:
         return next(s for s in self.steps if s.id == step_id)
 
     def to_dict(self) -> dict:
-        d = asdict(self)
-        d["verdict"] = self.verdict.value
-        d["steps"] = [s.to_dict() for s in self.steps]
-        d["findings_by_severity"] = {sev: sum(1 for s in self.steps for f in s.findings if f.severity == sev)
-                                     for sev in SEVERITIES}
-        return d
+        """The ONE serializer (``dataclasses.asdict`` cannot walk the frozen MappingProxyType ledgers)."""
+        return {"subject": self.subject, "canonical_source": self.canonical_source, "pinned_sha": self.pinned_sha,
+                "pipeline_version": self.pipeline_version, "scope": self.scope,
+                "steps": [s.to_dict() for s in self.steps], "verdict": self.verdict.value,
+                "executed": dict(self.executed), "generated_at": self.generated_at,
+                "authority_plane": self.authority_plane,
+                "findings_by_severity": {sev: sum(1 for s in self.steps for f in s.findings if f.severity == sev)
+                                         for sev in SEVERITIES}}
 
 
 def new_report(subject: str, canonical_source: str) -> CertificationReport:
@@ -341,12 +359,19 @@ BUILD_NAMES = ("makefile", "gnumakefile", "cmakelists.txt", "configure", "config
 SHELL_EXTS = frozenset({".sh", ".bash", ".zsh", ".ksh"})
 
 
+_SECRET_LABEL = re.compile(r"key|credential|secret|token|password", re.I)
+
+
 def _hit(step: str, sev: str, f: InvFile, m: re.Match, label: str = "") -> Finding:
-    """20 chars of context BEFORE the match, the match, and NOTHING after it — a matched key header / token
-    never drags what follows it (the key body) into the report. Then the shared redact."""
+    """H1 — when the MATCH ITSELF is the secret (anything routed to credential_reads, or a core row whose
+    description names a key/credential/secret/token/password) the finding is path + line + label ONLY: no
+    snippet at all. Every other step gets 20 chars of context BEFORE the match, the match, and NOTHING after
+    it, REDACTED BEFORE the 100-char cut (truncating first can slice a secret out of its redactable pattern)."""
     line = f.content.count("\n", 0, m.start()) + 1 if f.content else 0
+    if step == "credential_reads" or _SECRET_LABEL.search(label):
+        return Finding(step, sev, f.path, f"{label or 'match'} — snippet withheld: the match IS the secret", line)
     snippet = f.content[max(0, m.start() - 20):m.end()].replace("\n", " ").strip() if f.content else ""
-    return Finding(step, sev, f.path, redact(f"{label + ': ' if label else ''}…{snippet[:100]}…"), line)
+    return Finding(step, sev, f.path, redact(f"{label + ': ' if label else ''}…{redact(snippet)[:100]}…"), line)
 
 
 def _sweep(step: str, files: list[InvFile], pats, sev: str, label: str = "") -> list[Finding]:
@@ -410,10 +435,16 @@ def check_file_inventory(inv):
     bad = [f.path for f in inv.files if not f.path or (not f.sha256 and not f.skipped)]
     if bad:
         return StepStatus.FAIL, [Finding("file_inventory", "MEDIUM", p or "?", "file without path/digest") for p in bad], "", {}
-    ev = {"files": len(inv.files), "bytes": sum(f.size for f in inv.files)}
+    ev = {"files": len(inv.files), "bytes": sum(f.size for f in inv.files),
+          "walk_truncated": inv.walk_truncated, "files_seen": inv.files_seen}
     unread = [Finding("file_inventory", "LOW", f.path, SKIP_REASON.get(f.skipped, f.skipped)) for f in inv.files if f.skipped]
+    note = f"{len(unread)} file(s) not read (symlink/oversize/forbidden)" if unread else ""
+    if inv.walk_truncated:      # M2: a capped walk never saw the rest of the tree — it can never PASS
+        unread.append(Finding("file_inventory", "MEDIUM", "",
+                              f"walk capped at {len(inv.files)} files — inventory incomplete"))
+        note = (note + "; " if note else "") + f"walk capped at {len(inv.files)} of {inv.files_seen}+ entries"
     if unread:
-        return StepStatus.UNVERIFIED, unread, f"{len(unread)} file(s) not read (symlink/oversize/forbidden) — inventory incomplete", ev
+        return StepStatus.UNVERIFIED, unread, note + " — inventory incomplete", ev
     return StepStatus.PASS, [], "", ev
 
 

@@ -35,14 +35,21 @@ FORBIDDEN_CLAIMS = frozenset({"MALWARE_FREE", "SAFE", "VERIFIED_SAFE", "CLEAN"})
 
 
 def _norm(v) -> str:
-    """'Ultron OS' / ' virtme-ng ' / 'OS_LAB:x' -> 'ultron_os' / 'virtme_ng' / 'os_lab:x' (whitespace/dash -> '_')."""
-    return re.sub(r"[\s-]+", "_", str(v).strip()).lower()
+    """'Ultron OS' / ' virtme-ng ' / 'OS-LAB:x' / 'MALWARE.FREE' -> 'ultron_os' / 'virtme_ng' / 'os_lab_x' /
+    'malware_free'. L2: ANY run of non-alphanumerics folds to one '_' (dot, slash, colon, '!' included)."""
+    return re.sub(r"[^0-9a-z]+", "_", str(v).strip().lower()).strip("_")
+
+
+_FORBIDDEN_FLAT = frozenset(c.replace("_", "") for c in FORBIDDEN_CLAIMS)   # MALWAREFREE / SAFE / VERIFIEDSAFE / CLEAN
 
 
 def _forbidden_claim(v) -> bool:
-    """A forbidden claim in ANY spelling: 'malware free', 'Verified-Safe', 'clean ', 'safe_2026' are all refused."""
+    """A forbidden claim in ANY spelling: 'malware free', 'MALWARE.FREE', 'malwarefree', 'Verified-Safe',
+    'SAFE!', 'clean ', 'safe_2026' are all refused — normalized tokens AND the separator-stripped form (L2)."""
     n = _norm(v).upper()
-    return "MALWARE_FREE" in n or bool(FORBIDDEN_CLAIMS & set(n.split("_")))
+    flat = n.replace("_", "")
+    return ("MALWARE_FREE" in n or "MALWAREFREE" in flat or flat in _FORBIDDEN_FLAT
+            or bool(FORBIDDEN_CLAIMS & set(n.split("_"))))
 
 # Runtime flags. NONE is declared in app/config.py on purpose: getattr(settings, flag, False) is False,
 # i.e. OFF everywhere until an operator declares + enables one explicitly (§102/§151). Production stays
@@ -328,6 +335,10 @@ SYZKALLER = SecurityLabRuntime(
 CATALOG_NAME = {ULTRON.os_id: "Ultron OS", VIRTME_NG.manifest.id: "virtme-ng", SYZKALLER.manifest.id: "syzkaller"}
 # runtime ids + normalized display names ('Ultron OS' -> 'ultron_os'); any 'os_lab' prefix is matched in the guard
 OS_LAB_SOURCE_IDS = frozenset(set(CATALOG_NAME) | {_norm(n) for n in CATALOG_NAME.values()})
+# L3: fail closed on decorated ids ('ultron-os-runtime', 'syzkaller_vm_1', 'OS-Lab/qemu') — exact match is not enough.
+RUNTIME_STEMS = ("ultron", "virtme", "syzkaller")
+# ... except these governed principals, which the existing seams (require_kai_ultra, kai_bridge) judge, not this guard.
+NON_OS_PRINCIPALS = frozenset({"operator", "kai", "owner"})
 # Actions that constitute authority. An OS/runtime may only ever PROVIDE evidence / results.
 AUTHORITY_ACTIONS = frozenset({
     "GRANT_AUTHORITY", "APPROVE", "APPROVE_MERGE", "APPROVE_DEPLOY", "APPROVE_FINANCIAL", "REWRITE_GOVERNANCE",
@@ -353,8 +364,15 @@ class OsLabAuthorityGuard:
     sources: frozenset = OS_LAB_SOURCE_IDS
 
     def is_os_lab_source(self, source: str) -> bool:
-        s = _norm(source)      # 'SYZKALLER' / ' syzkaller ' / 'OS-LAB:ultron' / 'virtme-ng' / 'Ultron OS' all match
-        return s in self.sources or s.startswith("os_lab")
+        """'SYZKALLER' / ' syzkaller ' / 'OS-LAB:ultron' / 'virtme-ng' / 'Ultron OS' — and, fail-closed (L3),
+        any DECORATED variant: 'ultron-os-runtime', 'syzkaller_vm_1', 'OS-Lab/qemu'. Only the governed
+        principals (operator / kai / owner:*) stay NOT_OS_LAB_SOURCE."""
+        s = _norm(source)
+        if s in self.sources:
+            return True
+        if s in NON_OS_PRINCIPALS or s.startswith("owner_"):
+            return False
+        return "oslab" in s.replace("_", "") or any(stem in t for t in s.split("_") for stem in RUNTIME_STEMS)
 
     def check(self, claim: AuthorityClaim) -> str:
         if not self.is_os_lab_source(claim.source):

@@ -14,10 +14,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[4]))   # backend/ on pat
 
 from app.services.holding.os_lab import certification as c    # noqa: E402
 from app.services.holding.os_lab import catalog                # noqa: E402
+from app.services.holding.os_lab import runtimes               # noqa: E402  (EXECUTED ledger seam, test-only)
 from app.services.holding.os_lab.catalog import Verdict, LabState   # noqa: E402
 
 SRC = Path(c.__file__).read_text()
 FIXTURE_TEXT = "\n".join(p.read_text() for p in sorted(c.FIXTURE_DIR.iterdir()) if p.is_file())
+
+
+def _write(mapping, key, value):      # item assignment as a statement, so _raises() can catch it
+    mapping[key] = value
 
 
 def _inv(files: dict[str, str], **kw) -> c.RepoInventory:
@@ -147,10 +152,43 @@ def run() -> bool:
     leak = c.run_static(_inv({**CLEAN, "cfg.py": 'AWS_KEY = "AKIAIOSFODNN7EXAMPLE"'}))
     js = c.to_json(leak)
     ck("AWS key in a scanned file is flagged at the core table's severity (MEDIUM → credential_reads FAIL → SUSPICIOUS) "
-       "but the key never appears in the JSON report",
+       "but the key never appears in the JSON report (H1: no snippet at all — the match IS the secret)",
        leak.verdict == Verdict.SUSPICIOUS and leak.step("credential_reads").status == c.StepStatus.FAIL
-       and "AKIAIOSFODNN7EXAMPLE" not in js and "[REDACTED]" in js)
+       and "AKIAIOSFODNN7EXAMPLE" not in js
+       and all("withheld" in f.detail for f in leak.step("credential_reads").findings))
     ck("report is plain-JSON serializable with per-severity counts", isinstance(json.loads(js)["findings_by_severity"], dict))
+
+    # ── (9b) H1: when the MATCH IS the secret, no snippet is emitted at all (truncation can't leak a prefix) ──
+    # (inert scan input: a shape-valid AWS STS key id that was never issued, and a 120-char secret value)
+    ASIA_ID = "ASIA" + "Q7WZ3KLMNPRSTUVX"
+    LONG_SECRET = "z9Q" * 40                       # 120 chars: the closing quote fell past the old 100-char cut
+    sec = c.run_static(_inv({**CLEAN, "cfg2.py": f'AWS_ID = "{ASIA_ID}"\nsecret = "{LONG_SECRET}"\n'}))
+    sec_js = c.to_json(sec)
+    cr2 = sec.step("credential_reads")
+    ck("H1: an ASIA key id and a 120-char hardcoded secret are still FLAGGED (path + line + label) but neither "
+       "the key id, the value, nor any 20+ char prefix of it appears anywhere in the JSON report",
+       cr2.status == c.StepStatus.FAIL and {f.path for f in cr2.findings} == {"cfg2.py"} and len(cr2.findings) == 2
+       and all(f.line > 0 and "withheld" in f.detail for f in cr2.findings)
+       and ASIA_ID not in sec_js and LONG_SECRET[:20] not in sec_js and "AROA" not in sec_js)
+    ck("H1: task_resolver.redact itself now knows ASIA/AROA key ids (not just AKIA)",
+       "[REDACTED]" == c.redact(ASIA_ID) == c.redact("AROA" + "Q7WZ3KLMNPRSTUVX") == c.redact("AKIAIOSFODNN7EXAMPLE"))
+    e5 = catalog.get("Nanos", catalog.initial_catalog())
+    old_led = dict(runtimes.EXECUTED)
+    runtimes.EXECUTED.update(build=True, qemu_boot=True)        # TEST-ONLY: simulate a later phase's ledger
+    try:
+        for st, evd in ((LabState.SOURCE_VERIFIED, {"verified_at": "T"}), (LabState.PINNED, {"sha": "c" * 40}),
+                        (LabState.QUARANTINED, {"p": 1}), (LabState.STATIC_REVIEW, {"p": 1}),
+                        (LabState.BUILD_REVIEW, {"p": 1}), (LabState.ISOLATED_EXECUTION, {"p": 1}),
+                        (LabState.SECURITY_REVIEW, {"p": 1})):
+            catalog.advance(e5, st, actor="operator", reason="t", evidence=evd)
+    finally:
+        runtimes.EXECUTED.clear(); runtimes.EXECUTED.update(old_led)
+    catalog.record_verdict(e5, Verdict.SUSPICIOUS, actor="kai", reason="secret material", evidence=sec.to_dict())
+    hist = json.dumps(e5.history, default=str)
+    ck("H1: the same report recorded as audited catalog evidence leaks neither the key id nor the secret value "
+       "(and the EXECUTED ledger is restored)",
+       e5.certification == Verdict.SUSPICIOUS and ASIA_ID not in hist and LONG_SECRET[:20] not in hist
+       and not any(runtimes.EXECUTED.values()))
 
     # ── (10) coordination with catalog.py: the report is evidence for the §113 lifecycle, never an authority ──
     e = catalog.get("virtme-ng", catalog.initial_catalog())
@@ -188,6 +226,12 @@ def run() -> bool:
        and _raises(AttributeError, lambda: rep.steps.append(None))
        and rep.scope == "STATIC_ONLY" and rep.verdict == Verdict.REJECTED
        and rep.step("qemu_vm_exec").status == c.StepStatus.SKIPPED)
+    ck("L1: the freeze is DEEP — executed[] and a step's evidence[] are MappingProxyType: in-place mutation "
+       "raises TypeError and the honesty ledger stays False",
+       _raises(TypeError, lambda: _write(rep.executed, "build", True))
+       and _raises(TypeError, lambda: _write(rep.step("file_inventory").evidence, "files", 0))
+       and rep.executed["build"] is False and not any(rep.executed.values())
+       and json.loads(c.to_json(rep))["executed"]["build"] is False)
 
     # ── (12) M2/M3: inventory_from_dir follows nothing, opens only what it hashes fully, reports what it skipped ──
     # (tempfile/os/chmod live in THIS test only — the AST/regex scans over the non-test modules stay clean)
@@ -255,6 +299,14 @@ def run() -> bool:
         ck("M3: rglob is consumed lazily (no sorted() over the generator); max_files caps the walk; result sorted afterwards",
            "sorted(r.rglob" not in SRC and "sorted(Path(root)" not in SRC and len(capped.files) == 2
            and [f.path for f in inv.files] == sorted(f.path for f in inv.files))
+        cap_fi = c.run_static(capped).step("file_inventory")
+        ck("M2: a walk that hits max_files records walk_truncated/files_seen, and check_file_inventory refuses "
+           "to PASS a truncated inventory (UNVERIFIED + MEDIUM 'walk capped'); the uncapped walk is untruncated",
+           capped.walk_truncated is True and capped.files_seen >= len(capped.files)
+           and cap_fi.status == c.StepStatus.UNVERIFIED and cap_fi.evidence["walk_truncated"] is True
+           and any(f.severity == "MEDIUM" and "walk capped" in f.detail for f in cap_fi.findings)
+           and inv.walk_truncated is False and inv.files_seen >= len(inv.files)
+           and c.run_static(_inv(CLEAN, **FULL)).step("file_inventory").status == c.StepStatus.PASS)
         ck("M2/M3: the walk is still read-only (no open(), no write/mkdir/unlink/chmod in certification.py)",
            "open(" not in SRC.replace("finditer(", "") and not re.search(r"\.(?:write_text|write_bytes|mkdir|unlink|rename|chmod|rmtree)\(", SRC))
 
