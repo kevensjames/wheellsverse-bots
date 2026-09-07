@@ -86,6 +86,32 @@ happened. It is **not** reverted, because reverting it would require writing fal
 store to make an incident look like it did not occur — the precise failure this system exists to
 prevent.
 
+## 5b. Reconciliation of the state claim (2026-09-07, later)
+
+A review asked why the earlier report said proposal 9 went `approved` → `executed` while the
+production timeline contained only `PROPOSED` and `APPROVED`. Reconciled against the authoritative
+store, read-only:
+
+- Proposal 9 is **absent from the `open` bucket** (which returns ids 11, 10, 7, 6, 5, 4, 3, 2, 1), so
+  it has left the open state.
+- The execute endpoint returned the store's own words: `proposal is 'executed', not 'approved'`. That
+  string is produced by `execute_approved` reading `status` from the authoritative row.
+
+**The earlier claim was correct.** `approved` → `executed` did happen. The timeline's silence was a
+separate defect, and reconciling it exposed two:
+
+1. `events_from_proposals` emitted **no event at all for an execution**. An execution left no
+   observable record, in a system whose job is action truth.
+2. Worse, the approval event was keyed on the proposal's **current** status, so once it reached
+   `executed` it **lost its approval event**. History rewrote itself as state advanced, and what an
+   operator saw depended on when they looked.
+
+Both are fixed on `hotfix/kai-holding-ceo-truth`: an execution now emits a `worker_execution` event
+keyed on `executed_at`, and the approval event is keyed on the decision having happened.
+
+No production history was inserted, removed or rewritten. Proposal 9 keeps its `executed` state,
+evidence and audit record.
+
 ## 6. Follow-ups
 
 1. Provision a `RELEASE_VERIFIER_READ_ONLY` credential in production and staging so verification never
