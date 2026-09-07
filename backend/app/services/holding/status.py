@@ -92,6 +92,26 @@ def telegram_status() -> dict:
     return {"token_present": present, "delivery_opted_in": opted_in, "state": state}
 
 
+def _money_mode() -> str:
+    """MONEY_MODE from the ONE flag reader (self_model._flags). Undeclared in this app's Settings → UNAVAILABLE —
+    never a literal MOCK (a reader default is not an observation)."""
+    try:
+        from app.services.holding.self_model import _flags
+        return _flags().get("MONEY_MODE") or "UNAVAILABLE"
+    except Exception:
+        return "UNAVAILABLE"
+
+
+def _financial_execution() -> str:
+    """FINANCIAL_EXECUTION from brakes._financial_row — the enforcers' own readers (scope sol.transfer + Dwolla
+    sandbox-lock), which can honestly say ON. Any failure → UNAVAILABLE, never a literal DISABLED."""
+    try:
+        from app.services.holding.brakes import _financial_row, _now_iso
+        return _financial_row(_now_iso())["state"]
+    except Exception:
+        return "UNAVAILABLE"
+
+
 def autonomy_status() -> dict:
     """Truthful roll-up. Overall is AUTONOMOUS_READ_ONLY only when the worker plane is online; else DEGRADED."""
     workers = list_workers()
@@ -111,10 +131,10 @@ def autonomy_status() -> dict:
         "EVIDENCE_RETURN": "PASS",
         "TELEGRAM": tg["state"],
         "DAILY_BRIEFING": "PASS" if cron_status()["briefing"]["last_run"] != "UNAVAILABLE" else "PENDING",
-        "MONEY_MODE": "MOCK",
+        "MONEY_MODE": _money_mode(),
     }
     overall = "AUTONOMOUS_READ_ONLY" if worker_online else "DEGRADED"
-    return {"checks": rows, "overall": overall, "financial_execution": "DISABLED"}
+    return {"checks": rows, "overall": overall, "financial_execution": _financial_execution()}
 
 
 def full_status() -> dict:

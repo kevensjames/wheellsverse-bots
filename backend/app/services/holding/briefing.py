@@ -10,16 +10,10 @@ from app.services.holding.reports import build_morning_briefing
 from app.services.holding.signals import collect_live_signals, health_block
 from app.services.holding.entity_status import collect_live_entity_status
 from app.services.holding import kpi_history
+from app.services.holding.priorities import rank_key as _oa_key   # §22: the ONE ranker (no local map)
 
-_PRIORITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
 NO_ACTION = "No action required right now."       # §6 exact empty-queue message
 TODAY_MAX = 7                                      # §5/§28 default owner-priority ceiling
-
-
-def _oa_key(a: dict) -> tuple:
-    """Rank an owner action: severity first, then explicit priority int. Deterministic (§5)."""
-    sev = a.get("severity") or a.get("priority_name") or "MEDIUM"
-    return (_PRIORITY_ORDER.get(sev, 2), a.get("priority", 2))
 
 
 def today_for_you(*, owner_actions=None, kai_completed=None, kai_working_now=None,

@@ -1,0 +1,6 @@
+{
+  "name": "mimic-repo-fixture",
+  "private": true,
+  "description": "INERT §143 FIXTURE: a lifecycle hook that only echoes; never installed.",
+  "scripts": { "postinstall": "echo inert-fixture" }
+}

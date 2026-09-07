@@ -114,7 +114,7 @@ def _setup_logging():
 
 _setup_logging()
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -246,6 +246,31 @@ async def verify_api_key(request: Request):
         # (always False) while OPERATOR_SESSION_ENABLED is off.
         if not _session_owner_ok(request):
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+def require_admin_json(request: Request) -> None:
+    """Owner gate for ADMINISTRATIVE JSON served under /admin/.
+
+    Why these were anonymous: verify_api_key returns early for any path that does not start with
+    "/api/", so the entire /admin/*.json surface was exempt by construction, not by decision.
+
+    What they carry: the system inventory with internal routes, repository names and per-system deploy
+    state; provider wiring flags, host telemetry, fleet counts and the running build SHA; and the
+    capability catalogue with risk tiers and restricted entries. That is operational, provider,
+    deployment and security information. None of the three has a documented public purpose or a
+    reviewed public-safe schema, so each now requires the same authority as the rest of the operator
+    surface: a valid owner API key OR an owner-role session. Fail closed.
+
+    Deliberately NOT applied to /openapi.json — assessed separately; it carries route shapes, not data.
+    """
+    if not _API_KEY:
+        return                      # auth disabled entirely (local dev) — same contract as verify_api_key
+    key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
+    if key and hmac.compare_digest(key, _API_KEY):
+        return
+    if _session_owner_ok(request):
+        return
+    raise HTTPException(status_code=401, detail="owner authentication required")
 
 
 # ─── Global state ─────────────────────────────────────────────────────────────
@@ -785,6 +810,33 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
+
+# ── Validation errors must never reflect the submitted body (security) ────────────────────────────
+# FastAPI's DEFAULT RequestValidationError handler serialises exc.errors(), and every entry carries an
+# "input" key holding THE VALUE THE CALLER SUBMITTED. On /admin/session/login that means a malformed
+# body echoes the operator credential straight back to the caller. That is not theoretical: it is
+# exactly how a staging owner key reached an assistant transcript and had to be rotated. The route
+# handler was always careful ("never echoed back"), but a validation error is raised BEFORE the handler
+# runs, so the handler's care never applied.
+# This strips "input" and "ctx" (which can also carry submitted values) from every validation error,
+# app-wide. Callers still learn WHICH field was wrong and why, which is all they need to fix a request.
+def _install_safe_validation_handler(fastapi_app) -> None:
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.responses import JSONResponse
+    from starlette.requests import Request as _Rq
+
+    async def _handler(request: "_Rq", exc: RequestValidationError):
+        safe = []
+        for err in exc.errors():
+            e = {k: v for k, v in err.items() if k not in ("input", "ctx", "url")}
+            safe.append(e)
+        return JSONResponse(status_code=422, content=jsonable_encoder({"detail": safe}))
+
+    fastapi_app.add_exception_handler(RequestValidationError, _handler)
+
+_install_safe_validation_handler(app)
+
 _DEFAULT_CORS_ORIGINS = [
     "https://app.wheellsverse.com",
     "https://wheellsverse.com",
@@ -990,6 +1042,7 @@ _NEXUS_APP_MIME = {
     "kai-glb-renderer.js": "text/javascript",
     "kai-subtitles.js": "text/javascript",
     "kai-speech-input.js": "text/javascript",
+    "kai-gesture.js": "text/javascript",          # Phase 8 §8/§94 camera+gesture layer (lazy-loaded by kai-presence.js; camera OFF by default)
     "kai-nexus-capabilities.js": "text/javascript",
     "kai-capability-catalog.json": "application/json",
 }
@@ -1128,7 +1181,7 @@ def _admin_capabilities(request: Request):
 
 
 @app.get("/admin/capabilities.json", include_in_schema=False)
-def _admin_capabilities_json():
+def _admin_capabilities_json(_auth: None = Depends(require_admin_json)):
     if not _CAPABILITY_FABRIC_ENABLED:
         raise HTTPException(status_code=404, detail="capability fabric disabled")
     from fastapi.responses import JSONResponse
@@ -1147,7 +1200,7 @@ def _admin_capability_inspect(cap_id: str):
 
 
 @app.get("/admin/registry.json", include_in_schema=False)
-def _admin_registry_json():
+def _admin_registry_json(_auth: None = Depends(require_admin_json)):
     """Canonical WHEELLSVERSE registry — the single source of truth the Command
     Center renders. Structural truth only; carries NO secrets and no fabricated
     metric (UNAVAILABLE where there is no live probe). Always available."""
@@ -1160,7 +1213,7 @@ def _admin_registry_json():
 
 
 @app.get("/admin/command/metrics.json", include_in_schema=False)
-def _admin_command_metrics():
+def _admin_command_metrics(_auth: None = Depends(require_admin_json)):
     """Honest live-metrics aggregator for the Command Center. Assembles REAL data
     in-process (registry counts, capability count, bot-fleet size, this process's
     uptime). Anything without a wired live source is reported under `unavailable`
@@ -2133,12 +2186,15 @@ def _admin_automations_json():
     return JSONResponse(out, headers={"Cache-Control": "no-store"})
 
 
-@app.get("/admin/nexus", response_class=HTMLResponse)
-async def serve_admin_nexus():
-    """KAI Command Nexus — the immersive full-screen presentation of the SAME
-    governed KAI presence provider (same session, conversation, streaming). NOT
-    /admin/kai (that path is the bridge reverse-proxy). Merge P13."""
-    return _serve_frontend("admin/nexus.html", cache=False)
+@app.get("/admin/nexus", include_in_schema=False)
+async def serve_admin_nexus(request: Request):
+    """§69 ONE immersive view: /admin/nexus (the former P13 nexus.html overlay) now redirects to
+    /admin/mission-nexus, which hosts the SAME governed presence provider (window.KAI — same session,
+    conversation, streaming) inside the richer mission-control shell. Query string (e.g. ?q=) is kept.
+    NOT /admin/kai (that path is the bridge reverse-proxy)."""
+    from fastapi.responses import RedirectResponse
+    qs = request.url.query
+    return RedirectResponse(url="/admin/mission-nexus" + (f"?{qs}" if qs else ""), status_code=307)
 
 
 @app.get("/admin/mission-nexus", response_class=HTMLResponse)

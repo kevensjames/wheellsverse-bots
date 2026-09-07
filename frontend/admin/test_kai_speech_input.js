@@ -98,4 +98,35 @@ test('a fresh start() re-arms the onset (once per session, not once per lifetime
   assert.strictEqual(onsets.length, 2);
 });
 
+test('re-arm within ONE session: arm→onset→disarm→arm→onset fires again (next utterance can be barged)', () => {
+  const SR = makeSR();
+  let onsets = [];
+  const p = new SI.KaiSpeechInputProvider({ SpeechRecognition: SR, onSpeechStart: () => onsets.push(1), now: () => 1 });
+  p.start();
+  p.armBargeIn(true); SR.last.onspeechstart();          // first utterance → fires
+  p.armBargeIn(false); SR.last.onspeechstart();         // KAI silent → nothing
+  p.armBargeIn(true); SR.last.onspeechstart();          // KAI speaks again → must fire again (no stop()/start() in between)
+  assert.deepStrictEqual(onsets, [1, 1]);
+});
+
+// ── Phase 7b: capture-window hooks + graceful PTT release ───────────────────
+test('onAudioStart/onAudioEnd bracket the real capture window (distinct recording indicator)', () => {
+  const SR = makeSR();
+  const seen = [];
+  const p = new SI.KaiSpeechInputProvider({ SpeechRecognition: SR, onAudioStart: () => seen.push('rec-on'), onAudioEnd: () => seen.push('rec-off'), now: () => 7 });
+  p.start();
+  SR.last.onaudiostart(); SR.last.onaudioend();
+  assert.deepStrictEqual(seen, ['rec-on', 'rec-off']);
+});
+test('stop({graceful:true}) uses rec.stop() so a pending FINAL result can still flush', () => {
+  const SR = makeSR();
+  SR.prototype.stop = function () { this.stopped = true; };
+  const p = new SI.KaiSpeechInputProvider({ SpeechRecognition: SR });
+  p.start(); const rec = SR.last;
+  p.stop({ graceful: true });
+  assert.strictEqual(rec.stopped, true);
+  assert.strictEqual(rec.aborted, false);
+  assert.strictEqual(p.getState().state, 'STOPPED');
+});
+
 console.log('\n' + pass + ' passed');

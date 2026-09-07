@@ -65,6 +65,7 @@
       availability: function () { return { available: !!(synth && makeUtterance), reason: (synth && makeUtterance) ? null : 'speechSynthesis unavailable' }; },
       listVoices: listVoices,
       rankVoices: function () { return rankVoices(listVoices()); },
+      resolveVoice: resolveVoice,   // the voice speak() will actually use (null = provider default / list not ready)
       setPreferredVoice: function (name) { preferredName = name || null; },
       speak: function (text, o) {
         o = o || {};

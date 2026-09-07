@@ -31,17 +31,21 @@ def brakes_all_on(settings) -> bool:
 def enqueue_a2_coding_job(*, mission_id: str, base_sha: str, settings, company_id: str = "wheellsverse",
                           company_autonomy: dict | None = None, suite_id: str = "holding_self_model",
                           repo_slug: str = "", goal: str = "", proposal_id: int = 0,
-                          grant_registry=None, enqueue_fn=None) -> dict:
-    """§30/§31/§34/§7 — enqueue a coding job ONLY when: APP_ENV=staging AND all three brakes on AND the
-    company kill-switch is on AND base_sha is present AND (EDIT_CODE_IN_WORKTREE,coding,company,staging) is
-    granted. Otherwise REFUSE (no job, a typed reason) — 0 A2 writes. Deployed KAI is the only enqueuer.
-    Returns {enqueued, reason, job, task}."""
+                          grant_registry=None, enqueue_fn=None, stop_store=None) -> dict:
+    """§30/§31/§34/§7 — enqueue a coding job ONLY when: APP_ENV=staging AND all three brakes on AND §97
+    STOP is not engaged AND the company kill-switch is on AND base_sha is present AND
+    (EDIT_CODE_IN_WORKTREE,coding,company,staging) is granted. Otherwise REFUSE (no job, a typed reason) —
+    0 A2 writes. Deployed KAI is the only enqueuer. Returns {enqueued, reason, job, task}."""
     from app.services.holding.a2_wiring import build_a2_grant_registry
+    from app.services.holding.brakes import stop_state
     reg = grant_registry or build_a2_grant_registry()
     if str(getattr(settings, "APP_ENV", "")).lower() != "staging":       # §30 staging-only
         return {"enqueued": False, "reason": "STAGING_ONLY"}
     if not brakes_all_on(settings):                                      # §31 three brakes
         return {"enqueued": False, "reason": "BRAKE_OFF"}
+    stopped = stop_state(stop_store)                                     # §97 STOP: STOP_ENGAGED | STOP_UNREADABLE (fail closed)
+    if stopped:
+        return {"enqueued": False, "reason": stopped}
     if (company_autonomy or {}).get(company_id, True) is False:          # §31 company kill-switch
         return {"enqueued": False, "reason": "COMPANY_AUTONOMY_OFF"}
     if not base_sha:                                                     # §7 base_sha required (fail closed)

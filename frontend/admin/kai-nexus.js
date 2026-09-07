@@ -14,7 +14,10 @@
 // ============================================================================
 (() => {
   'use strict';
-  const HOST = (typeof window !== 'undefined' && window.KAI) ? window.KAI : null;
+  // §69: the shared presence provider is an ES module (evaluates after this classic script) and dispatches
+  // `kai:ready` only AFTER its boot() has mounted — so HOST binds late on that event when the page carries
+  // the provider tag (see the bottom of this file). HOST.ask()/HOST.stop() await readiness inside the provider.
+  let HOST = (typeof window !== 'undefined' && window.KAI) ? window.KAI : null;
   const P = (typeof window !== 'undefined' && window.NexusProcedure) || null;   // procedure state machine
   const SYS = (typeof window !== 'undefined' && window.NexusSystems) || null;    // systems/topology model
   const AG = (typeof window !== 'undefined' && window.NexusAgents) || null;       // agent registry model
@@ -25,7 +28,7 @@
   const EMB = (typeof window !== 'undefined' && window.NexusEmbodiment) || null;  // §5 authoritative embodiment state machine
   const REDUCE_MOTION = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const NS = 'http://www.w3.org/2000/svg';
-  const IN_APP = !!HOST && location.protocol.startsWith('http');
+  let IN_APP = !!HOST && location.protocol.startsWith('http');
   const params = new URLSearchParams(location.search);
   const SCENARIO = params.get('scenario');           // idle|latency|research|security|approval
   const DEMO = !!SCENARIO;                            // DEMO only on explicit opt-in (§39)
@@ -38,7 +41,9 @@
     subs.get(topic)?.forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
     subs.get('*')?.forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
   }
-  if (HOST && HOST.on) HOST.on('kaiState', s => setKai(s));   // real provider state → single setKai path (emits + paints)
+  // real provider state → single setKai path (emits + paints); guard against echo (setKai → KAI.setState → emit)
+  const bindHost = () => { if (HOST && HOST.on) HOST.on('kaiState', s => { if (store.kaiState !== s) setKai(s); }); };
+  if (HOST) bindHost();
 
   // ── store ─────────────────────────────────────────────────────────────────
   const store = {
@@ -75,7 +80,7 @@
   function setEnv(env) { store.env = env; document.querySelector('.nx-shell')?.setAttribute('data-env', env); }
   function setKai(state, sub) {
     store.kaiState = state; if (sub != null) store.kaiSub = sub;
-    if (HOST && HOST.state) HOST.state.kaiState = state;   // keep the one provider in sync
+    if (HOST) { if (HOST.setState) HOST.setState(state); else if (HOST.state) HOST.state.kaiState = state; }   // ONE state path through the provider
     emit('kai.' + state);   // → the halo pulse/activity subscriber (§23); one canonical bus
     paintKai();
   }
@@ -89,7 +94,7 @@
     }
     const st = el('nx-kai-state'); if (st) st.textContent = store.kaiState.toUpperCase();
     const sub = el('nx-kai-sub'); if (sub) sub.textContent = store.kaiSub;
-    const cmd = el('nx-cmd-state'); if (cmd) cmd.textContent = ({ online: 'READY', idle: 'READY', thinking: 'THINKING', researching: 'RESEARCHING', speaking: 'SPEAKING', listening: 'LISTENING', alert: 'ATTENTION', offline: 'OFFLINE' })[store.kaiState] || 'READY';
+    const cmd = el('nx-cmd-state'); if (cmd) cmd.textContent = ({ online: 'READY', idle: 'READY', thinking: 'THINKING', researching: 'RESEARCHING', speaking: 'SPEAKING', listening: 'LISTENING', working: 'WORKING', waiting: 'AWAITING APPROVAL', degraded: 'DEGRADED', alert: 'ATTENTION', offline: 'OFFLINE' })[store.kaiState] || 'READY';
     const hv = el('nx-h-kai'); if (hv) hv.textContent = store.kaiState.toUpperCase();
     // §24-safe activity indicator: the state label only, never model content
     setActivity(PULSE ? PULSE.activityLabel(store.kaiState) : store.kaiState, ['online', 'idle', 'offline'].indexOf(store.kaiState) >= 0);
@@ -224,19 +229,23 @@
   // ── command bar ─────────────────────────────────────────────────────────────
   function wireCommand() {
     const input = el('nx-cmd-input'); const send = el('nx-cmd-send'); const stop = el('nx-cmd-stop');
+    // §52 ONE stop path: HOST.stop('user-stop') closes the mic AND cancels TTS/stream inside the provider — no local abort.
+    const stopAll = () => { if (HOST && typeof HOST.stop === 'function') HOST.stop('user-stop'); setKai(HOST && HOST.state ? HOST.state.kaiState : 'online', 'Stopped.'); };
     const submit = () => {
       const text = (input.value || '').trim(); if (!text) return; input.value = '';
       logActivity('You: ' + text);
       if (IN_APP && HOST && typeof HOST.ask === 'function' && !DEMO) {
-        // REAL governed path — reuse the one provider's governed streaming.
-        setKai('thinking', 'Working on it…'); HOST.ask(text);
+        // REAL governed path — the provider's ask() is the ONE dispatcher (typed stop-phrase check, holding
+        // command → governed-stream fallthrough, readiness, kaiState). ?q= deep links are PREFILLED by the
+        // provider (never auto-submitted), so nothing here reads the query string.
+        HOST.ask(text);
       } else {
         demoRespond(text);   // DEMO / standalone QA only
       }
     };
     send?.addEventListener('click', submit);
     input?.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
-    stop?.addEventListener('click', () => { if (HOST && HOST.state && HOST.state.streamState) HOST.state.streamState.abort(); setKai('online', 'Stopped.'); });
+    stop?.addEventListener('click', stopAll);
   }
 
   // ── DEV/DEMO scenario driver (§47) — labeled, opt-in only ────────────────────
@@ -1654,7 +1663,22 @@
     if (MEM) bootMemoryLive();   // §9 — KG ego-graph via the bridge (default OFF → EXTERNAL_BLOCKED, D13)
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  const start = () => { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init(); };
+  // §69: when the page carries the shared provider tag, wait for `kai:ready` (bounded) so the shell
+  // boots ATTACHED to the one provider (IN_APP) instead of racing it into standalone mode. The provider
+  // fires `kai:ready` after boot() has MOUNTED (not at module eval); the shell needs nothing from it
+  // before then — HOST.ask()/HOST.stop() await readiness inside the provider.
+  if (!HOST && document.querySelector('script[src*="kai-presence.js"]')) {
+    let started = false;
+    const go = () => {
+      if (started) return; started = true;
+      HOST = window.KAI || null; IN_APP = !!HOST && location.protocol.startsWith('http');
+      if (HOST) { bindHost(); store.kaiState = (HOST.state && HOST.state.kaiState) || store.kaiState; }
+      start();
+    };
+    window.addEventListener('kai:ready', go, { once: true });
+    setTimeout(go, 4000);   // bound (never hangs): provider absent → honest standalone boot; loaded but still mounting → attached boot
+  } else start();
   // expose for debugging + future phases (single namespace)
   window.KAINexus = { on, emit, store, setMode, setKai, setEnv, embodiment: EMB };
 })();

@@ -129,9 +129,18 @@
   fetch("/admin/capabilities.json",{headers:{Accept:"application/json"}})
     .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
     .then(render)
-    .catch(function(e){ document.getElementById("list").innerHTML=
-      '<div style="color:var(--bad)">Capability API unavailable: '+esc(e.message)+
-      '</div><div class="sub">Is KAI_CAPABILITY_FABRIC_ENABLED set on this deployment?</div>'; });
+    /* Distinguish "you are not signed in" from "this feature is off". The catalogue endpoint is now
+       owner-gated, so an anonymous visitor gets 401 — and blaming KAI_CAPABILITY_FABRIC_ENABLED for
+       that sends the operator to the wrong setting. It must also never render an empty catalogue,
+       which would read as "no capabilities" rather than "not authorised". */
+    .catch(function(e){
+      var m = String(e && e.message || ""), auth = /401|403/.test(m);
+      document.getElementById("list").innerHTML = auth
+        ? '<div style="color:var(--warn,#d90)">Owner sign-in required to read the capability '
+          + 'catalogue (' + esc(m) + ').</div><div class="sub">This is not an empty catalogue — '
+          + 'the data is withheld until you authenticate. Sign in on /admin/holding, then reload.</div>'
+        : '<div style="color:var(--bad)">Capability API unavailable: ' + esc(m)
+          + '</div><div class="sub">Is KAI_CAPABILITY_FABRIC_ENABLED set on this deployment?</div>'; });
 })();
 </script>
 </body>

@@ -55,6 +55,38 @@ class Settings(BaseSettings):
     # Holding Operations OS — governed READ-ONLY holding endpoints. Default off:
     # when False the router is not mounted at all (zero new surface).
     KAI_HOLDING_ENABLED: bool = False
+    # §90 Holding Command API — ONE typed, owner-only governed command entrypoint (POST
+    # /admin/holding/command[/stream]). Default OFF: when False the admin_holding_command router is not
+    # mounted at all (route absent, zero new surface). It grants NO authority: the command STRING is
+    # classified to a coarse intent and dispatched to the EXISTING Brain / knowledge index — never
+    # exec'd as a shell. Consequential intents fail closed to REQUIRE_APPROVAL; capability EXECUTION
+    # still requires KAI_CAPABILITY_EXECUTION_ENABLED (brake #1), else the Brain returns PREPARE_ONLY.
+    KAI_HOLDING_COMMAND_ENABLED: bool = False
+    # §7 Voice Command Center (Phase 7a, BACKEND). Default OFF: with it off, VoiceSessionManager.enabled
+    # is False and every voice turn returns VOICE_DISABLED — nothing listens, routes, speaks, or persists.
+    # Enabling grants NO authority: voice turns still route through the SAME §8 command resolver and a
+    # voice confirmation can NEVER authorize a consequential action (§75/§128-130 — approval_dialog
+    # refuses the voice channel). The covert core/wake_word_listener.py stays disabled regardless; the mic
+    # is never covert (a visible indicator is mandatory), and WAKE_WORD_LOCAL is UNAVAILABLE unless a
+    # genuinely on-device engine is present (no cloud continuous-audio fallback).
+    KAI_VOICE_ENABLED: bool = False
+    # §8/§94 Camera + gesture (Phase 8). Default OFF. Even when True the camera stays closed until the
+    # owner gives an explicit PER-SESSION enable (never persisted as ON); a visible indicator is mandatory
+    # whenever it is open; inference is LOCAL-ONLY (no frame ever leaves the device); no biometric /
+    # identity / emotion inference; gestures map only to non-consequential UI actions and can NEVER
+    # approve/confirm/execute (approval_dialog refuses the gesture channel like voice, §75). There is NO
+    # certified local recognizer in this repo — the seam reports RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED.
+    KAI_CAMERA_ENABLED: bool = False
+    # Cyber Operations is NOT part of this release: no admin_security router, no
+    # app/services/security executor, no page and no route ship here. KAI_CYBER_OPS_ENABLED is
+    # therefore NOT declared — a flag nothing reads or enforces can only produce a state report for a
+    # feature that does not exist. It returns in a future release together with a real gated
+    # implementation and tests proving both OFF and ON behaviour.
+    AIKIDO_CLIENT_ID: str = ""            # empty -> Aikido source reports NOT_CONNECTED
+    AIKIDO_CLIENT_SECRET: str = ""
+    AIKIDO_REGION: str = "eu"             # eu|us — pins the public Aikido REST base URL
+    APP_A_SECURITY_BASE_URL: str = ""     # empty -> App A status/scan adapter = NOT_CONNECTED
+    APP_A_SECURITY_API_KEY: str = ""      # shared owner key for App A /api/security/*; empty -> NOT_CONNECTED
     # Daily morning-briefing routine (report-only, no external send). Default off.
     KAI_HOLDING_BRIEFING_ENABLED: bool = False
     KAI_HOLDING_BRIEFING_UTC_HOUR: int = 11   # 07:00 America/New_York (EDT); use 12 for EST
@@ -64,6 +96,15 @@ class Settings(BaseSettings):
     # Continuous watch loop (Wave 1): proactive change/anomaly detection across entities. Default OFF.
     # Read-only; alerts deliver only if KAI_HOLDING_DELIVERY_ENABLED + a channel is configured too.
     KAI_HOLDING_WATCH_ENABLED: bool = False
+    # §30 bounded read-only holding cycle beat (dedicated flag, decoupled from watch). Default OFF: the
+    # celery-beat entry is added AND the tick runs ONLY when this is True — enabling watch no longer also
+    # schedules the cycle. Grants NO authority (the 3 build_live_engine brakes stay authoritative).
+    KAI_HOLDING_CYCLE_ENABLED: bool = False
+    # §11 ProactiveBriefingEngine funnel (Phase 3b). Default OFF: evaluate() (pure preview) always works,
+    # but the stateful run() funnel that records dedup + delegates delivery only runs when this is True.
+    # It adds NO new sender — every emission still routes through the §31 NotificationPolicy (delivery
+    # itself stays gated by KAI_HOLDING_DELIVERY_ENABLED + a configured channel).
+    KAI_PROACTIVE_ENABLED: bool = False
     # Capability Fabric execution gateway (owner-only governed tool execution). Default OFF ->
     # the /admin/capabilities routes are not mounted, so a disabled deploy has zero new surface.
     # This is EMERGENCY BRAKE #1: with it OFF, no capability executes (the live holding executor

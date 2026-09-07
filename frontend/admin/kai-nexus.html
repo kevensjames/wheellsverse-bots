@@ -6,8 +6,14 @@
   <title>KAI · Adaptive Mission Nexus</title>
   <link rel="stylesheet" href="/admin/kai-nexus.css">
   <link rel="stylesheet" href="kai-nexus.css">
+  <!-- §69 ONE immersive view: this shell HOSTS the shared governed presence provider (same session,
+       conversation, streaming, voice). The provider mounts into the [data-kai-slot] elements below —
+       no second overlay, no second brain. Module scripts evaluate after the classic ones; the shell
+       (kai-nexus.js) binds late on the provider's `kai:ready` event. -->
+  <link rel="stylesheet" href="/admin/kai-presence.css">
+  <script type="module" src="/admin/kai-presence.js"></script>
 </head>
-<body class="nx-body" data-kai-mode="nexus">
+<body class="nx-body" data-kai-mode="nexus" data-kai-module="nexus">
   <div id="nx-demo-banner" class="nx-demo-banner" hidden>◈ DEMO DATA — scenario fixtures, not live</div>
 
   <div class="nx-shell" data-mode="command" data-env="idle">
@@ -47,12 +53,21 @@
           <span class="nx-ring r3 spin"></span>
           <span class="nx-ring r4"></span>
           <span class="nx-core"></span>
+          <!-- §10/§49 embodiment slot: the provider lazy-mounts the certified video-swap avatar here (§72) -->
+          <div class="nx-av-host" data-kai-slot="avatar"></div>
         </div>
         <div class="nx-kai-caption">
           <div class="nx-kai-state" id="nx-kai-state">ONLINE</div>
           <div class="nx-kai-sub" id="nx-kai-sub">What can I do for you?</div>
           <div class="nx-kai-activity" id="nx-kai-activity" data-idle="1" aria-live="polite"><span class="nx-actdot"></span><span id="nx-kai-activity-label">Ready</span></div>
+          <div class="nx-kai-subs kaip-subtitles" id="kaip-subtitles" data-kai-slot="subtitles" aria-live="polite" aria-label="KAI captions"></div>
         </div>
+      </div>
+      <!-- §69 governed conversation — the shared provider renders the SAME conversation here -->
+      <div class="nx-panel nx-conv">
+        <div class="nx-panel-h">Conversation <span class="nx-h-accent">GOVERNED</span> <span class="nx-cmd-ctx" data-kai-slot="ctx"></span></div>
+        <div class="kaip-suggest" id="kaip-suggest" data-kai-slot="suggest"></div>
+        <div class="kaip-msgs nx-scroll" id="kaip-msgs" data-kai-slot="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
       </div>
       <div class="nx-panel nx-panel-pad nx-mission-head" id="nx-mission-head" hidden>
         <div class="nx-mh-title">
@@ -190,8 +205,10 @@
 
     <!-- ── COMMAND BAR ──────────────────────────────────────────────────── -->
     <div class="nx-command">
-      <span class="nx-cmd-state" id="nx-cmd-state">READY</span>
-      <textarea class="nx-cmd-input" id="nx-cmd-input" rows="1" placeholder="🎙  Ask KAI anything…"></textarea>
+      <span class="nx-cmd-state" id="nx-cmd-state" data-kai-slot="state" role="status" aria-live="polite">READY</span>
+      <!-- §5/§6/§7 voice controls (compact) — provider-rendered; DISABLED WITH REASON unless every gate is real -->
+      <div data-kai-slot="voice"></div>
+      <textarea class="nx-cmd-input" id="nx-cmd-input" rows="1" placeholder="Ask KAI anything… (type “stop” to interrupt)" aria-label="Command KAI"></textarea>
       <span class="nx-cmd-ctx" id="nx-cmd-ctx">context · nexus</span>
       <button class="nx-btn stop" id="nx-cmd-stop" type="button">STOP</button>
       <button class="nx-btn send" id="nx-cmd-send" type="button" aria-label="Send">↑</button>

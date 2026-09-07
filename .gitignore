@@ -237,3 +237,6 @@ wheellsverse1/
 
 # Lead-gen output contains real business PII — never commit to the repo
 data/launches/portfolio/leadgen/
+
+# KAI holding runtime sqlite stores (goals.db, memory, last_visit, notifications) — never commit
+data/holding/

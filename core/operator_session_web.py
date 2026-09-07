@@ -119,8 +119,14 @@ def make_session_router(cfg: SessionConfig) -> APIRouter:
     @router.post("/admin/session/logout")
     async def logout():
         resp = JSONResponse({"ok": True})
-        resp.delete_cookie(cfg.cookie_name, path="/")
-        resp.delete_cookie(HINT_COOKIE, path="/")
+        # A deletion cookie is still a Set-Cookie, and it must carry the SAME attributes as the cookie
+        # it replaces. delete_cookie's defaults dropped Secure, HttpOnly and SameSite, so logout emitted
+        # a weaker header than login — the session cookie is set HttpOnly+Secure, and its deletion was
+        # neither. Browsers match on attributes, so a mismatched deletion can also simply fail to clear.
+        resp.delete_cookie(cfg.cookie_name, path="/", httponly=True,
+                           secure=cfg.secure_cookies, samesite="lax")
+        resp.delete_cookie(HINT_COOKIE, path="/", httponly=False,
+                           secure=cfg.secure_cookies, samesite="lax")
         return resp
 
     @router.get("/admin/session/whoami")

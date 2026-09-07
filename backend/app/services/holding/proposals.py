@@ -27,7 +27,37 @@ def _entity_facts(entity: Optional[str]) -> dict:
         return {}
 
 
+# §19: severity/risk escalation used when an option DEFERS (deferring raises the risk one notch).
+_RISK_UP = {"none": "low", "low": "medium", "medium": "high", "high": "high"}
+
+
+def _with_options(base: dict, title: str) -> dict:
+    """§19: attach >=2 solution OPTIONS (each with its OWN effort/risk/cost) + a top-level ``cost``,
+    WITHOUT dropping any original key (back-compat — existing consumers read the flat fields unchanged).
+    Every action here is READ-ONLY, so the external monetary cost is $0 — ``cost`` is the honest
+    time/resource cost, never a fabricated dollar figure. Option 1 mirrors the primary action; option 2
+    is the always-available 'defer & monitor' alternative (cheaper now, higher risk while deferred)."""
+    eff = base.get("effort", "15m")
+    rsk = base.get("risk", "low")
+    primary = {"label": "Act now", "action": base.get("proposed_action", ""),
+               "effort": eff, "risk": rsk, "reversible": base.get("reversible", True),
+               "cost": f"{eff} effort · $0 external spend"}
+    defer = {"label": "Defer & monitor",
+             "action": f"Hold; re-surface only if the signal for “{title[:60]}” worsens.",
+             "effort": "5m", "risk": _RISK_UP.get(rsk, "medium"), "reversible": True,
+             "cost": "5m effort · $0 external spend · risk grows while deferred"}
+    base["options"] = [primary, defer]                    # >=2, each own effort/risk/cost (§19)
+    base["cost"] = primary["cost"]                         # top-level cost = the recommended option's cost
+    return base
+
+
 def _template(priority: dict) -> dict:
+    """priority -> the read-only action template PLUS §19 multi-option/cost (>=2 options, each own
+    effort/risk/cost, and a top-level ``cost``). Back-compatible: every original flat key is preserved."""
+    return _with_options(_base_template(priority), priority.get("title", "") or "")
+
+
+def _base_template(priority: dict) -> dict:
     """priority -> {action_class, proposed_action, plan[], risk, reversible, worker?, impact, effort}.
     Read-only actions only. Entity-aware: pulls the entity's real repo/status to be specific, and hints
     which isolated worker (github/browser) could carry the read-only action if dispatched (Wave 3)."""
@@ -85,11 +115,11 @@ def build_proposals(priorities: list) -> list:
 
 
 def build_daily_plan(proposals: list) -> dict:
-    """A ranked, time-boxed plan from the open proposals (draft-only; the operator approves/edits)."""
-    order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3, "": 4}
+    """A ranked, time-boxed plan from the open proposals (draft-only; the operator approves/edits).
+    Ranked by the ONE §22 ranker (priorities.rank_key) — no local severity→ordinal map."""
+    from app.services.holding.priorities import rank_key
     est = {INVESTIGATE: "30m", VERIFY: "20m", REQUEST_INFO: "5m", REVIEW: "15m"}
-    ranked = sorted([p for p in proposals if p.get("status") == _OPEN],
-                    key=lambda p: order.get(p.get("severity", ""), 9))
+    ranked = sorted([p for p in proposals if p.get("status") == _OPEN], key=rank_key)
     steps = [{"n": i + 1, "severity": p.get("severity"), "do": p.get("proposed_action"),
               "est": est.get(p.get("action_class"), "15m"), "class": p.get("action_class"),
               "entity": p.get("entity")} for i, p in enumerate(ranked)]
@@ -108,6 +138,10 @@ def demo() -> None:
     assert props[0]["action_class"] == INVESTIGATE and props[1]["action_class"] == VERIFY
     assert props[2]["action_class"] == REQUEST_INFO
     assert all(p["reversible"] and p["plan"] for p in props), "every proposal has a reversible plan"
+    # §19: every solution offers >=2 options (each with its own effort/risk/cost) + a top-level cost
+    for p in props:
+        assert len(p["options"]) >= 2 and "cost" in p, p
+        assert all({"effort", "risk", "cost"} <= set(o) for o in p["options"]), p["options"]
     plan = build_daily_plan(props)
     assert plan["count"] == 3 and plan["steps"][0]["severity"] == "HIGH", plan
     print(f"proposals.demo OK — {len(props)} draft proposals (all read-only), daily plan ranked {plan['count']} steps")

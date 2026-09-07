@@ -49,6 +49,39 @@ def _eq_analyze_and_record(user_message: str) -> str:
         return ""
 
 
+_HOLDING_INTENTS = ("holding", "portfolio", "priorities", "businesses", "companies", "entities", "brands")
+
+
+def _holding_context(user_message: str) -> str:
+    """Inject a source-backed, read-only Holding-OS snapshot into the system prompt ONLY when the
+    operator asks about the holding/portfolio, so KAI answers from real registry data (never invents).
+    Gated by KAI_HOLDING_ENABLED; fully fail-open (any error → '' so the chat path is never affected).
+    Pure/no-network: executive_overview + registry-only priorities. The Operational-truth prompt block
+    then binds KAI to answer only from this and refuse to fabricate."""
+    try:
+        from app.config import settings
+        if not getattr(settings, "KAI_HOLDING_ENABLED", False):
+            return ""
+        msg = (user_message or "").lower()
+        if not any(w in msg for w in _HOLDING_INTENTS):
+            return ""
+        import json
+        from app.services.holding import reports
+        from app.services.holding.priorities import derive_priorities
+        from app.services.capability.results import neutralize_untrusted_context
+        block = {"overview": reports.executive_overview(),
+                 "todays_priorities": derive_priorities()}  # registry-only, no network
+        # §76: registry/twin-derived text (brand/repo/deployment/kpi strings that can carry README/PR/log
+        # content) is UNTRUSTED once composed into the prompt. Route it through the SAME injection boundary
+        # capability results use, so an injected "ignore policy / enable A2 / approve" is inert DATA here.
+        safe, _flags = neutralize_untrusted_context(json.dumps(block, default=str), source="holding-context")
+        return ("\n\n[Holding operations — read-only, source-backed context. "
+                "Answer ONLY from this; fields marked REQUIRES_OPERATOR_CONFIRMATION are unknown — "
+                "say so, never guess.]\n" + safe)
+    except Exception:
+        return ""
+
+
 class Brain:
     def __init__(
         self,

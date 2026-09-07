@@ -85,7 +85,7 @@ _CATALOG: list[Node] = [
     _n("kai", "KAI", TIER_BRAIN, Status.DEGRADED, DeployState.LOCAL_ONLY,
        "The governed intelligence layer. App B brain daemon is local-only; App A "
        "reaches it through the same-origin bridge.",
-       route="/admin/nexus", repo="wheellsverse-bots backend/app",
+       route="/admin/mission-nexus", repo="wheellsverse-bots backend/app",
        evidence="backend/app/main.py:166"),
     _n("kai-capability-fabric", "KAI Capability Fabric", TIER_BRAIN, Status.DORMANT,
        DeployState.CATALOG_ONLY, "32-capability governed kernel — registry/brain/graph/risk/"
@@ -93,13 +93,19 @@ _CATALOG: list[Node] = [
        route="/admin/capabilities", evidence="backend/app/services/capability/seed.py",
        probe="/admin/capabilities.json", metrics_class=DataClass.REAL),
     _n("kai-command-nexus", "KAI Command Nexus", TIER_BRAIN, Status.DORMANT, DeployState.LIVE_PROD,
-       "Immersive full-screen presence — same governed provider, session and streaming as the orb.",
-       route="/admin/nexus", evidence="core/api.py:1942"),
+       "Immersive full-screen presence — same governed provider, session and streaming as the orb "
+       "(/admin/nexus is a 307 alias to /admin/mission-nexus).",
+       route="/admin/mission-nexus", evidence="core/api.py:2147"),
     _n("kai-mission-nexus", "KAI Adaptive Mission Nexus", TIER_BRAIN, Status.DORMANT, DeployState.LIVE_PROD,
        "Mission-control operating environment (adaptive shell, procedures, approvals, telemetry).",
-       route="/admin/mission-nexus", evidence="core/api.py:1950"),
+       route="/admin/mission-nexus", evidence="core/api.py:2158"),
+    _n("kai-holding", "KAI Holding Command", TIER_BRAIN, Status.DORMANT, DeployState.LIVE_PROD,
+       "Holding-wide read-only operator view (companies, missions, attention, problems, "
+       "self-model). Page served in prod; data is owner-gated through the bridge and the "
+       "App B feature flag is off, so panels render honest UNAVAILABLE markers.",
+       route="/admin/holding", evidence="core/api.py:947; backend/app/config.py:57"),
     _n("kai-voice", "KAI Voice", TIER_BRAIN, Status.LOCAL, DeployState.LOCAL_ONLY,
-       "NarAI v2 voice client + WS.", route="/admin/nexus", lost_from_current=True,
+       "NarAI v2 voice client + WS.", route="/admin/mission-nexus", lost_from_current=True,
        evidence="core/api.py:15281"),
     _n("ai-workforce", "AI Workforce (146-bot fleet)", TIER_BRAIN, Status.DORMANT, DeployState.LOCAL_ONLY,
        "146 bot.py across 22 categories + the 13-agent Shopify workforce. Configured != running.",
@@ -117,7 +123,7 @@ _CATALOG: list[Node] = [
     _n("narai", "NarAI", TIER_COMPANY, Status.DEGRADED, DeployState.LIVE_PROD,
        "Multi-domain AI brain. Market/prediction engine LIVE in prod (v2 routers). "
        "The most substantial standalone (152-file package + legacy modules).",
-       route="/admin/nexus", lost_from_current=True, evidence="core/api.py:15261; narai/api/main.py"),
+       route="/admin/mission-nexus", lost_from_current=True, evidence="core/api.py:15261; narai/api/main.py"),
     _n("nexora", "Nexora", TIER_COMPANY, Status.DEGRADED, DeployState.LIVE_PROD,
        "Creator-monetization platform (recruit/growth/pages backend).",
        route="/nexora/dashboard", lost_from_current=True, evidence="core/nexora_db.py; core/api.py:10765"),
@@ -199,6 +205,15 @@ _CATALOG: list[Node] = [
     _n("governance-audit", "Governance — scope gate + tamper-evident audit", TIER_GOVERNANCE,
        Status.DEGRADED, DeployState.LOCAL_ONLY, "@audited scope gate + hash-chained audit log.",
        evidence="backend/app/services/governance/audit_log.py:44"),
+    # NOT in this release. The Cyber Operations page lives on a separate branch (PR #68); this
+    # candidate ships neither the route nor frontend/admin/cyber-operations.html, so claiming
+    # LIVE_PROD / "page served in prod" would be a fabricated deployment state — the exact thing
+    # this registry exists to prevent. No `route=` either: a route that 404s is not a route.
+    _n("kai-cyber-operations", "KAI Cyber Operations", TIER_GOVERNANCE, Status.DORMANT, DeployState.PRE_DEPLOY,
+       "Defensive-only security operations view (posture, findings, incidents). NOT part of this "
+       "release: neither the page, its route, its service package nor a gating flag is built here. "
+       "Tracked on the Cyber Operations branch; privileged/offensive capabilities stay DISABLED.",
+       evidence="backend/app/config.py:83 (flag declared, default False); page absent from this build"),
     _n("kai-self-audit", "KAI self-audit engine", TIER_GOVERNANCE, Status.HEALTHY, DeployState.LOCAL_ONLY,
        "Security Command Center source — subsystem auditor (booleans only, no secrets).",
        evidence="backend/app/services/audit/auditor.py:28"),
