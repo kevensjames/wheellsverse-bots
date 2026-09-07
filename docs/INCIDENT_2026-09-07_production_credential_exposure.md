@@ -53,6 +53,82 @@ outside the authorized incident scope. It remains a candidate for precautionary 
 password that did not match the live Redis credential, so the Celery result backend could not have
 authenticated. All three Redis URLs are now consistent.
 
+## 2a. Exact inventory of what was displayed
+
+The raw output was truncated by `head -6` and `tail -8`, so only part of the service's variable set
+reached the transcript. `kai-prod` holds **25** variables; the CLI emits them sorted, so the two
+windows correspond to the first five and last five keys. Reconstruction matches the transcript
+line-for-line.
+
+**Displayed — names only, values never reproduced:**
+
+| # | Variable | Classification | Rotated |
+|---|---|---|---|
+| 1 | `API_KEY` | credential/secret | yes — family 1 |
+| 2 | `APP_ENV` | non-secret configuration | n/a |
+| 3 | `CELERY_BROKER_URL` | credential-bearing URL (Redis) | yes — family 4 |
+| 4 | `CELERY_RESULT_BACKEND` | credential-bearing URL (Redis) | yes — family 4 |
+| 5 | `DATABASE_URL` | credential-bearing URL (PostgreSQL) | yes — family 3 |
+| 6 | `RAILWAY_SERVICE_KAI_PROD_URL` | non-secret configuration (hostname) | n/a |
+| 7 | `RAILWAY_SERVICE_NAME` | non-secret configuration | n/a |
+| 8 | `RAILWAY_STATIC_URL` | non-secret configuration (hostname) | n/a |
+| 9 | `REDIS_URL` | credential-bearing URL (Redis) | yes — family 4 |
+| 10 | `SESSION_SIGNING_SECRET` | credential/secret | yes — family 2 |
+
+**Six secret-bearing values appeared. All six are covered by the four rotated families.**
+
+**No additional provider, bridge, webhook, Telegram, model, storage or infrastructure credential was
+displayed.** Two further secrets exist on the service — `OPENAI_API_KEY` and `JWT_SECRET_KEY` — but
+both fall in the elided middle range and did **not** appear in the output. They were not rotated,
+because they were not exposed.
+
+## 2b. The exposed App B `API_KEY` is an inert variable
+
+Verified from code at the current production SHA: App B's settings model does **not** define an
+`API_KEY` field, and nothing in the backend reads `API_KEY` from the environment. Its only consumer
+is `getattr(settings, "API_KEY", "")`, which therefore always yields empty and passes `owner_key=None`
+into the resolver.
+
+Confirmed live: the container holds the variable, but `settings.API_KEY` is absent and
+`resolve_principal` returns no principal for it. **No API key can authenticate to App B.** This was
+equally true at the production merge, so it is a pre-existing condition and not a consequence of the
+rotation.
+
+Consequence for impact assessment: of the six exposed values, that one was not a usable authentication
+credential. It was rotated regardless — the variable exists, may later be wired up, and its exposure
+was real.
+
+## 4a. Single-credential acceptance, verified
+
+From code:
+
+- `resolve_secret` compares against exactly one `owner_key` and one `admin_token`, in constant time,
+  and returns `None` on no match — never a default principal.
+- `verify_session` verifies against exactly one `secret` and fails closed on every error path.
+- Configuration is a single environment variable per credential with an empty default
+  (`_API_KEY = os.getenv("API_KEY", "").strip()`), so an unset value disables the path rather than
+  weakening it.
+- A search for multi-key, previous-key, legacy-key, fallback-key and allowlist patterns across both
+  applications and the verifier module returns **nothing**. There is no grace window in which an old
+  credential still validates.
+
+From effective runtime configuration:
+
+| Check | Result |
+|---|---|
+| App A, cookie signed with the current secret | **200** |
+| App A, cookie signed with any other secret | **401** |
+| App B, owner session on the current secret | **200** |
+| App B, owner session on another secret | **403** |
+| App B, operator-role session on the current secret | **403** (no `kai.ultra`) |
+| App B, no credential | **403** |
+| App B, any API key (correct or not) | **403** — the path is inert, see §2b |
+
+App A's `API_KEY` is a **different value** from App B's, was **not** present in the compromised
+output (which was `railway variables` for `kai-prod` only), and remains unchanged. Its independence is
+confirmed by fingerprint comparison.
+
+
 ## 3. Rotation performed
 
 | Family | Method | Old → new fingerprint |
@@ -145,3 +221,20 @@ exposed, and staging was not touched by this incident.
 3. Consider Railway variable **references** instead of literal copies, so a future rotation updates
    one source rather than eleven copies.
 4. Re-approve PR #70 against the new production baseline before resuming that deployment.
+
+## 9. Recorded security follow-ups (not implemented here)
+
+Deliberately recorded rather than actioned, because each is an application or infrastructure change
+outside the incident-response authorization.
+
+1. **Replace the eleven duplicated literal credentials with governed shared/reference variables.**
+   Every consumer holds its own literal copy, so this rotation required eleven individual writes and
+   any missed copy would have caused a silent outage. Railway variable references would make the
+   source authoritative and reduce a future rotation to one write per credential.
+2. **Migrate application database access off the `postgres` superuser.** Requires deciding table
+   ownership for 24 tables and how migrations obtain the rights they need (`ALTER TABLE` needs
+   ownership; `CREATE EXTENSION` needs superuser). See §3 for why this was not attempted mid-incident.
+3. **Establish durable Redis ACL/configuration management.** Redis currently runs with
+   `config_file = (none)`, so ACL users and `requirepass` changes cannot be persisted and the
+   environment variable is the only durable control. A managed configuration would allow least-
+   privilege ACL users per consumer instead of one shared `default` user with `+@all`.
