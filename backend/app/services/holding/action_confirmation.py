@@ -167,18 +167,15 @@ def verify(token: str | None, *, principal_id: str, role: str, proposal_id, acti
 #   DURABLE across restart         — the row is committed, not held in process memory;
 #   SELF-EXPIRING                  — rows carry the confirmation's own expiry and can be pruned.
 # It FAILS CLOSED: if the store is unreachable, the confirmation is refused rather than allowed.
-_NONCE_DDL = """CREATE TABLE IF NOT EXISTS holding_action_nonces (
-    jti TEXT PRIMARY KEY,
-    proposal_id TEXT NOT NULL,
-    principal_id TEXT NOT NULL,
-    environment TEXT NOT NULL,
-    expires_at TIMESTAMPTZ NOT NULL,
-    consumed_at TIMESTAMPTZ NOT NULL DEFAULT now()
-)"""
+# The table is created by alembic revision 0007_add_holding_action_nonces, NOT here. Creating schema
+# implicitly at call time means the shape of a production table depends on which code path ran first
+# and is never reviewed. Consumption assumes the table exists; if it does not, the INSERT raises and
+# the caller fails CLOSED, which is the correct behaviour for an unmigrated environment.
+NONCE_RETENTION_DAYS = 30
 
 
 def consume_nonce(jti: str, *, proposal_id, principal_id: str, environment: str,
-                  expires_at: int) -> dict:
+                  expires_at: int, action_digest_value: str = "") -> dict:
     """Consume the nonce exactly once. Returns {consumed, reason}. Never raises."""
     if not jti:
         return {"consumed": False, "reason": NO_NONCE}
@@ -190,15 +187,15 @@ def consume_nonce(jti: str, *, proposal_id, principal_id: str, environment: str,
     try:
         db = SessionLocal()
         try:
-            db.execute(text(_NONCE_DDL))
             row = db.execute(text("""
                 INSERT INTO holding_action_nonces
-                       (jti, proposal_id, principal_id, environment, expires_at)
-                VALUES (:jti, :pid, :sub, :env, to_timestamp(:exp))
+                       (jti, proposal_id, principal_id, environment, action_digest, expires_at)
+                VALUES (:jti, :pid, :sub, :env, :dig, to_timestamp(:exp))
                 ON CONFLICT (jti) DO NOTHING
                 RETURNING jti
             """), {"jti": jti, "pid": str(proposal_id), "sub": str(principal_id),
-                   "env": str(environment), "exp": int(expires_at)}).fetchone()
+                   "env": str(environment), "dig": str(action_digest_value or ""),
+                   "exp": int(expires_at)}).fetchone()
             db.commit()
             if row:
                 return {"consumed": True, "reason": OK}
@@ -206,8 +203,29 @@ def consume_nonce(jti: str, *, proposal_id, principal_id: str, environment: str,
         finally:
             db.close()
     except Exception:
-        # Fail CLOSED. An unreachable nonce store must refuse the action, never allow it.
+        # Fail CLOSED. An unreachable or unmigrated nonce store must refuse the action, never allow it.
         return {"consumed": False, "reason": NONCE_STORE_DOWN}
+
+
+def prune_expired_nonces(*, older_than_days: int = NONCE_RETENTION_DAYS) -> int:
+    """Bounded retention. A consumed nonce only needs to outlive the token it burned; keeping them
+    forever grows a table nobody reads. Rows are deleted well AFTER expiry so the audit window is
+    generous, and deleting an expired row cannot enable a replay — the token expired long before."""
+    try:
+        from sqlalchemy import text
+        from app.database import SessionLocal
+        db = SessionLocal()
+        try:
+            n = db.execute(text(
+                "DELETE FROM holding_action_nonces "
+                "WHERE expires_at < now() - (:d || ' days')::interval"
+            ), {"d": int(max(1, older_than_days))}).rowcount
+            db.commit()
+            return int(n or 0)
+        finally:
+            db.close()
+    except Exception:
+        return 0
 
 
 def verify_and_consume(token, *, principal_id, role, proposal_id, action, environment, secret,
@@ -219,7 +237,8 @@ def verify_and_consume(token, *, principal_id, role, proposal_id, action, enviro
         return v
     c = consume_nonce(v["jti"], proposal_id=proposal_id, principal_id=principal_id,
                       environment=environment,
-                      expires_at=int((v.get("confirmed_for") or {}).get("expires_at") or 0))
+                      expires_at=int((v.get("confirmed_for") or {}).get("expires_at") or 0),
+                      action_digest_value=action_digest(action))
     if not c["consumed"]:
         return {"ok": False, "reason": c["reason"]}
     return {**v, "nonce_consumed": True}
@@ -231,6 +250,69 @@ _res: list = []
 
 def ck(name, ok):
     _res.append((name, bool(ok)))
+
+
+def _code_only(src: str) -> str:
+    """Strip comments and docstrings so a check inspects CODE, not the prose describing it."""
+    import io
+    import tokenize
+    out = []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type == tokenize.COMMENT:
+                continue
+            if tok.type == tokenize.STRING and tok.line.lstrip()[:3] in ('"""', "'''"):
+                continue
+            out.append(tok.string)
+    except Exception:
+        return src
+    return " ".join(out)
+
+
+def _sql_constants_of(*funcs) -> list:
+    """Every SQL-looking string constant these functions can actually execute.
+
+    Reads compiled code objects, so it sees what runs — not comments, docstrings, or the text of
+    the assertions doing the checking.
+    """
+    _VERBS = ("SEL" + "ECT", "INS" + "ERT", "UPD" + "ATE", "DEL" + "ETE",
+              "CRE" + "ATE", "ALT" + "ER", "DR" + "OP")
+    found, seen = [], set()
+
+    def walk(code):
+        if id(code) in seen:
+            return
+        seen.add(id(code))
+        for c in code.co_consts:
+            if isinstance(c, str):
+                head = c.strip().upper()
+                if any(head.startswith(v) for v in _VERBS):
+                    found.append(c)
+            elif hasattr(c, "co_consts"):
+                walk(c)
+
+    for f in funcs:
+        walk(f.__code__)
+    return found
+
+
+def _downgrade_body(msrc: str) -> str:
+    i = msrc.find("def downgrade(")
+    return msrc[i:] if i >= 0 else ""
+
+
+def _create_table_columns(msrc: str) -> list:
+    """The column names actually declared in the migration's CREATE TABLE."""
+    import re as _re
+    m = _re.search(r"CREATE TABLE IF NOT EXISTS holding_action_nonces\s*\((.*?)\n\s*\)", msrc, _re.S)
+    if not m:
+        return []
+    cols = []
+    for line in m.group(1).splitlines():
+        line = line.strip().rstrip(",")
+        if line:
+            cols.append(line.split()[0])
+    return cols
 
 
 def _db_up() -> bool:
@@ -353,6 +435,51 @@ def demo() -> None:
         _clean_nonces()
     else:
         ck("[db] nonce suite SKIPPED — no database reachable (pure checks above still ran)", True)
+
+    # ── SCHEMA AUDIT: the nonce table is a reviewed migration, not implicit runtime DDL ──────────
+    import pathlib as _pl
+    _mig = _pl.Path(__file__).resolve().parents[3] / "alembic" / "versions" / "0007_add_holding_action_nonces.py"
+    _msrc = _mig.read_text() if _mig.exists() else ""
+    _asrc = _pl.Path(__file__).read_text()
+    ck("a project-native migration introduces the table", _mig.exists())
+    ck("it chains from the CURRENT production head 0006",
+       'down_revision: Union[str, None] = "0006_add_kai_api_keys"' in _msrc)
+    # Grepping this file for DDL keywords cannot work: the audit's own migration parser and these
+    # very assertions contain those keywords, so the module always matches itself. Assert the real
+    # property instead — the SQL the runtime functions actually execute. Needles are built from
+    # fragments so they never appear verbatim in the source being inspected.
+    _DDL = tuple(a + " " + b for a, b in
+                 (("CRE" + "ATE", "TAB" + "LE"), ("ALT" + "ER", "TAB" + "LE"),
+                  ("CRE" + "ATE", "IND" + "EX"), ("DR" + "OP", "TAB" + "LE")))
+    _runtime_sql = _sql_constants_of(mint, verify, consume_nonce, prune_expired_nonces,
+                                     verify_and_consume)
+    ck("APPLICATION CODE executes no schema statement — the runtime SQL is pure DML",
+       bool(_runtime_sql) and not any(k in s.upper() for s in _runtime_sql for k in _DDL))
+    ck("...and the DB-touching runtime SQL is exactly the nonce INSERT and the retention DELETE",
+       {s.strip().split()[0].upper() for s in _runtime_sql} <= {"INSERT", "DELETE", "SELECT"})
+    ck("jti carries an enforced conflict key", "jti           TEXT PRIMARY KEY" in _msrc
+       and "ON CONFLICT (jti) DO NOTHING" in _asrc)
+    for col in ("proposal_id", "principal_id", "environment", "action_digest",
+                "expires_at", "consumed_at"):
+        ck(f"the binding/audit column {col} is represented", col in _msrc)
+    # Inspect the COLUMN LIST, not the file: the migration's own docstring names the things it
+    # does not store, and an earlier version of this check matched that prose.
+    _cols = _create_table_columns(_msrc)
+    ck("NO token, signature, confirmation body or secret is stored",
+       bool(_cols) and not any(k in " ".join(_cols).lower()
+                               for k in ("token", "signature", "secret", "credential", "body")))
+    ck("...and the stored columns are exactly the binding + audit facts",
+       set(_cols) == {"jti", "proposal_id", "principal_id", "environment", "action_digest",
+                      "expires_at", "consumed_at"})
+    ck("repeated migration execution is safe (IF NOT EXISTS throughout)",
+       _msrc.count("IF NOT EXISTS") >= 3)
+    ck("downgrade does NOT drop the table — audit evidence survives a code rollback",
+       "DROP TABLE" not in _code_only(_downgrade_body(_msrc)))
+    ck("...and says why in the migration itself", "audit evidence" in _msrc)
+    ck("expired rows have BOUNDED retention", "def prune_expired_nonces" in _asrc
+       and "NONCE_RETENTION_DAYS" in _asrc)
+    ck("retention deletes only rows already past expiry, so pruning cannot enable a replay",
+       "expires_at < now() -" in _asrc)
 
     bad = [n for n, ok in _res if not ok]
     for n in bad:
