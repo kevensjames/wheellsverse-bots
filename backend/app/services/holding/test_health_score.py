@@ -58,6 +58,17 @@ ck("2+ sources but one STALE caps at MEDIUM",
 ck("evidence_quality is deterministic (same set -> same verdict)",
    evidence_quality(rich) == evidence_quality(rich))
 
+# ── COVERAGE DENOMINATOR comes from the registry, not from the policy floor ───────────────────────
+# Production displayed seven dimensions while reporting "2 of 3", which reads as 67% coverage when the
+# true figure is 2 of 7.
+_cov = compute_health(availability=1.0, mission_blockers=0)
+ck("registered_dimensions is the size of the dimension registry", _cov["registered_dimensions"] == 7)
+ck("coverage reads 'N of 7 measured', never 'N of 3'", _cov["coverage"].endswith("of 7 measured"))
+ck("the policy floor is reported SEPARATELY and is not the denominator",
+   _cov["required_dimensions"] == 3 and _cov["required_dimensions"] != _cov["registered_dimensions"])
+ck("coverage_ratio uses the registry denominator",
+   abs(_cov["coverage_ratio"] - (_cov["measured_dimensions"] / 7)) < 1e-3)   # value is rounded to 3dp
+
 n = len(res); ok = sum(res)
 print(f"\nHEALTH SCORE TESTS: {ok}/{n} —", "PASS" if ok == n else "FAIL")
 raise SystemExit(0 if ok == n else 1)

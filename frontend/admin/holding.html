@@ -247,7 +247,7 @@
     </div>
     <div class="hspace"></div>
     <button class="cmdk" id="cmdkBtn" aria-haspopup="dialog" aria-label="Open command palette">
-      <span aria-hidden="true">⌘</span> Command <kbd>K</kbd>
+      <span aria-hidden="true">⌘</span> Navigate <kbd>K</kbd>
     </button>
     <span class="core" id="core" data-s="OFFLINE" role="status" aria-live="polite">
       <span class="dot" aria-hidden="true"></span>
@@ -389,12 +389,14 @@
   <div class="dbody" id="evBody"></div>
 </aside>
 
-<!-- ── Command palette (§53) ── -->
+<!-- ── Navigation palette (§53). Named "Navigate", not "Command": with KAI_HOLDING_COMMAND_ENABLED
+     off and /admin/holding/command returning 404, it can only JUMP TO A PANEL. Calling it a command
+     palette promises execution the build cannot perform. ── -->
 <div class="backdrop" id="palBack"></div>
-<div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+<div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Navigation palette — jump to a panel">
   <input id="palInput" type="text" placeholder="Ask KAI, search holding, open a company, show a problem…"
          autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="palResults" aria-activedescendant="">
-  <div class="presults" id="palResults" role="listbox" aria-label="Commands and results"></div>
+  <div class="presults" id="palResults" role="listbox" aria-label="Panels and results"></div>
   <div class="pfoot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> select</span><span><kbd>esc</kbd> close</span></div>
 </div>
 

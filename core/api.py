@@ -270,7 +270,41 @@ def require_admin_json(request: Request) -> None:
         return
     if _session_owner_ok(request):
         return
+    # A signed, server-minted RELEASE VERIFIER token may READ this data. That is the whole point of the
+    # role: automated verification must be able to read protected admin surfaces WITHOUT holding a
+    # credential that can act. Without this, a verifier is refused at App A's door and the role is
+    # unusable for its stated purpose — which is what the PR #70 browser matrix caught.
+    # The token grants READ only; every consequential route is gated separately by require_can_act,
+    # and a verifier principal is refused there with 403.
+    if _release_verifier_ok(request):
+        return
     raise HTTPException(status_code=401, detail="owner authentication required")
+
+
+def _release_verifier_ok(request: Request) -> bool:
+    """True iff the request carries a VALID signed verifier token. Fails closed on every path.
+
+    Verified with the same signing secret as the session, so a caller cannot forge one. Read-only by
+    construction: this function is consulted only by require_admin_json."""
+    try:
+        from app.services.holding.verifier_role import _verify_verifier_token, VERIFIER_HEADER
+    except Exception:
+        try:
+            import sys as _sys
+            _sys.path.insert(0, str(ROOT / "backend"))
+            from app.services.holding.verifier_role import _verify_verifier_token, VERIFIER_HEADER
+        except Exception:
+            return False
+    try:
+        # The verifier's OWN secret, never the owner session secret: minting a verifier identity must
+        # not imply the ability to mint an owner session.
+        secret = os.getenv("RELEASE_VERIFIER_SIGNING_SECRET", "").strip()
+        if not secret:
+            return False
+        tok = request.headers.get(VERIFIER_HEADER) or ""
+        return _verify_verifier_token(tok, secret=secret) is not None
+    except Exception:
+        return False
 
 
 # ─── Global state ─────────────────────────────────────────────────────────────

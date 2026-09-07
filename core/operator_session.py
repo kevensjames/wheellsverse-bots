@@ -49,10 +49,11 @@ SCOPE_FINANCIAL = "financial"       # FINANCIAL — refunds/payouts; explicit co
 SCOPE_DESTRUCTIVE = "destructive"   # DESTRUCTIVE — deletes; strong confirmation + audit
 SCOPE_KAI_CHAT = "kai.chat"         # talk to the governed KAI brain
 SCOPE_KAI_ULTRA = "kai.ultra"       # the /admin/kai-chat 'ultra' no-tier-gate profile — OWNER ONLY
+SCOPE_VERIFY = "verify"             # read protected admin data + run NON-MUTATING checks. Never acts.
 
 ALL_SCOPES = frozenset({
     SCOPE_READ, SCOPE_WRITE, SCOPE_HIGH_IMPACT, SCOPE_FINANCIAL,
-    SCOPE_DESTRUCTIVE, SCOPE_KAI_CHAT, SCOPE_KAI_ULTRA,
+    SCOPE_DESTRUCTIVE, SCOPE_KAI_CHAT, SCOPE_KAI_ULTRA, SCOPE_VERIFY,
 })
 
 # ── Roles → scopes. Least privilege: operator is deliberately NOT financial/
@@ -61,12 +62,26 @@ ALL_SCOPES = frozenset({
 ROLE_OWNER = "owner"
 ROLE_OPERATOR = "operator"
 ROLE_VIEWER = "viewer"
+# A release verifier reads protected admin surfaces and runs non-mutating checks. It exists because
+# verification previously required the OWNER key — the only credential that could read those surfaces —
+# and an owner credential can execute. On 2026-09-07 a verifier used it to execute an owner-approved
+# proposal on production while testing whether the control failed closed. See
+# docs/INCIDENT_2026-09-07_production_verification_execution.md.
+# It deliberately holds NO write, high-impact, financial, destructive or ultra scope. Automated
+# production smoke tests must use this role and never an owner-execution credential.
+ROLE_RELEASE_VERIFIER = "release_verifier"
 
 ROLE_SCOPES: dict[str, frozenset[str]] = {
     ROLE_OWNER: ALL_SCOPES,
     ROLE_OPERATOR: frozenset({SCOPE_READ, SCOPE_WRITE, SCOPE_KAI_CHAT}),
     ROLE_VIEWER: frozenset({SCOPE_READ}),
+    ROLE_RELEASE_VERIFIER: frozenset({SCOPE_READ, SCOPE_VERIFY}),
 }
+
+# Scopes that let a principal CHANGE something. A release verifier must hold none of them; this is
+# asserted in tests rather than left to the reader to check by eye.
+MUTATING_SCOPES = frozenset({SCOPE_WRITE, SCOPE_HIGH_IMPACT, SCOPE_FINANCIAL,
+                             SCOPE_DESTRUCTIVE, SCOPE_KAI_ULTRA})
 
 
 @dataclass(frozen=True)

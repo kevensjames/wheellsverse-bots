@@ -6,7 +6,7 @@ so a disabled deployment has ZERO new surface. All endpoints are GET/read-only a
 approval-gated by design.
 """
 from __future__ import annotations
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 
 from app.routers.admin_chat import require_kai_ultra  # reuse the owner-only gate (no parallel auth)
 from app.services.holding import reports
@@ -32,6 +32,21 @@ def _self_peer_shas(settings, sha: str) -> dict:
     if env in ("production", "prod"):
         return {"app_b": sha}
     return {}
+
+
+def _principal_role_and_id(request: Request) -> tuple[str, str]:
+    """The acting principal's role and a stable id, for binding a confirmation to ONE identity.
+
+    App B sits behind the App A bridge, which re-resolves the principal, but App B is separately
+    reachable and must decide for itself. Fails closed to a non-owner role: an unresolvable principal
+    can never mint or spend a confirmation."""
+    try:
+        from app.services.holding.verifier_role import principal_from_request
+        pr = principal_from_request(request)
+        return pr.get("role", "unknown"), pr.get("id", "unknown")
+    except Exception:
+        return "unknown", "unknown"
+
 
 
 def _record_hosted_route(request: Request) -> None:
@@ -123,10 +138,66 @@ def holding_reject(proposal_id: int, reason: str = ""):
     return {"rejected": True, "proposal": r}
 
 
+@router.post("/proposals/{proposal_id}/confirm-execute")
+def holding_mint_execution_confirmation(proposal_id: int, request: Request):
+    """Mint a short-lived, action-bound confirmation for executing ONE approved proposal.
+
+    Separate from execution on purpose: the owner asks for a confirmation for a specific proposal,
+    sees exactly what it authorises, and spends it immediately. Owner-only; a release verifier cannot
+    mint one."""
+    from app.services.holding.verifier_role import require_can_act, ACT_EXECUTE
+    require_can_act(request, ACT_EXECUTE)   # a release verifier is refused 403 here
+
+    from app.config import settings
+    from app.services.holding import action_confirmation as ac
+    from app.services.holding import proposals_store
+    p = proposals_store.get(proposal_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="no such proposal")
+    if p.get("status") != "approved":
+        raise HTTPException(status_code=409,
+                            detail=f"proposal is '{p.get('status')}', not 'approved'")
+    role, pid = _principal_role_and_id(request)
+    m = ac.mint(principal_id=pid, role=role, proposal_id=proposal_id, action=p.get("action"),
+                environment=str(getattr(settings, "APP_ENV", "") or ""),
+                secret=str(getattr(settings, "SESSION_SIGNING_SECRET", "") or ""))
+    if not m.get("ok"):
+        raise HTTPException(status_code=403, detail=m.get("reason", "cannot mint confirmation"))
+    return {"confirmation": m["token"], "expires_at": m["expires_at"],
+            "action_digest": m["action_digest"], "proposal_id": proposal_id,
+            "note": "single action, short expiry, bound to you, this proposal, this action and this environment"}
+
+
 @router.post("/proposals/{proposal_id}/execute")
-def holding_execute(proposal_id: int):
-    """Execute an APPROVED proposal's READ-ONLY action (re-probe / gather evidence) — bound to the
-    prior approval. Refuses anything not already approved. No writes, money, or deploys. Audited."""
+def holding_execute(proposal_id: int, request: Request,
+                    x_action_confirmation: str | None = Header(default=None)):
+    """Execute an APPROVED proposal's READ-ONLY action (re-probe / gather evidence).
+
+    Requires BOTH a prior owner approval AND a fresh action-bound confirmation. An approval alone is a
+    standing permission that any later owner-authenticated request could spend — which is exactly what
+    happened on 2026-09-07, when a release verifier executed proposal #9 on production while testing
+    whether this control failed closed. See docs/INCIDENT_2026-09-07_production_verification_execution.md.
+    No writes, money, or deploys. Audited."""
+    from app.services.holding.verifier_role import require_can_act, ACT_EXECUTE
+    require_can_act(request, ACT_EXECUTE)   # a release verifier is refused 403 here
+
+    from app.config import settings
+    from app.services.holding import action_confirmation as ac
+    from app.services.holding import proposals_store
+    _p = proposals_store.get(proposal_id)
+    if not _p:
+        raise HTTPException(status_code=404, detail="no such proposal")
+    role, pid = _principal_role_and_id(request)
+    # verify_and_consume, not verify: the nonce is burned atomically in Postgres, so a replay of the
+    # same confirmation is refused even inside its validity window, across workers and across restart.
+    v = ac.verify_and_consume(x_action_confirmation, principal_id=pid, role=role,
+                              proposal_id=proposal_id, action=_p.get("action"),
+                              environment=str(getattr(settings, "APP_ENV", "") or ""),
+                              secret=str(getattr(settings, "SESSION_SIGNING_SECRET", "") or ""))
+    if not v.get("ok"):
+        # 403, not 401: the caller may well be authenticated. What is missing is AUTHORISATION for
+        # this specific act. The reason is returned so the operator is sent to the right fix.
+        raise HTTPException(status_code=403, detail=v.get("reason", "confirmation required"))
     from app.services.holding.executor import execute_approved
     r = execute_approved(proposal_id)
     if not r.get("executed"):
@@ -817,19 +888,53 @@ def holding_view():
         "proactive": _soft(_sec_proactive, {"candidates": 0, "would_notify": [], "suppressed": []}),
         "system_model": _soft(_sec_system_model, _UNAVAILABLE),
     })
-    # "No action required right now." is the §6 empty-OWNER-QUEUE line. It is not a statement about the
-    # whole system, and it was being emitted beside problems that require the owner — one of them, on
-    # staging, measured. An empty queue is not an all-clear, so when the SAME payload carries
-    # owner-required problems the reassurance is replaced by the fact. The queue itself is untouched.
+    # ── ONE executive attention projection (CEO truth gate) ───────────────────────────────────────
+    # Every surface that makes an attention claim derives from this. Production reported
+    # focus_state MONITORING beside an owner-required HIGH problem, because the header inherited the
+    # WORKER's calm. Worker activity and executive attention are different questions.
     try:
-        _owner_probs = [p for p in (view.get("problems") or [])
-                        if isinstance(p, dict) and p.get("owner_required") is True]
-        if _owner_probs and not isinstance(view.get("today_for_you"), list):
-            _n = len(_owner_probs)
-            view["today_for_you"] = (
-                f"No owner step is queued, but {_n} problem{'' if _n == 1 else 's'} "
-                f"{'requires' if _n == 1 else 'require'} the owner. This is not an all-clear.")
-            view["today_for_you_reason"] = "owner_required_problems"
-    except Exception:                                # a cross-check must never break the payload
+        from app.services.holding import attention_projection as ap
+        _probs = [p for p in (view.get("problems") or []) if isinstance(p, dict)]
+        _decs = [d for d in (view.get("self_improvement_ready") or []) if isinstance(d, dict)]
+        _miss = [m for m in (view.get("missions") or []) if isinstance(m, dict)]
+        _kw = view.get("kai_working") or {}
+        _worker = "IDLE" if not (_kw.get("currently_working") or []) else "WORKING"
+        _proj = ap.project(problems=_probs, owner_decisions=_decs, missions=_miss,
+                           worker_state=_worker)
+        view["attention_state"] = _proj
+
+        # Any surface asserting calm is corrected by the projection, never the other way round.
+        _tfy = view.get("today_for_you")
+        if not isinstance(_tfy, list):
+            ok, _why = ap.assert_consistent(_proj, claim=str(_tfy or ""))
+            if not ok:
+                view["today_for_you"] = _proj["headline"]
+                view["today_for_you_reason"] = "attention_projection_override"
+
+        # Current Attention must not read MONITORING while the projection says otherwise.
+        _att = view.get("attention")
+        if isinstance(_att, dict) and _proj["needs_owner"]:
+            _att["focus_state"] = _proj["state"]
+            _att["focus_reason"] = _proj["headline"]
+            _att["worker_state"] = _proj["worker_state"]
+    except Exception:                                # a projection must never break the payload
+        pass
+
+    # ── ONE money-state resolver ──────────────────────────────────────────────────────────────────
+    # money_mode read MOCK on production while MONEY_MODE is not declared at all — a getattr default
+    # presented as observed runtime state. Four separate facts, each with its own source.
+    try:
+        from app.config import settings as _ms_settings
+        from app.services.holding import money_state as _ms
+        view["money_state"] = _ms.resolve(_ms_settings)
+    except Exception:
+        pass
+
+    # ── opportunities may not present unevidenced value ───────────────────────────────────────────
+    try:
+        from app.services.holding.opportunity_engine import apply_sizing_gate
+        if isinstance(view.get("opportunities"), list):
+            view["opportunities"] = apply_sizing_gate(view["opportunities"])
+    except Exception:
         pass
     return view
