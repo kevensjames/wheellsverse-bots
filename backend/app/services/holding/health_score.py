@@ -169,7 +169,15 @@ def compute_health(*, availability=None, security=None, deployment_health=None,
         components.append({"dimension": key, "status": "MEASURED", "points": pts,
                            "max_points": weight, "detail": detail})
 
+    # COVERAGE DENOMINATOR. `required_dimensions` is the POLICY FLOOR for scoring at all; it is not
+    # how many dimensions exist. Production displayed seven dimensions while reporting "2 of 3", which
+    # reads as 67% coverage when the real figure is 2 of 7. The denominator an operator sees must come
+    # from the registered dimension list, so adding a dimension lowers coverage instead of hiding it.
+    registered = len(_DIMENSIONS)
     base = {"version": HEALTH_FORMULA_VERSION, "measured_dimensions": measured,
+            "registered_dimensions": registered,
+            "coverage": f"{measured} of {registered} measured",
+            "coverage_ratio": (round(measured / registered, 3) if registered else None),
             "required_dimensions": min_measurable, "insufficient_data": insufficient,
             "components": components}
     if measured < min_measurable or measured_weight == 0:
