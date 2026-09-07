@@ -115,13 +115,19 @@ def _mk(*, root_signature, company, system, severity, category, observed_facts, 
     meta = _CATEGORY_META.get(category, _CATEGORY_META["CODE_DEFECT"])
     cz = list(causes) if causes else list(meta["causes"])
     when = now or "UNKNOWN"
+    # first_seen is a claim about WHEN THIS PROBLEM WAS FIRST OBSERVED. There is no persistence behind
+    # this detector, so for a source that does not carry its own timestamps the honest answer is that
+    # it is not tracked. Using `now` made every problem report the request time to the microsecond,
+    # which reads as "all nine started at the same instant" and is simply false. last_seen = now IS
+    # true: this observation happened now. Sources that DO know a real window overwrite both below.
+    first = "NOT_TRACKED"
     ev = evidence if evidence else [{"source": "UNKNOWN"}]     # §18: real evidence[] or an explicit UNKNOWN
     return HoldingProblem(
         problem_id=root_signature, root_signature=root_signature,
         company=company or "holding", system=system or "holding",
         severity=severity, category=category, observed_facts=observed_facts,
         evidence=ev, impact=meta["impact"], confidence=confidence,
-        first_seen=when, last_seen=when, possible_causes=cz,
+        first_seen=first, last_seen=when, possible_causes=cz,
         recommended_actions=list(meta["actions"]),
         owner_required=bool(meta["owner"] or owner_extra or severity == "CRITICAL"))
 

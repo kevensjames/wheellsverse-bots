@@ -320,7 +320,11 @@ def events_from_deployment(sha: str, *, features: list | None = None, env: str =
     # first-write-wins record. Presence is a property of the registry alone.
     n = len(features or [])
     return [{
-        "event_id": f"deployment:{sha}", "ts": _now(), "type": "deployment", "company": "holding",
+        # The id carries the ENVIRONMENT as well as the sha. Keyed on sha alone, the first observation
+        # of a build won permanently — so the same sha promoted from staging to production would have
+        # its real production deployment silently dropped by the idempotent append. Two environments
+        # are two deployments and must be two rows.
+        "event_id": f"deployment:{env}:{sha}", "ts": _now(), "type": "deployment", "company": "holding",
         "summary": f"deployed SHA {sha} observed ({n} features present) in {env}",
         "source": "holding.holding_deployment", "provenance": "DERIVED",   # sha REAL; ts is observation time
         "refs": [{"sha": sha, "features_present": n, "environment": env}]}]

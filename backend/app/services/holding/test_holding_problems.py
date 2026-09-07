@@ -91,6 +91,17 @@ FIELDS = {"problem_id", "company", "system", "severity", "category", "observed_f
           "owner_required", "assigned_mission", "root_signature"}
 ck("as_dict() carries the full §18 field set", FIELDS <= set(d) and isinstance(d["possible_causes"], list))
 
+# ── first_seen must never be the request timestamp ────────────────────────────────────────────────
+# It reported `now` to the microsecond for every problem, so nine unrelated problems all claimed to
+# have begun at the same instant. There is no persistence behind this detector, so with no real
+# window the honest answer is NOT_TRACKED. last_seen = now stays true: this observation happened now.
+import pathlib as _pl
+_src = (_pl.Path(__file__).resolve().parent / "holding_problems.py").read_text()
+ck("first_seen is NOT_TRACKED, never the request timestamp",
+   'first_seen=first' in _src and 'first = "NOT_TRACKED"' in _src and "first_seen=when" not in _src)
+ck("last_seen still uses the observation time — that part was always true", "last_seen=when" in _src)
+ck("a source that knows a REAL window still overwrites both", "out[-1].first_seen, out[-1].last_seen" in _src)
+
 n = len(res); ok = sum(res)
 print(f"\nHOLDING PROBLEMS TESTS: {ok}/{n} —", "PASS" if ok == n else "FAIL")
 raise SystemExit(0 if ok == n else 1)

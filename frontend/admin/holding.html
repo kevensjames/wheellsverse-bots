@@ -574,8 +574,17 @@ function renderToday(v){
   const el=$('todayBody');
   if(failed(v)){ el.innerHTML = honest(v,'Today'); return; }
   const t = v.today_for_you;
-  if(!Array.isArray(t)){ el.innerHTML = emptyMsg(String(t||'No action required right now.')); return; }
-  if(!t.length){ el.innerHTML = emptyMsg('No action required right now — nothing needs a decision.'); return; }
+  /* An empty owner queue is NOT the same as "nothing needs attention". The same payload can carry
+     owner-required problems, and asserting "no action required" beside them is a false reassurance —
+     it was doing exactly that with one owner-required problem present. Cross-check before reassuring. */
+  const ownerProblems = arr(v.problems).filter(p => p && p.owner_required === true).length;
+  const quiet = ownerProblems
+    ? '<div class="row"><span>'+badge('REQUIRES_OPERATOR_CONFIRMATION','NEEDS YOU')+' No step is queued here, but '
+      +esc(String(ownerProblems))+' problem'+(ownerProblems===1?'':'s')+' below '
+      +(ownerProblems===1?'requires':'require')+' the owner. This panel is not an all-clear.</span></div>'
+    : null;
+  if(!Array.isArray(t)){ el.innerHTML = quiet || emptyMsg(String(t||'No owner steps queued.')); return; }
+  if(!t.length){ el.innerHTML = quiet || emptyMsg('No owner steps queued — nothing needs a decision.'); return; }
   let h='';
   for(const a of t){
     h+='<div class="item"><div class="itemhead">'+sevChip(a.severity||'MEDIUM')
