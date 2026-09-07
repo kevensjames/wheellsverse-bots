@@ -916,4 +916,22 @@ def holding_view():
             _att["worker_state"] = _proj["worker_state"]
     except Exception:                                # a projection must never break the payload
         pass
+
+    # ── ONE money-state resolver ──────────────────────────────────────────────────────────────────
+    # money_mode read MOCK on production while MONEY_MODE is not declared at all — a getattr default
+    # presented as observed runtime state. Four separate facts, each with its own source.
+    try:
+        from app.config import settings as _ms_settings
+        from app.services.holding import money_state as _ms
+        view["money_state"] = _ms.resolve(_ms_settings)
+    except Exception:
+        pass
+
+    # ── opportunities may not present unevidenced value ───────────────────────────────────────────
+    try:
+        from app.services.holding.opportunity_engine import apply_sizing_gate
+        if isinstance(view.get("opportunities"), list):
+            view["opportunities"] = apply_sizing_gate(view["opportunities"])
+    except Exception:
+        pass
     return view

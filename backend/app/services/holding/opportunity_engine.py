@@ -305,3 +305,52 @@ def demo() -> None:
 
 if __name__ == "__main__":
     demo()
+
+
+# ── SIZING GATE (CEO truth gate, Phase 0) ─────────────────────────────────────────────────────────
+# An opportunity is a claim that acting is WORTH something. Production ranked "Consolidate spend on
+# vendor 'stripe'" as an actionable opportunity whose entire evidence was that two companies use
+# Stripe. Co-occurrence is not value: it establishes that consolidation is POSSIBLE, not that it is
+# worth doing, and an operator reading a ranked list reasonably assumes the ranking means something.
+#
+# Until spend, volume, fee, contract, switching cost, affected companies and expected benefit are
+# sourced — or explicitly modelled with visible assumptions — the item is OPPORTUNITY_TO_SIZE: real,
+# worth investigating, and NOT presented as established value.
+OPPORTUNITY_TO_SIZE = "OPPORTUNITY_TO_SIZE"
+SIZED = "SIZED"
+
+# What must be present, from a source, before an opportunity may carry value/effort/risk labels.
+REQUIRED_SIZING_FIELDS = ("spend", "volume", "fee", "contract", "switching_cost",
+                          "companies_affected", "expected_benefit")
+
+
+def sizing_status(opp: dict) -> tuple[str, list]:
+    """Is this opportunity sized? Returns (status, missing_fields)."""
+    sizing = (opp or {}).get("sizing") or {}
+    missing = [f for f in REQUIRED_SIZING_FIELDS
+               if sizing.get(f) in (None, "", "UNAVAILABLE", "UNKNOWN")]
+    return (SIZED if not missing else OPPORTUNITY_TO_SIZE), missing
+
+
+def apply_sizing_gate(opps: list) -> list:
+    """Mark unsized opportunities and strip the labels they cannot support.
+
+    The item is never deleted — an unsized opportunity is still worth surfacing. What is removed is
+    the unsupported claim that its value, effort or risk is known."""
+    out = []
+    for o in list(opps or []):
+        o = dict(o)
+        status, missing = sizing_status(o)
+        o["sizing_status"] = status
+        if status == OPPORTUNITY_TO_SIZE:
+            o["missing_sizing"] = missing
+            o["next_step"] = ("size it: " + ", ".join(missing))
+            # Remove labels that were never evidenced.
+            for label in ("value", "effort", "risk", "score", "rank", "estimated_value"):
+                o.pop(label, None)
+            o["presented_as"] = ("an idea to size, not an evidenced opportunity — "
+                                 "no value, effort or risk is claimed")
+        out.append(o)
+    # Sized opportunities rank above unsized ones; unsized ones keep their relative order.
+    return [o for o in out if o["sizing_status"] == SIZED] + \
+           [o for o in out if o["sizing_status"] != SIZED]

@@ -1066,7 +1066,7 @@ function renderVoiceBar(container, compact) {
   container.innerHTML = `
     <button type="button" class="kaip-mic" id="kaip-mic" aria-pressed="false" aria-describedby="kaip-voice-reason" aria-keyshortcuts="Space Enter" title="Push to talk — hold (pointer, or Space/Enter)">
       <span class="kaip-mic-ico" aria-hidden="true">🎙</span><span class="kaip-mic-label">Hold to talk</span></button>
-    <button type="button" class="kaip-vbtn" id="kaip-stoplisten" title="Stop listening (Esc)">Stop listening</button>
+    <button type="button" class="kaip-vbtn" id="kaip-stoplisten" title="Stop listening (Esc)" hidden>Stop listening</button>
     <button type="button" class="kaip-vbtn" id="kaip-settings-btn" aria-label="KAI presence settings: privacy mode, mute, voice, camera" title="Presence settings (§67): privacy mode, mute, voice, quiet hours, camera OFF">⚙</button>
     <div class="kaip-voice-reason" id="kaip-voice-reason" role="status" aria-live="polite"></div>`;
   const mic = container.querySelector('#kaip-mic');
@@ -1350,3 +1350,13 @@ function avatarState() {
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
+
+/* A control for stopping something that is not running is not "disabled", it is noise: it implies a
+   live voice session exists. It ships hidden and is revealed only while one actually does. Voice is
+   dark in this release (KAI_VOICE_ENABLED is off and the capability route 404s), so on this build it
+   never appears. */
+function kaipSyncVoiceControls(listening) {
+  var b = document.getElementById('kaip-stoplisten');
+  if (b) { b.hidden = !listening; b.disabled = !listening; }
+}
+try { window.kaipSyncVoiceControls = kaipSyncVoiceControls; } catch (e) {}
