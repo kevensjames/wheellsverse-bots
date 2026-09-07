@@ -20,8 +20,13 @@ can execute it deliberately.
 - **Not** the owner `API_KEY`. That is the whole point of the role.
 - **Not** `SESSION_SIGNING_SECRET`. Signing verifier tokens with the session secret would mean anything
   able to mint a verifier identity could also mint an **owner session**, which destroys the separation.
-- **Not** the staging value. Staging currently holds fingerprint `3a91becc76354efb`; production must get
-  its own. A shared secret would let a staging token act against production.
+- **Not** the staging value. Staging currently holds fingerprint `6b35a2510aaf4af9`, where the
+  fingerprint is `sha256(value)[:16]` — recomputed from Railway at certification time, and verifiable
+  with that method. (An earlier draft of this document recorded `3a91becc76354efb`. That value does not
+  reproduce from the current staging secret under sha256, sha1, md5 or blake2b, so it was either
+  superseded by a later rotation or simply wrong; it is corrected here rather than carried forward.)
+  Production must get its own value regardless — a shared secret would let a staging token act
+  against production.
 - **Not** committed, printed, or pasted into any transcript.
 
 ## 3. Authority this grants
