@@ -817,4 +817,19 @@ def holding_view():
         "proactive": _soft(_sec_proactive, {"candidates": 0, "would_notify": [], "suppressed": []}),
         "system_model": _soft(_sec_system_model, _UNAVAILABLE),
     })
+    # "No action required right now." is the §6 empty-OWNER-QUEUE line. It is not a statement about the
+    # whole system, and it was being emitted beside problems that require the owner — one of them, on
+    # staging, measured. An empty queue is not an all-clear, so when the SAME payload carries
+    # owner-required problems the reassurance is replaced by the fact. The queue itself is untouched.
+    try:
+        _owner_probs = [p for p in (view.get("problems") or [])
+                        if isinstance(p, dict) and p.get("owner_required") is True]
+        if _owner_probs and not isinstance(view.get("today_for_you"), list):
+            _n = len(_owner_probs)
+            view["today_for_you"] = (
+                f"No owner step is queued, but {_n} problem{'' if _n == 1 else 's'} "
+                f"{'requires' if _n == 1 else 'require'} the owner. This is not an all-clear.")
+            view["today_for_you_reason"] = "owner_required_problems"
+    except Exception:                                # a cross-check must never break the payload
+        pass
     return view
