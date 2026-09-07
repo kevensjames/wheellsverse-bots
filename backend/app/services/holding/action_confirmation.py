@@ -53,6 +53,14 @@ WRONG_PROPOSAL = "CONFIRMATION_PROPOSAL_MISMATCH"
 WRONG_ACTION = "CONFIRMATION_ACTION_DIGEST_MISMATCH"
 WRONG_ENVIRONMENT = "CONFIRMATION_ENVIRONMENT_MISMATCH"
 NOT_OWNER = "CONFIRMATION_REQUIRES_OWNER"
+REPLAYED = "CONFIRMATION_ALREADY_CONSUMED"
+NO_NONCE = "CONFIRMATION_MISSING_NONCE"
+NONCE_STORE_DOWN = "CONFIRMATION_NONCE_STORE_UNAVAILABLE"
+
+
+def _new_nonce() -> str:
+    import secrets
+    return secrets.token_hex(16)
 
 
 def action_digest(action: dict | None) -> str:
@@ -88,6 +96,9 @@ def mint(*, principal_id: str, role: str, proposal_id, action: dict | None, envi
     t = int(now if now is not None else time.time())
     payload = {
         "v": _VERSION,
+        # jti: the nonce. Consumed exactly once, atomically and durably, so a confirmation cannot be
+        # replayed even inside its validity window and even across worker processes or a restart.
+        "jti": _new_nonce(),
         "sub": str(principal_id),
         "role": role,
         "pid": str(proposal_id),
@@ -98,7 +109,7 @@ def mint(*, principal_id: str, role: str, proposal_id, action: dict | None, envi
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return {"ok": True, "reason": OK, "token": f"{_b64(raw)}.{_sign(raw, secret)}",
-            "expires_at": payload["exp"], "action_digest": payload["dig"]}
+            "expires_at": payload["exp"], "action_digest": payload["dig"], "jti": payload["jti"]}
 
 
 def verify(token: str | None, *, principal_id: str, role: str, proposal_id, action: dict | None,
@@ -135,9 +146,83 @@ def verify(token: str | None, *, principal_id: str, role: str, proposal_id, acti
         return {"ok": False, "reason": WRONG_ENVIRONMENT}
     if not hmac.compare_digest(str(payload.get("dig", "")), action_digest(action)):
         return {"ok": False, "reason": WRONG_ACTION}
-    return {"ok": True, "reason": OK, "confirmed_for": {"proposal_id": str(proposal_id),
-                                                        "environment": environment,
-                                                        "expires_at": payload.get("exp")}}
+    jti = str(payload.get("jti") or "")
+    if not jti:
+        return {"ok": False, "reason": NO_NONCE}
+    return {"ok": True, "reason": OK, "jti": jti,
+            "confirmed_for": {"proposal_id": str(proposal_id), "environment": environment,
+                              "expires_at": payload.get("exp")}}
+
+
+# ── DURABLE, ATOMIC NONCE CONSUMPTION ─────────────────────────────────────────────────────────────
+# Signature validity alone makes a confirmation REPLAYABLE inside its window: the same token verifies
+# every time it is presented. Downstream, the proposal's status transition is atomic and would refuse
+# a second execution — but that is a different guarantee, and it disappears the moment a proposal is
+# re-approved while an old confirmation is still valid.
+#
+# So the nonce is consumed exactly once, in Postgres, with INSERT ... ON CONFLICT DO NOTHING RETURNING.
+# The database decides the winner, which makes it:
+#   ATOMIC across worker processes — two concurrent gunicorn workers race on a primary key, and
+#                                    exactly one INSERT returns a row;
+#   DURABLE across restart         — the row is committed, not held in process memory;
+#   SELF-EXPIRING                  — rows carry the confirmation's own expiry and can be pruned.
+# It FAILS CLOSED: if the store is unreachable, the confirmation is refused rather than allowed.
+_NONCE_DDL = """CREATE TABLE IF NOT EXISTS holding_action_nonces (
+    jti TEXT PRIMARY KEY,
+    proposal_id TEXT NOT NULL,
+    principal_id TEXT NOT NULL,
+    environment TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+)"""
+
+
+def consume_nonce(jti: str, *, proposal_id, principal_id: str, environment: str,
+                  expires_at: int) -> dict:
+    """Consume the nonce exactly once. Returns {consumed, reason}. Never raises."""
+    if not jti:
+        return {"consumed": False, "reason": NO_NONCE}
+    try:
+        from sqlalchemy import text
+        from app.database import SessionLocal
+    except Exception:
+        return {"consumed": False, "reason": NONCE_STORE_DOWN}
+    try:
+        db = SessionLocal()
+        try:
+            db.execute(text(_NONCE_DDL))
+            row = db.execute(text("""
+                INSERT INTO holding_action_nonces
+                       (jti, proposal_id, principal_id, environment, expires_at)
+                VALUES (:jti, :pid, :sub, :env, to_timestamp(:exp))
+                ON CONFLICT (jti) DO NOTHING
+                RETURNING jti
+            """), {"jti": jti, "pid": str(proposal_id), "sub": str(principal_id),
+                   "env": str(environment), "exp": int(expires_at)}).fetchone()
+            db.commit()
+            if row:
+                return {"consumed": True, "reason": OK}
+            return {"consumed": False, "reason": REPLAYED}
+        finally:
+            db.close()
+    except Exception:
+        # Fail CLOSED. An unreachable nonce store must refuse the action, never allow it.
+        return {"consumed": False, "reason": NONCE_STORE_DOWN}
+
+
+def verify_and_consume(token, *, principal_id, role, proposal_id, action, environment, secret,
+                       now=None) -> dict:
+    """The ONE call a route should make: verify, then atomically consume. Fails closed."""
+    v = verify(token, principal_id=principal_id, role=role, proposal_id=proposal_id, action=action,
+               environment=environment, secret=secret, now=now)
+    if not v.get("ok"):
+        return v
+    c = consume_nonce(v["jti"], proposal_id=proposal_id, principal_id=principal_id,
+                      environment=environment,
+                      expires_at=int((v.get("confirmed_for") or {}).get("expires_at") or 0))
+    if not c["consumed"]:
+        return {"ok": False, "reason": c["reason"]}
+    return {**v, "nonce_consumed": True}
 
 
 # ── self-test ─────────────────────────────────────────────────────────────────────────────────────
@@ -146,6 +231,35 @@ _res: list = []
 
 def ck(name, ok):
     _res.append((name, bool(ok)))
+
+
+def _db_up() -> bool:
+    try:
+        from sqlalchemy import text
+        from app.database import SessionLocal
+        db = SessionLocal(); db.execute(text("select 1")); db.close(); return True
+    except Exception:
+        return False
+
+
+def _drop_session_cache() -> None:
+    """Approximate a worker restart: discard pooled connections so the next read is a fresh one."""
+    try:
+        from app.database import engine
+        engine.dispose()
+    except Exception:
+        pass
+
+
+def _clean_nonces() -> None:
+    try:
+        from sqlalchemy import text
+        from app.database import SessionLocal
+        db = SessionLocal()
+        db.execute(text("DELETE FROM holding_action_nonces WHERE principal_id = 'owner-1'"))
+        db.commit(); db.close()
+    except Exception:
+        pass
 
 
 def demo() -> None:
@@ -204,6 +318,41 @@ def demo() -> None:
     ck("no signing secret -> fails closed, never open",
        mint(**{**base, "secret": ""}, now=1000)["ok"] is False
        and verify(m["token"], **{**base, "secret": ""}, now=1010)["ok"] is False)
+
+    # ── DURABLE, ATOMIC NONCE CONSUMPTION (guarded Postgres) ─────────────────────────────────────
+    ck("every minted confirmation carries a unique nonce",
+       mint(**base, now=1000)["jti"] != mint(**base, now=1000)["jti"])
+    ck("verify returns the nonce for the caller to consume", "jti" in verify(m["token"], **base, now=1010))
+    if _db_up():
+        f1 = mint(**base, now=1000)
+        r1 = verify_and_consume(f1["token"], **base, now=1010)
+        ck("[db] first use: verified AND nonce consumed", r1["ok"] and r1.get("nonce_consumed"))
+        r2 = verify_and_consume(f1["token"], **base, now=1011)
+        ck("[db] REPLAY of the same confirmation is refused as ALREADY_CONSUMED",
+           r2["ok"] is False and r2["reason"] == REPLAYED)
+        ck("[db] ...and it is refused for the RIGHT reason, not as forged or expired",
+           r2["reason"] not in (BAD_SIGNATURE, EXPIRED, MALFORMED))
+
+        # ATOMIC ACROSS PROCESSES: the DB primary key decides the winner, not application logic.
+        f2 = mint(**base, now=1000)
+        import concurrent.futures as _cf
+        with _cf.ThreadPoolExecutor(max_workers=8) as ex:
+            outs = list(ex.map(lambda _: verify_and_consume(f2["token"], **base, now=1010), range(8)))
+        wins = sum(1 for o in outs if o.get("ok"))
+        ck("[db] 8 concurrent consumers of ONE confirmation -> exactly 1 wins", wins == 1)
+        ck("[db] ...and the other 7 are all ALREADY_CONSUMED",
+           sum(1 for o in outs if o.get("reason") == REPLAYED) == 7)
+
+        # DURABLE ACROSS RESTART: the row is committed, not process memory. A fresh engine/session
+        # (what a restarted worker gets) still sees it consumed.
+        f3 = mint(**base, now=1000)
+        ck("[db] consume once", verify_and_consume(f3["token"], **base, now=1010)["ok"])
+        _drop_session_cache()
+        ck("[db] after dropping every cached session (restart-equivalent) the replay STILL fails",
+           verify_and_consume(f3["token"], **base, now=1010)["reason"] == REPLAYED)
+        _clean_nonces()
+    else:
+        ck("[db] nonce suite SKIPPED — no database reachable (pure checks above still ran)", True)
 
     bad = [n for n, ok in _res if not ok]
     for n in bad:

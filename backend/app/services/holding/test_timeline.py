@@ -422,6 +422,33 @@ def run() -> bool:
        [e.get("correction_status") for e in _dupout if e.get("type") == "correction"]
        == [tl.APPLIED, tl.NOT_APPLIED_ALREADY_APPLIED])
 
+    # ── an EXECUTION must produce an observable event ─────────────────────────────────────────────
+    # Proposal 9 went approved -> executed on production and the timeline showed only PROPOSED and
+    # APPROVED, which read as "it never happened" and forced a manual reconciliation.
+    _ex = events_from_proposals([{"id": 9, "title": "t", "entity": "holding", "status": "executed",
+                                  "created_at": "2026-08-31T04:56:32Z",
+                                  "decided_at": "2026-08-31T04:56:32Z",
+                                  "executed_at": "2026-09-07T01:30:00Z",
+                                  "evidence": {"read_only": True}}])
+    _types = {e["type"] for e in _ex}
+    ck("an executed proposal emits a worker_execution event", "worker_execution" in _types)
+    ck("...alongside its recommendation and approval, not instead of them",
+       {"kai_recommendation", "approval"} <= _types)
+    _e = [e for e in _ex if e["type"] == "worker_execution"][0]
+    ck("the execution event is timestamped by executed_at, not request time",
+       _e["ts"] == "2026-09-07T01:30:00Z")
+    ck("...carries the read_only fact from the evidence", _e["refs"][0]["read_only"] is True)
+    ck("...and is deterministically keyed so re-ingest cannot duplicate it",
+       _e["event_id"] == "proposal:9:EXECUTED")
+    ck("an APPROVAL event survives execution — history must not rewrite itself as state advances",
+       any(e["event_id"] == "proposal:9:APPROVED" for e in _ex))
+    ck("...and the executed proposal still shows all three lifecycle events",
+       len({e["type"] for e in _ex}) == 3)
+    ck("a proposal executed WITHOUT an executed_at contributes no execution event",
+       not [e for e in events_from_proposals([{"id": 9, "title": "t", "status": "executed",
+                                               "created_at": "2026-08-31T04:56:32Z"}])
+            if e["type"] == "worker_execution"])
+
     # ── boundary: every surface that can expose the timeline is owner-gated ───────────────────────
     # The two readers are GET /admin/holding/timeline and the /view payload's timeline section. Neither
     # carries its own dependency: the gate is declared ONCE on the router, which is what makes it hold

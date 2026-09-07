@@ -296,7 +296,9 @@ def _release_verifier_ok(request: Request) -> bool:
         except Exception:
             return False
     try:
-        secret = os.getenv("SESSION_SIGNING_SECRET", "").strip()
+        # The verifier's OWN secret, never the owner session secret: minting a verifier identity must
+        # not imply the ability to mint an owner session.
+        secret = os.getenv("RELEASE_VERIFIER_SIGNING_SECRET", "").strip()
         if not secret:
             return False
         tok = request.headers.get(VERIFIER_HEADER) or ""

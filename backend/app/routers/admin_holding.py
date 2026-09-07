@@ -188,9 +188,12 @@ def holding_execute(proposal_id: int, request: Request,
     if not _p:
         raise HTTPException(status_code=404, detail="no such proposal")
     role, pid = _principal_role_and_id(request)
-    v = ac.verify(x_action_confirmation, principal_id=pid, role=role, proposal_id=proposal_id,
-                  action=_p.get("action"), environment=str(getattr(settings, "APP_ENV", "") or ""),
-                  secret=str(getattr(settings, "SESSION_SIGNING_SECRET", "") or ""))
+    # verify_and_consume, not verify: the nonce is burned atomically in Postgres, so a replay of the
+    # same confirmation is refused even inside its validity window, across workers and across restart.
+    v = ac.verify_and_consume(x_action_confirmation, principal_id=pid, role=role,
+                              proposal_id=proposal_id, action=_p.get("action"),
+                              environment=str(getattr(settings, "APP_ENV", "") or ""),
+                              secret=str(getattr(settings, "SESSION_SIGNING_SECRET", "") or ""))
     if not v.get("ok"):
         # 403, not 401: the caller may well be authenticated. What is missing is AUTHORISATION for
         # this specific act. The reason is returned so the operator is sent to the right fix.

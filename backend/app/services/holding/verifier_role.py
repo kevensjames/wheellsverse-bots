@@ -37,6 +37,24 @@ CONSEQUENTIAL = frozenset({ACT_APPROVE, ACT_EXECUTE, ACT_DEFER, ACT_DEPLOY,
                            ACT_FINANCE, ACT_MESSAGE, ACT_POLICY, ACT_AUTHORITY})
 
 
+def verifier_secret() -> str:
+    """The signing secret for VERIFIER tokens — deliberately its OWN secret.
+
+    Not the owner API key and not SESSION_SIGNING_SECRET. Signing verifier tokens with the owner
+    session secret would mean anything able to mint a verifier identity could also mint an owner
+    session, which defeats the separation this role exists to create. Rotating one must not rotate
+    the other. Absent means no verifier identity can be minted or accepted: fail closed."""
+    import os
+    v = os.getenv("RELEASE_VERIFIER_SIGNING_SECRET", "").strip()
+    if v:
+        return v
+    try:
+        from app.config import settings
+        return str(getattr(settings, "RELEASE_VERIFIER_SIGNING_SECRET", "") or "")
+    except Exception:
+        return ""
+
+
 # The ONLY channel that can carry a release-verifier identity: a signed, server-minted token.
 VERIFIER_HEADER = "x-kai-verifier-token"
 
@@ -100,11 +118,7 @@ def principal_from_request(request, *, secret: str | None = None, now: float | N
     controls, and the requirement is that this one be server-minted and signed. Headers, cookies,
     request bodies and query parameters can no longer assign ANY role."""
     if secret is None:
-        try:
-            from app.config import settings
-            secret = str(getattr(settings, "SESSION_SIGNING_SECRET", "") or "")
-        except Exception:
-            secret = ""
+        secret = verifier_secret()
     tok = ""
     try:
         tok = request.headers.get(VERIFIER_HEADER) or ""
@@ -216,6 +230,24 @@ def demo() -> None:
        principal_from_request(_Req(headers={VERIFIER_HEADER: tok}), secret="")["role"] != RV)
     ck("minting without a secret raises rather than issuing an unsigned identity",
        _mint_raises())
+
+    # ── the verifier secret is SEPARATE from every owner credential ───────────────────────────────
+    import os as _os
+    _os.environ["RELEASE_VERIFIER_SIGNING_SECRET"] = "verifier-only-secret"
+    _os.environ["SESSION_SIGNING_SECRET"] = "owner-session-secret"
+    ck("verifier_secret() reads its OWN variable, not the session secret",
+       verifier_secret() == "verifier-only-secret")
+    ck("a token signed with the OWNER SESSION secret is NOT accepted as a verifier",
+       principal_from_request(_Req(headers={VERIFIER_HEADER: mint_verifier_token(
+           subject="x", secret="owner-session-secret")}))["role"] != RV)
+    ck("a token signed with the VERIFIER secret IS accepted",
+       principal_from_request(_Req(headers={VERIFIER_HEADER: mint_verifier_token(
+           subject="x", secret="verifier-only-secret")}))["role"] == RV)
+    _os.environ.pop("RELEASE_VERIFIER_SIGNING_SECRET", None)
+    ck("with the verifier secret ABSENT, no verifier identity is accepted (fail closed)",
+       principal_from_request(_Req(headers={VERIFIER_HEADER: mint_verifier_token(
+           subject="x", secret="verifier-only-secret")}))["role"] != RV)
+    _os.environ["RELEASE_VERIFIER_SIGNING_SECRET"] = "verifier-only-secret"
 
     # ── what the role may and may not DO ──────────────────────────────────────────────────────────
     vreq = _Req(headers={VERIFIER_HEADER: tok})

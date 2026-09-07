@@ -351,12 +351,29 @@ def events_from_proposals(rows: list) -> list:
                 "source": "holding.proposals_store", "provenance": "REAL",
                 "refs": [{"proposal_id": pid, "severity": d.get("severity"), "status": d.get("status")}]})
         status = str(d.get("status") or "").lower()
-        if d.get("decided_at") and status in ("approved", "rejected"):
+        # An EXECUTION is an observable event and was producing none. Proposal 9 went approved ->
+        # executed on production, and the timeline showed only PROPOSED and APPROVED — which read as
+        # "the execution never happened". For a system whose job is action truth, an execution that
+        # leaves no observable record is the defect, not the missing narrative.
+        if d.get("executed_at") and status == "executed":
             out.append({
-                "event_id": f"proposal:{pid}:{status.upper()}", "ts": d["decided_at"], "type": "approval",
-                "company": co, "summary": f"owner {status} proposal: {title}",
+                "event_id": f"proposal:{pid}:EXECUTED", "ts": d["executed_at"],
+                "type": "worker_execution", "company": co,
+                "summary": f"executed proposal: {title}",
                 "source": "holding.proposals_store", "provenance": "REAL",
-                "refs": [{"proposal_id": pid, "decision": status}]})
+                "refs": [{"proposal_id": pid, "outcome": "executed",
+                          "read_only": bool((d.get("evidence") or {}).get("read_only"))}]})
+        # The approval event is keyed on the DECISION having happened, not on the CURRENT status.
+        # Keying it on status meant an executed proposal lost its approval event entirely: the record
+        # rewrote itself as the proposal advanced, so history depended on when you looked at it.
+        # 'executed' implies a prior approval — execute_approved refuses anything else.
+        decision = "approved" if status == "executed" else status
+        if d.get("decided_at") and decision in ("approved", "rejected"):
+            out.append({
+                "event_id": f"proposal:{pid}:{decision.upper()}", "ts": d["decided_at"], "type": "approval",
+                "company": co, "summary": f"owner {decision} proposal: {title}",
+                "source": "holding.proposals_store", "provenance": "REAL",
+                "refs": [{"proposal_id": pid, "decision": decision}]})
     return out
 
 
