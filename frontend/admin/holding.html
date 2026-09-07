@@ -457,6 +457,9 @@ const STATE_META = {
   REAL:{c:'ok',i:'●'}, DERIVED:{c:'info',i:'◐'},
   LIVE_STAGING:{c:'info',i:'▸'}, LIVE_PROD:{c:'ok',i:'✓'}, PRE_DEPLOY:{c:'off',i:'○'},
   ALWAYS_ON:{c:'ok',i:'✓'}, NOT_DECLARED:{c:'warn',i:'⚠'},
+  DARK_404:{c:'off',i:'⊘'}, NOT_APPLICABLE:{c:'off',i:'–'}, AVAILABLE:{c:'ok',i:'✓'},
+  HOSTED_VERIFIED:{c:'ok',i:'✓'}, LOCAL_ONLY:{c:'info',i:'◐'}, UNVERIFIED:{c:'warn',i:'△'},
+  SUPERSEDED:{c:'warn',i:'⤫'}, CORRECTION:{c:'info',i:'✎'},
   HIGH:{c:'ok',i:'▲'}, LOW:{c:'off',i:'▽'},
 };
 function badge(state, label){
@@ -863,11 +866,18 @@ function renderDeploy(v){
     h+='<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Feature registry (deployed ≠ enabled)</div>';
     for(const f of feats){
       h+='<div class="row"><span><b>'+esc(f.name)+'</b> <span class="badge off">'+esc(f.risk_class||'')+'</span></span>'
-        +'<span style="display:flex;gap:5px;align-items:center">'
+        +'<span style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">'
+        /* FOUR INDEPENDENT AXES. A row may legitimately read LIVE_STAGING + DISABLED + DARK_404:
+           the build is released here, its authority is off, and its functional route is not mounted.
+           None of these may be inferred from another, so each gets its own badge. */
         +badge(f.deployment_state||'UNAVAILABLE')+' '
-        +badge(f.flag_state||(f.runtime_enabled?'ENABLED':'DISABLED'))+'</span></div>'
+        +badge(f.flag_state||(f.runtime_enabled?'ENABLED':'DISABLED'))+' '
+        +badge(f.endpoint_state||'UNKNOWN')+' '
+        +badge(f.verification_state||'UNVERIFIED')+'</span></div>'
         +(f.certification?'<div class="meta">'+esc(f.certification)+'</div>':'')
-        +(f.deployed?'':'<div class="meta">not deployed here — '+esc(f.deployment_reason||'no release evidence')+'</div>');
+        +(f.deployed?'':'<div class="meta">not deployed here — '+esc(f.deployment_reason||'no release evidence')+'</div>')
+        +(f.endpoint_state==='DARK_404'?'<div class="meta">'+esc(f.endpoint_reason||'route not mounted')+'</div>':'')
+        +(f.verification_state?'<div class="meta">verification: '+esc(f.verification_reason||f.verification_state)+'</div>':'');
     }
   }
   el.innerHTML = h;
@@ -958,8 +968,15 @@ function renderTimeline(v){
   const live = srcs.filter(s => s && s.status === 'CONNECTED');
   let h='';
   for(const e of evs){
-    h+='<div class="row"><span>'+badge(e.provenance||'DERIVED')+' <span class="badge off">'+esc(e.type)+'</span> '+esc(e.summary)+'</span></div>'
-      +'<div class="meta">'+fmtTs(e.ts)+' · '+esc(e.company)+' · <code>'+esc(e.source)+'</code></div>';
+    /* A superseded row is corrected history, not current truth. It is never hidden — hiding it would
+       be a silent rewrite — but it is struck through and labelled with the reason it was wrong. */
+    const sup = e.superseded === true;
+    h+='<div class="row"><span>'+(sup?badge('SUPERSEDED')+' ':'')+badge(e.provenance||'DERIVED')
+      +' <span class="badge off">'+esc(e.type)+'</span> '
+      +(sup?'<s style="opacity:.62">'+esc(e.summary)+'</s>':esc(e.summary))+'</span></div>'
+      +'<div class="meta">'+fmtTs(e.ts)+' · '+esc(e.company)+' · <code>'+esc(e.source)+'</code></div>'
+      +(sup?'<div class="meta">superseded by <code>'+esc(e.superseded_by||'')+'</code> — '
+            +esc(e.superseded_reason||'')+'</div>':'');
   }
   if(!evs.length){
     h = (tl.store !== 'CONNECTED' || !live.length)

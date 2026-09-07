@@ -208,6 +208,7 @@ def _install_safe_validation_handler(fastapi_app) -> None:
     fastapi_app.add_exception_handler(RequestValidationError, _handler)
 
 _install_safe_validation_handler(app)
+
 app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
@@ -420,3 +421,15 @@ async def html_404_to_kai_ui(request: Request, call_next):
     if path.startswith(_API_PREFIXES) or path.endswith(_ASSET_EXTS):
         return response
     return RedirectResponse(url="/kai-ui/", status_code=307)
+
+
+# ── Route table, recorded LAST ────────────────────────────────────────────────────────────────────
+# Must run after every include_router above: capturing it earlier saw only the routes mounted so far,
+# and a flag-gated router that mounts later would be reported DARK_404 while actually serving. This
+# is what lets the deployment registry answer AVAILABLE vs DARK_404 from the real table rather than
+# from a guess, so a visible panel can never imply that its execution capability is live.
+try:
+    from app.services.holding.holding_deployment import set_mounted_routes
+    set_mounted_routes(getattr(_r, "path", "") for _r in app.routes)
+except Exception:                                   # never worth failing startup over
+    pass

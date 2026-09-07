@@ -49,9 +49,10 @@ def run() -> bool:
        validate_event(_ev(type="gossip"))[1].startswith("UNKNOWN_TYPE"))
     ck("a bad provenance marker is rejected",
        validate_event(_ev(provenance="MAYBE"))[1].startswith("BAD_PROVENANCE"))
-    ck("the 9 §61 event types are exactly the vocabulary",
+    ck("the §61 event vocabulary is exactly these 10 (9 observed + correction)",
        EVENT_TYPES == {"deployment", "mission", "incident", "approval", "worker_execution",
-                       "customer_milestone", "finance_event", "security_event", "kai_recommendation"})
+                       "customer_milestone", "finance_event", "security_event", "kai_recommendation",
+                       "correction"})
 
     # ── the certified boundary: hidden chain-of-thought is REJECTED (top-level AND nested) ──────────────
     ck("a top-level chain_of_thought field is REJECTED",
@@ -132,8 +133,14 @@ def run() -> bool:
 
     # ── ingest is fully injectable; empty everywhere → 0 candidates (no fabrication) ─────────────────────
     empty = ingest(audit=[], missions=[], proposals=[], deployment=[], security=[])
-    ck("ingest with all sources empty → 0 candidates (events come from real sources only)",
-       empty["candidates"] == 0 and empty["inserted"] == 0)
+    _ncorr = len(tl.correction_events())
+    # The ONE deliberate exception to "events come from real sources only": corrections are declared in
+    # reviewable source, not read from the world. Everything else must still contribute nothing.
+    ck("ingest with all sources empty yields ONLY the declared corrections, nothing fabricated",
+       empty["candidates"] == _ncorr
+       and all(e["type"] == "correction" for e in tl.correction_events()))
+    ck("...and with corrections excluded the count is genuinely 0",
+       empty["candidates"] - _ncorr == 0)
 
     # ── §61 WIRING: the panel is fed on the read path, and an unreadable source is NEVER silently empty ──
     ck("ingest reports one status row per real source (audit / mission / proposals / security / deployment)",
@@ -147,8 +154,11 @@ def run() -> bool:
     dead_view = tl.view(limit=5)
     tl._read_audit, tl._read_missions, tl._read_proposals, tl._read_security, tl._resolve_deployment = _saved
     ck("a source this build cannot read is reported UNAVAILABLE with 0 events — not a silent empty",
-       dead["candidates"] == 0 and all(s["status"] == "UNAVAILABLE" and s["events"] == 0
-                                       for s in dead["sources"]))
+       dead["candidates"] == len(tl.correction_events())
+       and all(s["status"] == "UNAVAILABLE" and s["events"] == 0 for s in dead["sources"]))
+    ck("corrections are NOT counted as a readable source — otherwise the panel would look connected "
+       "while every real source is unreadable",
+       not [s for s in dead["sources"] if "correction" in s["source"]])
     ck("view() with every source unreadable exposes it: 0 CONNECTED sources (the panel must NOT read as 'nothing happened')",
        not [s for s in dead_view["sources"] if s["status"] == "CONNECTED"] and len(dead_view["sources"]) == 5)
 
@@ -333,6 +343,34 @@ def run() -> bool:
     ck("...and the marker is called ONLY from that dependency, never from an individual handler",
        _rt2.count("mark_hosted_route_served(") == 1
        and "mark_hosted_route_served(request.url.path)" in _rt2)
+
+    # ── CORRECTIONS: append-only supersession, never a silent rewrite ─────────────────────────────
+    _corr = tl.correction_events()
+    ck("every declared correction is a VALID observable event", all(tl.validate_event(c)[0] for c in _corr))
+    ck("a correction names the row it supersedes and why",
+       all(c["refs"][0].get("supersedes") and c["refs"][0].get("reason") for c in _corr))
+    ck("a correction's id derives from its target, so re-ingesting cannot duplicate it",
+       all(c["event_id"] == "correction:" + c["refs"][0]["supersedes"] for c in _corr))
+    ck("corrections carry no hidden reasoning", not any(tl._contains_cot(c) for c in _corr))
+    _target = _corr[0]["refs"][0]["supersedes"]
+    _rows = [{"event_id": _target, "type": "deployment", "summary": "wrong", "ts": "2026-09-06T10:00:00Z"},
+             {"event_id": "deployment:other", "type": "deployment", "summary": "fine", "ts": "2026-09-06T11:00:00Z"}] + _corr
+    _applied = tl._apply_corrections([dict(r) for r in _rows])
+    _by = {r["event_id"]: r for r in _applied}
+    ck("the superseded row is FLAGGED", _by[_target]["superseded"] is True
+       and _by[_target]["superseded_by"] == _corr[0]["event_id"])
+    ck("...and is NOT deleted or edited — append-only history is preserved",
+       _by[_target]["summary"] == "wrong" and len(_applied) == len(_rows))
+    ck("an unrelated row is untouched", _by["deployment:other"]["superseded"] is False)
+    ck("the two known-bad staging rows are the ones corrected",
+       {c["refs"][0]["supersedes"] for c in _corr}
+       == {"deployment:a6439a9feeb6", "deployment:99dd15bfcf04"})
+    _src2 = (pathlib.Path(__file__).resolve().parent / "timeline.py").read_text()
+    ck("corrections are declared in reviewable SOURCE, not injected by a route",
+       "_CORRECTIONS = (" in _src2 and "DELETE FROM holding_timeline" not in _src2)
+    ck("the renderer strikes a superseded row instead of hiding it",
+       "superseded" in (pathlib.Path(__file__).resolve().parents[4] / "frontend" / "admin"
+                        / "holding.html").read_text())
 
     # ── boundary: every surface that can expose the timeline is owner-gated ───────────────────────
     # The two readers are GET /admin/holding/timeline and the /view payload's timeline section. Neither

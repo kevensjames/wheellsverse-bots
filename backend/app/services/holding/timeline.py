@@ -45,6 +45,9 @@ from app.database import SessionLocal
 EVENT_TYPES = frozenset({
     "deployment", "mission", "incident", "approval", "worker_execution",
     "customer_milestone", "finance_event", "security_event", "kai_recommendation",
+    # A correction is itself an observable fact: someone determined a stored row was wrong and said so.
+    # It never edits or deletes the row it supersedes — see _CORRECTIONS below.
+    "correction",
 })
 _PROVENANCE = frozenset({"REAL", "DERIVED", "UNAVAILABLE"})
 _REQUIRED = ("event_id", "ts", "type", "company", "summary", "source", "provenance")
@@ -397,6 +400,12 @@ def ingest(*, audit=None, missions=None, proposals=None, deployment=None, securi
         events += evs
         sources.append({"source": name, "status": "CONNECTED" if ok else "UNAVAILABLE", "events": len(evs)})
 
+    # Corrections are ingested but are deliberately NOT listed in `sources`. They are declared in this
+    # module, so they are always available — counting them as a readable source would make the panel
+    # report a connected source even when every REAL source is unreadable, which is exactly the
+    # "nothing happened" ambiguity the sources list exists to prevent.
+    events += correction_events()
+
     dep, dep_ok = _resolve_deployment(deployment)
     events += dep
     sources.append({"source": "holding.holding_deployment",
@@ -406,6 +415,77 @@ def ingest(*, audit=None, missions=None, proposals=None, deployment=None, securi
     return {"candidates": len(events), "inserted": r["inserted"], "rejected": r["rejected"],
             "sources": sources}
 
+
+
+# ── CORRECTIONS (§61): append-only supersession, declared in source ────────────────────────────────
+# A stored event cannot be edited or deleted. append() is idempotent and content-keyed precisely so
+# that re-ingesting a real source can never rewrite history — which also means a row written by a
+# DEFECTIVE build stays exactly as written. Two such rows exist on staging, produced by builds that
+# were fixed in 99dd15b and 85d5a81.
+#
+# The mechanism: a correction is declared HERE, in reviewable source, and ingested as an ordinary
+# append-only `correction` event that NAMES the row it supersedes and why. Three consequences that
+# matter:
+#   • nothing is silently rewritten — the original row remains, and the correction is auditable in git;
+#   • no database route is added, public or otherwise;
+#   • the view marks the superseded row so the dashboard stops presenting it as current truth.
+# A correction is itself idempotent: its event_id is derived from the row it supersedes.
+_CORRECTIONS = (
+    {
+        "supersedes": "deployment:a6439a9feeb6",
+        "ts": "2026-09-06T20:00:00Z",
+        "reason": ("recorded 'in production' while running on staging: events_from_deployment took env "
+                   "with a keyword default of 'production' and the live call site omitted it. Fixed in "
+                   "99dd15b; the default is now UNKNOWN and the call site passes APP_ENV."),
+        "correct": "that deployment was observed in STAGING, not production",
+    },
+    {
+        "supersedes": "deployment:99dd15bfcf04",
+        "ts": "2026-09-06T20:00:00Z",
+        "reason": ("recorded '0 features present' because hosted-route evidence was written by a single "
+                   "handler, so the count depended on which route the process served first. Fixed in "
+                   "85d5a81; the evidence now comes from a router-level dependency and the count is a "
+                   "property of the registry."),
+        "correct": "that build had 19 features present, the same as every other build in this release",
+    },
+)
+
+
+def correction_events() -> list:
+    """The declared corrections as ordinary observable events. Pure; no I/O."""
+    out = []
+    for c in _CORRECTIONS:
+        out.append({
+            "event_id": f"correction:{c['supersedes']}",
+            "ts": c["ts"],
+            "type": "correction",
+            "company": "holding",
+            "summary": f"CORRECTION — {c['supersedes']}: {c['correct']}",
+            "source": "holding.timeline_corrections",
+            "provenance": "REAL",
+            "refs": [{"supersedes": c["supersedes"], "reason": c["reason"]}],
+        })
+    return out
+
+
+def _apply_corrections(rows: list) -> list:
+    """Mark superseded rows. The superseded row is NEVER removed or edited — it is flagged, so the
+    dashboard can show it as corrected history rather than as current truth."""
+    by_target = {}
+    for e in rows:
+        if e.get("type") == "correction":
+            for r in (e.get("refs") or []):
+                t = r.get("supersedes")
+                if t:
+                    by_target[t] = {"by": e["event_id"], "reason": r.get("reason", ""),
+                                    "correct": e.get("summary", "")}
+    for e in rows:
+        c = by_target.get(e.get("event_id"))
+        e["superseded"] = bool(c)
+        if c:
+            e["superseded_by"] = c["by"]
+            e["superseded_reason"] = c["reason"]
+    return rows
 
 def view(*, type: str | None = None, company: str | None = None, limit: int = 100) -> dict:
     """THE §61 panel payload — the one function the router calls.
@@ -422,6 +502,7 @@ def view(*, type: str | None = None, company: str | None = None, limit: int = 10
     except Exception:                                       # fail closed: unknown sources, not "all fine"
         sources = []
     rows, store_ok = _query(type=type, company=company, limit=limit)
+    rows = _apply_corrections(rows)
     return {"events": rows, "store": "CONNECTED" if store_ok else "UNAVAILABLE", "sources": sources}
 
 

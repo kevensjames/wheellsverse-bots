@@ -114,7 +114,7 @@ def _setup_logging():
 
 _setup_logging()
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -246,6 +246,31 @@ async def verify_api_key(request: Request):
         # (always False) while OPERATOR_SESSION_ENABLED is off.
         if not _session_owner_ok(request):
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+def require_admin_json(request: Request) -> None:
+    """Owner gate for ADMINISTRATIVE JSON served under /admin/.
+
+    Why these were anonymous: verify_api_key returns early for any path that does not start with
+    "/api/", so the entire /admin/*.json surface was exempt by construction, not by decision.
+
+    What they carry: the system inventory with internal routes, repository names and per-system deploy
+    state; provider wiring flags, host telemetry, fleet counts and the running build SHA; and the
+    capability catalogue with risk tiers and restricted entries. That is operational, provider,
+    deployment and security information. None of the three has a documented public purpose or a
+    reviewed public-safe schema, so each now requires the same authority as the rest of the operator
+    surface: a valid owner API key OR an owner-role session. Fail closed.
+
+    Deliberately NOT applied to /openapi.json — assessed separately; it carries route shapes, not data.
+    """
+    if not _API_KEY:
+        return                      # auth disabled entirely (local dev) — same contract as verify_api_key
+    key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
+    if key and hmac.compare_digest(key, _API_KEY):
+        return
+    if _session_owner_ok(request):
+        return
+    raise HTTPException(status_code=401, detail="owner authentication required")
 
 
 # ─── Global state ─────────────────────────────────────────────────────────────
@@ -1156,7 +1181,7 @@ def _admin_capabilities(request: Request):
 
 
 @app.get("/admin/capabilities.json", include_in_schema=False)
-def _admin_capabilities_json():
+def _admin_capabilities_json(_auth: None = Depends(require_admin_json)):
     if not _CAPABILITY_FABRIC_ENABLED:
         raise HTTPException(status_code=404, detail="capability fabric disabled")
     from fastapi.responses import JSONResponse
@@ -1175,7 +1200,7 @@ def _admin_capability_inspect(cap_id: str):
 
 
 @app.get("/admin/registry.json", include_in_schema=False)
-def _admin_registry_json():
+def _admin_registry_json(_auth: None = Depends(require_admin_json)):
     """Canonical WHEELLSVERSE registry — the single source of truth the Command
     Center renders. Structural truth only; carries NO secrets and no fabricated
     metric (UNAVAILABLE where there is no live probe). Always available."""
@@ -1188,7 +1213,7 @@ def _admin_registry_json():
 
 
 @app.get("/admin/command/metrics.json", include_in_schema=False)
-def _admin_command_metrics():
+def _admin_command_metrics(_auth: None = Depends(require_admin_json)):
     """Honest live-metrics aggregator for the Command Center. Assembles REAL data
     in-process (registry counts, capability count, bot-fleet size, this process's
     uptime). Anything without a wired live source is reported under `unavailable`
