@@ -164,7 +164,8 @@ def run() -> bool:
 
     live = tl.view(limit=5)               # NO injection: the REAL wiring against this build's sources
     ck("view() returns the panel contract: events + store status + per-source status",
-       set(live) == {"events", "store", "sources"} and live["store"] in ("CONNECTED", "UNAVAILABLE")
+       set(live) == {"events", "store", "sources", "audit_evidence"}
+       and live["store"] in ("CONNECTED", "UNAVAILABLE")
        and all(set(s) == {"source", "status", "events"} for s in live["sources"]))
     ck("the REAL wiring resolves: the audit log + deployment sources are readable in this build (the panel is fed, not dormant)",
        {s["source"] for s in live["sources"] if s["status"] == "CONNECTED"}
@@ -353,14 +354,19 @@ def run() -> bool:
        all(c["event_id"] == "correction:" + c["refs"][0]["supersedes"] for c in _corr))
     ck("corrections carry no hidden reasoning", not any(tl._contains_cot(c) for c in _corr))
     _target = _corr[0]["refs"][0]["supersedes"]
-    _rows = [{"event_id": _target, "type": "deployment", "summary": "wrong", "ts": "2026-09-06T10:00:00Z"},
-             {"event_id": "deployment:other", "type": "deployment", "summary": "fine", "ts": "2026-09-06T11:00:00Z"}] + _corr
-    _applied = tl._apply_corrections([dict(r) for r in _rows])
+    # the fixture must satisfy the correction's SCOPE, or it is correctly refused as a content
+    # mismatch — the stricter behaviour added after orphan corrections reached production
+    _rows = [{"event_id": _target, "type": "deployment", "company": "holding",
+              "summary": "deployed SHA a6439a9feeb6 observed (19 features present) in production",
+              "ts": "2026-09-06T10:00:00Z"},
+             {"event_id": "deployment:other", "type": "deployment", "company": "holding",
+              "summary": "fine", "ts": "2026-09-06T11:00:00Z"}] + _corr
+    _applied = tl._apply_corrections([dict(r) for r in _rows], environment="staging")
     _by = {r["event_id"]: r for r in _applied}
     ck("the superseded row is FLAGGED", _by[_target]["superseded"] is True
        and _by[_target]["superseded_by"] == _corr[0]["event_id"])
     ck("...and is NOT deleted or edited — append-only history is preserved",
-       _by[_target]["summary"] == "wrong" and len(_applied) == len(_rows))
+       "in production" in _by[_target]["summary"] and len(_applied) == len(_rows))
     ck("an unrelated row is untouched", _by["deployment:other"]["superseded"] is False)
     ck("the two known-bad staging rows are the ones corrected",
        {c["refs"][0]["supersedes"] for c in _corr}
@@ -371,6 +377,50 @@ def run() -> bool:
     ck("the renderer strikes a superseded row instead of hiding it",
        "superseded" in (pathlib.Path(__file__).resolve().parents[4] / "frontend" / "admin"
                         / "holding.html").read_text())
+
+    # ── CORRECTION SCOPING: a correction applies only where it legitimately belongs ────────────────
+    # Found on production: two corrections about staging-only builds appeared on the CEO timeline,
+    # superseding nothing. A correction declared in source is ingested wherever the code runs.
+    _c = tl.correction_events()
+    _tgt = {"event_id": "deployment:a6439a9feeb6", "type": "deployment", "company": "holding",
+            "ts": "2026-09-06T10:00:00Z",
+            "summary": "deployed SHA a6439a9feeb6 observed (19 features present) in production"}
+    _stg = {e["event_id"]: e for e in tl._apply_corrections([dict(_tgt)] + [dict(x) for x in _c], environment="staging")}
+    ck("in its OWN environment with the target present, a correction APPLIES",
+       _stg["correction:deployment:a6439a9feeb6"]["correction_status"] == tl.APPLIED)
+    ck("...and supersedes its target", _stg["deployment:a6439a9feeb6"]["superseded"] is True)
+    ck("...and is NOT audit-only — it is a real CEO timeline event",
+       _stg["correction:deployment:a6439a9feeb6"]["audit_only"] is False)
+
+    _prod = {e["event_id"]: e for e in tl._apply_corrections([dict(x) for x in _c], environment="production")}
+    ck("with the target ABSENT it is NOT_APPLIED_TARGET_ABSENT, never a silent success",
+       all(v["correction_status"] == tl.NOT_APPLIED_TARGET_ABSENT for v in _prod.values()))
+    ck("...and is audit_only, so it never reaches the CEO stream",
+       all(v["audit_only"] is True for v in _prod.values()))
+    ck("...and is PRESERVED, not deleted", len(_prod) == len(_c))
+
+    _wrongenv = {e["event_id"]: e for e in tl._apply_corrections(
+        [dict(_tgt)] + [dict(x) for x in _c], environment="production")}
+    ck("a STAGING correction does not apply in production even when a same-id target exists",
+       _wrongenv["correction:deployment:a6439a9feeb6"]["correction_status"]
+       == tl.NOT_APPLIED_ENVIRONMENT_MISMATCH
+       and _wrongenv["deployment:a6439a9feeb6"]["superseded"] is False)
+
+    _wrongco = dict(_tgt); _wrongco["company"] = "sol"
+    _mc = {e["event_id"]: e for e in tl._apply_corrections([_wrongco] + [dict(x) for x in _c], environment="staging")}
+    ck("a company/tenant mismatch blocks the correction",
+       _mc["correction:deployment:a6439a9feeb6"]["correction_status"] == tl.NOT_APPLIED_COMPANY_MISMATCH)
+
+    _changed = dict(_tgt); _changed["summary"] = "deployed SHA a6439a9feeb6 observed in staging"
+    _cm = {e["event_id"]: e for e in tl._apply_corrections([_changed] + [dict(x) for x in _c], environment="staging")}
+    ck("if the target no longer says what the correction expects, it does NOT apply",
+       _cm["correction:deployment:a6439a9feeb6"]["correction_status"] == tl.NOT_APPLIED_CONTENT_MISMATCH)
+
+    _dup = [dict(_tgt)] + [dict(_c[0]), dict(_c[0])]
+    _dupout = tl._apply_corrections(_dup, environment="staging")
+    ck("a second identical correction is NOT_APPLIED_ALREADY_APPLIED, not applied twice",
+       [e.get("correction_status") for e in _dupout if e.get("type") == "correction"]
+       == [tl.APPLIED, tl.NOT_APPLIED_ALREADY_APPLIED])
 
     # ── boundary: every surface that can expose the timeline is owner-gated ───────────────────────
     # The two readers are GET /admin/holding/timeline and the /view payload's timeline section. Neither

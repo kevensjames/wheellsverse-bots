@@ -437,6 +437,9 @@ def ingest(*, audit=None, missions=None, proposals=None, deployment=None, securi
 _CORRECTIONS = (
     {
         "supersedes": "deployment:a6439a9feeb6",
+        "environment": "staging",
+        "company": "holding",
+        "expect_summary_contains": "in production",
         "ts": "2026-09-06T20:00:00Z",
         "reason": ("recorded 'in production' while running on staging: events_from_deployment took env "
                    "with a keyword default of 'production' and the live call site omitted it. Fixed in "
@@ -445,6 +448,9 @@ _CORRECTIONS = (
     },
     {
         "supersedes": "deployment:99dd15bfcf04",
+        "environment": "staging",
+        "company": "holding",
+        "expect_summary_contains": "0 features present",
         "ts": "2026-09-06T20:00:00Z",
         "reason": ("recorded '0 features present' because hosted-route evidence was written by a single "
                    "handler, so the count depended on which route the process served first. Fixed in "
@@ -467,28 +473,85 @@ def correction_events() -> list:
             "summary": f"CORRECTION — {c['supersedes']}: {c['correct']}",
             "source": "holding.timeline_corrections",
             "provenance": "REAL",
-            "refs": [{"supersedes": c["supersedes"], "reason": c["reason"]}],
+            # The scope travels WITH the correction. Without it _apply_corrections cannot tell a
+            # legitimate application from an orphan, which is how staging corrections reached the
+            # production CEO timeline.
+            "refs": [{"supersedes": c["supersedes"], "reason": c["reason"],
+                      "environment": c.get("environment", ""), "company": c.get("company", ""),
+                      "expect_summary_contains": c.get("expect_summary_contains", "")}],
         })
     return out
 
 
-def _apply_corrections(rows: list) -> list:
-    """Mark superseded rows. The superseded row is NEVER removed or edited — it is flagged, so the
-    dashboard can show it as corrected history rather than as current truth."""
-    by_target = {}
+# A correction that did not apply, and why. These are audit evidence, not corrections.
+NOT_APPLIED_TARGET_ABSENT = "NOT_APPLIED_TARGET_ABSENT"
+NOT_APPLIED_ENVIRONMENT_MISMATCH = "NOT_APPLIED_ENVIRONMENT_MISMATCH"
+NOT_APPLIED_COMPANY_MISMATCH = "NOT_APPLIED_COMPANY_MISMATCH"
+NOT_APPLIED_CONTENT_MISMATCH = "NOT_APPLIED_CONTENT_MISMATCH"
+NOT_APPLIED_ALREADY_APPLIED = "NOT_APPLIED_ALREADY_APPLIED"
+APPLIED = "APPLIED"
+
+
+def _apply_corrections(rows: list, *, environment: str = "") -> list:
+    """Apply a correction ONLY where it legitimately belongs, and classify every one truthfully.
+
+    A correction declared in source is ingested everywhere the code runs — including environments
+    where its target never existed. On production that put two corrections about staging-only builds
+    onto the CEO timeline, superseding nothing and explaining builds the operator never deployed.
+
+    A correction applies only when ALL of these hold:
+      • its target event is actually present in this store;
+      • the environment matches (a staging correction never applies in production);
+      • the company/tenant matches;
+      • the target's content still looks like what the correction expects to be correcting;
+      • it has not already been applied.
+
+    Otherwise it stays as audit evidence with an explicit NOT_APPLIED_* status. It is never deleted,
+    and it never appears as a successful correction or as an ordinary CEO timeline event.
+
+    The superseded row is flagged, never removed or edited: history stays append-only."""
+    env = str(environment or "").strip().lower()
+    by_id = {e.get("event_id"): e for e in rows}
+    applied_targets = set()
+
     for e in rows:
-        if e.get("type") == "correction":
-            for r in (e.get("refs") or []):
-                t = r.get("supersedes")
-                if t:
-                    by_target[t] = {"by": e["event_id"], "reason": r.get("reason", ""),
-                                    "correct": e.get("summary", "")}
+        if e.get("type") != "correction":
+            continue
+        ref = (e.get("refs") or [{}])[0]
+        target_id = ref.get("supersedes")
+        target = by_id.get(target_id)
+        status = APPLIED
+
+        if not target_id or target is None:
+            status = NOT_APPLIED_TARGET_ABSENT
+        elif target_id in applied_targets:
+            status = NOT_APPLIED_ALREADY_APPLIED
+        else:
+            want_env = str(ref.get("environment") or "").strip().lower()
+            if want_env and env and want_env != env:
+                status = NOT_APPLIED_ENVIRONMENT_MISMATCH
+            else:
+                want_co = ref.get("company")
+                if want_co and target.get("company") and target["company"] != want_co:
+                    status = NOT_APPLIED_COMPANY_MISMATCH
+                else:
+                    expect = ref.get("expect_summary_contains")
+                    if expect and expect not in str(target.get("summary", "")):
+                        status = NOT_APPLIED_CONTENT_MISMATCH
+
+        e["correction_status"] = status
+        # Only an APPLIED correction is a CEO-timeline event. Everything else is audit evidence and is
+        # kept out of the executive stream by this flag, without being removed from the record.
+        e["audit_only"] = status != APPLIED
+        if status == APPLIED:
+            applied_targets.add(target_id)
+            target["superseded"] = True
+            target["superseded_by"] = e["event_id"]
+            target["superseded_reason"] = ref.get("reason", "")
+
     for e in rows:
-        c = by_target.get(e.get("event_id"))
-        e["superseded"] = bool(c)
-        if c:
-            e["superseded_by"] = c["by"]
-            e["superseded_reason"] = c["reason"]
+        e.setdefault("superseded", False)
+        e.setdefault("audit_only", False)
     return rows
 
 def view(*, type: str | None = None, company: str | None = None, limit: int = 100) -> dict:
@@ -506,8 +569,19 @@ def view(*, type: str | None = None, company: str | None = None, limit: int = 10
     except Exception:                                       # fail closed: unknown sources, not "all fine"
         sources = []
     rows, store_ok = _query(type=type, company=company, limit=limit)
-    rows = _apply_corrections(rows)
-    return {"events": rows, "store": "CONNECTED" if store_ok else "UNAVAILABLE", "sources": sources}
+    env = ""
+    try:
+        from app.config import settings
+        env = str(getattr(settings, "APP_ENV", "") or "")
+    except Exception:
+        env = ""
+    rows = _apply_corrections(rows, environment=env)
+    # The CEO stream carries what happened here. Corrections that did not apply stay available as
+    # audit evidence, separately, so nothing is hidden and nothing is misrepresented.
+    events = [e for e in rows if not e.get("audit_only")]
+    audit = [e for e in rows if e.get("audit_only")]
+    return {"events": events, "store": "CONNECTED" if store_ok else "UNAVAILABLE",
+            "sources": sources, "audit_evidence": audit}
 
 
 # ── real-source readers — each returns (records, readable). "readable" is the honest difference between

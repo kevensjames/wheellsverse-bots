@@ -6,7 +6,7 @@ so a disabled deployment has ZERO new surface. All endpoints are GET/read-only a
 approval-gated by design.
 """
 from __future__ import annotations
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 
 from app.routers.admin_chat import require_kai_ultra  # reuse the owner-only gate (no parallel auth)
 from app.services.holding import reports
@@ -32,6 +32,21 @@ def _self_peer_shas(settings, sha: str) -> dict:
     if env in ("production", "prod"):
         return {"app_b": sha}
     return {}
+
+
+def _principal_role_and_id(request: Request) -> tuple[str, str]:
+    """The acting principal's role and a stable id, for binding a confirmation to ONE identity.
+
+    App B sits behind the App A bridge, which re-resolves the principal, but App B is separately
+    reachable and must decide for itself. Fails closed to a non-owner role: an unresolvable principal
+    can never mint or spend a confirmation."""
+    try:
+        from app.services.holding.verifier_role import principal_from_request
+        pr = principal_from_request(request)
+        return pr.get("role", "unknown"), pr.get("id", "unknown")
+    except Exception:
+        return "unknown", "unknown"
+
 
 
 def _record_hosted_route(request: Request) -> None:
@@ -123,10 +138,63 @@ def holding_reject(proposal_id: int, reason: str = ""):
     return {"rejected": True, "proposal": r}
 
 
+@router.post("/proposals/{proposal_id}/confirm-execute")
+def holding_mint_execution_confirmation(proposal_id: int, request: Request):
+    """Mint a short-lived, action-bound confirmation for executing ONE approved proposal.
+
+    Separate from execution on purpose: the owner asks for a confirmation for a specific proposal,
+    sees exactly what it authorises, and spends it immediately. Owner-only; a release verifier cannot
+    mint one."""
+    from app.services.holding.verifier_role import require_can_act, ACT_EXECUTE
+    require_can_act(request, ACT_EXECUTE)   # a release verifier is refused 403 here
+
+    from app.config import settings
+    from app.services.holding import action_confirmation as ac
+    from app.services.holding import proposals_store
+    p = proposals_store.get(proposal_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="no such proposal")
+    if p.get("status") != "approved":
+        raise HTTPException(status_code=409,
+                            detail=f"proposal is '{p.get('status')}', not 'approved'")
+    role, pid = _principal_role_and_id(request)
+    m = ac.mint(principal_id=pid, role=role, proposal_id=proposal_id, action=p.get("action"),
+                environment=str(getattr(settings, "APP_ENV", "") or ""),
+                secret=str(getattr(settings, "SESSION_SIGNING_SECRET", "") or ""))
+    if not m.get("ok"):
+        raise HTTPException(status_code=403, detail=m.get("reason", "cannot mint confirmation"))
+    return {"confirmation": m["token"], "expires_at": m["expires_at"],
+            "action_digest": m["action_digest"], "proposal_id": proposal_id,
+            "note": "single action, short expiry, bound to you, this proposal, this action and this environment"}
+
+
 @router.post("/proposals/{proposal_id}/execute")
-def holding_execute(proposal_id: int):
-    """Execute an APPROVED proposal's READ-ONLY action (re-probe / gather evidence) — bound to the
-    prior approval. Refuses anything not already approved. No writes, money, or deploys. Audited."""
+def holding_execute(proposal_id: int, request: Request,
+                    x_action_confirmation: str | None = Header(default=None)):
+    """Execute an APPROVED proposal's READ-ONLY action (re-probe / gather evidence).
+
+    Requires BOTH a prior owner approval AND a fresh action-bound confirmation. An approval alone is a
+    standing permission that any later owner-authenticated request could spend — which is exactly what
+    happened on 2026-09-07, when a release verifier executed proposal #9 on production while testing
+    whether this control failed closed. See docs/INCIDENT_2026-09-07_production_verification_execution.md.
+    No writes, money, or deploys. Audited."""
+    from app.services.holding.verifier_role import require_can_act, ACT_EXECUTE
+    require_can_act(request, ACT_EXECUTE)   # a release verifier is refused 403 here
+
+    from app.config import settings
+    from app.services.holding import action_confirmation as ac
+    from app.services.holding import proposals_store
+    _p = proposals_store.get(proposal_id)
+    if not _p:
+        raise HTTPException(status_code=404, detail="no such proposal")
+    role, pid = _principal_role_and_id(request)
+    v = ac.verify(x_action_confirmation, principal_id=pid, role=role, proposal_id=proposal_id,
+                  action=_p.get("action"), environment=str(getattr(settings, "APP_ENV", "") or ""),
+                  secret=str(getattr(settings, "SESSION_SIGNING_SECRET", "") or ""))
+    if not v.get("ok"):
+        # 403, not 401: the caller may well be authenticated. What is missing is AUTHORISATION for
+        # this specific act. The reason is returned so the operator is sent to the right fix.
+        raise HTTPException(status_code=403, detail=v.get("reason", "confirmation required"))
     from app.services.holding.executor import execute_approved
     r = execute_approved(proposal_id)
     if not r.get("executed"):
