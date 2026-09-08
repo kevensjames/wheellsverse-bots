@@ -1093,7 +1093,25 @@ def _serve_nexus_app_asset(name: str):
     return FileResponse(p, media_type=mime, headers={"Cache-Control": "no-store"})
 
 
+# Exactly ONE of these assets is not a public UI resource. kai-capability-catalog.json is a
+# checked-in copy of the same 126-entry registry dump /admin/capabilities serves — capability ids,
+# permissions, risk tiers and restricted entries. Gating the API route while leaving this file public
+# would keep that data one anonymous GET away, so the fix would close a door and leave the window
+# open. Confirmed serving 114,215 B anonymously from production on 2026-09-08.
+#
+# Guarded BY NAME, through a dependency that resolves BEFORE the handler body, so the file is never
+# opened for an unauthorized caller. The other 28 entries are the JS and CSS that every admin page —
+# including the pre-authentication surface — loads before there is any session to check. Gating the
+# router instead of this one asset would take the admin UI down.
+_PROTECTED_NEXUS_ASSETS = frozenset({"kai-capability-catalog.json"})
+
+
 def _make_nexus_asset_route(_name: str):
+    if _name in _PROTECTED_NEXUS_ASSETS:
+        def _route(_auth: None = Depends(require_admin_json)):
+            return _serve_nexus_app_asset(_name)
+        return _route
+
     def _route():
         return _serve_nexus_app_asset(_name)
     return _route
@@ -1199,7 +1217,11 @@ def _capability_catalog() -> dict:
 
 
 @app.get("/admin/capabilities", include_in_schema=False)
-def _admin_capabilities(request: Request):
+def _admin_capabilities(request: Request, _auth: None = Depends(require_admin_json)):
+    # Same gate as /admin/capabilities.json below: this route returns the IDENTICAL catalogue when a
+    # client asks for JSON, so exempting it made the .json gate cosmetic. Applied to the whole route
+    # rather than the JSON branch — the HTML page is the operator console, not a public page, and a
+    # guard that depends on parsing an Accept header is a guard an attacker chooses to skip.
     if not _CAPABILITY_FABRIC_ENABLED:
         raise HTTPException(status_code=404, detail="capability fabric disabled")
     # HTML page for a browser; JSON for API clients (Accept: application/json)
@@ -1223,7 +1245,7 @@ def _admin_capabilities_json(_auth: None = Depends(require_admin_json)):
 
 
 @app.get("/admin/capabilities/{cap_id}", include_in_schema=False)
-def _admin_capability_inspect(cap_id: str):
+def _admin_capability_inspect(cap_id: str, _auth: None = Depends(require_admin_json)):
     if not _CAPABILITY_FABRIC_ENABLED:
         raise HTTPException(status_code=404, detail="capability fabric disabled")
     from fastapi.responses import JSONResponse
