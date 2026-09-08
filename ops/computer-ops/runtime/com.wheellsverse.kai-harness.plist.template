@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  KAI Computer Operations - launchd TEMPLATE. DELIBERATELY NOT INSTALLED.
+
+  Per the mission, persistent startup is not enabled until the operator explicitly
+  approves that service installation. To install (operator action, not KAI's):
+
+    sed 's|__RUNTIME_ROOT__|/Users/jhonwheeler/kai-harness-runtime|g;
+         s|__OVERLAY_DIR__|/Users/jhonwheeler/wheellsverse-kai-compute/ops/computer-ops/harness|g' \
+      com.wheellsverse.kai-harness.plist.template \
+      > ~/Library/LaunchAgents/com.wheellsverse.kai-harness.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.wheellsverse.kai-harness.plist
+
+  This is a LaunchAgent (gui/<uid>), not a LaunchDaemon, and that distinction is
+  load-bearing: the desktop bridge needs an interactive user session for TCC grants to
+  apply at all. A LaunchDaemon runs outside the user session, where Screen Recording
+  and Accessibility grants do not apply and every desktop verb would report
+  DESKTOP_UNAVAILABLE.
+
+  It runs the CONNECTOR, not the harness. The harness is spawned per mission as a
+  short-lived stdio child and must never be a persistent service: a long-lived agent
+  process would hold session state across missions and outlive a STOP.
+
+  Note there is no <Sockets> key and no listening port. The connector reaches KAI by
+  authenticated OUTBOUND connection only.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.wheellsverse.kai-harness</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>__OVERLAY_DIR__/../connector/run_connector.py</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CI</key><string>true</string>
+    <key>DSH_HOME</key><string>__RUNTIME_ROOT__/dsh-home</string>
+    <!-- No secret appears here. The connector reads its device credential from the
+         macOS Keychain at runtime; a plist is world-readable. -->
+  </dict>
+
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key>
+  <dict><key>SuccessfulExit</key><false/></dict>
+
+  <key>StandardOutPath</key><string>__RUNTIME_ROOT__/logs/connector.out.log</string>
+  <key>StandardErrorPath</key><string>__RUNTIME_ROOT__/logs/connector.err.log</string>
+
+  <key>ProcessType</key><string>Interactive</string>
+</dict>
+</plist>
