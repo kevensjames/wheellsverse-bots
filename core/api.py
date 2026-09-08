@@ -2208,9 +2208,16 @@ async def serve_admin_automations():
 
 
 @app.get("/admin/automations.json", include_in_schema=False)
-def _admin_automations_json():
+def _admin_automations_json(_auth: None = Depends(require_admin_json)):
     """In-process aggregator of the REAL automation subsystems (no fake data; a source
-    that isn't wired reports null). Same secret-free pattern as metrics.json."""
+    that isn't wired reports null). Same secret-free pattern as metrics.json.
+
+    Owner-gated. "Secret-free" is true and was never the whole question: this returns the scheduler
+    inventory — job names, cadence and exact next_run timestamps — plus autopilot posture and which
+    delivery integrations are configured. That is an operating map of the business, and it answered
+    anonymously on production until 2026-09-08. metrics.json, the pattern this cites, has carried
+    require_admin_json since PR #70; this route was simply missed.
+    """
     from fastapi.responses import JSONResponse
     out = {"generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
            "autopilot": None, "automation": None, "scheduler": None}

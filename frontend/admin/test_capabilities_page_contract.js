@@ -242,7 +242,11 @@ const MUTANTS = [
     'UNAPPROVED_ENDPOINT:/admin/evil/claude-code'],
   ['POST on the catalog request', (h) => h.replace('fetch("/admin/capabilities.json",{headers:', 'fetch("/admin/capabilities.json",{method:"POST",headers:'),
     'NON_GET:POST:/admin/capabilities.json'],
-  ['POST on the detail request', (h) => h.replace('{headers:{Accept:"application/json"}})\n      .then(function(r){return r.json();}).then(function(c){', '{method:"POST",headers:{Accept:"application/json"}})\n      .then(function(r){return r.json();}).then(function(c){'),
+  // Anchored on the fetch CALL, not on the promise chain after it. The previous anchor included
+  // `.then(function(r){return r.json();})`, so adding inspect()'s r.ok status check silently stopped
+  // this mutation from applying. The assert.notStrictEqual below is what caught that, exactly as
+  // intended — a mutation test that no longer mutates is the failure it reports.
+  ['POST on the detail request', (h) => h.replace('fetch("/admin/capabilities/"+encodeURIComponent(id),{headers:', 'fetch("/admin/capabilities/"+encodeURIComponent(id),{method:"POST",headers:'),
     'NON_GET:POST:/admin/capabilities/claude-code'],
   ['absolute/off-origin detail URL', (h) => h.replace('fetch("/admin/capabilities/"+encodeURIComponent(id)', 'fetch("https://kai-prod-production.up.railway.app/admin/capabilities/"+encodeURIComponent(id)'),
     'OFF_ORIGIN:https://kai-prod-production.up.railway.app/admin/capabilities/claude-code'],

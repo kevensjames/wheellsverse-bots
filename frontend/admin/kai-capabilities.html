@@ -104,7 +104,10 @@
 
   function inspect(id){
     fetch("/admin/capabilities/"+encodeURIComponent(id),{headers:{Accept:"application/json"}})
-      .then(function(r){return r.json();}).then(function(c){
+      /* The detail route is owner-gated too, so this MUST check the status. Without it a 401 body
+         parses as JSON, c.runtime is undefined, and the drawer dies on a TypeError — an uncaught
+         rejection in the console and nothing at all on screen. Fail visibly, never silently. */
+      .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(c){
       var p=c.provenance||{};
       var rows=[["Type",c.type],["Group",c.group],["KAI server",c.runtime.kai_server],
         ["Claude local",c.runtime.claude_local],["Availability",c.availability],
@@ -120,6 +123,19 @@
         '<div class="kv">'+kv+'</div>'+
         '<div style="margin-top:12px;color:var(--dim);font-size:12px">'+esc(c.notes||"")+'</div>'+
         '<div style="margin-top:10px;color:var(--grey);font-size:11px">No credentials are ever shown.</div>';
+      document.getElementById("inspector").classList.add("open");
+      document.getElementById("ins-close").addEventListener("click",function(){
+        document.getElementById("inspector").classList.remove("open"); });
+    })
+    .catch(function(e){
+      var m=String(e&&e.message||""), auth=/401|403/.test(m);
+      document.getElementById("inspector").innerHTML=
+        '<span class="close" id="ins-close">close ✕</span>'+
+        '<div class="name" style="font-size:15px">Detail unavailable</div>'+
+        '<div style="margin-top:10px;color:var(--warn,#d90);font-size:12px">'+
+        (auth ? 'Owner sign-in required to inspect a capability ('+esc(m)+'). Nothing is withheld '
+              + 'because it is missing — the data exists and is not being shown to you.'
+              : 'Could not load this capability: '+esc(m)+'. Nothing fabricated.')+'</div>';
       document.getElementById("inspector").classList.add("open");
       document.getElementById("ins-close").addEventListener("click",function(){
         document.getElementById("inspector").classList.remove("open"); });

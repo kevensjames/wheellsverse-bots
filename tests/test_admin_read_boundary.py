@@ -52,6 +52,8 @@ PROTECTED = [
                  id="capability-detail"),
     pytest.param("/admin/kai-capability-catalog.json", {}, "capabilities",
                  id="static-catalog-asset"),
+    pytest.param("/admin/automations.json", {}, "scheduler",
+                 id="automations-inventory"),
 ]
 PROTECTED_PATHS = [p.values[0] for p in PROTECTED]
 
@@ -407,7 +409,8 @@ def _auth_dependency_names(path: str) -> set:
 
 
 @pytest.mark.parametrize("path", ["/admin/capabilities", "/admin/capabilities/{cap_id}",
-                                  "/admin/kai-capability-catalog.json"])
+                                  "/admin/kai-capability-catalog.json",
+                                  "/admin/automations.json"])
 def test_route_declares_the_auth_dependency(path):
     """MUTATION GUARD. Deleting `Depends(require_admin_json)` from any of these fails here by name,
     so the regression is reported as 'the guard is gone' rather than as a confusing 200."""
@@ -438,14 +441,10 @@ def test_no_other_admin_json_route_is_anonymous(client):
                                 reflects only the CALLER'S OWN identity when they present a session
     """
     reviewed_public = {"/admin/ui-config", "/admin/kai-bridge/health", "/admin/session/whoami"}
-    # KNOWN OPEN, closed by the NEXT commit of this hotfix ("fix(security): authenticate automation
-    # inventory"). Listed explicitly so this commit is green and revertible on its own while still
-    # recording the exposure in the tree rather than hiding it behind a passing suite.
-    known_open = {"/admin/automations.json"}
     offenders = []
     for route in core_api.app.routes:
         path = getattr(route, "path", "") or ""
-        if not path.startswith("/admin") or path in reviewed_public or path in known_open:
+        if not path.startswith("/admin") or path in reviewed_public:
             continue
         if "GET" not in (getattr(route, "methods", set()) or set()):
             continue
