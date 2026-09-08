@@ -62,3 +62,42 @@ __all__ = [
     "write_enabled",
     "WRITE_ACTION_TYPES",
 ]
+
+
+# --- truthful availability reporting (Phase 9 defect 2) ----------------------
+# The governed browser package is present in App B's source but Playwright is NOT in
+# App B's requirements, so every call raises BrowserUnavailable at runtime. That is the
+# INTENDED architecture, not an omission: root requirements.txt:20 records
+# "playwright — local only (browser automation)", and the dependency is declared only in
+# requirements-kdp.txt, a separate worker image.
+#
+# Installing a browser into the production web process would put an automation engine and
+# its download surface inside the public API service, which is exactly the coupling the
+# split avoids. So the capability is reported UNAVAILABLE with an exact reason instead.
+#
+# This matters for the panel: a dashboard must never infer READY from the code being
+# importable. It reports what a real dependency probe returned.
+
+#: Where browser automation is meant to run.
+BROWSER_INTENDED_RUNTIME = "local connector / kdp worker image (never the App B web process)"
+
+
+def browser_availability() -> dict:
+    """Probe Playwright and report truthfully, with the exact dependency reason."""
+    try:
+        import playwright  # noqa: F401
+    except Exception as exc:
+        return {
+            "state": "UNAVAILABLE",
+            "reason": f"{type(exc).__name__}: {exc}",
+            "missing_dependency": "playwright",
+            "declared_in": "requirements-kdp.txt (worker image); root requirements.txt "
+                           "marks it 'local only'",
+            "absent_from": "backend/requirements.txt (App B web process) - by design",
+            "intended_runtime": BROWSER_INTENDED_RUNTIME,
+        }
+    return {
+        "state": "AVAILABLE",
+        "reason": "playwright import succeeded",
+        "intended_runtime": BROWSER_INTENDED_RUNTIME,
+    }

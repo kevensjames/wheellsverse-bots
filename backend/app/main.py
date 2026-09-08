@@ -287,9 +287,26 @@ app.include_router(tts.router)
 app.include_router(v1.router)
 # Capability Fabric execution gateway — OWNER-ONLY governed tool execution (V1: read-only/compute).
 # Flag-gated + DORMANT by default: no new HTTP surface unless KAI_CAPABILITY_EXECUTION_ENABLED.
+#
+# Two surfaces, deliberately separate prefixes:
+#   /admin/capabilities     GET  only — read-only catalog
+#   /admin/capability-exec  POST only — governed execution
+# so enabling execution can never turn the catalog into an action console.
+#
+# The import is GUARDED. Previously a bare `from app.routers import admin_capabilities`
+# ran only when the flag was on, and the module did not exist on this lineage, so
+# enabling the flag was an ImportError at startup — the whole service failed to boot.
+# A missing or broken subsystem must degrade READINESS truthfully, not take the process
+# down: /health keeps answering, and reports this subsystem as unavailable with the real
+# reason, so an operator sees "capability execution is broken" instead of a dead app.
+SUBSYSTEM_FAULTS: dict[str, str] = {}
 if getattr(settings, "KAI_CAPABILITY_EXECUTION_ENABLED", False):
-    from app.routers import admin_capabilities
-    app.include_router(admin_capabilities.router)
+    try:
+        from app.routers import admin_capabilities
+        app.include_router(admin_capabilities.router)
+        app.include_router(admin_capabilities.exec_router)
+    except Exception as exc:  # noqa: BLE001 - any import/wiring fault must degrade, not crash
+        SUBSYSTEM_FAULTS["capability_execution"] = f"{type(exc).__name__}: {exc}"
 # Chat router is dual-mounted during the NAI→KAI brand transition. /kai is
 # canonical; /nai stays alive so any in-flight client (cached JS, open SSE
 # stream, third-party bookmark) keeps working until the legacy window closes.
@@ -374,7 +391,39 @@ def version():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "env": settings.APP_ENV}
+    """Liveness plus truthful subsystem readiness.
+
+    `status` stays "ok" while the process can serve, but a flag-enabled subsystem that
+    failed to wire is reported as degraded with its real reason. Reporting "ok" while a
+    requested capability is silently absent is the failure mode this exists to prevent.
+    """
+    body = {"status": "ok", "env": settings.APP_ENV}
+    capability_execution_requested = bool(
+        getattr(settings, "KAI_CAPABILITY_EXECUTION_ENABLED", False))
+    subsystems = {
+        "capability_execution": {
+            "requested": capability_execution_requested,
+            "state": (
+                "DISABLED" if not capability_execution_requested
+                else "UNAVAILABLE" if "capability_execution" in SUBSYSTEM_FAULTS
+                else "READY"
+            ),
+        }
+    }
+    # Browser automation: report what a real dependency probe returns, never what the
+    # presence of the source implies. Playwright is deliberately absent from App B.
+    try:
+        from app.services.browser import browser_availability
+        subsystems["browser_automation"] = browser_availability()
+    except Exception as exc:  # noqa: BLE001
+        subsystems["browser_automation"] = {
+            "state": "UNAVAILABLE", "reason": f"{type(exc).__name__}: {exc}"}
+
+    if "capability_execution" in SUBSYSTEM_FAULTS:
+        subsystems["capability_execution"]["reason"] = SUBSYSTEM_FAULTS["capability_execution"]
+        body["status"] = "degraded"
+    body["subsystems"] = subsystems
+    return body
 
 
 # Catch-all for unmatched GETs: if the client looks like a browser (Accept
