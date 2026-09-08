@@ -300,6 +300,21 @@ app.include_router(v1.router)
 # down: /health keeps answering, and reports this subsystem as unavailable with the real
 # reason, so an operator sees "capability execution is broken" instead of a dead app.
 SUBSYSTEM_FAULTS: dict[str, str] = {}
+
+# KAI Computer Operations. Two SEPARATE route families with SEPARATE authentication:
+#   /admin/kai/computer-operations  owner session via require_kai_ultra
+#   /api/kai/device                 KAI_DEVICE principal via per-request Ed25519 signature
+# They are separate so a machine credential can never be presented as the human's, and
+# the human's browser cookie can never reach the device API. Guarded like the capability
+# router: a wiring fault degrades readiness instead of taking the service down.
+if getattr(settings, "KAI_COMPUTER_OPS_ENABLED", False):
+    try:
+        from app.routers import admin_computer_ops, device_connector
+        app.include_router(admin_computer_ops.router)
+        app.include_router(device_connector.router)
+    except Exception as exc:  # noqa: BLE001
+        SUBSYSTEM_FAULTS["computer_operations"] = f"{type(exc).__name__}: {exc}"
+
 if getattr(settings, "KAI_CAPABILITY_EXECUTION_ENABLED", False):
     try:
         from app.routers import admin_capabilities
@@ -418,6 +433,17 @@ def health():
     except Exception as exc:  # noqa: BLE001
         subsystems["browser_automation"] = {
             "state": "UNAVAILABLE", "reason": f"{type(exc).__name__}: {exc}"}
+
+    computer_ops_requested = bool(getattr(settings, "KAI_COMPUTER_OPS_ENABLED", False))
+    subsystems["computer_operations"] = {
+        "requested": computer_ops_requested,
+        "state": ("DISABLED" if not computer_ops_requested
+                  else "UNAVAILABLE" if "computer_operations" in SUBSYSTEM_FAULTS
+                  else "READY"),
+    }
+    if "computer_operations" in SUBSYSTEM_FAULTS:
+        subsystems["computer_operations"]["reason"] = SUBSYSTEM_FAULTS["computer_operations"]
+        body["status"] = "degraded"
 
     if "capability_execution" in SUBSYSTEM_FAULTS:
         subsystems["capability_execution"]["reason"] = SUBSYSTEM_FAULTS["capability_execution"]

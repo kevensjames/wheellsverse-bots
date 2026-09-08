@@ -110,6 +110,13 @@ class Settings(BaseSettings):
     # This is EMERGENCY BRAKE #1: with it OFF, no capability executes (the live holding executor
     # returns CAPABILITY_UNAVAILABLE for everything), regardless of autonomy.
     KAI_CAPABILITY_EXECUTION_ENABLED: bool = False
+    # KAI Computer Operations (governed local computer control). DORMANT by default:
+    # main.py mounts the operator and device routers only when this is true, so a
+    # disabled deployment has zero new HTTP surface. Declared HERE as well as used,
+    # because Settings uses extra='ignore' -- a flag referenced but never declared binds
+    # to nothing and silently reads as False, which has already produced one real
+    # production defect (money_mode).
+    KAI_COMPUTER_OPS_ENABLED: bool = False
     # EMERGENCY BRAKE #2 — the holding autonomy master switch. Default OFF: the autonomous work engine
     # executes 0 (observation/reconciliation still runs per policy), independent of capability execution.
     # Start staging DARK with this False; enable only after DB/Redis/auth/routes/SHA/Chromium verify.
