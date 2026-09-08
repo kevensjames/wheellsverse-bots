@@ -45,12 +45,62 @@ VERIFIER_SECRET = os.environ["RELEASE_VERIFIER_SIGNING_SECRET"]
 
 # The four surfaces this hotfix protects. `catalog_marker` is a string that appears ONLY in the
 # protected payload, so a check can assert the body did not leak without pinning the whole document.
-# Strings that appear ONLY inside a protected payload. Verified absent from every public admin asset
-# (quoted JSON key form, so the rendering code's `c.security_tier` property access does not match).
-# The guard below judges these BYTES rather than a Content-Type header, so re-serving the same data
-# as text/plain or inside a .js bundle cannot slip past.
-DATA_MARKERS = frozenset({'"CapabilityRegistry"', '"security_tier"', '"NATIVE_KAI_TOOL"',
-                          '"hourly_cycles"', '"delivery_log_count"', '"total_posts_auto"'})
+# Strings that appear ONLY inside a protected payload. The guard below judges these BYTES rather than
+# a Content-Type header, so re-serving the same data as text/plain or inside a .js bundle cannot slip
+# past.
+#
+# Every marker was quoted-JSON-only in the first version, which meant two escapes: a CSV export, and
+# a bundler emitting `{hourly_cycles: 1}` with identifier-safe keys unquoted (standard esbuild and
+# rollup output). Both were proven to leak with zero markers matched. So each data class now carries
+# a VALUE anchor — a distinctive string that survives any re-serialisation — alongside its key names.
+# VALUE anchors — data, not field names. A value survives any re-serialisation (JSON, a JS object
+# literal with unquoted keys, CSV, a template), which key-name markers do not. Each was checked
+# against every public admin asset; NATIVE_KAI_TOOL, security_tier, markitdown and yt-dlp were
+# candidates and are excluded because they appear in kai-nexus-capabilities.js or the public shell,
+# where they would be false positives rather than leaks.
+DATA_VALUE_MARKERS = frozenset({"CapabilityRegistry", "kai-memory", "claude-code", "context7"})
+
+# KEY-NAME markers, as a second net for a payload whose values changed but whose shape did not.
+# The `name:` variant is deliberately absent: automations.html's own ternary
+# `ap.hourly_cycles!=null?ap.hourly_cycles:na()` contains it, so it would flag the public page.
+DATA_KEY_MARKERS = frozenset(
+    f'{q}{k}{q2}'
+    for k in ("hourly_cycles", "delivery_log_count", "total_posts_auto")
+    for q, q2 in (('"', '"'), ("", ","))
+)
+
+DATA_MARKERS = DATA_VALUE_MARKERS | DATA_KEY_MARKERS
+
+
+def _runtime_data_markers(client) -> set:
+    """Value anchors pulled from the LIVE authorized payloads.
+
+    The automations inventory has no stable hardcodable value the way a capability id is stable, so
+    its anchors are derived here from real job names. Anything that also appears in the public shell
+    is dropped, so a marker can never become a false positive. This is what closes the
+    unquoted-key-bundle and CSV escapes for the automations data class.
+    """
+    markers = set()
+    try:
+        d = client.get("/admin/automations.json", headers=_owner_key_headers()).json()
+        for job in ((d.get("scheduler") or {}).get("jobs") or [])[:5]:
+            bot = str(job.get("bot") or "").strip()
+            if len(bot) >= 8:
+                markers.add(bot)
+    except Exception:                                    # noqa: BLE001 — absence is not a failure
+        pass
+    public = ""
+    for p in ("/admin/automations", "/admin/capabilities"):
+        try:
+            public += client.get(p, headers={"Accept": "text/html"}).text
+        except Exception:                                # noqa: BLE001
+            pass
+    return {m for m in markers if m not in public}
+
+# Accept headers the enumeration guard probes each route with. One probe was not enough: the guard
+# used to send only `application/json` and skip any non-200, so a route that 401s on JSON while
+# serving data to `*/*` — the exact shape /admin/capabilities now has — was never byte-scanned.
+GUARD_PROBE_ACCEPTS = ("application/json", "*/*", "text/html", "application/json, text/plain, */*")
 
 # `marker` is now a string from the real payload, not a JSON key name. A key name is present even
 # when its value has been nulled, which is how a gutted payload passed this suite once.
@@ -193,31 +243,77 @@ def test_payload_is_semantically_identical_across_authorized_identities(client, 
 
 def test_authorized_capability_payload_still_carries_real_data(client):
     """Pinning the three identities to EACH OTHER does not pin them to reality — a payload gutted to
-    nulls is identical across all three. Assert substance."""
-    r = client.get("/admin/capabilities", headers={"Accept": "application/json",
-                                                   **_owner_key_headers()})
-    d = r.json()
+    nulls is identical across all three.
+
+    Checking field NAMES is not enough either: every operational value in all 126 records can be
+    falsified while the names survive, which renders as '0 available, 0 certified, 126 UNCERTIFIED'
+    under a healthy-looking header. So assert VALUES, and assert them across EVERY record — an
+    earlier version used `first = capabilities[0]` and an `any()` that short-circuits, so it
+    inspected exactly one of 126.
+    """
+    d = client.get("/admin/capabilities", headers={"Accept": "application/json",
+                                                   **_owner_key_headers()}).json()
     assert d["source"] == "CapabilityRegistry"
-    assert d["count"] == len(d["capabilities"]) >= 100, "the catalogue lost its entries"
-    first = d["capabilities"][0]
-    for field in ("id", "name", "type", "risk_class", "security_tier", "permissions"):
-        assert field in first, f"capability records lost {field}"
-    assert any(c["id"] for c in d["capabilities"]), "every capability id is empty"
+    caps = d["capabilities"]
+    assert d["count"] == len(caps) >= 100, "the catalogue lost its entries"
+
+    for i, c in enumerate(caps):                      # EVERY record, not record 0
+        for field in ("id", "name", "type", "risk_class", "security_tier", "permissions"):
+            assert field in c, f"capability {i} lost {field}"
+        assert str(c["id"]).strip(), f"capability {i} has an empty id"
+        assert str(c["name"]).strip(), f"capability {i} has an empty name"
+
+    # A gutting sets every record to the same value. Real data does not agree with itself: the
+    # catalogue genuinely contains a mix. Asserting VARIETY catches the flattening without hardcoding
+    # any particular business truth, which would break the day the real distribution changes.
+    for field in ("availability", "type", "risk_class"):
+        distinct = {str(c.get(field)) for c in caps}
+        assert len(distinct) > 1, (
+            f"every one of {len(caps)} capabilities reports the same {field}={distinct} — a real "
+            "catalogue is not uniform, so this is a flattened or fabricated payload")
 
 
-def test_authorized_automations_payload_still_carries_real_data(client):
-    """The regression this replaces: `_admin_automations_json` returning its all-null skeleton passed
-    every check in this file, while the page rendered 'NOT CONNECTED' three times — the exact
-    fabricated-idle state the fix exists to prevent. At least one subsystem must report for real."""
+def test_authorized_automations_payload_agrees_with_the_subsystems_it_aggregates(client):
+    """A payload cannot be checked for truth by looking at it.
+
+    The all-NULL skeleton is caught by the marker; the all-ZERO skeleton is not — same shape, every
+    value a lie, and it renders as 'OFF · not configured · stopped · no jobs registered (real 0)'.
+    No threshold distinguishes that from a genuinely idle system.
+
+    So compare the endpoint against the SOURCE it claims to aggregate. If the scheduler really is
+    stopped, both say stopped and the test passes honestly; if the aggregator was gutted, they
+    disagree and it fails.
+    """
     d = client.get("/admin/automations.json", headers=_owner_key_headers()).json()
     assert d.get("generated_at"), "the payload lost its timestamp"
-    live = [k for k in ("autopilot", "automation", "scheduler") if isinstance(d.get(k), dict)]
-    assert live, ("all three automation subsystems reported null — either every source is genuinely "
-                  "down, or the aggregator was gutted; both need a human, not a green test")
-    if isinstance(d.get("scheduler"), dict):
-        s = d["scheduler"]
-        assert "running" in s and "total" in s
-        assert isinstance(s.get("jobs"), list)
+
+    try:
+        sched = core_api._get_scheduler()
+    except Exception as e:                            # noqa: BLE001
+        # The source is genuinely unreachable here (the optional `schedule` package is absent in
+        # this environment). That is a real state, and the honest report for it is null — NOT a
+        # zeroed dict, which would render as "stopped · no jobs registered (real 0)" and claim an
+        # observation nobody made. Assert exactly that, rather than skipping.
+        assert d.get("scheduler") is None, (
+            f"the scheduler source is unavailable ({type(e).__name__}) but the endpoint reported "
+            f"{d.get('scheduler')!r} — a fabricated observation")
+        return
+
+    real_jobs = list(getattr(sched, "jobs", []) or [])
+    real_running = bool(getattr(sched, "_running", False))
+
+    reported = d.get("scheduler")
+    if real_jobs or real_running:
+        assert isinstance(reported, dict), (
+            f"the scheduler reports {len(real_jobs)} jobs / running={real_running}, but the endpoint "
+            "returned null for it — the aggregator is dropping a live subsystem")
+        assert reported.get("total") == len(real_jobs), (
+            f"endpoint says total={reported.get('total')}, the scheduler has {len(real_jobs)} jobs")
+        assert bool(reported.get("running")) == real_running, (
+            f"endpoint says running={reported.get('running')}, the scheduler says {real_running}")
+        assert len(reported.get("jobs") or []) == min(len(real_jobs), 80), \
+            "the job list was truncated to a different length than the endpoint documents"
+
     if isinstance(d.get("autopilot"), dict):
         assert "hourly_cycles" in d["autopilot"]
 
@@ -508,12 +604,24 @@ def test_whoami_is_public_and_anonymous_discloses_nothing(client):
 
 
 # ── 9. route contract — the guard cannot be removed silently ──────────────────────────────────────
-# The ONLY callables that authenticate. An earlier version of this file collected EVERY dependency
-# name and treated a non-empty set as "guarded", which meant a route carrying `Depends(get_db)`, a
-# rate limiter or a feature-flag dependency was silently exempted from the anonymous probe below —
-# the most ordinary route shape in FastAPI defeated the one standing control.
-AUTH_CALLABLES = frozenset({"require_admin_json", "verify_api_key", "require_admin",
-                            "require_kai_ultra", "require_can_act"})
+# The ONLY callables that authenticate ON AN /admin PATH. Deliberately one name.
+#
+# This list has been wrong twice, in both directions, and both mistakes were the same mistake —
+# assuming a dependency implies authentication:
+#   v1  collected EVERY dependency and treated non-empty as "guarded", so Depends(get_db) exempted
+#       a route from the probe below.
+#   v2  narrowed to five names — and included `verify_api_key`, which core/api.py:240 short-circuits
+#       for any path not starting with "/api/". That is the ROOT CAUSE of this entire incident, so
+#       listing it here meant a new /admin route using the app's most common auth dependency would
+#       both leak anonymously AND be skipped by the control written to catch exactly that.
+#       It also listed `require_admin`, which exists nowhere in the repository, and `require_can_act`,
+#       which authorizes CONSEQUENTIAL action families only and returns an owner principal for an
+#       anonymous request on any other family.
+#
+# Being too NARROW is safe: an unlisted auth dependency only means the route gets probed, and a
+# genuinely guarded route answers 401 and is skipped anyway. Being too WIDE is how the hole reopens.
+# So: add a name here only with a test proving it refuses an anonymous /admin request.
+AUTH_CALLABLES = frozenset({"require_admin_json"})
 
 
 def _dependency_names(path: str) -> set:
@@ -537,11 +645,61 @@ def _auth_dependency_names(path: str) -> set:
     return _dependency_names(path) & AUTH_CALLABLES
 
 
-def test_auth_callable_names_are_real():
-    """A typo in AUTH_CALLABLES would silently widen the exemption below to nothing — or to
-    everything. Every name must exist on the module it is supposed to name."""
-    assert callable(getattr(core_api, "require_admin_json", None))
-    assert callable(getattr(core_api, "verify_api_key", None))
+def test_every_auth_callable_actually_refuses_an_anonymous_admin_request(client):
+    """Membership in AUTH_CALLABLES must be EARNED, not asserted.
+
+    Each name is mounted on a throwaway /admin route that returns a marker, and the route is then
+    called anonymously. A name that does not produce a 401 does not authenticate on an /admin path
+    and must not exempt anything. `verify_api_key` fails this test — which is why it is no longer
+    listed, and why this test exists in place of the previous one, which only checked that two of
+    the five names resolved to something callable.
+    """
+    from fastapi import Depends as _D
+
+    for name in sorted(AUTH_CALLABLES):
+        dep = getattr(core_api, name, None)
+        assert callable(dep), f"AUTH_CALLABLES names {name}, which does not exist on core.api"
+
+        path = f"/admin/zz-authprobe-{name}.json"
+
+        def _probe(_a: None = _D(dep)):
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"security_tier": "leaked"})
+
+        core_api.app.get(path, include_in_schema=False)(_probe)
+        try:
+            r = client.get(path, headers={"Accept": "application/json"})
+            assert r.status_code == 401, (
+                f"{name} is in AUTH_CALLABLES but let an anonymous /admin request through "
+                f"({r.status_code}) — it exempts routes from the enumeration guard while "
+                f"authenticating nothing")
+            assert "leaked" not in r.text
+        finally:
+            core_api.app.router.routes[:] = [
+                rt for rt in core_api.app.router.routes if getattr(rt, "path", None) != path]
+
+
+def test_verify_api_key_is_deliberately_excluded(client):
+    """Pin the reason. verify_api_key returns early for any path outside /api/, so mounting it on an
+    /admin route authenticates nothing. If this ever starts refusing, the root cause of this incident
+    was fixed and AUTH_CALLABLES can be reconsidered — until then it must stay out."""
+    from fastapi import Depends as _D
+
+    def _probe(_a: None = _D(core_api.verify_api_key)):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"security_tier": "leaked"})
+
+    core_api.app.get("/admin/zz-verify-api-key.json", include_in_schema=False)(_probe)
+    try:
+        r = client.get("/admin/zz-verify-api-key.json", headers={"Accept": "application/json"})
+        assert r.status_code == 200 and "leaked" in r.text, (
+            "verify_api_key now refuses an anonymous /admin request — the /api/-only short circuit "
+            "at core/api.py:240 appears to be fixed; revisit AUTH_CALLABLES and this test")
+        assert "verify_api_key" not in AUTH_CALLABLES
+    finally:
+        core_api.app.router.routes[:] = [
+            rt for rt in core_api.app.router.routes
+            if getattr(rt, "path", None) != "/admin/zz-verify-api-key.json"]
 
 
 @pytest.mark.parametrize("path", ["/admin/capabilities/{cap_id}",
@@ -596,6 +754,7 @@ def test_no_other_admin_json_route_is_anonymous(client):
                                 reflects only the CALLER'S OWN identity when they present a session
     """
     reviewed_public = {"/admin/ui-config", "/admin/kai-bridge/health", "/admin/session/whoami"}
+    markers = DATA_MARKERS | _runtime_data_markers(client)
     offenders = []
     for route in core_api.app.routes:
         path = getattr(route, "path", "") or ""
@@ -607,20 +766,26 @@ def test_no_other_admin_json_route_is_anonymous(client):
             continue
         if "{" in path:                       # parameterised: probed by name in PROTECTED above
             continue
-        r = client.get(path, headers={"Accept": "application/json"}, follow_redirects=False)
-        if r.status_code != 200:
-            continue
-        # Judge the BYTES, not the Content-Type header. An earlier version only flagged
-        # "application/json", so the identical payload served as text/plain, text/javascript or a
-        # bare Response was invisible — and this codebase already serves 27 admin assets as
-        # text/javascript, so inlining the catalogue into a bundle would have re-opened the hole
-        # with a green suite.
-        body = r.text
-        leaked = sorted(m for m in DATA_MARKERS if m in body)
-        if leaked:
-            offenders.append(f"{path} -> 200 {r.headers.get('content-type', '')} "
-                             f"({len(r.content)} B) leaking {leaked}")
-    assert not offenders, "anonymous /admin payload: " + "; ".join(offenders)
+        # PROBE EVERY REPRESENTATION, not just one. The previous version sent a single
+        # `Accept: application/json` and skipped any non-200 — so a route that 401s on JSON while
+        # serving data to `*/*` was never byte-scanned. That is exactly the shape
+        # /admin/capabilities now has, and a `?format=json` convenience added later would have
+        # leaked the catalogue with a green suite.
+        for accept in GUARD_PROBE_ACCEPTS:
+            for url in (path, f"{path}?format=json"):
+                r = client.get(url, headers={"Accept": accept}, follow_redirects=False)
+                if r.status_code != 200:
+                    continue
+                # Judge the BYTES, not the Content-Type header: the same payload served as
+                # text/plain, text/javascript or a bare Response must still be caught. This
+                # codebase already serves 27 admin assets as text/javascript.
+                body = r.text
+                leaked = sorted(m for m in markers if m in body)
+                if leaked:
+                    offenders.append(
+                        f"{url} (Accept: {accept}) -> 200 "
+                        f"{r.headers.get('content-type', '')} ({len(r.content)} B) leaking {leaked}")
+    assert not offenders, "anonymous /admin payload: " + "; ".join(sorted(set(offenders)))
 
 
 def test_the_enumeration_guard_can_actually_fail(client):
@@ -635,7 +800,9 @@ def test_the_enumeration_guard_can_actually_fail(client):
 
     @core_api.app.get("/admin/zz-guard-selftest.json", include_in_schema=False)
     def _zz(_x: None = _D(_benign)):
-        return _R(json.dumps({"security_tier": "T1", "next_run": "2026-01-01"}),
+        # Both blind spots at once: a benign dependency, and the payload served as text/plain with
+        # UNQUOTED keys — the bundler shape that evaded the quoted-only marker set.
+        return _R('{source: "CapabilityRegistry", hourly_cycles, id: "kai-memory"}',
                   media_type="text/plain")
 
     try:

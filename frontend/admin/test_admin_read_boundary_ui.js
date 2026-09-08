@@ -101,10 +101,23 @@ function runPage(file, status, body) {
 const text = n => String((n && n.innerHTML) || '').replace(/<[^>]*>/g, ' ')
                     .replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 
-const FABRICATIONS = [
+// Fabricated operational state, per data class. The first version was entirely automations
+// vocabulary, so extending the scan to the capabilities page was near-decorative: a fabricated
+// "0 capabilities · 0 certified · UNCERTIFIED" table sat happily beside the honest sign-in message
+// and every assertion still passed. A scan is only as good as the words it knows.
+const FABRICATIONS_AUTOMATIONS = [
   /\b0 jobs\b/i, /no jobs registered/i, /\bnot configured\b/i, /\bOFF\b/,
   /NOT CONNECTED/i, /\bstopped\b/i,
 ];
+// Only AFFIRMATIVE claims. `/empty catalog/i` was here and matched the page's own honest sentence
+// "This is not an empty catalogue" — a scan that flags the correct message trains people to delete
+// the scan. `no capabilities` carries the same fabrication without the negated-mention collision.
+const FABRICATIONS_CAPABILITIES = [
+  /\b0 capabilities\b/i, /\bno capabilities\b/i, /\b0 certified\b/i, /\b0 available\b/i,
+  /\bUNCERTIFIED\b/, /\bUNAVAILABLE\b/, /\bCATALOG_ONLY\b/, /permissions[:\s]+none/i,
+];
+// Used where either page's vocabulary could appear (the shared static-markup scan).
+const FABRICATIONS = [...FABRICATIONS_AUTOMATIONS, ...FABRICATIONS_CAPABILITIES];
 
 const AUTOMATIONS_OK = {
   generated_at: '2026-09-08T00:00:00Z',
@@ -134,7 +147,7 @@ const CAPS_OK = {
     assert.ok(/could not load automations/i.test(screen),
               'no honest failure message on screen: ' + screen.slice(0, 200));
     assert.ok(/nothing fabricated/i.test(screen), 'the page did not disclaim fabrication');
-    for (const bad of FABRICATIONS) {
+    for (const bad of FABRICATIONS_AUTOMATIONS) {
       assert.ok(!bad.test(screen),
                 'a 401 was rendered as real operational state matching ' + bad + ': ' + screen.slice(0, 200));
     }
@@ -170,9 +183,9 @@ const CAPS_OK = {
               'a 401 blamed KAI_CAPABILITY_FABRIC_ENABLED and sends the operator to the wrong setting');
     // The FABRICATIONS scan was previously applied to automations.html ONLY, so a 401 render could
     // carry the honest sentence AND a fabricated idle table side by side and still pass.
-    for (const bad of FABRICATIONS) {
+    for (const bad of FABRICATIONS_CAPABILITIES) {
       assert.ok(!bad.test(screen),
-                'the 401 render also fabricated operational state matching ' + bad + ': '
+                'the 401 render also fabricated capability state matching ' + bad + ': '
                 + screen.slice(0, 240));
     }
   });
@@ -207,7 +220,7 @@ const CAPS_OK = {
     assert.ok(/detail unavailable/i.test(drawer), 'the drawer showed nothing: ' + drawer.slice(0, 200));
     assert.ok(/owner sign-in required/i.test(drawer), 'the drawer did not name the cause: ' + drawer.slice(0, 200));
     assert.ok(!/cannot read propert/i.test(drawer), 'a TypeError leaked into the drawer');
-    for (const bad of FABRICATIONS) {
+    for (const bad of FABRICATIONS_CAPABILITIES) {
       assert.ok(!bad.test(drawer),
                 'the drawer fabricated capability state on a 401, matching ' + bad + ': '
                 + drawer.slice(0, 240));
@@ -249,16 +262,33 @@ const CAPS_OK = {
   // That is reachable today: /admin/automations is still an ungated 200 shell while its JSON 401s,
   // so an anonymous browser gets exactly those un-overwritten panels.
   await test('neither page ships a fabricated placeholder in its static markup', async () => {
+    // A browser paints far more than text nodes. Stripping every tag — which the first version did —
+    // hid title=, placeholder=, aria-label=, data-* consumed by content:attr(), and
+    // ::before{content:"…"} in a <style> block. All five were proven to render in headless Chrome
+    // while this scan reported clean. So collect three surfaces separately, and check each.
     for (const file of ['automations.html', 'kai-capabilities.html']) {
       const html = fs.readFileSync(__dirname + '/' + file, 'utf8');
-      const markup = html.replace(/<script>[\s\S]*?<\/script>/g, ' ')   // code is not what renders
-                         .replace(/<style>[\s\S]*?<\/style>/g, ' ')
-                         .replace(/<[^>]*>/g, ' ')
-                         .replace(/\s+/g, ' ').trim();
-      for (const bad of FABRICATIONS) {
-        assert.ok(!bad.test(markup),
-                  file + ' hardcodes operational state matching ' + bad
-                  + ' — it would render as fact on a 401: ' + markup.slice(0, 200));
+      const noScript = html.replace(/<script>[\s\S]*?<\/script>/g, ' ');
+
+      const surfaces = {
+        // 1. visible text nodes (styles stripped, tags stripped)
+        text: noScript.replace(/<style>[\s\S]*?<\/style>/g, ' ')
+                      .replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+        // 2. user-visible ATTRIBUTE values — a tooltip and a placeholder are read as fact
+        attributes: (noScript.match(
+          /\b(?:title|placeholder|alt|aria-label|aria-description|value|data-[\w-]+)\s*=\s*"[^"]*"/gi)
+          || []).join(' '),
+        // 3. CSS generated content — content:"…" paints text no DOM scan ever sees
+        css: ((noScript.match(/<style>[\s\S]*?<\/style>/g) || []).join(' ')
+              .match(/content\s*:\s*(?:"[^"]*"|'[^']*')/gi) || []).join(' '),
+      };
+
+      for (const [where, blob] of Object.entries(surfaces)) {
+        for (const bad of FABRICATIONS) {
+          assert.ok(!bad.test(blob),
+                    `${file} hardcodes operational state in its ${where} matching ${bad} — a browser `
+                    + `renders it as fact on a 401: ${blob.slice(0, 160)}`);
+        }
       }
     }
   });
