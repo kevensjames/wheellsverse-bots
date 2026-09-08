@@ -168,6 +168,13 @@ const CAPS_OK = {
               'the page let 401 read as "there are no capabilities"');
     assert.ok(!/fabric/i.test(screen),
               'a 401 blamed KAI_CAPABILITY_FABRIC_ENABLED and sends the operator to the wrong setting');
+    // The FABRICATIONS scan was previously applied to automations.html ONLY, so a 401 render could
+    // carry the honest sentence AND a fabricated idle table side by side and still pass.
+    for (const bad of FABRICATIONS) {
+      assert.ok(!bad.test(screen),
+                'the 401 render also fabricated operational state matching ' + bad + ': '
+                + screen.slice(0, 240));
+    }
   });
 
   await test('capabilities: an authorized 200 still renders the catalogue', async () => {
@@ -200,6 +207,11 @@ const CAPS_OK = {
     assert.ok(/detail unavailable/i.test(drawer), 'the drawer showed nothing: ' + drawer.slice(0, 200));
     assert.ok(/owner sign-in required/i.test(drawer), 'the drawer did not name the cause: ' + drawer.slice(0, 200));
     assert.ok(!/cannot read propert/i.test(drawer), 'a TypeError leaked into the drawer');
+    for (const bad of FABRICATIONS) {
+      assert.ok(!bad.test(drawer),
+                'the drawer fabricated capability state on a 401, matching ' + bad + ': '
+                + drawer.slice(0, 240));
+    }
   });
 
   await test('capabilities: inspect() still renders a capability for an authorized reader', async () => {
@@ -227,6 +239,26 @@ const CAPS_OK = {
         for (const pat of [/x-api-key/i, /api_key=/i, /wv_session/i, /verifier-token/i, /Bearer\s+\S/i]) {
           assert.ok(!pat.test(screen), file + ' @' + status + ' reflected ' + pat);
         }
+      }
+    }
+  });
+
+  // ── the static markup itself must not fabricate ─────────────────────────────────────────────────
+  // The stub DOM only ever shows text the inline SCRIPT wrote, so a fabricated placeholder baked
+  // into the HTML — on a panel the 401 path never overwrites — is invisible to every check above.
+  // That is reachable today: /admin/automations is still an ungated 200 shell while its JSON 401s,
+  // so an anonymous browser gets exactly those un-overwritten panels.
+  await test('neither page ships a fabricated placeholder in its static markup', async () => {
+    for (const file of ['automations.html', 'kai-capabilities.html']) {
+      const html = fs.readFileSync(__dirname + '/' + file, 'utf8');
+      const markup = html.replace(/<script>[\s\S]*?<\/script>/g, ' ')   // code is not what renders
+                         .replace(/<style>[\s\S]*?<\/style>/g, ' ')
+                         .replace(/<[^>]*>/g, ' ')
+                         .replace(/\s+/g, ' ').trim();
+      for (const bad of FABRICATIONS) {
+        assert.ok(!bad.test(markup),
+                  file + ' hardcodes operational state matching ' + bad
+                  + ' — it would render as fact on a 401: ' + markup.slice(0, 200));
       }
     }
   });

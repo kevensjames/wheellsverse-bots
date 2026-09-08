@@ -1100,9 +1100,11 @@ def _serve_nexus_app_asset(name: str):
 # open. Confirmed serving 114,215 B anonymously from production on 2026-09-08.
 #
 # Guarded BY NAME, through a dependency that resolves BEFORE the handler body, so the file is never
-# opened for an unauthorized caller. The other 28 entries are the JS and CSS that every admin page —
-# including the pre-authentication surface — loads before there is any session to check. Gating the
-# router instead of this one asset would take the admin UI down.
+# opened for an unauthorized caller. _NEXUS_APP_MIME holds 28 names; the remaining 27 are JS and CSS.
+# Not all 27 are loaded by every page — kai-nexus.{js,css} belong to kai-nexus.html, the avatar-lab
+# pair to kai-avatar-lab.html, and three are dynamic imports referenced by no HTML file — but several
+# ARE loaded before any session exists, so gating the router instead of this one name would take the
+# pre-authentication admin surface down. Each of the 27 needs its own decision, not this blanket one.
 _PROTECTED_NEXUS_ASSETS = frozenset({"kai-capability-catalog.json"})
 
 
@@ -1217,16 +1219,30 @@ def _capability_catalog() -> dict:
 
 
 @app.get("/admin/capabilities", include_in_schema=False)
-def _admin_capabilities(request: Request, _auth: None = Depends(require_admin_json)):
-    # Same gate as /admin/capabilities.json below: this route returns the IDENTICAL catalogue when a
-    # client asks for JSON, so exempting it made the .json gate cosmetic. Applied to the whole route
-    # rather than the JSON branch — the HTML page is the operator console, not a public page, and a
-    # guard that depends on parsing an Accept header is a guard an attacker chooses to skip.
+def _admin_capabilities(request: Request):
+    # THE DATA is gated; the page shell is not. This route answers two different things, and only one
+    # of them is the exposure: the JSON branch returns the IDENTICAL catalogue as
+    # /admin/capabilities.json, while the HTML branch returns a static shell that contains no
+    # catalogue data at all — it fetches its data from the gated endpoints like every other admin page.
+    #
+    # An earlier revision of this hotfix gated the whole route. That closed the data leak but made
+    # this the only admin page that answers a browser with a raw JSON 401: it is served by
+    # FileResponse, so the presence layer is never injected, there is no sign-in control on it, and
+    # the "Owner sign-in required … this is not an empty catalogue" message written for exactly this
+    # moment became unreachable. It also locked out operator- and viewer-role sessions, which can open
+    # every other admin page, and it broke the documented dark-deploy probe in
+    # docs/KAI_EXECUTION_V1_FINAL_DEPLOY.md (an anonymous 404 means "flag off").
+    #
+    # So the gate is applied to the branch that carries data, by CALLING the one policy function —
+    # not by re-implementing it. Accept parsing decides which representation is being asked for; it
+    # never decides whether the data is protected, because the only path to the data runs through
+    # require_admin_json first.
     if not _CAPABILITY_FABRIC_ENABLED:
         raise HTTPException(status_code=404, detail="capability fabric disabled")
     # HTML page for a browser; JSON for API clients (Accept: application/json)
     accept = request.headers.get("accept", "")
     if "application/json" in accept and "text/html" not in accept:
+        require_admin_json(request)          # raises 401 — the ONE policy, called, not copied
         from fastapi.responses import JSONResponse
         return JSONResponse(_capability_catalog(), headers={"Cache-Control": "no-store"})
     from fastapi.responses import FileResponse
