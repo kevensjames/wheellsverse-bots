@@ -15,6 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "connector"))
 
 from acp_client import REJECT, AcpClient, PermissionRequest  # noqa: E402
+from jail import JailSpec  # noqa: E402
 
 HARNESS = "/Users/jhonwheeler/kai-harness-runtime/deepseek-harness"
 DSH_HOME = "/Users/jhonwheeler/kai-harness-runtime/dsh-home"
@@ -55,11 +56,20 @@ env = {
     "DEEPSEEK_API_KEY": "",
 }
 
+# The worker runs inside the kernel jail. Plugin removal is defence in depth; this is
+# the boundary. AcpClient refuses to spawn unconfined unless a probe says so explicitly.
+JAIL = JailSpec(workspace=WORKSPACE,
+                dsh_home=DSH_HOME,
+                harness_dir=HARNESS,
+                model_base_url=env["KAI_LOCAL_LLM_BASE_URL"],
+                tmpdir="/tmp/kai-jail")
+
 client = AcpClient(
     argv, cwd=HARNESS, env=env,
     permission_handler=deny_everything,
     on_update=updates.append,
     on_stderr=stderr_lines.append,
+    jail=JAIL,
 )
 
 t0 = time.time()

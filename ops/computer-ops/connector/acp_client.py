@@ -31,6 +31,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from jail import JailSpec, preflight, wrap
+
 #: ACP wire version, from @agentclientprotocol/sdk 1.4.0 (`protocolVersion: 1`).
 ACP_PROTOCOL_VERSION = 1
 
@@ -74,7 +76,26 @@ class AcpClient:
         permission_handler: Callable[[PermissionRequest], str] | None = None,
         on_update: Callable[[dict[str, Any]], None] | None = None,
         on_stderr: Callable[[str], None] | None = None,
+        jail: "JailSpec | None" = None,
+        require_jail: bool = True,
     ) -> None:
+        """`jail` confines the worker process in the kernel (see jail.py).
+
+        `require_jail` defaults True so the ONLY way to run a worker unconfined is to
+        say so explicitly at the call site. Plugin removal is configuration; the jail is
+        the boundary, and a boundary that can be forgotten is not one. Containment
+        probes pass require_jail=False deliberately, to measure what the harness does
+        WITHOUT the jail and so prove the jail is what stops it.
+        """
+        if jail is None and require_jail:
+            raise AcpError(
+                "refusing to spawn an unconfined harness worker: pass jail=JailSpec(...), "
+                "or require_jail=False for a containment probe that measures the "
+                "unjailed baseline")
+        if jail is not None:
+            preflight(jail)          # fail closed if the boundary is not enforcing
+            argv = wrap(argv, jail)
+        self._jail = jail
         self._argv = argv
         self._cwd = cwd
         self._env = {**os.environ, **(env or {})}

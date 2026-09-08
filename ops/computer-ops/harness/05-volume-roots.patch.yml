@@ -1,0 +1,18 @@
+# KAI Computer Operations - relocate every harness write onto the mission volume.
+#
+# Applied immediately after 00-containment, before any model/mode overlay.
+#
+# The worker jail permits writes ONLY under the per-mission APFS volume, because that
+# volume is a separate filesystem and therefore makes cross-boundary hard links return
+# EXDEV instead of silently turning an in-workspace write into an outside write. That
+# guarantee only holds if the harness has no writable path left on the boot volume, so
+# its session and storage roots are moved here rather than left under $DSH_HOME.
+#
+# $DSH_HOME stays readable (it holds the profile definition) but is no longer written.
+- id: session-persistence-jsonl
+  config:
+    root: !!js process.env.KAI_MISSION_SESSION_ROOT
+
+- id: storage-json
+  config:
+    root: !!js process.env.KAI_MISSION_STORAGE_ROOT

@@ -1,0 +1,114 @@
+;; KAI Computer Operations — harness worker jail (macOS Seatbelt / SBPL).
+;;
+;; This is the OUTER execution boundary. It exists because the previous phase proved
+;; that removing harness plugins is not containment: the harness's own sandbox profile
+;; is `(allow default) (deny file-write*)`, which leaves process execution, network
+;; egress and arbitrary reads open, and a single re-mounted tool reopened all of them.
+;;
+;; A plugin allowlist is a statement about CONFIGURATION. This profile is a statement
+;; about the PROCESS, enforced by the kernel. It therefore holds regardless of which
+;; plugins load, what a plugin does at runtime, and what a future upstream version
+;; introduces. Plugin control is retained as defence in depth, not as the boundary.
+;;
+;; Placeholders are substituted by ops/computer-ops/connector/jail.py:
+;;   @MODEL_HOSTPORT@  approved local model endpoint, e.g. localhost:11434
+;;   @VOLUME@          per-mission APFS volume: the ONLY writable location
+;;   @DSH_HOME@        harness profile home (readable; no longer written)
+;;   @HARNESS_DIR@     pinned harness checkout (read-mostly)
+;;
+;; Base posture is `allow default` with the dangerous CLASSES denied wholesale, rather
+;; than `deny default` with allows. That is a deliberate trade: a `deny default` profile
+;; for a Node/tsx process needs a large and brittle allowlist of system paths, and every
+;; omission is an outage rather than a leak. Denying the classes that matter -- network,
+;; writes, credential reads, desktop binaries -- gives an enforceable boundary whose
+;; failure mode is a broken worker, not a silent escape. Each denial below is verified
+;; by a behavioural test in ops/computer-ops/probes/verify_jail.py.
+
+(version 1)
+(allow default)
+
+;; ---------------------------------------------------------------- network
+;; Deny ALL network, then re-allow exactly one destination: the approved local model.
+;; Verified: with a live listener on another loopback port, the same request returns
+;; 200 unsandboxed and is refused sandboxed -- i.e. this is enforcement, not
+;; connection-refused.
+(deny network*)
+(allow network-outbound (remote ip "@MODEL_HOSTPORT@"))
+;; Local IPC between the worker and the connector/broker.
+(allow network-outbound (remote unix-socket))
+(allow network-bind (local unix-socket))
+
+;; ---------------------------------------------------------------- writes
+;; Deny all writes, then re-allow exactly ONE location: the per-mission volume. The
+;; mission workspace, the harness session root, its storage root and TMPDIR all live
+;; there, so the worker has no writable path on the boot volume at all. That is what
+;; makes the hard-link rule above safe.
+(deny file-write*)
+;; NOT the volume root: allowing that lets the worker rename its own workspace out from
+;; under the attestation (measured -- the rename succeeded). Naming the subtrees keeps
+;; the volume root itself read-only, so the directories KAI attested are the directories
+;; the mission uses.
+(allow file-write* (subpath "@VOLUME@/workspace"))
+(allow file-write* (subpath "@VOLUME@/sessions"))
+(allow file-write* (subpath "@VOLUME@/storages"))
+(allow file-write* (subpath "@VOLUME@/tmp"))
+(allow file-write* (subpath "@VOLUME@/dsh-home"))
+(allow file-write* (literal "/dev/null"))
+(allow file-write* (literal "/dev/dtracehelper"))
+(allow file-write-data (literal "/dev/random") (literal "/dev/urandom"))
+
+;; ---------------------------------------------------------------- hard links
+;; Seatbelt authorises by PATH, so a hard link inside a writable area shares an inode
+;; with its target outside and turns an "in-workspace" write into an outside write.
+;;
+;; A blanket `(deny file-link)` is NOT usable: measured, it breaks the harness's atomic
+;; session publish (write .tmp, then link to the final name) and the session fails to
+;; flush. Scoping it with a subpath filter was measured not to match.
+;;
+;; The escape is removed structurally instead: EVERY writable path below lives on the
+;; per-mission APFS volume, which is a different filesystem. `link()` from any file
+;; outside it returns EXDEV from the kernel, so a cross-boundary hard link cannot be
+;; created at all -- and `link()` within the volume, which the harness needs, works.
+;; workspace_volume.assert_separate_filesystem() proves the st_dev really differs before
+;; a mission runs, so a silently-unmounted image is a startup failure, not a downgrade.
+(allow file-link)
+
+;; ---------------------------------------------------------------- credential reads
+;; Denied outright, above and beyond any application-level path check. These are the
+;; targets that make an escaped agent an incident rather than a bug.
+(deny file-read* (subpath "@HOME@/.ssh"))
+(deny file-read* (subpath "@HOME@/.aws"))
+(deny file-read* (subpath "@HOME@/.gnupg"))
+(deny file-read* (subpath "@HOME@/.config/gcloud"))
+(deny file-read* (subpath "@HOME@/Library/Keychains"))
+(deny file-read* (subpath "/Library/Keychains"))
+(deny file-read* (subpath "@HOME@/Library/Application Support/Google/Chrome"))
+(deny file-read* (subpath "@HOME@/Library/Application Support/Firefox"))
+(deny file-read* (subpath "@HOME@/Library/Safari"))
+(deny file-read* (subpath "@HOME@/Library/Messages"))
+(deny file-read* (literal "@HOME@/.netrc"))
+;; The KAI repository itself: a mission workspace is a copy, never the live checkout.
+(deny file-read* (subpath "@HOME@/wheellsverse-kai-compute/.git"))
+
+;; ---------------------------------------------------------------- desktop + secret binaries
+;; Defence in depth. The harness shell tool is already removed, and desktop control is
+;; reserved to the separately-governed bridge which runs OUTSIDE this jail. Denying the
+;; binaries means even an unforeseen execution path cannot reach the desktop or the
+;; keychain from inside the worker.
+(deny process-exec* (literal "/usr/sbin/screencapture"))
+(deny process-exec* (literal "/usr/bin/osascript"))
+(deny process-exec* (literal "/usr/bin/security"))
+(deny process-exec* (literal "/usr/bin/defaults"))
+(deny process-exec* (literal "/usr/bin/sudo"))
+(deny process-exec* (literal "/usr/bin/ssh"))
+(deny process-exec* (literal "/usr/bin/scp"))
+(deny process-exec* (literal "/usr/bin/curl"))
+(deny process-exec* (literal "/usr/bin/nc"))
+(deny process-exec* (literal "/usr/bin/ftp"))
+(deny process-exec* (literal "/usr/bin/tmutil"))
+(deny process-exec* (literal "/usr/bin/log"))
+(deny process-exec* (literal "/usr/local/bin/ollama"))
+
+;; ---------------------------------------------------------------- misc hardening
+(deny mach-priv-task-port)
+(deny system-privilege)
