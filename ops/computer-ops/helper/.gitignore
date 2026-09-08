@@ -1,0 +1,5 @@
+# SwiftPM build output. Never committed: it is machine-specific, ~230 files, and a
+# committed binary invites reviewing the artefact instead of the source. The build is
+# reproducible with `swift build -c release`, and the binary's identity is recorded in
+# docs/computer-ops/70-HELPER-SIGNING.md (path, size, sha256, signature state).
+.build/
