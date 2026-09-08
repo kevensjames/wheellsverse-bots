@@ -1,0 +1,35 @@
+# KAI Computer Operations - AUTONOMY MODE: EXECUTE_SCOPED
+#
+# Approved reversible work INSIDE the mission workspace only. This is the single mode
+# that raises the file sandbox above the read-only floor, and it raises it exactly one
+# step: `workspace-write`, rooted at the per-mission workspace KAI creates. The
+# unrestricted `danger-full-access` mode is not reachable at all -- KAI's preset table
+# in 00-containment replaces upstream's, which deletes that preset as a switch target.
+#
+# Note precisely what workspace-write does and does not buy, because the sandbox is a
+# FILE-EFFECT policy only: it confines WRITES to the workspace. It does not confine
+# reads, network egress or process execution. Those stay closed here because
+# 00-containment removes the tools that could reach them (tool-bash, tool-web,
+# web-fetch-http, web-search-deepseek), NOT because the sandbox prevents them. Anything
+# that re-mounts a shell in this mode silently reopens egress and desktop reach.
+#
+# Consequential actions (sending, publishing, purchasing, deleting user data,
+# installing services, changing security settings, protected-branch writes, deploys)
+# are NOT covered by this mode. They require a fresh operator approval bound to device,
+# action, target, parameters, scope and expiry, which KAI enforces in its permission
+# handler; the harness cannot express that binding.
+#
+# Derived preset: workspace-write + ask == kai-execute-scoped (see 00-containment).
+- id: sandbox-policy
+  config:
+    mode: workspace-write
+    workspaceRoot: !!js process.env.KAI_TASK_WORKSPACE
+
+- id: approval
+  config:
+    policy: ask
+
+- id: tool-pwsh
+  disabled: true
+- id: pwsh-sandbox
+  disabled: true

@@ -1,0 +1,26 @@
+# KAI Computer Operations - AUTONOMY MODE: ASSIST
+#
+# Prepare plans, edits and previews. The file sandbox stays read-only, so an "edit"
+# here is a proposed diff KAI renders for review, never a write to the real tree.
+# What changes versus OBSERVE is only that approvals become answerable: policy 'ask'
+# routes each request to the KAI connector as session/request_permission.
+#
+# Upstream resolves 'ask' with no available answerer as FAIL CLOSED, so a connector
+# crash mid-mission denies rather than allows.
+#
+# Derived preset: read-only + ask == kai-assist (see 00-containment). Do not add an
+# `- id: permission` entry here; a later patch replaces an id's whole config object and
+# would drop the preset table.
+- id: sandbox-policy
+  config:
+    mode: read-only
+    workspaceRoot: !!js process.env.KAI_TASK_WORKSPACE
+
+- id: approval
+  config:
+    policy: ask
+
+- id: tool-pwsh
+  disabled: true
+- id: pwsh-sandbox
+  disabled: true
