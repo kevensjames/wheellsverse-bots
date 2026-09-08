@@ -131,3 +131,56 @@ an agent alive.
 - **Desktop verb returns `PERMISSION_NOT_GRANTED`** → grant TCC above. Do not attempt to
   work around it; there is no supported way, and any workaround would be exactly the
   permission-dialog bypass the design forbids.
+
+---
+
+## Session 4 additions — limits, live events, signing gate, readiness
+
+### Reading readiness honestly
+
+`/admin/kai/computer-operations/runtime` now returns seven independent axes under
+`readiness`: `backend`, `connector`, `signed_helper`, `tcc`, `computer_control`, `stop`,
+`staging`. The panel shows them as separate badges.
+
+`computer_control` is the one that matters, and it is **conjunctive**: it reads
+`DEVICE_CONTROL_VERIFIED` only when the signed helper is verified AND TCC is granted AND
+the helper identity is acceptable AND STOP is released. A green connector — a device
+sending heartbeats — never makes it green. If it is not green, `computer_control.blockers`
+lists exactly why.
+
+### The signing gate
+
+Before granting TCC or enabling any desktop verb, run:
+
+```sh
+ops/computer-ops/helper/verify_signing.sh /path/to/KaiDesktopBridge.app
+```
+
+Exit 0 (`SIGNED_HELPER_VERIFIED`) is the ONLY state in which TCC may be granted. Today it
+exits 1 (`BLOCKED`) because there is no signing identity on this machine. The nine
+criteria and the Developer-ID-vs-Apple-Development finding are in
+`docs/computer-ops/70-HELPER-SIGNING.md`.
+
+### Limits an operator will observe
+
+- A device request over 256 KB → `413`; oversized evidence → `413` with a message saying
+  to write large output to the mission volume.
+- A device that already has a mission in flight, or a fleet at 4 concurrent, gets `429`
+  with `Retry-After`. This is back-pressure, not a fault; the connector waits.
+- A mission cannot outlive 3600s. `POST …/missions/sweep` fails any that have; the panel
+  calls it on load.
+
+### Live mission events
+
+Open a mission's detail in the panel and it streams events over SSE, falling back to
+polling automatically if SSE fails (the panel says which mode it is in). The raw
+endpoints, both owner-gated:
+
+```sh
+curl -H "X-Admin-Token: $ADMIN" "$BASE/admin/kai/computer-operations/missions/$MID/events?after=0"
+# SSE: text/event-stream, honours Last-Event-ID on reconnect
+curl -N -H "X-Admin-Token: $ADMIN" "$BASE/admin/kai/computer-operations/missions/$MID/stream"
+```
+
+If a reconnect reports `truncated`, the replay window was exceeded — re-open the mission
+for a complete view rather than trusting a partial stream.

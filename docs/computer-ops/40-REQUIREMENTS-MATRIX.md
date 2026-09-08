@@ -378,3 +378,30 @@ harness → local model. Evidence: `docs/computer-ops/e2e-evidence.json`.
 Browser task against a local test site (§12.5 equivalent), prompt injection inside a page
 (no ingestion path), STOP during a file write (only during generation), and a real
 crash/reconnect.
+
+---
+
+# Session 4 — residuals hardening
+
+| Item | Status | Evidence |
+|---|---|---|
+| Byte limits (request/evidence/response), enforced both boundaries | RESIDUALS_TESTED_LOCALLY | 27/27 unit; HTTP 413 on oversized request and evidence |
+| Mission timeouts, server-side clamp + sweep | RESIDUALS_TESTED_LOCALLY | single enforcement point; `…/missions/sweep`; clamp verified over HTTP |
+| Bounded concurrency + back-pressure | RESIDUALS_TESTED_LOCALLY | 1/device, 4/global → 429 + Retry-After; rate limiter buckets before crypto |
+| Authenticated SSE, monotonic seq, reconnect cursor, bounded replay, polling fallback | RESIDUALS_TESTED_LOCALLY | 32/32 unit, HTTP; owner-gated (anonymous refused via self-checking helper) |
+| Connector crash/restart: leases, replay, duplicate suppression, no-resume default | RESIDUALS_TESTED_LOCALLY | 8/8 in certify_resilience.py |
+| STOP during a workspace write: interrupted, accurate state, teardown, no later effect | RESIDUALS_TESTED_LOCALLY | 12/12 in certify_resilience.py |
+| Governed browser: same identity/dispatch/injection/approval/evidence/STOP | RESIDUALS_TESTED_LOCALLY (policy); EXECUTION WITHHELD | 50/50; jail is model-only so browser egress is separated, not forced; Playwright absent |
+| Page-borne prompt injection, adversarial | RESIDUALS_TESTED_LOCALLY | 6 attacks flagged + quarantined, none obeyed |
+| Native-helper signing audit + exact operator commands | BLOCKED_CODESIGNING_IDENTITY | docs/70; `verify_signing.sh` exit 1; DR evidence from real binaries |
+| Mutating desktop verbs withheld pending signed+verified helper | ENFORCED | verify_signing.sh (9 criteria), helper returns GATE_PASSED_EXECUTION_WITHHELD |
+| Panel distinguishes 7 readiness axes; no green control from heartbeats | RESIDUALS_TESTED_LOCALLY | 31/31 panel, HTTP; computer_control conjunctive |
+
+## Final statuses (evidence-based, separate)
+
+- `RESIDUALS_TESTED_LOCALLY` — limits, SSE, resilience, browser policy, readiness axes.
+- `BLOCKED_CODESIGNING_IDENTITY` — 0 signing identities; helper DR is a cdhash.
+- `DEVICE_CONTROL_NOT_VERIFIED` — no signed helper, no TCC, no desktop verb executed.
+- `STAGING_NOT_DEPLOYED` · `PRODUCTION_UNCHANGED` · `TCC_NOT_GRANTED`.
+
+Not claimed: `SIGNED_HELPER_VERIFIED`, `DEVICE_CONTROL_VERIFIED`, `STAGING_VERIFIED`.

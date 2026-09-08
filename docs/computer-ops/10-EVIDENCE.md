@@ -147,3 +147,58 @@ State these plainly rather than inferring readiness from installation:
 - **Browser automation is dead code in deployed App B**: `playwright` appears in no
   backend requirements file, so the governed browser package raises `BrowserUnavailable`
   in production. It cannot be cited as a live execution precedent.
+
+---
+
+## Session 4 — residuals hardening (Phases: limits, SSE, resilience, browser, signing, readiness)
+
+Starting HEAD `39c24da9`. All results below are from running the software on this host.
+
+### E8. Enforced limits and back-pressure — TESTED_LOCALLY
+27/27 unit + HTTP-observed: oversized request → 413 (checked before signature),
+oversized evidence → 413, concurrent lease → 429 with `Retry-After`, mission duration
+clamped server-side (a single enforcement point — Pydantic bounds were removed after they
+made the clamp dead code). Enforced at both the HTTP and connector boundaries.
+
+### E9. Authenticated SSE with bounded replay — TESTED_LOCALLY
+32/32 unit + HTTP. Events derived from append-only history (no new table); per-mission
+monotonic sequence; `Last-Event-ID` reconnect; replay capped at 200 with truncation
+REPORTED; snapshot at seq 0; secrets redacted a second time; owner-gated (anonymous
+replay and stream both refused, verified with an `as_anonymous()` helper that self-checks
+it actually dropped owner auth). Panel prefers SSE, falls back to polling on error and
+says which mode it is in.
+
+### E10. Crash/restart and STOP-during-write — TESTED_LOCALLY
+20/20 against real processes. A killed connector: a valid lease resumes, an EXPIRED lease
+refuses resume and says re-claim, a RUNNING mission is not re-offered, and a captured
+signed request replayed after restart is refused (nonce burn is durable in the DB). STOP
+during a slow jailed write: the write is interrupted (278 of ~4800 bytes), NO further
+bytes appear afterwards, mission is STOPPED not COMPLETED, lease revoked, device gets 423,
+volume torn down, evidence retained.
+
+### E11. Governed browser — POLICY TESTED_LOCALLY, EXECUTION WITHHELD
+50/50. Domain allowlist (default deny, redirect re-checked, no suffix trick),
+sensitive-domain denylist no allowlist overrides, consequential actions bound to
+url+params approval, STOP. Six page-borne prompt-injection attacks flagged and
+quarantined, none obeyed. EXECUTION WITHHELD: the worker jail permits only the local
+model endpoint, so a browser cannot run in it without widening containment; Playwright is
+installed in no KAI runtime. Panel: `UNAVAILABLE — LOCAL CONNECTOR PLAYWRIGHT NOT INSTALLED`.
+
+### E12. Signing — BLOCKED_CODESIGNING_IDENTITY (evidence)
+`security find-identity -p codesigning` → 0 valid identities. Helper DR is
+`# designated => cdhash H"0b833b4f…"` — an ad-hoc content hash that changes every
+rebuild, so no TCC grant can persist. `verify_signing.sh` reports 1 passed / 6 failed,
+exit 1, "BLOCKED — do NOT grant TCC". Audit (docs/70) finds an Apple Development cert is
+sufficient for a non-distributed helper; Developer ID preferable for renewal.
+
+### E13. Readiness axes — TESTED_LOCALLY
+Seven separate axes; computer_control is conjunctive and lists blockers, so a connector
+heartbeat cannot make it green. On this host: signed_helper BLOCKED_CODESIGNING_IDENTITY,
+tcc NOT_GRANTED, computer_control DEVICE_CONTROL_NOT_VERIFIED, staging STAGING_NOT_DEPLOYED.
+
+### Still NOT verified (unchanged or new residuals)
+- DEVICE_CONTROL_VERIFIED — blocked on signing then a TCC grant; no desktop verb has run.
+- Browser EXECUTION — withheld by design until a separate egress-scoped runtime exists.
+- A real crash of the connector *process* mid-model-generation (tested via lease
+  expiry + kill, not via a SIGKILL during an in-flight ACP prompt).
+- Staging — not deployed.

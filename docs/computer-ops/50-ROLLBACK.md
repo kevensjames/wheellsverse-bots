@@ -159,3 +159,12 @@ cd backend && alembic current                          # expected revision
 A rollback is complete when the flags are off, no connector or worker process is
 running, no mission volume is mounted, the device credential is revoked, and the routes
 are gone.
+
+
+## Session 4 note
+
+The limits, SSE event stream, mission-deadline sweep and readiness axes all live behind
+the SAME `KAI_COMPUTER_OPS_ENABLED` flag. Disabling it removes every one of them together
+with the routes — there is no separate flag to remember. The governed browser policy adds
+no runtime surface at all (execution is withheld and Playwright is absent), so nothing new
+needs stopping for it during a rollback.

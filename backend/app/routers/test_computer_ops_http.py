@@ -466,6 +466,17 @@ finally:
     app_mod = sys.modules.get("app.main")
     if app_mod is not None:
         app_mod.app.dependency_overrides.clear()
+    # Dispose the SQLAlchemy pool before dropping: its idle connections keep sessions
+    # open on the test database, and dropdb then fails with "being accessed by other
+    # users", leaving a test database behind on the operator's machine.
+    try:
+        from app.database import engine as _eng
+        _eng.dispose()
+    except Exception:
+        pass
+    subprocess.run(["psql", "-d", "postgres", "-qc",
+                    f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    f"WHERE datname='{DB}'"], capture_output=True)
     subprocess.run(["dropdb", "--if-exists", DB], check=False)
 
 print(f"\n{len(PASSED)} passed, {len(FAILED)} failed")

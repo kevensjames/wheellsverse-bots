@@ -125,3 +125,17 @@ then consider the database. Never `git reset --hard`.
 - Loading the launchd agent / persistent startup.
 - Enabling `KAI_CAPABILITY_EXECUTION_ENABLED`.
 - Desktop control, which is unreachable while the helper is unsigned.
+
+
+## Session 4 additions to the staging checklist
+
+- Confirm the readiness axes render honestly in staging with no device:
+  `signed_helper` BLOCKED, `tcc` NOT_GRANTED, `computer_control` DEVICE_CONTROL_NOT_VERIFIED,
+  `staging` STAGING_VERIFIED (set `KAI_STAGING_STATUS=STAGING_VERIFIED` in staging only).
+- Probe the limits at the deployed edge: an oversized request must return 413 and a
+  second concurrent lease 429. A limit that works locally but not behind the edge proxy
+  is not enforced.
+- Probe the SSE and replay routes anonymously from OUTSIDE the deployment network — both
+  must be 401/403. Local tests prove the code; only an external probe proves the edge.
+- Run `verify_signing.sh` against whatever helper artefact staging would use. It must
+  exit 0 before any TCC discussion; today it exits 1.
