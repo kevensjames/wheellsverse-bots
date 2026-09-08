@@ -103,10 +103,23 @@ class Connector:
 
     def call(self, method: str, path: str, payload: dict | None = None,
              *, timeout: int = 30) -> tuple[int, dict]:
-        """One signed outbound request. Every call is individually signed."""
+        """One signed outbound request. Every call is individually signed.
+
+        The size ceiling is applied HERE as well as server-side. Sending a request that
+        will only be rejected wastes a nonce and a round trip, and truncating locally
+        keeps the failure legible: the connector reports what it dropped instead of the
+        server reporting a number nobody can attribute.
+        """
         from app.services.holding.device_auth import sign_request  # noqa: PLC0415
+        from app.services.holding.computer_ops_limits import (  # noqa: PLC0415
+            MAX_REQUEST_BYTES, MAX_EVIDENCE_BYTES)
 
         body = json.dumps(payload or {}).encode()
+        ceiling = MAX_EVIDENCE_BYTES if path.endswith("/evidence") else MAX_REQUEST_BYTES
+        if len(body) > ceiling:
+            return 0, {"error": f"refusing to send {len(body)} bytes to {path} "
+                                f"(local limit {ceiling}); write large output to the "
+                                f"mission volume and send a reference"}
         ts = datetime.now(timezone.utc)
         nonce = secrets.token_hex(16)
         sig = sign_request(self._key(), method=method, path=path, body=body,
@@ -253,8 +266,10 @@ def run_mission(conn: Connector, mission: dict) -> None:
         try:
             client.initialize()
             sid = client.session_new(vol.workspace)
-            reply = client.prompt(sid, mission.get("objective", ""),
-                                  timeout=int(spec.get("max_duration_seconds", 900)))
+            # The mission deadline is enforced locally too. The backend sweep will fail
+            # an overdue mission, but only the connector can actually stop the work.
+            deadline = min(int(spec.get("max_duration_seconds", 900)), 3600)
+            reply = client.prompt(sid, mission.get("objective", ""), timeout=deadline)
             conn.call("POST", f"/api/kai/device/missions/{mission_id}/evidence",
                       {"kind": "model_result", "stop_reason": reply.get("stopReason"),
                        "session_id": sid, "claim": "completed_turn"})
@@ -300,6 +315,14 @@ def cmd_run(args) -> int:
             time.sleep(args.interval)
             continue
         code, out = conn.call("POST", "/api/kai/device/lease")
+        if code == 429:
+            # Back-pressure, not an error: the backend is telling us it is at capacity.
+            # Honour Retry-After rather than retrying immediately, which is what turns a
+            # busy backend into an overloaded one.
+            wait = max(args.interval, 10)
+            print(f"backend at capacity; backing off {wait:.0f}s")
+            time.sleep(wait)
+            continue
         mission = out.get("mission") if code == 200 else None
         if not mission:
             if args.once:

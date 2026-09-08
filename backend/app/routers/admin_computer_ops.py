@@ -170,7 +170,10 @@ class MissionBody(BaseModel):
     workspace: str
     allowed_apps: list[str] = Field(default_factory=list)
     allowed_domains: list[str] = Field(default_factory=list)
-    max_duration_seconds: int = Field(default=900, ge=30, le=7200)
+    # NO Pydantic bounds. clamp_mission_seconds() is the single enforcement point:
+    # a `le=` here rejected an over-large request with 422 BEFORE the clamp ran, which
+    # made the clamp dead code and meant two rules disagreed about the same field.
+    max_duration_seconds: int = 900
     model_policy: str = "LOCAL_ONLY"
     data_egress: str = "NONE"
 
@@ -206,10 +209,12 @@ def create_mission(body: MissionBody):
     if needed and needed not in device.granted_scopes:
         raise HTTPException(403, f"device lacks {needed!r}; grant it explicitly before "
                                  "creating an EXECUTE_SCOPED mission")
+    from app.services.holding.computer_ops_limits import clamp_mission_seconds
     m = _missions().create(tenant="default", device_id=body.device_id, objective=body.objective,
                            autonomy_mode=body.autonomy_mode, workspace=workspace,
                            allowed_apps=body.allowed_apps, allowed_domains=body.allowed_domains,
-                           max_duration_seconds=body.max_duration_seconds, actor="owner")
+                           max_duration_seconds=clamp_mission_seconds(body.max_duration_seconds),
+                           actor="owner")
     return _missions().to_json(m, full=True)
 
 
@@ -249,6 +254,13 @@ def mission_evidence(mission_id: str):
 
 
 # ------------------------------------------------------------------ runtime
+
+@router.post("/missions/sweep")
+def sweep_overdue():
+    """Fail missions past their deadline. Called by the panel on load and available to an
+    operator directly; a wedged worker cannot be relied on to time itself out."""
+    return {"expired": _missions().expire_overdue()}
+
 
 @router.get("/runtime")
 def runtime_status():

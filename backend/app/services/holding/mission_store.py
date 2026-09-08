@@ -32,6 +32,7 @@ from sqlalchemy import text
 from app.database import SessionLocal
 from app.services.holding import worker_jobs
 from app.services.holding.computer_ops_dispatch import QUEUED, TERMINAL, Mission
+from app.services.holding.computer_ops_limits import Deadline, clamp_mission_seconds
 
 WORKER_PREFIX = "kai-device:"
 _STOP_KEY = "computer_ops_stop"
@@ -161,6 +162,48 @@ class PgMissionStore:
                 "ORDER BY created_at DESC LIMIT :l"),
                 {"p": WORKER_PREFIX + "%", "l": limit}).fetchall()
         return [self._to_mission(r) for r in rows]
+
+    def active_count(self, *, device_id: str | None = None) -> int:
+        """Missions currently holding a lease. Counted in the DATABASE, not from a cached
+        list, so the number is right across concurrent workers."""
+        sql = ("SELECT count(*) FROM holding_worker_jobs WHERE worker LIKE :p "
+               "AND status IN ('LEASED','RUNNING','AWAITING_APPROVAL','VERIFYING')")
+        params: dict = {"p": WORKER_PREFIX + "%"}
+        if device_id:
+            sql += " AND worker = :w"
+            params["w"] = WORKER_PREFIX + device_id
+        with SessionLocal() as s:
+            worker_jobs._ensure(s)
+            return int(s.execute(text(sql), params).scalar() or 0)
+
+    def expire_overdue(self) -> list[str]:
+        """Fail missions past their deadline.
+
+        A mission with no deadline enforcement is a mission that can hold a lease
+        forever, which is how one stuck worker blocks a device permanently. The sweep
+        runs server-side because the worker is exactly the component that may be wedged.
+        """
+        expired: list[str] = []
+        for m in self.list_active():
+            spec = getattr(m, "spec", {}) or {}
+            limit = clamp_mission_seconds(spec.get("max_duration_seconds"))
+            started = None
+            for h in m.history:
+                if h.get("event") == "leased":
+                    started = h.get("at")
+            if not started:
+                continue
+            try:
+                began = datetime.fromisoformat(started)
+            except ValueError:
+                continue
+            if Deadline(started_at=began, seconds=limit).expired():
+                m.status = "FAILED"
+                m.lease_owner, m.lease_expires_at = None, None
+                m.log("expired", reason=f"exceeded {limit}s mission deadline")
+                self.put(m)
+                expired.append(m.mission_id)
+        return expired
 
     def list_active(self) -> list[Mission]:
         return [m for m in self.list_recent(200) if m.status not in TERMINAL]

@@ -30,6 +30,14 @@ from app.services.holding import device_identity as di
 from app.services.holding.device_auth import (DeviceAuthError, SignedRequest, parse_headers,
                                               verify_signature)
 from app.services.holding.device_identity import DevicePrincipal, DeviceStatus
+from app.services.holding.computer_ops_limits import (LimitExceeded, RateLimiter,
+                                                      assert_capacity, assert_evidence_size,
+                                                      assert_request_size, truncate_note)
+
+#: Per-device request rate limiting. In-process and deliberately so: this is
+#: back-pressure, not a security control. The security controls -- signature, nonce burn,
+#: scope -- live in the database and hold across worker processes.
+_RATE = RateLimiter()
 
 router = APIRouter(prefix="/api/kai/device", tags=["kai-device"])
 
@@ -55,10 +63,27 @@ async def authenticate_device(request: Request, *, required_scope: str) -> tuple
         raise HTTPException(423, "STOP COMPUTER CONTROL is engaged")
 
     body = await request.body()
+    # Size before parsing: an oversized body must be refused before it is decoded,
+    # signature-verified or reasoned about at all.
+    try:
+        assert_request_size(body)
+    except LimitExceeded as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
+
     try:
         device_id, timestamp, nonce, signature = parse_headers(dict(request.headers))
     except DeviceAuthError as exc:
         raise HTTPException(401, str(exc)) from exc
+
+    # Rate limit keyed on the CLAIMED device id, before signature verification. Verifying
+    # first would let an unauthenticated flood spend CPU on crypto; the claim is only used
+    # to bucket, never to authorise.
+    import time as _time
+    try:
+        _RATE.check(device_id, now=_time.monotonic())
+    except LimitExceeded as exc:
+        raise HTTPException(exc.status, str(exc),
+                            headers={"Retry-After": str(exc.retry_after or 15)}) from exc
 
     device = devices.get_device(device_id)
     if device is None:
@@ -164,6 +189,15 @@ async def report_attestation(request: Request):
 async def lease_next(request: Request):
     principal, _ = await authenticate_device(request, required_scope="computer.mission.receive")
     _, missions = _stores()
+    # Back-pressure BEFORE handing out work. One mission per device because each mission
+    # means a real APFS volume and a real harness process on the operator's Mac -- the
+    # limit protects the machine, not just the table.
+    try:
+        assert_capacity(device_active=missions.active_count(device_id=principal.device_id),
+                        global_active=missions.active_count())
+    except LimitExceeded as exc:
+        raise HTTPException(exc.status, str(exc),
+                            headers={"Retry-After": str(exc.retry_after or 10)}) from exc
     m = dispatch.lease_next(missions, principal, stop_engaged=missions.stop_engaged)
     if m is None:
         return {"mission": None}
@@ -191,7 +225,7 @@ async def progress(request: Request, mission_id: str):
     try:
         m = dispatch.submit_progress(missions, principal, mission_id,
                                      status=str(payload.get("status", "")),
-                                     note=str(payload.get("note", ""))[:500])
+                                     note=truncate_note(str(payload.get("note", ""))))
     except dispatch.NotAuthorised as exc:
         # This is where a worker attempting COMPLETED lands.
         raise HTTPException(403, str(exc)) from exc
@@ -206,6 +240,11 @@ async def evidence(request: Request, mission_id: str):
     import json
     payload = json.loads(body or b"{}")
     _, missions = _stores()
+    try:
+        assert_evidence_size(body)
+    except LimitExceeded as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
+
     from app.services.capability.results import scan_for_injection
     note = json.dumps(payload)[:20000]
     findings = []

@@ -326,6 +326,59 @@ try:
     check("degradation reason is specific",
           "revoked" in (rt2.get("degradation_reason") or "").lower(),
           rt2.get("degradation_reason"))
+
+    # Runs LAST: it enrolls a fresh device, which would otherwise change the
+    # preconditions of the runtime assertions above (they require every device revoked).
+    print("\n=== enforced limits over real HTTP ===")
+    # Re-enroll a usable device: the one above was revoked by the revocation test.
+    e3 = op.post("/admin/kai/computer-operations/devices/enroll", json={"device_name": "Limits"})
+    c3 = e3.json()["pairing_code"]
+    k3 = Ed25519PrivateKey.generate()
+    p3 = k3.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    d3 = anon.post("/api/kai/device/enroll/complete", json={
+        "pairing_code": c3, "public_key": base64.b64encode(p3).decode(),
+        "signature": base64.b64encode(k3.sign(c3.encode())).decode()}).json()
+    op.post(f"/admin/kai/computer-operations/devices/{d3['device_id']}/confirm",
+            json={"fingerprint": d3["fingerprint"]})
+
+    from app.services.holding.computer_ops_limits import (MAX_EVIDENCE_BYTES,
+                                                          MAX_REQUEST_BYTES)
+    big = {"blob": "x" * (MAX_REQUEST_BYTES + 2048)}
+    resp, _ = signed("POST", "/api/kai/device/heartbeat", big, k=k3, did=d3["device_id"])
+    check("oversized device request refused with 413", resp.status_code == 413,
+          f"{resp.status_code} {resp.text[:100]}")
+
+    mk2 = op.post("/admin/kai/computer-operations/missions", json={
+        "device_id": d3["device_id"], "objective": "limits", "autonomy_mode": "OBSERVE",
+        "workspace": "/tmp/kai-cert-ws", "max_duration_seconds": 99999})
+    check("limits mission created", mk2.status_code == 200, f"{mk2.status_code} {mk2.text[:200]}")
+    check("mission duration is clamped server-side, not honoured as requested",
+          mk2.status_code == 200 and mk2.json().get("spec", {}).get("max_duration_seconds", 99999) <= 3600,
+          str(mk2.json())[:200])
+    mid2 = mk2.json().get("mission_id", "")
+
+    resp, _ = signed("POST", "/api/kai/device/lease", k=k3, did=d3["device_id"])
+    check("first lease succeeds", resp.status_code == 200 and resp.json()["mission"], resp.text[:100])
+    # A second queued mission must NOT be leasable while one is in flight.
+    op.post("/admin/kai/computer-operations/missions", json={
+        "device_id": d3["device_id"], "objective": "second", "autonomy_mode": "OBSERVE",
+        "workspace": "/tmp/kai-cert-ws"})
+    resp, _ = signed("POST", "/api/kai/device/lease", k=k3, did=d3["device_id"])
+    check("concurrent lease refused with 429 (back-pressure)", resp.status_code == 429,
+          f"{resp.status_code} {resp.text[:120]}")
+    check("429 carries Retry-After so a client waits", "retry-after" in
+          {h.lower() for h in resp.headers}, str(dict(resp.headers))[:120])
+
+    ev = {"kind": "blob", "data": "y" * (MAX_EVIDENCE_BYTES + 1024)}
+    resp, _ = signed("POST", f"/api/kai/device/missions/{mid2}/evidence", ev,
+                     k=k3, did=d3["device_id"])
+    check("oversized evidence refused with 413", resp.status_code == 413,
+          f"{resp.status_code} {resp.text[:100]}")
+
+    sweep = op.post("/admin/kai/computer-operations/missions/sweep")
+    check("overdue sweep endpoint answers", sweep.status_code == 200, sweep.text[:100])
+
+
 finally:
     app_mod = sys.modules.get("app.main")
     if app_mod is not None:
