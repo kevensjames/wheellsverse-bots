@@ -231,15 +231,39 @@ DEFAULT_SCHEDULES: List[Dict] = [
 # PERSISTENCE
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Provenance of the runtime state overlaid onto DEFAULT_SCHEDULES. "ABSENT" is a legitimate first
+# run — nothing has executed yet — and is NOT the same as "the file exists and I could not read it".
+# Collapsing those two is what produced the fabrication this separates: an unreadable state file
+# used to render as every schedule `run_count: 0, last_status: "never"`, an observation nobody made.
+_STATE_STATUS = "OK"
+
+
+def state_status() -> str:
+    """OK | ABSENT | UNAVAILABLE."""
+    return _STATE_STATUS
+
+
+def _read_state_file() -> str:
+    """Separated so a test can make the read fail without touching the filesystem."""
+    return SCHEDULES_FILE.read_text()
+
+
 def _load() -> Dict[str, Dict]:
     """Load schedule state from file. Returns {id: schedule_dict}."""
+    global _STATE_STATUS
+    if not SCHEDULES_FILE.exists():
+        _STATE_STATUS = "ABSENT"
+        return {}
     try:
-        if SCHEDULES_FILE.exists():
-            data = json.loads(SCHEDULES_FILE.read_text())
-            return {s["id"]: s for s in data if "id" in s}
-    except Exception:
-        pass
-    return {}
+        data = json.loads(_read_state_file())
+        _STATE_STATUS = "OK"
+        return {s["id"]: s for s in data if "id" in s}
+    except Exception as e:                                # noqa: BLE001
+        # Do NOT fall back silently to {}. That turns "I cannot read the state" into "nothing has
+        # ever run". The caller marks the affected fields UNAVAILABLE instead.
+        log.error("[Scheduler] state unreadable: %s", type(e).__name__)
+        _STATE_STATUS = "UNAVAILABLE"
+        return {}
 
 
 def _save(schedules: Dict[str, Dict]):
@@ -306,6 +330,16 @@ def get_schedules() -> List[Dict]:
         saved = persisted.get(sid, {})
 
         merged = dict(sched)
+        if _STATE_STATUS == "UNAVAILABLE":
+            # The state file exists and could not be read. Everything below is RUNTIME state, so
+            # none of it is known — say that, rather than reporting a never-run scheduler.
+            merged["enabled"] = "UNAVAILABLE"
+            merged["last_run"] = "UNAVAILABLE"
+            merged["last_status"] = "UNAVAILABLE"
+            merged["run_count"] = "UNAVAILABLE"
+            merged["next_run"] = "UNAVAILABLE"
+            result.append(merged)
+            continue
         # Overlay persisted state
         merged["enabled"] = saved.get("enabled", sched["enabled"])
         merged["last_run"] = saved.get("last_run", None)

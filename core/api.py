@@ -1346,10 +1346,16 @@ async def api_key_middleware(request: Request, call_next):
     """Apply optional API key guard to all /api/ routes except public ones."""
     if _API_KEY:
         path = request.url.path
+        # INCIDENT 2026-09-08 — "/api/narai/schedules" was an entry here, WITHOUT a trailing slash.
+        # This tuple is tested with path.startswith(), so that one missing character exempted the
+        # whole subtree: the read, the stats, PATCH /{id} (enable/disable, retime) and
+        # POST /{id}/trigger (run a job now) were all anonymous on production. Every other entry
+        # ends in "/" precisely so it cannot do this; a test now asserts that for all of them.
+        # Removed. The scheduler falls under this middleware's owner check like any other /api route.
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
                              "/api/shopify-autopilot/", "/api/shopify/agents/",
                              "/api/shopify/media/", "/api/shopify/intelligence/",
-                             "/api/shopify/", "/api/narai/schedules", "/api/sa/",
+                             "/api/shopify/", "/api/sa/",
                              "/api/narai/run", "/api/narai/revenue", "/api/narai/status",
                              "/api/v2/narai/",       # v2 uses its own JWT auth
                  "/api/narai/shopify/",  # multi-tenant Shopify — own Bearer auth
@@ -15385,21 +15391,48 @@ async def shopify_agents_logs(limit: int = 50):
 # NARAI SCHEDULE ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 
-_PUBLIC_PATHS.add("/api/narai/schedules")
+# INCIDENT 2026-09-08 — this file used to carry:
+#
+#     _PUBLIC_PATHS.add("/api/narai/schedules")
+#
+# the SECOND of two independent exemptions that made the scheduler anonymous (the other was a
+# missing trailing slash in api_key_middleware's _PUBLIC_PREFIXES). Removing either one alone would
+# have looked like a fix while the subtree stayed open, which is why both are named here and there.
+# The scheduler now falls under the ordinary /api owner check: owner API key, or an owner session.
+
+
+def _refuse_verifier_on_consequential_action(request: Request) -> None:
+    """Defence in depth for the two consequential scheduler routes.
+
+    api_key_middleware already admits only an owner, and a release verifier is not part of the /api
+    policy on App A — so this refuses nothing today. It exists so that if /api is ever extended to
+    accept a verifier (the role's whole purpose is reading protected surfaces), enabling a schedule
+    and running a job do not silently come with it. A verifier holds SCOPE_READ and SCOPE_VERIFY and
+    none of MUTATING_SCOPES; changing a cadence or dispatching a job is neither."""
+    if _release_verifier_ok(request):
+        raise HTTPException(
+            status_code=403,
+            detail="release verifier is read-only: it may not change or trigger a schedule")
 
 
 @app.get("/api/narai/schedules")
 async def narai_get_schedules():
     """List all NarAI scheduled tasks with status, next run, last run."""
-    from core.narai_scheduler import get_schedules, get_schedule_stats
+    from core.narai_scheduler import get_schedules, get_schedule_stats, state_status
+    # Order matters. state_status() reports the provenance of the LAST load, so the load must happen
+    # first — evaluated inside the dict literal it described the PREVIOUS request's read.
+    schedules = get_schedules()
+    stats = get_schedule_stats()
     return {
-        "schedules": get_schedules(),
-        "stats":     get_schedule_stats(),
+        "state":     state_status(),
+        "schedules": schedules,
+        "stats":     stats,
     }
 
 
 @app.patch("/api/narai/schedules/{schedule_id}")
-async def narai_update_schedule(schedule_id: str, request: Request):
+async def narai_update_schedule(schedule_id: str, request: Request,
+                                _v: None = Depends(_refuse_verifier_on_consequential_action)):
     """
     Enable/disable a schedule or change its run time.
     Body: {enabled?: bool, time?: "HH:MM"}
@@ -15415,7 +15448,8 @@ async def narai_update_schedule(schedule_id: str, request: Request):
 
 
 @app.post("/api/narai/schedules/{schedule_id}/trigger")
-async def narai_trigger_schedule(schedule_id: str):
+async def narai_trigger_schedule(schedule_id: str, request: Request,
+                                 _v: None = Depends(_refuse_verifier_on_consequential_action)):
     """Manually trigger a schedule right now (runs in background)."""
     from core.narai_scheduler import trigger_schedule
     result = trigger_schedule(schedule_id)
