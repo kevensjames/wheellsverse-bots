@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -312,6 +312,21 @@ if getattr(settings, "KAI_COMPUTER_OPS_ENABLED", False):
         from app.routers import admin_computer_ops, device_connector
         app.include_router(admin_computer_ops.router)
         app.include_router(device_connector.router)
+        # Serve the panel from App B too. App A serves admin pages for the hosted case
+        # via its bridge, but App B is separately reachable and owns this data, so the
+        # page must be available wherever its routes are rather than only where the
+        # bridge happens to be deployed.
+        from fastapi.responses import FileResponse
+        from pathlib import Path as _Path
+
+        _PANEL = _Path(__file__).resolve().parents[2] / "frontend" / "admin" / "computer-ops.html"
+
+        @app.get("/admin/computer-ops", include_in_schema=False)
+        def _computer_ops_page():
+            if not _PANEL.exists():
+                raise HTTPException(status_code=404, detail="panel asset not deployed")
+            return FileResponse(_PANEL, media_type="text/html",
+                                headers={"Cache-Control": "no-store"})
     except Exception as exc:  # noqa: BLE001
         SUBSYSTEM_FAULTS["computer_operations"] = f"{type(exc).__name__}: {exc}"
 

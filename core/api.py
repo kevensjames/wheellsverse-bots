@@ -1039,6 +1039,18 @@ def _admin_holding_page():
     return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/admin/computer-ops", include_in_schema=False)
+def _admin_computer_ops_page():
+    # KAI Computer Operations. A SEPARATE page from the GET-only capability catalog:
+    # an execution surface must never be something a read-only catalog turns into.
+    # Its data comes through the owner-gated /admin/kai/computer-operations bridge
+    # prefix, so the page degrades to explicit NOT AUTHORISED / FEATURE DISABLED
+    # markers rather than rendering anything when the feature is off.
+    from fastapi.responses import FileResponse
+    p = ROOT / "frontend" / "admin" / "computer-ops.html"
+    return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/admin/kai-presence.css", include_in_schema=False)
 def _kai_presence_css():
     from fastapi.responses import FileResponse

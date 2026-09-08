@@ -58,7 +58,8 @@ class BridgeConfig:
     # <upstream>/admin/kai-chat. Configurable in case App B remounts.
     upstream_prefix: str = "/admin"
     allow_prefixes: tuple = ("kai-chat", "kg", "twin", "persona", "briefing",
-                             "research", "memory", "holding", "capabilities")
+                             "research", "memory", "holding", "capabilities",
+                             "computer-operations")
     allow_methods: frozenset = frozenset({"GET", "POST"})
     # App B's /admin/kai-chat ALWAYS runs as a synthetic tier='ultra' operator
     # (admin_chat.py: "bypasses every paid-gate"), and App B's require_admin_token
@@ -68,7 +69,12 @@ class BridgeConfig:
     # escalation. The read routes (kg/twin/persona/…) stay kai.chat (operator-ok).
     # capability EXECUTION is owner-only too (App B enforces require_kai_ultra; the bridge
     # enforces the same kai.ultra scope here so an operator session can never reach it §6/§16).
-    ultra_prefixes: tuple = ("kai-chat", "capabilities")
+    # computer-operations drives a real machine: enrolling a device, granting desktop
+    # scopes, creating missions and invoking STOP. It is owner-only for the same reason
+    # capability execution is -- an operator session reaching it would be the escalation
+    # this list exists to prevent -- and App B enforces require_kai_ultra independently,
+    # because App B is separately reachable and must never depend on the bridge alone.
+    ultra_prefixes: tuple = ("kai-chat", "capabilities", "computer-operations")
     timeout: float = 30.0
     # Test seam: returns an httpx.AsyncClient (default targets the real upstream).
     client_factory: Optional[Callable[[], httpx.AsyncClient]] = field(default=None)
