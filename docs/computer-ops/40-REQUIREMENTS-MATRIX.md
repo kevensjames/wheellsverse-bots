@@ -264,3 +264,117 @@ Command-OS GETs and `/admin/capabilities*`.
   user-intervention detection, visible activity indicator and local STOP hotkey.
 - **§12 certification** as a whole: the adversarial list above is partly covered by
   targeted tests, but no end-to-end certification run exists.
+
+
+---
+
+# Session 3 — Phases 10-12 (HTTP, panel, helper, certification)
+
+## §2 HTTP authority boundary
+
+| Requirement | Status |
+|---|---|
+| Operator routes under an owner session (`require_kai_ultra`) | TESTED_LOCALLY — 15 routes at `/admin/kai/computer-operations` |
+| Device routes under a KAI_DEVICE principal, separate namespace | TESTED_LOCALLY — 11 routes at `/api/kai/device` |
+| Never authenticate device routes with an owner cookie / ROLE_OWNER | TESTED_LOCALLY — signature-only; no cookie path exists |
+| Signature bound to method, canonical path and body digest | TESTED_LOCALLY — a signature moved to another route is refused |
+| Reject unknown / revoked / unconfirmed / missing-scope / reused-nonce / expired / altered-body / wrong-device | TESTED_LOCALLY — full matrix, 63/63 HTTP + 35/35 E2E |
+| A worker may never set COMPLETED | TESTED_LOCALLY — refused over real HTTP (403) |
+| No raw harness config, commands or unrestricted paths exposed | TESTED_LOCALLY — no such field exists on any route model |
+
+## §3 Catalog / execution split
+
+| Requirement | Status |
+|---|---|
+| `/admin/capabilities` GET-only | TESTED_LOCALLY |
+| `/admin/capability-exec` separately authenticated | TESTED_LOCALLY |
+| **Anonymous sensitive admin response: 0** | TESTED_LOCALLY — every concrete `/admin` path probed anonymously, locally. NOT a claim about the deployed edge: that requires an external probe after a release |
+
+## §4 Migration 0008
+
+28/28 on disposable databases: upgrade, structure, types, indexes, device/nonce/code
+uniqueness, pairing expiry, revocation, unrelated rows untouched, downgrade, re-upgrade.
+**Downgrade is PARTIAL** — tables retained by design; documented as compatibility-
+restoring, never as a schema rollback.
+
+## §5 Local connector
+
+| Requirement | Status |
+|---|---|
+| Outbound only; no listening interface | TESTED_LOCALLY |
+| Authenticates as one device, signs every request | TESTED_LOCALLY — real binary used in E2E |
+| Re-enforces scope locally | IMPLEMENTED |
+| Per-mission APFS volume, startup gate, jailed worker | TESTED_LOCALLY |
+| Honors pause / cancellation / revocation / STOP | TESTED_LOCALLY — stands down under STOP |
+| Tears down worker and volume | TESTED_LOCALLY — verified no mount, no process |
+| Private key in Keychain, never in repo/env/logs | IMPLEMENTED — written via stdin, not argv |
+| Rejects stale work after reconnect | TESTED_LOCALLY (dispatch layer); not exercised against a real crash |
+
+## §6 Model endpoint
+
+| Property | Status |
+|---|---|
+| Only loopback reachable; all other egress denied | TESTED_LOCALLY — kernel-enforced, proven against a live listener on another port |
+| Destination cannot be changed by prompt/settings/plugin | TESTED_LOCALLY — settings seam disabled; allow-list refuses substitution |
+| Non-loopback endpoint refused | TESTED_LOCALLY — `JailSpec.model_hostport()` raises |
+| Unix-domain IPC preferred | NOT DONE — the pinned harness's pi-ai route takes an HTTP baseURL; loopback + jail is the documented residual |
+| Request/response size and concurrency bounds | NOT DONE — time bound only (mission max duration) |
+
+## §7 Panel — `/admin/computer-ops`
+
+Overview, Security, Devices, Mission composer, Missions/live, Approvals, fixed STOP bar.
+20/20 contract checks. Screenshots: `docs/computer-ops/screenshots/`.
+Real backend data; no mock counters; no hard-coded READY.
+
+## §8 Live events
+
+**NOT DONE.** The panel polls every 15s. Authenticated SSE with sequence numbers,
+reconnect cursor, replay and dedup is not implemented.
+
+## §9 Native helper
+
+**BLOCKED_CODESIGNING_IDENTITY** — 0 valid signing identities on this machine. Built
+(Mach-O arm64, 145,888 bytes, sha256 `bd742867…`), ad-hoc/linker-signed, no entitlements,
+`spctl: rejected`. Gate tested 17/17 with no TCC. Mutating verbs return
+`GATE_PASSED_EXECUTION_WITHHELD`. See `70-HELPER-SIGNING.md`.
+
+## §10 Browser truth
+
+`UNAVAILABLE — LOCAL CONNECTOR PLAYWRIGHT NOT INSTALLED`, with the exact missing
+dependency and where it IS declared. Playwright was NOT added to App B.
+
+## §11 Voice
+
+`VOICE_ENTRY_UNAVAILABLE`. No second voice brain was built. Backend/panel certification
+is not blocked on it.
+
+## §12 Certification — 35/35 end-to-end
+
+Real path: panel API → live uvicorn → Postgres → real connector → kernel jail → pinned
+harness → local model. Evidence: `docs/computer-ops/e2e-evidence.json`.
+
+| Required result | Outcome |
+|---|---|
+| Unauthorized host commands | 0 |
+| Unauthorized network egress | 0 |
+| Unauthorized file reads | 0 |
+| Writes outside mission workspace | 0 |
+| Unknown plugins accepted | 0 |
+| Configuration overrides accepted | 0 |
+| Ambient credentials consumed | 0 (structural; not adversarially exercised with a real ambient key) |
+| Cross-device/tenant actions | 0 |
+| Replayed device requests | 0 |
+| Unapproved desktop operations | 0 — no desktop verb has ever executed |
+| Anonymous sensitive admin responses | 0 (local) |
+| Duplicate consequential actions | 0 |
+| False COMPLETED states | 0 |
+| Workers/volumes remaining after STOP | 0 |
+| Device revocation | PASS |
+| STOP propagation | PASS |
+| Independent verification | PASS (mechanism); a full verify-and-complete cycle was not run end to end |
+| Panel/backend truth parity | PASS |
+
+### Scenarios NOT run
+Browser task against a local test site (§12.5 equivalent), prompt injection inside a page
+(no ingestion path), STOP during a file write (only during generation), and a real
+crash/reconnect.
