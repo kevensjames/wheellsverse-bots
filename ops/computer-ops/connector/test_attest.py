@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from attest import (  # noqa: E402
     NO_AUTONOMOUS_FANOUT,
     NO_INDEPENDENT_EGRESS,
+    NO_MUTABLE_CONFIG_OVERRIDE,
     NO_UNTRUSTED_PLUGIN_LOADING,
     NOT_ON_THIS_PLATFORM,
     attest,
@@ -23,6 +24,7 @@ from attest import (  # noqa: E402
 ALL_MUST_DISABLE = (
     NO_AUTONOMOUS_FANOUT + NO_INDEPENDENT_EGRESS
     + NO_UNTRUSTED_PLUGIN_LOADING + NOT_ON_THIS_PLATFORM
+    + NO_MUTABLE_CONFIG_OVERRIDE
 )
 
 
@@ -52,7 +54,7 @@ def test_clean_observe_local_passes():
 
 def test_enabled_capability_fails():
     """A capability left mounted must fail, one case per containment group."""
-    for pid in ("tool-ralph", "web-search-deepseek", "tool-skill"):
+    for pid in ("tool-ralph", "web-search-deepseek", "tool-skill", "settings"):
         r = attest(_dump(enable=(pid,)), expect_sandbox_mode="read-only",
                    expect_local_only=True, expect_approval_policy="never")
         assert not r.ok, f"{pid} left enabled but attestation passed"

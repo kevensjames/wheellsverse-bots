@@ -81,3 +81,56 @@
   config:
     mode: read-only
     workspaceRoot: !!js process.env.KAI_TASK_WORKSPACE
+
+# --- 7. KAI autonomy-mode preset table ------------------------------------
+# `presets` REPLACES upstream's default table rather than extending it, which is the
+# point: upstream ships a `danger-full-access` preset (full file access, no approval
+# prompts). Defining KAI's own table deletes it from the composition, so unrestricted
+# access is not merely "a mode we agreed not to use" -- it no longer exists as a
+# switch target. Over ACP, `session/set_config_option` advertises only `model` and
+# `reasoning_effort`, so a connected client cannot change these knobs at all.
+#
+# APPROVAL_REQUIRED is deliberately absent here: it is not a distinct sandbox/approval
+# pair but a KAI-side rule that a fresh operator approval, bound to device + action +
+# target + parameters + scope + expiry, must exist before the connector answers allow.
+# The harness cannot express that binding, so KAI owns it.
+- id: permission
+  config:
+    presets:
+      kai-observe:
+        sandbox: read-only
+        approval: never
+        name: kai-observe
+        description: 'OBSERVE: approved read-only inspection; every approval request is deterministically rejected.'
+      kai-assist:
+        sandbox: read-only
+        approval: ask
+        name: kai-assist
+        description: 'ASSIST: read-only inspection plus plans, edits and previews prepared for review; KAI answers each approval.'
+      kai-execute-scoped:
+        sandbox: workspace-write
+        approval: ask
+        name: kai-execute-scoped
+        description: 'EXECUTE_SCOPED: reversible work inside the mission workspace only; KAI answers each approval.'
+#
+# `defaultPreset` is deliberately OMITTED. Upstream derives it from the composed
+# sandbox+approval defaults and refuses to boot when they match no preset. Omitting it
+# therefore turns "a mode overlay composed a policy pair nobody approved" from a silent
+# wrong-mode run into a hard startup failure -- the mode overlays are validated by the
+# harness itself, against this table, on every launch.
+
+# --- 8. Composition is the single source of truth --------------------------
+# The settings seam (`@deepseek-ai/dsh-settings-file`) installs a MUTABLE on-disk
+# settings document that OVERRIDES adapter configuration from the composition --
+# including `llm-pi-ai` provider routes. Verified empirically at the pinned commit:
+# with the settings seam mounted, the LOCAL_ONLY route configured here does not
+# register at all (`no adapter registered for provider "kai-local"`), because
+# `installSection` repoints the adapter's config source at the stored document.
+#
+# That makes a writable settings file a live path to redirect a session KAI attested
+# as LOCAL_ONLY to a cloud endpoint AFTER attestation passed. Disabling the seam makes
+# the --patch composition authoritative, so what KAI attests is what actually runs.
+# KAI supplies all per-mission configuration through overlays and environment; no
+# operator-editable settings document participates.
+- id: settings
+  disabled: true

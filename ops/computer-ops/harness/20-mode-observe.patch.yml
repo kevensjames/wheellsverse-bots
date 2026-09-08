@@ -1,17 +1,32 @@
-# KAI Computer Operations — AUTONOMY MODE: OBSERVE
+# KAI Computer Operations - AUTONOMY MODE: OBSERVE
 #
-# Approved read-only inspection. The file sandbox stays at the fail-safe read-only
-# floor set by 00-containment, and the approval policy is hardened from 'ask' to
-# 'never': upstream semantics make every approval request resolve 'rejected'
-# deterministically, so an OBSERVE session cannot escalate even if the model asks and
-# even if a KAI answerer were reachable. Containment here is deterministic, not a
-# decision KAI has to get right on every prompt.
+# Approved read-only inspection. Sandbox stays at the fail-safe read-only floor and
+# the approval policy is hardened from 'ask' to 'never': upstream resolves every
+# approval request to 'rejected' deterministically, so an OBSERVE session cannot
+# escalate even if the model asks and even if a KAI answerer is reachable.
+# Containment here is a property of the composition, not a decision KAI must get
+# right on every prompt.
+#
+# sandbox-policy.mode and approval.policy are set together as one pair: upstream
+# derives the permission preset from them and refuses to boot when they match no entry
+# in the KAI preset table, turning an inconsistent policy into a loud startup failure
+# instead of a silent wrong-mode run.
+- id: sandbox-policy
+  config:
+    mode: read-only
+    workspaceRoot: !!js process.env.KAI_TASK_WORKSPACE
+
 - id: approval
   config:
     policy: never
 
-# Shell remains mounted for read-only inspection (it is enforced by the file sandbox),
-# but the persistent PowerShell surface is irrelevant on macOS and is removed.
+# NOTE: this overlay must NOT carry an `- id: permission` entry. A later patch layer
+# REPLACES the whole config object for an id rather than deep-merging it, so setting
+# `defaultPreset` here would silently drop the preset table defined in 00-containment.
+# The preset is derived from the sandbox+approval pair set above.
+
+# PowerShell surfaces are irrelevant on macOS; removed so the mounted surface
+# matches the platform actually being operated.
 - id: tool-pwsh
   disabled: true
 - id: pwsh-sandbox

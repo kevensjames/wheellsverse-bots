@@ -22,6 +22,18 @@
       kai-local:
         displayName: KAI Local (operator-approved local endpoint)
         api: openai-completions
+        # A hand-declared OpenAI-compatible route still requires a credential
+        # reference: pi-ai rejects the turn with "No API key for provider" when none
+        # is named. KAI_LOCAL_LLM_API_KEY is therefore a PLACEHOLDER for local
+        # endpoints that need no authentication (ollama ignores its value).
+        #
+        # It is named explicitly rather than omitted on purpose. Upstream's comment on
+        # resolveApiKey is that omitting the reference lets pi-ai fall back to
+        # provider-native ambient discovery and "pick up an unrelated ambient key
+        # (OPENAI_API_KEY and friends)". Under LOCAL_ONLY that would be an ambient
+        # cloud credential silently authenticating a request KAI promised was local.
+        # A named reference fails loud instead of borrowing a key.
+        apiKeyEnv: KAI_LOCAL_LLM_API_KEY
         baseURL: !!js process.env.KAI_LOCAL_LLM_BASE_URL
         defaultContextWindow: 32768
         defaultMaxTokens: 4096

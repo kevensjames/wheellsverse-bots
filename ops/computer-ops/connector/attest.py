@@ -55,6 +55,12 @@ NO_UNTRUSTED_PLUGIN_LOADING = ("skill-filesystem", "tool-skill")
 #: Irrelevant on macOS; removed so the mounted surface matches the platform.
 NOT_ON_THIS_PLATFORM = ("tool-pwsh", "pwsh-sandbox")
 
+#: The mutable on-disk settings document overrides adapter configuration from the
+#: composition -- including which LLM route serves a session. Left mounted, it is a
+#: path to redirect an attested LOCAL_ONLY session to a cloud endpoint after
+#: attestation passed, so the composition would no longer be what actually runs.
+NO_MUTABLE_CONFIG_OVERRIDE = ("settings",)
+
 #: Sandbox modes. 'danger-full-access' is never used by any KAI autonomy mode.
 ALLOWED_SANDBOX_MODES = ("read-only", "workspace-write")
 
@@ -118,6 +124,8 @@ def attest(dump: str, *, expect_sandbox_mode: str, expect_local_only: bool,
     _require_disabled(blocks, NO_INDEPENDENT_EGRESS, "no independent egress", res)
     _require_disabled(blocks, NO_UNTRUSTED_PLUGIN_LOADING, "no untrusted plugin loading", res)
     _require_disabled(blocks, NOT_ON_THIS_PLATFORM, "not applicable on macOS", res)
+    _require_disabled(blocks, NO_MUTABLE_CONFIG_OVERRIDE,
+                      "composition is authoritative (no settings override)", res)
 
     # Telemetry: the plugin stays mounted but must be pinned to DISABLED.
     tel = blocks.get("session-telemetry-otel")
