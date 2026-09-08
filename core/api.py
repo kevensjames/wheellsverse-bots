@@ -1040,13 +1040,19 @@ def _admin_holding_page():
 
 
 @app.get("/admin/computer-ops", include_in_schema=False)
-def _admin_computer_ops_page():
+def _admin_computer_ops_page(request: Request):
     # KAI Computer Operations. A SEPARATE page from the GET-only capability catalog:
     # an execution surface must never be something a read-only catalog turns into.
     # Its data comes through the owner-gated /admin/kai/computer-operations bridge
     # prefix, so the page degrades to explicit NOT AUTHORISED / FEATURE DISABLED
     # markers rather than rendering anything when the feature is off.
-    from fastapi.responses import FileResponse
+    # Owner-gated at the page, not only at its data. The shell holds no records, but an
+    # anonymous fetch would still disclose the feature's existence and its control
+    # vocabulary. _session_owner_ok is the same owner check the /api surface uses here,
+    # so this introduces no second notion of "owner".
+    from fastapi.responses import FileResponse, JSONResponse
+    if not _session_owner_ok(request):
+        return JSONResponse(status_code=403, content={"error": "owner access required"})
     p = ROOT / "frontend" / "admin" / "computer-ops.html"
     return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-store"})
 

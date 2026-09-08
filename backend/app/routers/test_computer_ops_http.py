@@ -61,17 +61,26 @@ try:
     admin_paths = sorted({getattr(r_, "path", "") for r_ in app.routes
                           if getattr(r_, "path", "").startswith(("/admin/",))})
     concrete = [p for p in admin_paths if "{" not in p]
-    leaked = []
+    # Two categories, reported separately because they are different severities and a
+    # single count hides which one occurred:
+    #   json_leaks  -- anonymous access to DATA. Must always be zero.
+    #   shell_leaks -- anonymous access to a page SHELL. Carries no records, but discloses
+    #                  the feature's existence and control vocabulary, so also zero.
+    json_leaks, shell_leaks = [], []
     for p in concrete:
         for method in ("GET", "POST"):
             resp = anon.request(method, p)
-            if resp.status_code == 200:
-                body = resp.text[:400]
-                # A 200 is only acceptable if it carries no data.
-                if body.strip() not in ("", "{}", "null"):
-                    leaked.append((method, p, resp.status_code, body[:100]))
-    check(f"no anonymous 200 with a body across {len(concrete)} concrete /admin paths",
-          not leaked, f"{leaked[:3]}")
+            if resp.status_code != 200:
+                continue
+            body = resp.text.strip()
+            if body in ("", "{}", "null"):
+                continue
+            ctype = resp.headers.get("content-type", "").split(";")[0]
+            (json_leaks if "json" in ctype else shell_leaks).append((method, p, ctype))
+    check(f"anonymous sensitive admin responses = 0 across {len(concrete)} concrete /admin paths",
+          not json_leaks, f"{json_leaks[:3]}")
+    check("no anonymous page shell served under /admin either",
+          not shell_leaks, f"{shell_leaks[:3]}")
 
     for p in ("/admin/kai/computer-operations/devices",
               "/admin/kai/computer-operations/missions",

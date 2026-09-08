@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -321,7 +321,14 @@ if getattr(settings, "KAI_COMPUTER_OPS_ENABLED", False):
 
         _PANEL = _Path(__file__).resolve().parents[2] / "frontend" / "admin" / "computer-ops.html"
 
-        @app.get("/admin/computer-ops", include_in_schema=False)
+        # The page itself is owner-gated, not just its data. The shell carries no
+        # records, but serving it anonymously hands a visitor the feature's existence,
+        # route names and control vocabulary -- reconnaissance for free. Measured: it was
+        # the ONLY anonymous 200-with-body across all 83 concrete /admin paths.
+        from app.routers.admin_chat import require_kai_ultra as _owner_only
+
+        @app.get("/admin/computer-ops", include_in_schema=False,
+                 dependencies=[Depends(_owner_only)])
         def _computer_ops_page():
             if not _PANEL.exists():
                 raise HTTPException(status_code=404, detail="panel asset not deployed")
