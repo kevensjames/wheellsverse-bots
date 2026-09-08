@@ -46,7 +46,15 @@ NO_AUTONOMOUS_FANOUT = (
 #: Harness-side network egress. Every external fetch must be a KAI capability with its
 #: own policy and audit; a harness-side fetch is both an unlogged egress path and an
 #: unmediated prompt-injection intake.
-NO_INDEPENDENT_EGRESS = ("tool-web", "web-fetch-http", "web-search-deepseek")
+#:
+#: `tool-bash` belongs in THIS group, not in a separate "shell" one. The macOS sandbox
+#: is a file-effect policy only -- `(allow default) (deny file-write*)` -- so a mounted
+#: shell keeps egress, process execution and arbitrary file reads open no matter what
+#: the web tools do, and measurement showed bash executing with ZERO approval requests
+#: reaching KAI. Closing the web tools without closing the shell closes nothing.
+NO_INDEPENDENT_EGRESS = (
+    "tool-web", "web-fetch-http", "web-search-deepseek", "tool-bash",
+)
 
 #: On-disk skills are untrusted input, never permission grants. KAI never auto-installs
 #: or auto-enables third-party plugins.

@@ -56,6 +56,36 @@
 - id: web-search-deepseek
   disabled: true
 
+# --- 3b. No arbitrary command execution ------------------------------------
+# MEASURED, not assumed. Disabling the web tools above does NOT close egress while a
+# shell tool is mounted, because the macOS file sandbox is a FILE-EFFECT policy only.
+# The generated Seatbelt profile is, verbatim
+# (packages/sandbox/sandbox-local/src/profiles.ts:52):
+#
+#     (version 1) (allow default) (deny file-write*) (allow file-write* (literal "/dev/null"))
+#
+# `(allow default)` means process execution, network egress and reads of ANY
+# user-readable file remain permitted in EVERY mode, including `read-only`.
+#
+# Reproduced on this host in OBSERVE mode (sandbox read-only, approval never): the
+# model issued `bash: echo KAI_BASH_EXECUTED_MARKER`, the tool_call completed with the
+# real output, and KAI received ZERO session/request_permission requests. Bash takes a
+# free-form command string with no allowlist, so that same unmediated path reaches
+# `curl` (egress), `screencapture` / `osascript` (desktop control with no bridge and no
+# TCC prompt of KAI's own), and `~/.ssh`, `~/.aws`, browser cookie stores (credential
+# theft) -- none of it visible to KAI as anything but an opaque string, if at all.
+#
+# So the shell tools are removed outright. KAI still needs to run authorized commands,
+# but that capability belongs to KAI, where an opaque task id maps to a fixed
+# server-owned argv (the established internal_test.py SuiteDef pattern) and every
+# invocation is policy-gated and audited. It must never be a free-form string the
+# model composes.
+#
+# The shell SERVICE stays mounted: dsh-permission-presets requires a confining
+# `ctx.shell` executor and refuses to load without one. Only the model-facing tools go.
+- id: tool-bash
+  disabled: true
+
 # --- 4. No filesystem-sourced skill/plugin loading -------------------------
 # Treat on-disk skills as untrusted input, never as permission grants. KAI never
 # auto-installs or auto-enables third-party plugins.

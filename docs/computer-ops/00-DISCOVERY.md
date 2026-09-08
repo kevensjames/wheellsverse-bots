@@ -26,7 +26,7 @@ subject to macOS TCC permission grants. This was verified rather than assumed.
 | Tool | Version | Notes |
 |---|---|---|
 | node | v22.22.2 | satisfies harness `engines.node` `^22.19.0 \|\| >=24.0.0` |
-| pnpm | **ABSENT** | harness requires `pnpm@11.7.0` (`packageManager` field) |
+| pnpm | **installed during this work** | was absent; activated via `corepack prepare pnpm@11.7.0 --activate` to match the harness `packageManager` pin exactly |
 | python3 | 3.11.15 | |
 | uv | 0.11.11 | |
 | ollama | 0.33.3 | **running** and serving |
@@ -51,6 +51,12 @@ Models available locally (`ollama list`): `llama3.1:8b` (4.9 GB), `qwen2.5:7b` (
 
 **No large model download is required** to demonstrate LOCAL_ONLY. Per the mission, no model
 will be downloaded without hardware inspection and operator approval.
+
+Note on the strength of this evidence: the transcript above proves only that ollama serves an
+OpenAI-compatible endpoint. It hits ollama DIRECTLY and does not traverse the harness or its pi-ai
+adapter, so on its own it does NOT establish that the harness can reach a local model. The
+end-to-end proof is the ACP round trip recorded in `docs/computer-ops/10-EVIDENCE.md`, which drives
+the pinned harness over ACP and gets an answer back from `qwen2.5:7b`.
 
 ## 4. macOS permission state (TCC) — read-only inspection
 
