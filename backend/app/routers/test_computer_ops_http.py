@@ -362,6 +362,27 @@ try:
 
     print("\n=== runtime truth ===")
     rt = op.get("/admin/kai/computer-operations/runtime").json()
+    rd = rt.get("readiness", {})
+    check("runtime exposes seven separate readiness axes",
+          {"backend", "connector", "signed_helper", "tcc", "computer_control", "stop",
+           "staging"} <= set(rd), str(sorted(rd)))
+    check("signed helper is BLOCKED on this machine (0 signing identities)",
+          rd.get("signed_helper") == "BLOCKED_CODESIGNING_IDENTITY", str(rd.get("signed_helper")))
+    check("TCC is reported NOT_GRANTED", rd.get("tcc") == "NOT_GRANTED", str(rd.get("tcc")))
+    check("computer control is NOT verified",
+          rd.get("computer_control") == "DEVICE_CONTROL_NOT_VERIFIED",
+          str(rd.get("computer_control")))
+    check("a live connector cannot make computer control green",
+          rd.get("computer_control") != "DEVICE_CONTROL_VERIFIED")
+    check("computer control lists its blockers rather than just failing",
+          len(rt["computer_control"]["blockers"]) >= 2, str(rt["computer_control"]["blockers"]))
+    check("staging is reported as not deployed",
+          rd.get("staging") == "STAGING_NOT_DEPLOYED", str(rd.get("staging")))
+    check("the helper designated requirement is exposed for review",
+          "cdhash" in (rt["signed_helper"].get("designated_requirement") or ""),
+          str(rt["signed_helper"].get("designated_requirement"))[:80])
+    check("an ad-hoc helper is flagged as cdhash-pinned",
+          rt["signed_helper"]["cdhash_pinned"] is True)
     check("containment is labelled honestly",
           rt["containment"]["caveat"] == "NOT A HYPERVISOR BOUNDARY", rt["containment"])
     check("harness pin reported", rt["harness"]["pinned_sha"].startswith("c389f96"))

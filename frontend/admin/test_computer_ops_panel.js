@@ -27,12 +27,12 @@ const SRC = [
   slice('const ICON = {', '\n'),
   fn('badge'), fn('unavailable'),
   slice('const row = (k,v)', '\n'), slice('const mono = v', '\n'),
-  fn('renderOverview'), fn('renderSecurity'), fn('renderDevices'), fn('renderMissions'),
+  fn('renderOverview'), fn('renderReadiness'), fn('renderSecurity'), fn('renderDevices'), fn('renderMissions'),
 ].join('\n');
 
 let DEVICES = [], MISSIONS = [];
 const ctx = new Function('DEVICES', 'MISSIONS', SRC + `
-  return {badge, unavailable, renderOverview, renderSecurity, renderDevices, renderMissions};
+  return {badge, unavailable, renderOverview, renderReadiness, renderSecurity, renderDevices, renderMissions};
 `)(DEVICES, MISSIONS);
 
 let pass = 0, fail = 0;
@@ -236,6 +236,46 @@ t('the event log is a live region for assistive tech', () => {
   assert.ok(/id="event-log"[^>]*aria-live="polite"/.test(HTML) ||
             /aria-live="polite"[^>]*id="event-log"/.test(HTML) ||
             /role="log"/.test(HTML), 'event log is not announced');
+});
+
+
+// ---------------------------------------------------------- readiness axes
+t('readiness is seven separate axes, never one badge', () => {
+  const out = ctx.renderReadiness({
+    readiness: {backend:'READY', connector:'READY', signed_helper:'BLOCKED_CODESIGNING_IDENTITY',
+                tcc:'NOT_GRANTED', computer_control:'DEVICE_CONTROL_NOT_VERIFIED',
+                stop:'RELEASED', staging:'STAGING_NOT_DEPLOYED'},
+    computer_control: {blockers:['signed helper not verified','TCC not granted'], note:'n'},
+    signed_helper: {adhoc:true}});
+  ['Backend','Connector','Signed helper','TCC','Computer control','STOP','Staging']
+    .forEach(a => assert.ok(out.includes(a), 'missing axis: ' + a));
+});
+
+t('a live connector does NOT make computer control green', () => {
+  const out = ctx.renderReadiness({
+    readiness: {backend:'READY', connector:'READY', signed_helper:'BLOCKED_CODESIGNING_IDENTITY',
+                tcc:'NOT_GRANTED', computer_control:'DEVICE_CONTROL_NOT_VERIFIED',
+                stop:'RELEASED', staging:'STAGING_NOT_DEPLOYED'},
+    computer_control: {blockers:['signed helper not verified','TCC not granted'], note:'n'},
+    signed_helper: {adhoc:true}});
+  assert.ok(/DEVICE_CONTROL_NOT_VERIFIED/.test(out), 'control state not shown');
+  assert.ok(!/DEVICE_CONTROL_VERIFIED</.test(out.replace(/DEVICE_CONTROL_NOT_VERIFIED/g,'')),
+            'showed verified control while blocked');
+  assert.ok(/blocked by/.test(out), 'blockers not listed');
+});
+
+t('a cdhash-pinned helper is called out as unsafe to grant', () => {
+  const out = ctx.renderReadiness({
+    readiness:{}, computer_control:{blockers:[],note:''},
+    signed_helper:{adhoc:true, cdhash_pinned:true, designated_requirement:'# designated => cdhash H"abc"'}});
+  assert.ok(/cdhash/.test(out), 'DR not surfaced');
+  assert.ok(/Do not grant TCC/.test(out), 'no explicit warning against granting TCC');
+});
+
+t('staging status is reported, never assumed', () => {
+  const out = ctx.renderReadiness({readiness:{staging:'STAGING_NOT_DEPLOYED'},
+                                   computer_control:{blockers:[],note:''}, signed_helper:{}});
+  assert.ok(/STAGING_NOT_DEPLOYED/.test(out));
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

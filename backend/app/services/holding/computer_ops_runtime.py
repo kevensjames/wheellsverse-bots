@@ -85,6 +85,54 @@ def _voice_state() -> dict:
                     "interpret_confirmation() already refuses voice/gesture channels"}
 
 
+def _signed_helper_state() -> dict:
+    """Signed-helper readiness, decided by the signing gate -- never by presence.
+
+    A built binary tells you a build happened. It says nothing about whether macOS will
+    keep a TCC grant attached to it, which is decided by the designated requirement. So
+    this reports the DR and refuses readiness for an ad-hoc one.
+    """
+    helper_dir = os.environ.get(
+        "KAI_HELPER_DIR",
+        "/Users/jhonwheeler/wheellsverse-kai-compute/ops/computer-ops/helper")
+    binary = os.path.join(helper_dir, ".build/release/KaiDesktopBridge")
+    if not os.path.isfile(binary):
+        return {"state": "NOT_BUILT", "binary": binary, "designated_requirement": None,
+                "reason": "helper binary not present"}
+    try:
+        info = subprocess.run(["codesign", "-dvv", binary],
+                              capture_output=True, text=True, timeout=15)
+        req = subprocess.run(["codesign", "-d", "-r-", binary],
+                             capture_output=True, text=True, timeout=15)
+    except Exception as exc:  # noqa: BLE001
+        return {"state": "UNKNOWN", "reason": f"{type(exc).__name__}: {exc}"}
+    blob = (info.stdout or "") + (info.stderr or "")
+    dr = ((req.stdout or "") + (req.stderr or "")).strip().splitlines()
+    # codesign prefixes an ad-hoc DR with "# " ("# designated => cdhash H\"...\""), so a
+    # startswith("designated") check silently misses exactly the case this must catch.
+    dr_line = next((l for l in dr
+                    if l.strip().lstrip("# ").startswith("designated")), "")
+    adhoc = "adhoc" in blob
+    team = ""
+    for line in blob.splitlines():
+        if line.startswith("TeamIdentifier="):
+            team = line.split("=", 1)[1].strip()
+    cdhash_pinned = 'cdhash H"' in dr_line
+    ready = (not adhoc) and team not in ("", "not set") and not cdhash_pinned
+    return {
+        "state": "SIGNED_HELPER_VERIFIED" if ready else "BLOCKED_CODESIGNING_IDENTITY",
+        "binary": binary,
+        "adhoc": adhoc,
+        "team_identifier": team or None,
+        "designated_requirement": dr_line.strip()[:300] or None,
+        "cdhash_pinned": cdhash_pinned,
+        "reason": None if ready else (
+            "ad-hoc signature: the designated requirement pins this build's cdhash, so a "
+            "rebuild changes it and any TCC grant stops matching"),
+        "gate_command": "ops/computer-ops/helper/verify_signing.sh <path>",
+    }
+
+
 def _desktop_state() -> dict:
     try:
         import sys
@@ -163,8 +211,45 @@ def runtime_report() -> dict:
     elif not usable:
         reasons.append("all enrolled devices are revoked")
 
+    helper = _signed_helper_state()
+    desktop = _desktop_state()
+
+    # Computer-control readiness is a SEPARATE axis from feature readiness, and is
+    # deliberately conjunctive. A green connector heartbeat says a machine is reachable;
+    # it says nothing about whether that machine may touch the desktop. Every one of
+    # these must hold, so no amount of liveness can make this green on its own.
+    control_blockers = []
+    if helper["state"] != "SIGNED_HELPER_VERIFIED":
+        control_blockers.append("signed helper not verified")
+    if not desktop.get("tcc_granted"):
+        control_blockers.append("TCC not granted")
+    if not desktop.get("executable_identity_acceptable"):
+        control_blockers.append("helper identity refused")
+    if stop["engaged"]:
+        control_blockers.append("STOP engaged")
+    computer_control = {
+        "state": "DEVICE_CONTROL_VERIFIED" if not control_blockers
+                 else "DEVICE_CONTROL_NOT_VERIFIED",
+        "blockers": control_blockers,
+        "note": "requires ALL of: signed helper, TCC granted, acceptable executable "
+                "identity, STOP released. A connector heartbeat is not evidence of any "
+                "of them.",
+    }
+
     return {
         "feature_state": overall,
+        # Separate axes, never collapsed into one badge.
+        "readiness": {
+            "backend": "READY",
+            "connector": connector,
+            "signed_helper": helper["state"],
+            "tcc": "GRANTED" if desktop.get("tcc_granted") else "NOT_GRANTED",
+            "computer_control": computer_control["state"],
+            "stop": "ENGAGED" if stop["engaged"] else "RELEASED",
+            "staging": os.environ.get("KAI_STAGING_STATUS", "STAGING_NOT_DEPLOYED"),
+        },
+        "computer_control": computer_control,
+        "signed_helper": helper,
         "degradation_reason": "; ".join(reasons) or None,
         "backend_state": "READY",
         "connector_state": connector,
@@ -182,7 +267,7 @@ def runtime_report() -> dict:
         },
         "browser": _browser_state(),
         "voice": _voice_state(),
-        "desktop": _desktop_state(),
+        "desktop": desktop,
         "stop": stop,
         "server_time": now.isoformat(),
     }

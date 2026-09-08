@@ -105,6 +105,10 @@
     </section>
 
     <div class="cols2">
+      <section class="panel" aria-labelledby="h-readiness">
+        <h2 id="h-readiness">Readiness</h2>
+        <div id="p-readiness" class="loading" role="status">Loading…</div>
+      </section>
       <section class="panel" aria-labelledby="h-security">
         <h2 id="h-security">Security &amp; containment</h2>
         <div id="p-security" class="loading" role="status">Loading…</div>
@@ -188,7 +192,10 @@ const STATE = {
   RUNNING:'info', PENDING_CONFIRMATION:'warn', VERIFYING:'info',
   OFFLINE:'bad', STOPPED:'bad', REVOKED:'bad', FAILED:'bad', CANCELLED:'off',
   UNPAIRED:'off', NOT_INSTALLED:'bad', UNAVAILABLE:'bad', NOT_CERTIFIED:'warn',
-  DESKTOP_CONTROL_NOT_VERIFIED:'warn', VOICE_ENTRY_UNAVAILABLE:'off'
+  DESKTOP_CONTROL_NOT_VERIFIED:'warn', VOICE_ENTRY_UNAVAILABLE:'off',
+  SIGNED_HELPER_VERIFIED:'ok', BLOCKED_CODESIGNING_IDENTITY:'bad', NOT_BUILT:'bad',
+  DEVICE_CONTROL_VERIFIED:'ok', GRANTED:'ok', NOT_GRANTED:'off',
+  RELEASED:'ok', ENGAGED:'bad', STAGING_NOT_DEPLOYED:'off', STAGING_VERIFIED:'ok'
 };
 /* Never colour alone: every badge carries an icon AND a text label, so state is
    readable without colour perception. */
@@ -225,6 +232,32 @@ function renderOverview(d){
 }
 
 /* ------------------------------------------------------------------ security */
+/* Readiness is SEVEN separate axes, never one badge. Collapsing them is how a dashboard
+   ends up showing green computer control because a machine happened to send a heartbeat.
+   Each axis answers a different question and each can fail independently. */
+function renderReadiness(d){
+  if(failed(d)) return unavailable(d, 'Readiness');
+  const r = d.readiness || {}, cc = d.computer_control || {}, h = d.signed_helper || {};
+  const axis = (label, state, note) =>
+    row(label, badge(state) + (note ? ` <span class="mono" style="color:var(--muted)">${esc(note)}</span>` : ''));
+  return [
+    axis('Backend', r.backend),
+    axis('Connector', r.connector, d.last_heartbeat ? 'heartbeat ' + d.last_heartbeat : 'never'),
+    axis('Signed helper', r.signed_helper, h.adhoc ? 'ad-hoc build' : (h.team_identifier || '')),
+    axis('TCC', r.tcc),
+    axis('Computer control', r.computer_control),
+    axis('STOP', r.stop),
+    axis('Staging', r.staging),
+    (cc.blockers && cc.blockers.length
+      ? `<div class="hint">Computer control is blocked by: ${esc(cc.blockers.join(' · '))}</div>` : ''),
+    `<div class="hint">${esc(cc.note || '')}</div>`,
+    (h.designated_requirement
+      ? row('Helper designated requirement', mono(String(h.designated_requirement).slice(0, 120))) : ''),
+    (h.cdhash_pinned
+      ? `<div class="err">The helper's designated requirement pins this build's cdhash. Any rebuild changes it, so a TCC grant would stop matching. Do not grant TCC to this artefact.</div>` : ''),
+  ].join('');
+}
+
 function renderSecurity(d){
   if(failed(d)) return unavailable(d, 'Security');
   const b = d.browser||{}, v = d.voice||{}, dk = d.desktop||{};
@@ -461,6 +494,8 @@ async function load(){
 
   document.getElementById('p-overview').className = '';
   document.getElementById('p-overview').innerHTML = renderOverview(rt);
+  document.getElementById('p-readiness').className = '';
+  document.getElementById('p-readiness').innerHTML = renderReadiness(rt);
   document.getElementById('p-security').className = '';
   document.getElementById('p-security').innerHTML = renderSecurity(rt);
   document.getElementById('p-devices').className = '';
