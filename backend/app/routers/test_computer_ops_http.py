@@ -95,6 +95,24 @@ try:
 
     # ------------------------------------------------------- operator, authenticated
     app.dependency_overrides[require_kai_ultra] = lambda: None
+
+    def as_anonymous(method: str, path: str):
+        """Probe a route with NO owner auth, whatever overrides are installed.
+
+        The owner override above is app-wide, so any "anonymous" assertion made after it
+        would otherwise pass for the wrong reason -- a security test that cannot fail is
+        worse than no test. This removes the override for the duration of one probe and
+        verifies, on a route known to be gated, that the removal actually took effect.
+        """
+        saved = app.dependency_overrides.pop(require_kai_ultra, None)
+        try:
+            sentinel = anon.get("/admin/kai/computer-operations/devices").status_code
+            assert sentinel in (401, 403), (
+                f"as_anonymous() is not actually anonymous: gated route returned {sentinel}")
+            return anon.request(method, path)
+        finally:
+            if saved is not None:
+                app.dependency_overrides[require_kai_ultra] = saved
     op = TestClient(app, raise_server_exceptions=False)
     print("\n=== operator surface ===")
     check("operator can list devices", op.get(
@@ -297,6 +315,50 @@ try:
             json={"reason": "cert"})
     resp, _ = signed("POST", "/api/kai/device/heartbeat")
     check("revoked device refused", resp.status_code == 403, f"{resp.status_code}")
+
+
+    print("\n=== SSE + bounded replay over real HTTP ===")
+    ev_url = f"/admin/kai/computer-operations/missions/{mid}/events"
+    c_anon = as_anonymous("GET", ev_url).status_code
+    check("anonymous replay refused", c_anon in (401, 403), str(c_anon))
+    c_anon = as_anonymous(
+        "GET", f"/admin/kai/computer-operations/missions/{mid}/stream").status_code
+    check("anonymous SSE stream refused", c_anon in (401, 403), str(c_anon))
+
+    r = op.get(ev_url)
+    check("owner can read the replay endpoint", r.status_code == 200, r.text[:120])
+    body = r.json()
+    seqs = [e["seq"] for e in body["events"]]
+    check("sequence numbers are strictly increasing",
+          seqs == sorted(seqs) and len(set(seqs)) == len(seqs), str(seqs[:8]))
+    check("replay reports a cursor and the latest sequence",
+          "cursor" in body and "latest_seq" in body, str(list(body)))
+    check("replay carries a snapshot so a client is never blank",
+          "status" in (body.get("snapshot") or {}), str(body.get("snapshot"))[:120])
+    check("snapshot separates worker claim from KAI verdict",
+          {"worker_claimed_success", "kai_verified_complete"} <= set(body["snapshot"]))
+
+    if seqs:
+        r2 = op.get(ev_url + f"?after={seqs[-1]}")
+        check("a cursor at the head returns no repeats", r2.json()["events"] == [],
+              str(r2.json()["events"])[:80])
+        mid_cursor = seqs[len(seqs) // 2]
+        r3 = op.get(ev_url + f"?after={mid_cursor}")
+        check("a mid cursor returns only newer events",
+              all(e["seq"] > mid_cursor for e in r3.json()["events"]),
+              str([e["seq"] for e in r3.json()["events"]][:6]))
+
+    r4 = op.get(ev_url + "?limit=1")
+    check("an explicit limit is honoured", len(r4.json()["events"]) <= 1)
+    check("truncation is reported when the window is exceeded",
+          r4.json()["truncated"] is True or len(seqs) <= 1, str(r4.json()["truncated"]))
+
+    blob = json.dumps(op.get(ev_url).json())
+    for secret in ("X-KAI-Signature", "pairing_code", "private"):
+        check(f"replay carries no {secret}", secret not in blob)
+
+    r5 = op.get("/admin/kai/computer-operations/missions/does-not-exist/events")
+    check("replay for an unknown mission is 404", r5.status_code == 404, str(r5.status_code))
 
     print("\n=== runtime truth ===")
     rt = op.get("/admin/kai/computer-operations/runtime").json()

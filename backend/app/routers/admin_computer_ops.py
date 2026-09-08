@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.routers.admin_chat import require_kai_ultra
@@ -254,6 +254,105 @@ def mission_evidence(mission_id: str):
 
 
 # ------------------------------------------------------------------ runtime
+
+@router.get("/missions/{mission_id}/events")
+def mission_events(mission_id: str, after: int = 0, limit: int = 200):
+    """Bounded replay for the polling fallback and for a client reconciling a cursor.
+
+    Authorization is the router-level owner gate: it applies here exactly as to every
+    other route, so a stream is not a way around it.
+    """
+    from app.services.holding.computer_ops_events import (MAX_REPLAY_EVENTS, events_for,
+                                                          latest_seq, status_event)
+    m = _missions().get(mission_id)
+    if m is None:
+        raise HTTPException(404, "unknown mission")
+    evs, truncated = events_for(m, after_seq=max(0, int(after)),
+                                limit=min(int(limit), MAX_REPLAY_EVENTS))
+    return {
+        "mission_id": mission_id,
+        "cursor": evs[-1].seq if evs else max(0, int(after)),
+        "latest_seq": latest_seq(m),
+        # Told, not hidden: a client that believes it has a complete stream when it does
+        # not is worse off than one that knows it must re-read the mission.
+        "truncated": truncated,
+        "snapshot": status_event(m).data,
+        "events": [{"seq": e.seq, "type": e.event_type, "server_time": e.server_time,
+                    "correlation_id": e.correlation_id, "data": e.data} for e in evs],
+    }
+
+
+@router.get("/missions/{mission_id}/stream")
+async def mission_stream(mission_id: str, request: Request, after: int = 0):
+    """Authenticated SSE.
+
+    Authorization is checked on the INITIAL connection by the router gate and the mission
+    is re-read on every cycle, because a long-lived stream outlives the request that
+    opened it: a mission cancelled or STOPPED mid-stream must end it rather than keep
+    feeding a client.
+
+    `Last-Event-ID` is honoured so a browser's automatic reconnect resumes from its own
+    cursor without the page tracking one.
+    """
+    import asyncio
+
+    from fastapi.responses import StreamingResponse
+
+    from app.services.holding.computer_ops_events import (MAX_REPLAY_EVENTS, events_for,
+                                                          status_event)
+
+    resume = request.headers.get("last-event-id")
+    try:
+        cursor = int(resume) if resume is not None else max(0, int(after))
+    except ValueError:
+        cursor = max(0, int(after))
+
+    store = _missions()
+    if store.get(mission_id) is None:
+        raise HTTPException(404, "unknown mission")
+
+    async def gen():
+        nonlocal cursor
+        sent_snapshot = False
+        idle = 0
+        while True:
+            if await request.is_disconnected():
+                return
+            m = store.get(mission_id)
+            if m is None:
+                yield "event: gone" + chr(10) + "data: {}" + chr(10) * 2
+                return
+            if not sent_snapshot:
+                yield status_event(m).to_sse()
+                sent_snapshot = True
+            evs, truncated = events_for(m, after_seq=cursor, limit=MAX_REPLAY_EVENTS)
+            if truncated:
+                yield ("event: truncated" + chr(10) +
+                       'data: {"reason":"replay window exceeded; re-read the mission"}' +
+                       chr(10) * 2)
+            for e in evs:
+                yield e.to_sse()
+                cursor = e.seq
+            if evs:
+                idle = 0
+            else:
+                idle += 1
+                # A comment frame keeps proxies from closing an idle connection without
+                # advancing the cursor or inventing an event.
+                yield ": keep-alive" + chr(10) * 2
+            if m.status in ("COMPLETED", "FAILED", "CANCELLED", "STOPPED"):
+                yield ("event: end" + chr(10) +
+                       'data: {"status":"' + m.status + '"}' + chr(10) * 2)
+                return
+            if idle > 240:      # ~20 minutes with no activity
+                yield ("event: end" + chr(10) +
+                       'data: {"status":"idle-timeout"}' + chr(10) * 2)
+                return
+            await asyncio.sleep(5)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-store", "X-Accel-Buffering": "no", "Connection": "keep-alive"})
+
 
 @router.post("/missions/sweep")
 def sweep_overdue():

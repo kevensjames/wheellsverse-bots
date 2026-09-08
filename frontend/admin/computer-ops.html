@@ -367,6 +367,93 @@ function renderApprovals(){
 }
 
 /* --------------------------------------------------------------------- load */
+
+/* ---------------------------------------------------------------------------
+   Live mission events.
+
+   SSE is preferred; polling is the FALLBACK, not an afterthought. A stream that
+   silently stops is worse than no stream, so a failed or unsupported EventSource
+   degrades to the bounded replay endpoint and says so in the UI rather than going
+   quiet. Either way the client only ever READS: an event cannot complete a mission
+   or manufacture an approval.
+
+   The cursor is per mission because sequence numbers are per mission -- they are
+   derived from that mission's append-only history.
+   --------------------------------------------------------------------------- */
+let STREAM = null, STREAM_MISSION = null, STREAM_CURSOR = 0, STREAM_MODE = 'idle';
+
+function streamStatusLine(){
+  const el = document.getElementById('stream-status');
+  if(!el) return;
+  const label = {live:'LIVE (SSE)', polling:'POLLING FALLBACK', idle:'not streaming',
+                 error:'STREAM ERROR — polling'}[STREAM_MODE] || STREAM_MODE;
+  const cls = {live:'ok', polling:'warn', error:'bad', idle:'off'}[STREAM_MODE] || 'off';
+  el.innerHTML = `<span class="badge ${cls}"><span aria-hidden="true">${ICON[cls]}</span>${esc(label)}</span>`
+    + (STREAM_CURSOR ? ` <span class="mono" style="color:var(--muted)">seq ${STREAM_CURSOR}</span>` : '');
+}
+
+function appendEvents(list, truncated){
+  const box = document.getElementById('event-log');
+  if(!box) return;
+  if(truncated){
+    const w = document.createElement('div');
+    w.className = 'err';
+    w.textContent = 'Replay window exceeded — events were missed. Re-open the mission for a complete view.';
+    box.appendChild(w);
+  }
+  list.forEach(e => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<span class="k mono">${esc(e.seq)} ${esc(e.server_time||'')}</span>`
+      + `<span class="v">${esc(e.type)} <span class="mono" style="color:var(--muted)">`
+      + `${esc(JSON.stringify(e.data||{}).slice(0,120))}</span></span>`;
+    box.appendChild(row);
+    if(typeof e.seq === 'number' && e.seq > STREAM_CURSOR) STREAM_CURSOR = e.seq;
+  });
+  while(box.children.length > 200) box.removeChild(box.firstChild);
+  streamStatusLine();
+}
+
+async function pollEvents(missionId){
+  const d = await api(`/missions/${encodeURIComponent(missionId)}/events?after=${STREAM_CURSOR}`);
+  if(failed(d)){ STREAM_MODE = 'error'; streamStatusLine(); return; }
+  appendEvents(d.events || [], d.truncated);
+}
+
+function startStream(missionId){
+  stopStream();
+  STREAM_MISSION = missionId; STREAM_CURSOR = 0;
+  const box = document.getElementById('event-log');
+  if(box) box.innerHTML = '';
+
+  if(typeof EventSource === 'undefined'){
+    STREAM_MODE = 'polling'; streamStatusLine();
+    STREAM = setInterval(() => pollEvents(missionId), 5000);
+    return pollEvents(missionId);
+  }
+  const es = new EventSource(BASE + `/missions/${encodeURIComponent(missionId)}/stream`,
+                             {withCredentials:true});
+  STREAM = es; STREAM_MODE = 'live'; streamStatusLine();
+  es.addEventListener('mission', ev => {
+    try{ appendEvents([JSON.parse(ev.data)], false); }catch(_){ /* malformed frame ignored */ }
+  });
+  es.addEventListener('truncated', () => appendEvents([], true));
+  es.addEventListener('end', () => { STREAM_MODE = 'idle'; streamStatusLine(); es.close(); });
+  es.onerror = () => {
+    // Fall back rather than retry silently: the browser would reconnect forever and the
+    // operator would have no way to tell a quiet mission from a broken stream.
+    es.close();
+    STREAM_MODE = 'error'; streamStatusLine();
+    STREAM = setInterval(() => pollEvents(missionId), 5000);
+  };
+}
+
+function stopStream(){
+  if(STREAM && typeof STREAM.close === 'function') STREAM.close();
+  else if(STREAM) clearInterval(STREAM);
+  STREAM = null; STREAM_MODE = 'idle'; streamStatusLine();
+}
+
 async function load(){
   const [rt, devs, ms] = await Promise.all([api('/runtime'), api('/devices'), api('/missions')]);
   RUNTIME = rt; DEVICES = failed(devs) ? [] : (devs.devices||[]);
@@ -462,11 +549,15 @@ document.addEventListener('click', async (e) => {
       ${row('Attestation digest', mono(String(m.attestation_digest||'—').slice(0,32)))}
       ${row('Workspace', mono((m.spec||{}).workspace||'—'))}
       ${row('Evidence entries', String((m.evidence||[]).length))}
+      <div class="hint">Live events <span id="stream-status"></span></div>
+      <div id="event-log" style="max-height:260px;overflow:auto;border:1px solid var(--border);
+           border-radius:8px;padding:6px 10px;margin-top:6px" role="log" aria-live="polite"></div>
       <div class="hint">Timeline</div>
       <div class="scroll"><table><tbody>${(m.history||[]).slice(-25).map(h =>
         `<tr><td>${mono(h.at||'')}</td><td>${esc(h.event||'')}</td><td>${esc(JSON.stringify(
           Object.fromEntries(Object.entries(h).filter(([k])=>!['at','event'].includes(k)))).slice(0,140))}</td></tr>`).join('')}</tbody></table></div>
     </div>`;
+    startStream(m.mission_id);
     return;
   }
   if(t.id === 'btn-preview'){

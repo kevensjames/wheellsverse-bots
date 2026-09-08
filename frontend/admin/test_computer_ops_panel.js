@@ -193,5 +193,50 @@ t('the panel never marks a mission complete client-side', () => {
   assert.ok(!/status\s*=\s*['"]COMPLETED/.test(js), 'panel sets COMPLETED locally');
 });
 
+
+// ------------------------------------------------------------- live events
+t('SSE is preferred but polling is a real fallback, not a stub', () => {
+  const js = slice('function startStream(', '\n}\n');
+  assert.ok(/EventSource/.test(js), 'no SSE path');
+  assert.ok(/typeof EventSource === 'undefined'/.test(js), 'no unsupported-browser fallback');
+  assert.ok(/setInterval\(\(\) => pollEvents/.test(js), 'no polling fallback');
+});
+
+t('a stream error falls back rather than retrying silently', () => {
+  const js = slice('function startStream(', '\n}\n');
+  assert.ok(/es\.onerror/.test(js), 'no error handler');
+  assert.ok(/es\.close\(\)/.test(js), 'does not close the failed stream');
+  assert.ok(/STREAM_MODE = 'error'/.test(js), 'does not surface the error state');
+});
+
+t('the stream mode is always visible to the operator', () => {
+  const js = slice('function streamStatusLine(', '\n}\n');
+  ['LIVE (SSE)', 'POLLING FALLBACK', 'STREAM ERROR'].forEach(l =>
+    assert.ok(js.includes(l), 'missing state label: ' + l));
+});
+
+t('a missed-events window is reported, never hidden', () => {
+  const js = slice('function appendEvents(', '\n}\n');
+  assert.ok(/Replay window exceeded/.test(js), 'truncation not surfaced');
+  assert.ok(/class = 'err'/.test(js) || /className = 'err'/.test(js), 'not surfaced as an error');
+});
+
+t('the cursor only ever advances', () => {
+  const js = slice('function appendEvents(', '\n}\n');
+  assert.ok(/e\.seq > STREAM_CURSOR/.test(js), 'cursor can move backwards');
+});
+
+t('event payloads are escaped before display', () => {
+  const js = slice('function appendEvents(', '\n}\n');
+  assert.ok(/esc\(e\.type\)/.test(js) && /esc\(JSON\.stringify/.test(js),
+            'event fields rendered unescaped');
+});
+
+t('the event log is a live region for assistive tech', () => {
+  assert.ok(/id="event-log"[^>]*aria-live="polite"/.test(HTML) ||
+            /aria-live="polite"[^>]*id="event-log"/.test(HTML) ||
+            /role="log"/.test(HTML), 'event log is not announced');
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
