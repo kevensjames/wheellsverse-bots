@@ -1,0 +1,18 @@
+# KAI Computer Operations — AUTONOMY MODE: OBSERVE
+#
+# Approved read-only inspection. The file sandbox stays at the fail-safe read-only
+# floor set by 00-containment, and the approval policy is hardened from 'ask' to
+# 'never': upstream semantics make every approval request resolve 'rejected'
+# deterministically, so an OBSERVE session cannot escalate even if the model asks and
+# even if a KAI answerer were reachable. Containment here is deterministic, not a
+# decision KAI has to get right on every prompt.
+- id: approval
+  config:
+    policy: never
+
+# Shell remains mounted for read-only inspection (it is enforced by the file sandbox),
+# but the persistent PowerShell surface is irrelevant on macOS and is removed.
+- id: tool-pwsh
+  disabled: true
+- id: pwsh-sandbox
+  disabled: true

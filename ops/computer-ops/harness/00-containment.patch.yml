@@ -1,0 +1,83 @@
+# KAI Computer Operations — BASE CONTAINMENT OVERLAY
+#
+# Applied to EVERY KAI-dispatched harness session, before any mode/model overlay.
+# Composition order: dsh-base -> dsh-acp-app -> profile cordis.patch.yml -> these --patch overlays.
+#
+# Rationale: the pinned harness ships a capable-by-default ACP profile (tool-bash,
+# tool-fs, tool-web, tool-subagent, tool-ralph, tool-workflow, subprocess-local,
+# web-search-deepseek, web-fetch-http). Upstream SAFETY.md states the harness is NOT a
+# security boundary, so KAI subtracts every capability it does not need and enforces the
+# rest outside the harness. Every id below was read from `dsh --profile acp
+# --dump-default-config` at pinned commit c389f96bf3a9b6807cb71ed6bdad5849be0df6d8;
+# ids are asserted at dispatch time so an upstream rename fails loudly instead of
+# silently leaving a capability mounted.
+
+# --- 1. No telemetry egress -------------------------------------------------
+# Default mounts an OTLP exporter to https://harness-telemetry.deepseeksvc.com/v1/logs.
+# FEEDBACK_ONLY only transmits on explicit feedback submission, but KAI missions may
+# touch operator desktop content, so this is pinned off rather than relied upon.
+- id: session-telemetry-otel
+  config:
+    mode: DISABLED
+
+# --- 2. No autonomous fan-out ----------------------------------------------
+# KAI owns mission decomposition, budgets and evidence. The harness must not spawn
+# its own agents, loops or workflows: that would create work KAI never authorised
+# and cannot account for.
+- id: tool-ralph            # autonomous multi-round loop driver (maxRounds 64)
+  disabled: true
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: subagent-spawn-in-process
+  disabled: true
+- id: subagent-fork-in-process
+  disabled: true
+- id: tool-workflow
+  disabled: true
+- id: workflow-worker-thread
+  disabled: true
+- id: tool-jobs             # background job control outside KAI's mission lifecycle
+  disabled: true
+
+# --- 3. No independent network egress --------------------------------------
+# All external data acquisition is a KAI capability with its own policy and audit.
+# A harness-side fetch/search would be an unlogged egress path and a prompt-injection
+# intake KAI never sees.
+- id: tool-web
+  disabled: true
+- id: web-fetch-http
+  disabled: true
+- id: web-search-deepseek
+  disabled: true
+
+# --- 4. No filesystem-sourced skill/plugin loading -------------------------
+# Treat on-disk skills as untrusted input, never as permission grants. KAI never
+# auto-installs or auto-enables third-party plugins.
+- id: skill-filesystem
+  disabled: true
+- id: tool-skill
+  disabled: true
+
+# --- 5. Fail-closed approval ------------------------------------------------
+# 'ask' delegates every approval to the composed answerer. Over ACP the answerer is
+# the KAI connector (session/request_permission), so KAI — not the harness, and not
+# the model — decides. Upstream semantics: 'ask' with no available answerer FAILS
+# CLOSED, so a connector crash cannot become an implicit allow.
+- id: approval
+  config:
+    policy: ask
+
+# --- 6. Fail-safe file sandbox ---------------------------------------------
+# read-only is upstream's fail-safe default and KAI's floor. Mode overlays raise it
+# to workspace-write ONLY for EXECUTE_SCOPED, and only within the mission workspace.
+# 'danger-full-access' is never used by any KAI mode.
+- id: sandbox-policy
+  config:
+    mode: read-only
+    workspaceRoot: !!js process.env.KAI_TASK_WORKSPACE

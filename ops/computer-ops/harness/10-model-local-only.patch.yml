@@ -1,0 +1,42 @@
+# KAI Computer Operations — MODEL MODE: LOCAL_ONLY
+#
+# Routes every model request to an operator-approved LOCAL endpoint. Cloud fallback is
+# made STRUCTURALLY IMPOSSIBLE rather than merely forbidden: the cloud adapter is
+# disabled in the same overlay that installs the local route, so there is no cloud
+# route left for a fallback to reach. A policy that is only a rule eventually leaks;
+# a policy that removes the capability cannot.
+#
+# Endpoint is injected by the KAI connector (KAI_LOCAL_LLM_BASE_URL / _MODEL) so the
+# overlay carries no host-specific assumption and no secret.
+
+# Disable the DeepSeek cloud adapter entirely.
+- id: llm-deepseek
+  disabled: true
+
+# Declare the local OpenAI-compatible gateway as a pi-ai route. Per
+# packages/llm/llm-pi-ai/README.md a route pi-ai does not ship is "declared outright,
+# so an OpenAI-compatible gateway or self-hosted server is configuration, not a code change".
+- id: llm-pi-ai
+  config:
+    providers:
+      kai-local:
+        displayName: KAI Local (operator-approved local endpoint)
+        api: openai-completions
+        baseURL: !!js process.env.KAI_LOCAL_LLM_BASE_URL
+        defaultContextWindow: 32768
+        defaultMaxTokens: 4096
+        models:
+          - id: !!js process.env.KAI_LOCAL_LLM_MODEL
+            name: !!js "process.env.KAI_LOCAL_LLM_MODEL + ' (local)'"
+            contextWindow: 32768
+
+# Point the agent and the ACP server at the local route only.
+- id: agent-default-model
+  config:
+    provider: kai-local
+    model: !!js process.env.KAI_LOCAL_LLM_MODEL
+
+- id: acp
+  config:
+    provider: kai-local
+    model: !!js process.env.KAI_LOCAL_LLM_MODEL
