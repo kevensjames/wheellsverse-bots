@@ -1,0 +1,215 @@
+{
+  "generated_at": "2026-09-08T15:18:15.389525+00:00",
+  "checks": [
+    {
+      "check": "migrations applied through 0008",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:17:33.373095+00:00"
+    },
+    {
+      "check": "live server healthy",
+      "pass": true,
+      "detail": "200 ok",
+      "at": "2026-09-08T15:17:34.970352+00:00"
+    },
+    {
+      "check": "computer_operations subsystem READY",
+      "pass": true,
+      "detail": "{\"requested\": true, \"state\": \"READY\"}",
+      "at": "2026-09-08T15:17:34.970376+00:00"
+    },
+    {
+      "check": "anonymous sensitive admin responses = 0",
+      "pass": true,
+      "detail": "[]",
+      "at": "2026-09-08T15:17:34.976891+00:00"
+    },
+    {
+      "check": "operator created an enrollment",
+      "pass": true,
+      "detail": "200",
+      "at": "2026-09-08T15:17:35.000637+00:00"
+    },
+    {
+      "check": "real connector completed enrollment",
+      "pass": true,
+      "detail": "t the key this machine generated.\n\nPrivate key stored in the login Keychain (service com.wheellsverse.kai.device); it is not written to disk in this repository.",
+      "at": "2026-09-08T15:17:35.092359+00:00"
+    },
+    {
+      "check": "connector printed a fingerprint to compare",
+      "pass": true,
+      "detail": "5DCC4D80-C40414C9-1516E5E9-57A16DF4",
+      "at": "2026-09-08T15:17:35.092428+00:00"
+    },
+    {
+      "check": "device is PENDING_CONFIRMATION",
+      "pass": true,
+      "detail": "PENDING_CONFIRMATION",
+      "at": "2026-09-08T15:17:35.096002+00:00"
+    },
+    {
+      "check": "enrollment granted NO scopes",
+      "pass": true,
+      "detail": "[]",
+      "at": "2026-09-08T15:17:35.096009+00:00"
+    },
+    {
+      "check": "panel fingerprint matches the device's own",
+      "pass": true,
+      "detail": "5DCC4D80-C40414C9-1516E5E9-57A16DF4 vs 5DCC4D80-C40414C9-1516E5E9-57A16DF4",
+      "at": "2026-09-08T15:17:35.096011+00:00"
+    },
+    {
+      "check": "wrong fingerprint refused",
+      "pass": true,
+      "detail": "400",
+      "at": "2026-09-08T15:17:35.098247+00:00"
+    },
+    {
+      "check": "operator confirmed the real fingerprint",
+      "pass": true,
+      "detail": "200",
+      "at": "2026-09-08T15:17:35.100829+00:00"
+    },
+    {
+      "check": "confirmation grants baseline only, no elevated scope",
+      "pass": true,
+      "detail": "['computer.evidence.write', 'computer.health.read', 'computer.mission.receive', 'computer.mission.status.write', 'computer.permission.request', 'computer.workspace.read']",
+      "at": "2026-09-08T15:17:35.100835+00:00"
+    },
+    {
+      "check": "narrow workspace.read granted",
+      "pass": true,
+      "detail": "200",
+      "at": "2026-09-08T15:17:35.103752+00:00"
+    },
+    {
+      "check": "EXECUTE_SCOPED refused without workspace.write",
+      "pass": true,
+      "detail": "403",
+      "at": "2026-09-08T15:17:35.106674+00:00"
+    },
+    {
+      "check": "OBSERVE mission created from the panel API",
+      "pass": true,
+      "detail": "200",
+      "at": "2026-09-08T15:17:35.121294+00:00"
+    },
+    {
+      "check": "connector ran the mission without error",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:08.083323+00:00"
+    },
+    {
+      "check": "connector passed the containment gate",
+      "pass": true,
+      "detail": "d96ff30f0] OBSERVE  objective='Reply with exactly the word: E2E_OBSERVE_OK'\n  gate passed: composition=d94f4548b1ea attestation=e1849a75de96\n  volume destroyed\n",
+      "at": "2026-09-08T15:18:08.083414+00:00"
+    },
+    {
+      "check": "connector destroyed the mission volume",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:08.083425+00:00"
+    },
+    {
+      "check": "mission progressed past QUEUED",
+      "pass": true,
+      "detail": "RUNNING",
+      "at": "2026-09-08T15:18:08.089166+00:00"
+    },
+    {
+      "check": "attestation digest recorded against the mission",
+      "pass": true,
+      "detail": "e1849a75de96c7863f8f",
+      "at": "2026-09-08T15:18:08.089173+00:00"
+    },
+    {
+      "check": "evidence returned to the panel",
+      "pass": true,
+      "detail": "1",
+      "at": "2026-09-08T15:18:08.089177+00:00"
+    },
+    {
+      "check": "worker did NOT mark the mission COMPLETED",
+      "pass": true,
+      "detail": "RUNNING",
+      "at": "2026-09-08T15:18:08.089179+00:00"
+    },
+    {
+      "check": "panel shows KAI has not verified completion",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:08.089180+00:00"
+    },
+    {
+      "check": "no mission volume left mounted after the run",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:08.099805+00:00"
+    },
+    {
+      "check": "no harness worker left running",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:08.114529+00:00"
+    },
+    {
+      "check": "first signed request accepted",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:08.174761+00:00"
+    },
+    {
+      "check": "replayed signed request refused",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:08.177995+00:00"
+    },
+    {
+      "check": "STOP engaged from the panel API",
+      "pass": true,
+      "detail": "200",
+      "at": "2026-09-08T15:18:08.186799+00:00"
+    },
+    {
+      "check": "device refused while STOPPED (423)",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:08.188559+00:00"
+    },
+    {
+      "check": "connector stands down under STOP",
+      "pass": true,
+      "detail": "g down\nSTOP engaged; standing down\nSTOP engaged; standing down\nSTOP engaged; standing down\nmax runtime reached; exiting\n",
+      "at": "2026-09-08T15:18:14.520936+00:00"
+    },
+    {
+      "check": "revoked device refused (403)",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:14.536612+00:00"
+    },
+    {
+      "check": "runtime reports REVOKED once every device is revoked",
+      "pass": true,
+      "detail": "REVOKED",
+      "at": "2026-09-08T15:18:14.584228+00:00"
+    },
+    {
+      "check": "local-only model routing reported",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:14.584241+00:00"
+    },
+    {
+      "check": "containment caveat present in API truth",
+      "pass": true,
+      "detail": "",
+      "at": "2026-09-08T15:18:14.584246+00:00"
+    }
+  ]
+}

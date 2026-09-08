@@ -211,6 +211,16 @@ class PgMissionStore:
     def stop_state(self) -> dict[str, Any]:
         try:
             with SessionLocal() as s:
+                # Ensure the table exists before reading. A MISSING table on a fresh
+                # install is not the same as an unreachable database: without this, a
+                # brand-new system reported STOPPED and would send an operator hunting a
+                # STOP nobody engaged. Fail-closed must mean "cannot tell", not "not yet
+                # initialised".
+                s.execute(text(
+                    "CREATE TABLE IF NOT EXISTS kai_computer_ops_stop ("
+                    " k TEXT PRIMARY KEY, engaged BOOLEAN NOT NULL, reason TEXT,"
+                    " changed_at TIMESTAMPTZ NOT NULL DEFAULT now())"))
+                s.commit()
                 row = s.execute(text(
                     "SELECT engaged,reason,changed_at FROM kai_computer_ops_stop WHERE k=:k"),
                     {"k": _STOP_KEY}).fetchone()
