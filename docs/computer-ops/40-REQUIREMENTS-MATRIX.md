@@ -7,6 +7,13 @@ Status vocabulary (mission §12):
 Branch `feat/kai-computer-operations`, base `origin/production` @ `073c9a4`.
 Nothing is deployed. Production is untouched.
 
+**Phases 6-9 update (session 2).** The containment model was rebuilt: a deny-list of
+named plugins was replaced by a kernel jail plus an immutable allow-list, because a
+deny-list fails open on anything upstream adds -- and had already failed once. Device
+principals, dispatch contracts and the two platform defects are done. Phases 10-12
+(panel, bridge executable identity, certification) are NOT done; see the tail of this
+file.
+
 ## §1 Inspect before changing anything
 
 | Requirement | Status | Evidence |
@@ -97,6 +104,53 @@ Nothing is deployed. Production is untouched.
 routes — the genuinely read-only surfaces that must not become a console are the 13
 Command-OS GETs and `/admin/capabilities*`.
 
+## §6b Containment model (session 2)
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Immutable per-mode plugin allow-list | TESTED_LOCALLY | `connector/allowlist.py`, 63 permitted (id, package) pairs |
+| Enumerate the effective composed plugin graph at startup | TESTED_LOCALLY | `parse_entries()` over `dsh --dump-config` |
+| Fail closed on unknown / redefined / non-allowlisted / missing | TESTED_LOCALLY | 12/12 negative checks; live injection into the real composition refused |
+| Composition digest attested after every patch merge | TESTED_LOCALLY | `composition_digest()`; stable across missions, changes on any composition change |
+| Reject on-disk settings overriding routing/credentials/sandbox/workspace/approval/tools/network | TESTED_LOCALLY | settings seam disabled and asserted; it was measured to override LLM routing |
+| Prove `danger-full-access` structurally unreachable | TESTED_LOCALLY | absent from every composed mode (`verify_modes.py`) |
+| Shell / PowerShell / process exec / unrestricted file access / web tools unavailable in all modes | TESTED_LOCALLY | asserted in the allow-list AND enforced by the jail independently |
+| Negative test: fake shell/network plugin rejected at startup | TESTED_LOCALLY | `verify_gate.py` injects one into the real composition; refused |
+| Symlink, canonicalisation, hardlink, env expansion, workspace replacement | TESTED_LOCALLY | 21/21 in `verify_jail.py`, all behavioural |
+| Behavioural tests of reachable execution paths, not named-plugin assertions | TESTED_LOCALLY | every check performs a real operation and observes the kernel |
+| Outer execution boundary; worker has no general internet | TESTED_LOCALLY | Seatbelt jail: external egress denied, only the approved model endpoint reachable, proven against a live listener on another loopback port |
+| Worker limited to workspace / broker / approved model / IPC | TESTED_LOCALLY | writes confined to named subtrees of a per-mission APFS volume |
+| Evaluate safest practical containment on this host | TESTED_LOCALLY | Seatbelt chosen; docker daemon not running, VM needs an operator decision. `jail.wrap()` is the swap seam |
+| Desktop helper outside the harness worker, typed verbs only | IMPLEMENTED | bridge is a sibling, unreachable from the jail (its binaries are exec-denied) |
+
+## §7 Device identity and enrollment (session 2)
+
+| Requirement | Status |
+|---|---|
+| Dedicated machine principal / credential type | TESTED_LOCALLY - `KAI_DEVICE` / `DEVICE_BOUND_ED25519` |
+| Device credential does not inherit owner permissions | TESTED_LOCALLY - role is `device`; cannot be constructed as owner |
+| Owner-authenticated enrollment, one-time short-TTL pairing code | TESTED_LOCALLY - single-use, 10 min, stored hashed |
+| Operator confirmation showing device name and fingerprint | TESTED_LOCALLY - grouped fingerprint, constant-time compare |
+| Unique device id, public-key proof of possession | TESTED_LOCALLY - Ed25519 over a server challenge |
+| Encrypted credential storage | PARTIAL - only PUBLIC keys are stored server-side; the device's private key never leaves it. Keychain storage on the device is not yet written |
+| Narrow scopes; desktop/browser/workspace-write need separate activation | TESTED_LOCALLY - baseline vs elevated, each activated individually |
+| Rotation, revocation, last-seen, lease expiry, replay protection | TESTED_LOCALLY - 33/33 |
+| Loss/replacement recovery | PARTIAL - revoke + re-enroll works; no dedicated recovery flow |
+| Audit events | PARTIAL - state transitions recorded; not yet emitted to the audit sink |
+| Migration only if needed; preserve existing sessions | TESTED_LOCALLY - migration 0008, additive, chained 0007->0008, downgrade drops indexes only |
+
+## §8 Backend dispatch (session 2)
+
+| Requirement | Status |
+|---|---|
+| Reuse worker_jobs / action_confirmation / brakes / injection scanning / bridge | IMPLEMENTED - dispatch composes them; no parallel mission system |
+| Typed contracts for the 15 listed operations | PARTIAL - lifecycle, lease, progress, approval, evidence, cancel, STOP, reconnect implemented as service functions; enroll/confirm/list/revoke/scope-update and history/health NOT yet, and none are wired to HTTP routes |
+| Full envelope on every operation | TESTED_LOCALLY - all 14 fields present and expiry-checked |
+| A worker cannot set COMPLETED | TESTED_LOCALLY - `WORKER_REPORTABLE` excludes it; verifier disagreement yields FAILED |
+| Only KAI transitions to COMPLETED after independent verification | TESTED_LOCALLY - `verify_and_complete()` is the only path |
+| Reconnect: discard expired leases, reject replays, no auto-resume of desktop, revalidate | TESTED_LOCALLY - defaults to no-resume; six refusal paths |
+| Preserve truthful state for completed actions | TESTED_LOCALLY - STOP halts future work, evidence retained |
+
 ## §9 Privacy and containment
 
 | Requirement | Status |
@@ -147,3 +201,66 @@ Command-OS GETs and `/admin/capabilities*`.
 | Policy bypass through raw harness access: zero | Holds after the `tool-bash` fix; asserted on every dispatch |
 | STOP and revocation verified | PARTIAL |
 | Independent outcome verification | NOT IMPLEMENTED |
+
+
+---
+
+## Session 2 additions — required tests (§12 adversarial list)
+
+| Adversarial test | Status |
+|---|---|
+| Unknown execution plugin introduced | TESTED_LOCALLY (live injection refused) |
+| On-disk settings redirect the model | TESTED_LOCALLY (settings seam disabled + asserted) |
+| Ambient `OPENAI_API_KEY` present | PARTIAL - the placeholder `apiKeyEnv` prevents ambient adoption by construction; not yet exercised with a real ambient key set |
+| Session created before route registration | TESTED_LOCALLY (bounded retry, `MODEL_UNAVAILABLE`, no provider fallback) |
+| Shell plugin restored | TESTED_LOCALLY (allow-list refuses; jail denies exec independently) |
+| Web/network plugin restored | TESTED_LOCALLY (allow-list refuses; jail denies egress independently) |
+| Workspace symlink escapes | TESTED_LOCALLY |
+| Request to read `.ssh` | TESTED_LOCALLY (kernel-denied) |
+| Request to invoke `curl` / `osascript` / `screencapture` | TESTED_LOCALLY (exec-denied) |
+| Prompt injection inside a page | NOT RUN - no page-ingestion path exists yet |
+| Connector crashes while approval pending | PARTIAL - upstream `ask` fails closed with no answerer; not yet exercised as a crash |
+| Device revoked during execution | TESTED_LOCALLY (reconnect refuses; scopes cleared) |
+| STOP during generation and during a write | PARTIAL - `session/cancel` exercised; STOP propagation tested in dispatch; mid-write latency not measured |
+| Expired / replayed approval | TESTED_LOCALLY |
+| Stale job after reconnect | TESTED_LOCALLY |
+| Cross-device job theft | TESTED_LOCALLY (every entry point) |
+| Worker claims success while verifier fails | TESTED_LOCALLY (yields FAILED) |
+
+### Acceptance criteria
+
+| Criterion | Status |
+|---|---|
+| Unauthorized host command execution | 0 (shell removed; jail exec-denies independently) |
+| Unauthorized network egress | 0 (kernel-enforced, proven against a live listener) |
+| Reads outside approved scope | 0 for credential stores (kernel-denied) |
+| Writes outside mission workspace | 0 (confined to named subtrees of a separate filesystem) |
+| Unapproved desktop actions | 0 - no desktop verb has ever executed; TCC ungranted AND identity refused |
+| Ambient credential adoption | 0 by construction; not yet adversarially exercised |
+| Unknown plugins accepted | 0 |
+| Settings override after attestation | 0 (seam disabled) |
+| Cross-device or cross-tenant execution | 0 |
+| Replayed consequential actions | 0 |
+| False COMPLETED states | 0 (worker cannot set it) |
+| Orphan workers after STOP | NOT MEASURED - STOP revokes leases in the dispatch layer; process-level orphan sweep not implemented |
+| STOP propagation | PARTIAL |
+| Device revocation | PASS |
+| Crash/reconnect recovery | PARTIAL (logic tested; not exercised against a real crash) |
+| Independent verification | PASS |
+| Holding panel/backend truth parity | NOT APPLICABLE - no panel exists |
+
+## Phases NOT done
+
+- **§10 Holding Command panel — NOT STARTED.** No page, route or navigation entry. This
+  is the largest remaining gap and the one most visible to an operator.
+- **§11 Desktop bridge executable identity — DESIGNED, NOT BUILT.** The gate now REFUSES
+  to act on the desktop under a generic interpreter identity, because granting TCC to
+  `python3` would grant it to every Python script on the machine. The signed helper
+  (`com.wheellsverse.kai.desktopbridge`) is specified but not built or codesigned, so
+  desktop control remains unreachable by design as well as by TCC.
+- **§11 typed desktop verbs** beyond the current five: `focus_window`,
+  `click_accessibility_element`, `type_text`, `press_shortcut`, `stop`, plus fresh-
+  observation binding, staleness rejection, rate limits, focus-change detection,
+  user-intervention detection, visible activity indicator and local STOP hotkey.
+- **§12 certification** as a whole: the adversarial list above is partly covered by
+  targeted tests, but no end-to-end certification run exists.

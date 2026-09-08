@@ -34,6 +34,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -142,6 +143,56 @@ class BridgeResult:
     @property
     def ok(self) -> bool:
         return self.decision is Decision.ALLOW
+
+
+# --- TCC executable identity ------------------------------------------------
+# macOS attributes a TCC grant to the EXECUTABLE, not to the script it is running. So
+# granting Screen Recording to /usr/bin/python3 would grant it to every Python script on
+# this machine, now and in future -- including anything an attacker later drops there.
+# The same argument rules out Terminal, node, and the harness process itself.
+#
+# The bridge must therefore ship as its own narrowly scoped executable identity (a
+# signed .app bundle with its own bundle id) and REFUSE to operate when it finds itself
+# running under a generic interpreter. Refusing is the point: an over-broad grant that
+# works is worse than a narrow one that is missing, because it silently widens the
+# machine's attack surface while looking like success.
+
+#: Interpreters and shells that must never be the trusted desktop controller.
+GENERIC_INTERPRETERS = (
+    "python", "python3", "node", "bash", "zsh", "sh", "ruby", "perl", "osascript",
+    "Terminal", "iTerm2", "claude", "code",
+)
+
+#: Bundle identifier the signed helper must present.
+BRIDGE_BUNDLE_ID = "com.wheellsverse.kai.desktopbridge"
+
+
+def executable_identity() -> dict:
+    """What macOS would attribute a TCC grant to, and whether that is acceptable."""
+    exe = sys.executable or ""
+    name = os.path.basename(exe)
+    bundle = os.environ.get("KAI_BRIDGE_BUNDLE_ID", "")
+    generic = any(name == g or name.startswith(g + ".") for g in GENERIC_INTERPRETERS)
+    return {
+        "executable": exe,
+        "basename": name,
+        "bundle_id": bundle or None,
+        "is_generic_interpreter": generic,
+        "acceptable": (not generic) and bundle == BRIDGE_BUNDLE_ID,
+        "required_bundle_id": BRIDGE_BUNDLE_ID,
+    }
+
+
+def assert_tcc_identity() -> None:
+    """Refuse to act on the desktop from a generic interpreter identity."""
+    ident = executable_identity()
+    if not ident["acceptable"]:
+        raise PermissionError(
+            "desktop bridge is running as "
+            f"{ident['basename']!r} (bundle {ident['bundle_id']!r}), which is not a valid "
+            f"TCC identity. Granting Screen Recording or Accessibility to a generic "
+            f"interpreter would grant it to every script that interpreter runs. Ship the "
+            f"signed helper with bundle id {BRIDGE_BUNDLE_ID} and grant TCC to that.")
 
 
 # --- host probing (truthful, never a flag) ----------------------------------
@@ -280,7 +331,16 @@ def evaluate(verb_name: str, policy: BridgePolicy, *, target_app: str | None = N
         return BridgeResult(Decision.DENY,
                             reason="screen capture is not opted in for this mission")
 
-    # 8. Capability probe LAST, so a policy-denied request never touches the OS and
+    # 8. Executable identity, before any OS probe. A verb that needs a TCC grant must
+    #    not run under an identity we would refuse to have granted.
+    if verb.tcc is not None:
+        try:
+            assert_tcc_identity()
+        except PermissionError as exc:
+            return BridgeResult(Decision.DENY, availability=Availability.PERMISSION_NOT_GRANTED,
+                                reason=str(exc))
+
+    # 9. Capability probe LAST, so a policy-denied request never touches the OS and
     #    never triggers a permission dialog the operator did not ask for.
     if not has_interactive_desktop():
         return BridgeResult(Decision.DENY, availability=Availability.DESKTOP_UNAVAILABLE,
@@ -292,7 +352,7 @@ def evaluate(verb_name: str, policy: BridgePolicy, *, target_app: str | None = N
             reason=f"macOS has not granted {verb.tcc} to this bridge; "
                    f"the operator must grant it in System Settings")
 
-    # 9. Mutating verbs are consequential and require a fresh, bound operator approval.
+    # 10. Mutating verbs are consequential and require a fresh, bound operator approval.
     #    The bridge never grants that itself -- it reports the requirement upward so the
     #    approval is minted and burned by KAI, bound to device/action/target/expiry.
     if verb.mutating:

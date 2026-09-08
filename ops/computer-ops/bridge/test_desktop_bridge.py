@@ -20,18 +20,25 @@ from desktop_bridge import BridgePolicy, Decision, Availability, evaluate  # noq
 
 #: Real probes, captured once so each test can restore them. Reloading the module
 #: instead would rebind the Decision/Availability enums and break `is` comparisons.
-_REAL_PROBES = (db.has_interactive_desktop, db.probe_screen_recording, db.probe_accessibility)
+_REAL_PROBES = (db.has_interactive_desktop, db.probe_screen_recording,
+                db.probe_accessibility, db.assert_tcc_identity)
 
 
 def _restore_probes():
     (db.has_interactive_desktop, db.probe_screen_recording,
-     db.probe_accessibility) = _REAL_PROBES
+     db.probe_accessibility, db.assert_tcc_identity) = _REAL_PROBES
 
 
 def _grant_everything():
+    """Stub the host probes AND the TCC identity check.
+
+    Identity is stubbed here so the policy tests can reach the gate steps that follow it;
+    the identity rule itself is tested separately, unstubbed, below.
+    """
     db.has_interactive_desktop = lambda: True
     db.probe_screen_recording = lambda: True
     db.probe_accessibility = lambda: True
+    db.assert_tcc_identity = lambda: None
 
 
 def _policy(**kw):
@@ -99,6 +106,7 @@ def test_screen_capture_requires_opt_in():
 
 def test_no_desktop_reports_truthfully():
     """A headless host must say DESKTOP_UNAVAILABLE, not pretend or crash later."""
+    db.assert_tcc_identity = lambda: None
     db.has_interactive_desktop = lambda: False
     r = evaluate("list_windows", _policy(), target_app="Safari")
     assert r.decision is Decision.DENY
@@ -106,6 +114,7 @@ def test_no_desktop_reports_truthfully():
 
 
 def test_missing_tcc_reports_permission_not_granted():
+    db.assert_tcc_identity = lambda: None   # identity is tested separately; reach the grant path
     db.has_interactive_desktop = lambda: True
     db.probe_accessibility = lambda: False
     r = evaluate("list_windows", _policy(), target_app="Safari")
@@ -133,6 +142,37 @@ def test_policy_denial_precedes_os_probe():
         AssertionError("probed the OS for an already-denied request"))
     r = evaluate("capture_screen", _policy(mode="OBSERVE"), target_app="Safari")
     assert r.decision is Decision.DENY
+
+
+def test_generic_interpreter_is_not_a_valid_tcc_identity():
+    """Granting TCC to python3/node/Terminal would grant it to everything they run."""
+    ident = db.executable_identity()
+    check_generic = ident["is_generic_interpreter"] or ident["bundle_id"] is None
+    assert check_generic, ident
+    assert not ident["acceptable"], ident
+    try:
+        db.assert_tcc_identity()
+        raise AssertionError("a generic interpreter identity was accepted")
+    except PermissionError as exc:
+        assert "not a valid TCC identity" in str(exc)
+
+
+def test_tcc_verbs_denied_under_interpreter_identity():
+    """A verb needing a TCC grant must refuse before probing the OS."""
+    _grant_everything()
+    db.assert_tcc_identity = _REAL_PROBES[3]   # unstub: this test IS the identity rule
+    for verb in ("list_windows", "capture_window"):
+        r = evaluate(verb, _policy(), target_app="Safari")
+        assert r.decision is Decision.DENY, verb
+        assert r.availability is Availability.PERMISSION_NOT_GRANTED, verb
+        assert "TCC identity" in r.reason, r.reason
+
+
+def test_non_tcc_verb_unaffected_by_identity():
+    """launch_app needs no TCC grant, so identity must not block it spuriously."""
+    _grant_everything()
+    r = evaluate("launch_app", _policy(), target_app="Safari")
+    assert r.decision is Decision.REQUIRE_APPROVAL, r.reason
 
 
 if __name__ == "__main__":
