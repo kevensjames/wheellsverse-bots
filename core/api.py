@@ -2509,12 +2509,24 @@ async def _serve_old_dashboard(filename: str = "index.html"):
     if not html_path.exists():
         return HTMLResponse(f"<h1>Dashboard not found. Expected: dashboard/{filename}</h1>", status_code=500)
     html = html_path.read_text(encoding="utf-8")
-    # Inject API key for authenticated dashboard access
-    if _API_KEY:
-        html = html.replace(
-            "const API_KEY = '';",
-            f"const API_KEY = '{_API_KEY}';",
-        )
+    # INCIDENT 2026-09-08 — this function used to substitute the live owner API key into the page:
+    #
+    #     if _API_KEY:
+    #         html = html.replace("const API_KEY = '';", f"const API_KEY = '{_API_KEY}';")
+    #
+    # It served that key to ANONYMOUS callers on production and staging via /admin/ceo,
+    # /admin/legacy, and /admin whenever WHEELLSVERSE_COMMAND_CENTER is off. The key is not a read
+    # credential: verify_api_key accepts it across the owner /api/* surface including writes, and
+    # core/api.py's session config passes it as `owner_key`, so POST /admin/session/login with it
+    # MINTS AN OWNER SESSION (ROLE_OWNER, ALL_SCOPES — including kai.ultra into App B).
+    #
+    # It is not restored under authentication either. An authenticated owner does not need the
+    # SERVER'S credential in browser JavaScript, where it reaches sessionStorage, localStorage,
+    # extensions, screenshots and any XSS. The page authenticates with the session cookie instead:
+    # verify_api_key already accepts a valid owner session (_session_owner_ok), and
+    # OPERATOR_SESSION_ENABLED is true in production and staging.
+    #
+    # The template ships `const API_KEY = '';` and it stays empty. Nothing is substituted here.
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "Pragma": "no-cache",

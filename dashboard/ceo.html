@@ -246,24 +246,26 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 "use strict";
-const API_KEY = '';                         // injected server-side when API_KEY env is set
+const API_KEY = '';                         // stays empty — the server never substitutes a key here
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/* ---------- auth ---------- */
-function resolveKey(){
-  const u = new URL(location.href);
-  const fromUrl = u.searchParams.get('key');
-  if(fromUrl){ sessionStorage.setItem('ceo_key', fromUrl.trim()); u.searchParams.delete('key'); history.replaceState({},'',u); }
-  let k = (API_KEY||'').trim() || sessionStorage.getItem('ceo_key') || '';
-  if(!k){ k = (prompt('KAI Command Center — API key (X-API-Key):')||'').trim(); if(k) sessionStorage.setItem('ceo_key', k); }
-  return k;
-}
-let KEY = resolveKey();
+/* ---------- auth ----------
+   INCIDENT 2026-09-08. This page used to obtain the owner API key three ways, all of which put a
+   server credential into the browser: substituted into the HTML by the server, read from a `?key=`
+   URL parameter (which lands in edge logs, Referer headers and history), or typed into a prompt()
+   and stored in sessionStorage.
+
+   It now authenticates with the SESSION COOKIE. verify_api_key accepts a valid owner session
+   (_session_owner_ok), so a same-origin fetch is authenticated with no key in the page at all.
+   Signed out, requests return 401 and the page says so — instead of asking for a credential it
+   should never hold. Sign in at /admin/session/login. */
+let KEY = '';
 
 /* ---------- api ---------- */
 async function api(path, opts){
   opts = opts || {};
-  const headers = Object.assign({'X-API-Key': KEY}, opts.headers||{});
+  // No X-API-Key header. Same-origin fetch sends the session cookie; that is the credential.
+  const headers = Object.assign({}, opts.headers||{});
   if(opts.json){ headers['Content-Type']='application/json'; opts.body = JSON.stringify(opts.json); }
   const r = await fetch(path, {method: opts.method||'GET', headers, body: opts.body});
   const ct = r.headers.get('content-type')||'';
@@ -544,7 +546,14 @@ function boot(){
   // link watchdog
   setInterval(()=>{ if(Date.now()-lastOk>16000) setLink('bad'); }, 4000);
 }
-if(!KEY){ $('boot-t').textContent='KAI · NO KEY — reload with ?key=… or enter when prompted'; }
+// Signed-in state comes from the session cookie, so the page cannot know it up front — it learns
+// from the first 401. The old banner told the operator to reload with `?key=…`, which is the URL
+// credential this incident removed; it must not survive as an instruction.
+fetch('/admin/session/whoami', {headers:{Accept:'application/json'}})
+  .then(r=>r.json())
+  .then(w=>{ if(!w || !w.authenticated || w.role !== 'owner'){
+    $('boot-t').textContent='KAI · SIGN IN REQUIRED — owner session needed (/admin/session/login)'; } })
+  .catch(()=>{ $('boot-t').textContent='KAI · SESSION STATE UNAVAILABLE'; });
 boot();
 </script>
 </body>
