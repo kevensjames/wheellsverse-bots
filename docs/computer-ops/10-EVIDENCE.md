@@ -423,3 +423,22 @@ the STABLE window id first (survives empty titles), falls back to name, retries 
 also re-warms), and dumps the ids/titles the bridge sees on failure. Validated against the real
 re-signed binary through a 14s keepalive idle: observe+capture, make_front (focus_window exempt +
 helper-confirmed frontmost), and STOP all pass. 3/3. Only the physically-gated type/click remain.
+
+### Session 6 (cont.) — window-server throttle DEFEATED (beginActivity + keepalive)
+
+The capture block recurred intermittently (run 5 captured fine, run 6 saw ids=[]): a backgrounded
+helper's window-server enumeration is throttled, and a 2s keepalive did not deterministically
+prevent it under a real interactive Terminal. Measured before/after (no keepalive, helper
+backgrounded): OLD binary empty at t+10s; with `ProcessInfo.beginActivity([.userInitiated,
+.idleSystemSleepDisabled])` held for the process lifetime, still full at t+15s (threshold pushed
+out) but empty by t+25s -- so beginActivity alone is necessary-not-sufficient. The deterministic
+fix is beginActivity (in-binary) PLUS a 1s keepalive (resets the idle timer well under the
+extended threshold). Stress test under Terminal.app, helper backgrounded, 25s idle: observe+capture
+and make_front both succeed. Cert also: observe retries longer (25x0.5s) and dumps the bridge's
+ids/titles on failure. Suites re-run on the changed binary: adversarial 52/52, mutation 22/22
+killed (byte-identical restore), gate SIGNED_HELPER_VERIFIED. source sha 61bf3628.
+
+Note: to iterate this fix without repeated operator re-sign+CLEAR cycles, the helper was re-signed
+LOCALLY with the same Apple Development identity -- codesign runs non-interactively here (the key
+is pre-authorized; no keychain prompt), so no macOS signing interaction was required. dist/ is
+signed and verified; the operator runs only the final certification.

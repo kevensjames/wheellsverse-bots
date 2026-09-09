@@ -811,6 +811,15 @@ func handle(_ req: Request) -> Response {
 
 // MARK: - Startup + loop
 
+// Assert user-initiated activity for the process lifetime so macOS does not App-Nap / throttle a
+// backgrounded helper -- otherwise its window-server queries (CGWindowListCopyWindowInfo) return
+// empty after the process has been idle-and-background for a few seconds.
+#if canImport(AppKit)
+let kaiActivity = ProcessInfo.processInfo.beginActivity(
+    options: [.userInitiated, .idleSystemSleepDisabled], reason: "KAI desktop bridge session active")
+_ = kaiActivity
+#endif
+
 try? FileManager.default.createDirectory(atPath: STATE_DIR, withIntermediateDirectories: true)
 if FileManager.default.fileExists(atPath: STOP_SENTINEL) || FileManager.default.fileExists(atPath: VERB_STOP) { stopped = true }
 

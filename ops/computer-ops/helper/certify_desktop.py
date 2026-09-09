@@ -52,8 +52,10 @@ class Bridge:
         # same way, or the helper must hold a ProcessInfo activity while a session is active.)
         threading.Thread(target=self._keepalive, daemon=True).start()
     def _keepalive(self):
+        # 1s << the throttle threshold (which beginActivity in the helper pushes past ~15s), so the
+        # helper's window-server access never lapses during the human CLEAR pause.
         while self._alive:
-            time.sleep(2)
+            time.sleep(1)
             try: self.call({"id": "keepalive", "verb": "desktop.list_windows", "allowedApps": ["TextEdit"]})
             except Exception: break
     def call(self, obj):
@@ -147,7 +149,7 @@ def observe(capture=False):
     # throttled), then fall back to the doc name; retry (list_windows also re-warms the helper),
     # and on failure dump exactly what the bridge sees so a block is diagnosable, not a guess.
     last = ""
-    for _ in range(15):
+    for _ in range(25):
         wins = [w for w in (bridge.call(req("desktop.list_windows")).get("windows") or [])
                 if w.get("bundleId") == "com.apple.TextEdit"]
         w = next((x for x in wins if x.get("windowId") == WID), None) \
@@ -164,7 +166,7 @@ def observe(capture=False):
         else:
             last = (f"no window matched id={WID} / name={docname!r}; bridge sees "
                     f"ids={[x.get('windowId') for x in wins]} titles={[x.get('title') for x in wins]}")
-        time.sleep(0.4)
+        time.sleep(0.5)
     die(f"could not observe the target after retries -> {last}")
 
 def make_front():
