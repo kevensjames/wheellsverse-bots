@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -124,6 +125,54 @@ logger = logging.getLogger("api")
 # ─── API Key Auth ─────────────────────────────────────────────────────────────
 
 _API_KEY = os.getenv("API_KEY", "").strip()
+_APP_ENV = os.getenv("APP_ENV", "").strip()
+
+# Environments where running without an API key is a legitimate developer convenience. Everything
+# else — including an unset or unrecognised APP_ENV — is treated as hosted and fails closed.
+_DEV_ENVS = frozenset({"development", "local", "dev", "test"})
+
+AUTH_OK = "OK"                      # a key is configured; normal policy applies
+AUTH_DEV_OPEN = "DEV_OPEN"          # no key, but the environment DECLARES itself local
+AUTH_MISCONFIGURED = "MISCONFIGURED"  # no key in a hosted (or unknown) environment — refuse everything
+
+
+def auth_config_state() -> tuple[str, str]:
+    """Is this process's authentication configuration usable? The ONE place that is decided.
+
+    WHY THIS EXISTS. Both gates used to begin `if not _API_KEY: return`, so an unset API_KEY opened
+    the entire owner /api/* surface and every protected /admin JSON route — silently, with no log and
+    nothing an operator could observe. `_API_KEY` is read once at import, so it is a whole-process
+    property fixed at boot: a redeploy or a rotation that leaves the variable briefly unset un-gates
+    the admin surface for the life of the process. App A is deployed by CLI upload with hand-managed
+    variables, which is exactly where a variable goes missing.
+
+    "No credential is configured" is not a reason to trust everyone. It is a reason to trust no one.
+
+    Local development stays workable, but only when the environment SAYS it is local. It is never
+    inferred from the missing secret itself — a missing secret is the failure being defended against,
+    so it cannot also be the evidence that defending is unnecessary. An unset or unrecognised APP_ENV
+    is therefore hosted: guessing "probably local" is how a production box ends up open.
+    """
+    if _API_KEY:
+        return AUTH_OK, "API_KEY is configured"
+    env = (_APP_ENV or "").strip().lower()
+    if env in _DEV_ENVS:
+        return AUTH_DEV_OPEN, f"no API_KEY, and APP_ENV={env!r} declares a local environment"
+    return AUTH_MISCONFIGURED, (
+        f"no API_KEY configured and APP_ENV={_APP_ENV or '(unset)'!r} is not a declared local "
+        "environment — refusing all protected requests")
+
+
+def _auth_config_allows_open_access() -> bool:
+    """True only for a declared local environment with no key. Fails CLOSED on ANY error.
+
+    A guard that opens when its own check raises is not a guard, so this never propagates an
+    exception and never defaults to permissive."""
+    try:
+        state, _ = auth_config_state()
+    except Exception:                                  # noqa: BLE001
+        return False
+    return state == AUTH_DEV_OPEN
 
 # ── Unified operator session (merge Phase P2). Default OFF. Defined here so both
 #    verify_api_key and api_key_middleware below can reference it. When the flag
@@ -232,13 +281,19 @@ async def verify_api_key(request: Request):
     Set API_KEY in .env to enable. If not set, all requests pass through.
     Dashboard always passes (it's served from the same origin with the key embedded).
     """
+    # INCIDENT FOLLOW-UP: this used to be `if not _API_KEY: return`, which opened the whole owner
+    # /api/* surface whenever the variable was missing. Absence of a credential now opens nothing
+    # outside a DECLARED local environment; see auth_config_state().
     if not _API_KEY:
-        return  # Auth disabled
+        if _auth_config_allows_open_access():
+            return                       # declared local development only
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
     path = request.url.path
     # NEXORA platform uses its own Bearer token auth — never block these with API key
-    if path in _PUBLIC_PATHS or not path.startswith("/api/") or path.startswith("/api/nx/"):
-        return  # Public route
+    if (path in _PUBLIC_PATHS or not path.startswith("/api/")
+            or _public_rule_for(path, request.method) is not None):
+        return  # Public route — decided by the ONE rule table, never by a character prefix
 
     key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
     if not key or not hmac.compare_digest(key, _API_KEY):
@@ -263,8 +318,12 @@ def require_admin_json(request: Request) -> None:
 
     Deliberately NOT applied to /openapi.json — assessed separately; it carries route shapes, not data.
     """
+    # Same correction as verify_api_key: a missing API_KEY is a misconfiguration, not permission.
+    # Both gates consult the one decision so they cannot drift apart.
     if not _API_KEY:
-        return                      # auth disabled entirely (local dev) — same contract as verify_api_key
+        if _auth_config_allows_open_access():
+            return                       # declared local development only
+        raise HTTPException(status_code=401, detail="owner authentication required")
     key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
     if key and hmac.compare_digest(key, _API_KEY):
         return
@@ -1341,9 +1400,118 @@ def _admin_command_metrics(_auth: None = Depends(require_admin_json)):
     }, headers={"Cache-Control": "no-store"})
 
 
+# ── PUBLIC ROUTE RULES ────────────────────────────────────────────────────────────────────────────
+# INCIDENT FOLLOW-UP. This was a tuple of string prefixes tested with `path.startswith(...)`, and a
+# prefix is not a path. The entry "/api/narai/run" therefore exempted every route whose path merely
+# BEGINS with those characters — including POST /api/narai/run_bot, which nobody exempted on purpose
+# and which runs a bot. Measured with the gate live, anonymously: run_bot returned 200 and the
+# handler RAN (138 bots loaded, trigger attempted); /api/narai/revenue ran the revenue loop.
+#
+# A public exception is now an explicit rule with four fields that must each be decided deliberately:
+#   path         exact, normalised, no trailing slash
+#   methods      the HTTP methods this exception covers — never "all" by omission
+#   descendants  whether children are included, and children means a "/" boundary, never a substring
+#   purpose      why this is safe to expose, in words, so the next reader can re-judge it
+#
+# A rule for /api/narai/run cannot match /api/narai/run_bot. That is the whole point.
+@dataclass(frozen=True)
+class PublicRule:
+    path: str
+    methods: frozenset
+    descendants: bool
+    purpose: str
+
+
+def _norm_path(path: str) -> str:
+    """Normalise before matching, so a rewritten path cannot dodge or forge a rule.
+
+    Collapses duplicate slashes, resolves . and .. segments, and drops a trailing slash. Percent
+    escapes are NOT decoded: %2F is not a separator, and treating it as one is how a matcher is
+    tricked into seeing a shorter path than the router will."""
+    if not path:
+        return "/"
+    out = []
+    for seg in path.split("/"):
+        if seg in ("", "."):
+            continue
+        if seg == "..":
+            if out:
+                out.pop()
+            continue
+        out.append(seg)
+    return "/" + "/".join(out)
+
+
+PUBLIC_API_RULES = (
+    PublicRule("/api/nx", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
+               "Nexora platform: carries its own Bearer token auth, enforced inside the routers."),
+    PublicRule("/api/qc", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Quality-control callbacks with their own token check."),
+    PublicRule("/api/factory", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Factory pipeline callbacks with their own token check."),
+    PublicRule("/api/narai-autopilot", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "NarAI autopilot surface with its own auth."),
+    PublicRule("/api/shopify-autopilot", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Shopify autopilot surface with its own auth."),
+    PublicRule("/api/shopify", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
+               "Multi-tenant Shopify app: per-shop Bearer auth enforced in the routers."),
+    PublicRule("/api/sa", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Shopify-app callbacks with their own signature verification."),
+    PublicRule("/api/v2/narai", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
+               "NarAI v2 uses its own JWT auth on every route."),
+    PublicRule("/api/narai/shopify", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Multi-tenant Shopify under NarAI: own Bearer auth."),
+    PublicRule("/api/google", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Google OAuth flow: protected by state-based CSRF, must be reachable pre-session."),
+    PublicRule("/api/store/download", frozenset({"GET"}), True,
+               "Customer download links carry their own signed, expiring token."),
+
+    # GET-only, EXACT path, no descendants. App B's holding entity_status probes this with a plain
+    # urlopen and no credentials (backend/app/services/holding/entity_status.py), so it is a real
+    # unauthenticated health consumer and cannot simply be gated. It is instead REDUCED to a bounded
+    # status contract — see narai_core_status(). Internal mood/mind/skills/bot-inventory and the
+    # integration-presence map are no longer served here, secret-free or not.
+    PublicRule("/api/narai/status", frozenset({"GET"}), False,
+               "Bounded liveness/status for the cross-app health probe; no internal state."),
+)
+
+# WITHDRAWN public exemptions, kept as the record rather than deleted:
+#   /api/narai/run        POST — runs a full autonomous cycle. Never a customer endpoint.
+#   /api/narai/revenue    POST — runs the revenue loop.
+#   /api/store/redeliver  GET  — re-sends a paid order's files. An unauthenticated email-send action.
+#   (/api/narai/run_bot was never intentionally public at all; the missing slash swept it in.)
+
+
+def _public_rule_for(path: str, method: str):
+    """The ONE matcher. Returns the PublicRule permitting this request, or None."""
+    p = _norm_path(path)
+    # Methods are compared EXACTLY, not upper-cased. HTTP verbs are uppercase by spec, and being
+    # stricter than the router can only ever over-gate — a malformed `get` is refused rather than
+    # silently promoted into a public rule. Leniency here would be a permission decision made by a
+    # client's capitalisation.
+    m = method or ""
+    for rule in PUBLIC_API_RULES:
+        if m not in rule.methods:
+            continue
+        if p == rule.path:
+            return rule
+        if rule.descendants and p.startswith(rule.path + "/"):
+            return rule
+    return None
+
+
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
-    """Apply optional API key guard to all /api/ routes except public ones."""
+    """Apply the API key guard to all /api/ routes except public ones.
+
+    No longer "optional": when no key is configured this refuses protected /api routes unless the
+    environment declares itself local. auth_config_state() is the single decision."""
+    if not _API_KEY and not _auth_config_allows_open_access():
+        path = request.url.path
+        if (path.startswith("/api/") and path not in _PUBLIC_PATHS
+                and _public_rule_for(path, request.method) is None):
+            return JSONResponse({"error": "Unauthorized", "hint": "Set X-API-Key header"},
+                                status_code=401)
     if _API_KEY:
         path = request.url.path
         # INCIDENT 2026-09-08 — "/api/narai/schedules" was an entry here, WITHOUT a trailing slash.
@@ -1352,17 +1520,8 @@ async def api_key_middleware(request: Request, call_next):
         # POST /{id}/trigger (run a job now) were all anonymous on production. Every other entry
         # ends in "/" precisely so it cannot do this; a test now asserts that for all of them.
         # Removed. The scheduler falls under this middleware's owner check like any other /api route.
-        _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
-                             "/api/shopify-autopilot/", "/api/shopify/agents/",
-                             "/api/shopify/media/", "/api/shopify/intelligence/",
-                             "/api/shopify/", "/api/sa/",
-                             "/api/narai/run", "/api/narai/revenue", "/api/narai/status",
-                             "/api/v2/narai/",       # v2 uses its own JWT auth
-                 "/api/narai/shopify/",  # multi-tenant Shopify — own Bearer auth
-                             "/api/google/",   # OAuth flow: protected by state-based CSRF
-                             "/api/store/download/",  # uses its own signed-token auth
-                             "/api/store/redeliver")  # customer self-serve re-send (rate-limited internally via order lookup)
-        if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
+        if (path.startswith("/api/") and _public_rule_for(path, request.method) is None
+                and path not in _PUBLIC_PATHS):
             key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
             if not key or not hmac.compare_digest(key, _API_KEY):
                 # Flag-gated fallback: accept a valid unified session cookie in
@@ -4003,8 +4162,19 @@ async def health():
             build_time = bt_file.read_text().strip()
         except Exception:
             pass
+    # Readiness must SURFACE an unusable authentication configuration. Failing closed protects the
+    # data but is invisible from outside — an operator would see 401s and reasonably suspect their
+    # own credential. This names the real cause. Bounded enum, never a value, never protected
+    # content: with the gates closed, knowing the config is broken grants an attacker nothing.
+    # Deliberately NOT a boot abort — turning a missing variable into a total outage would be a
+    # worse failure than the one being fixed.
+    try:
+        _auth_state, _ = auth_config_state()
+    except Exception:                                  # noqa: BLE001
+        _auth_state = AUTH_MISCONFIGURED
     return {
         "status":   "ok" if memory_ok else "degraded",
+        "auth_config": _auth_state,
         "uptime":   uptime,
         "uptime_human": f"{uptime // 3600}h {(uptime % 3600) // 60}m",
         "browser":  browser_ok,
@@ -9738,8 +9908,34 @@ class NarAILearnHumanRequest(BaseModel):
     answer: str
 
 
+# The bounded public status contract. Everything else about NarAI is owner-gated.
+#
+# This route stays public for ONE named consumer: App B's holding entity_status probes it with a
+# plain urllib.request.urlopen and no credentials (backend/app/services/holding/entity_status.py),
+# reading the keys below. Gating it would break a cross-app health probe, so it is REDUCED instead.
+#
+# The full get_status() payload was 2,003 B and carried the operator's internal state — mood, mind,
+# a skills list, a bot-health report and `env`, a map of which integrations are configured. None of
+# that is secret and none of it belongs on an unauthenticated endpoint: an integration-presence map
+# is reconnaissance, and "contains no secret" is not the same as "is safe to publish". The owner
+# view keeps everything, at the gated /api/narai/status/full.
+_PUBLIC_STATUS_KEYS = ("name", "category", "status", "online", "posts", "videos", "images",
+                       "last_run", "run_count")
+
+
 @app.get("/api/narai/status")
 async def narai_status():
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    full = narai.get_status() or {}
+    return {k: full[k] for k in _PUBLIC_STATUS_KEYS if k in full}
+
+
+@app.get("/api/narai/status/full")
+async def narai_status_full():
+    """The unreduced status. Owner-gated: it is a descendant of an exact, non-descendant public
+    rule, so the middleware refuses it to anyone without an owner credential."""
     narai = _get_narai()
     if not narai:
         raise HTTPException(status_code=503, detail="NarAI offline")

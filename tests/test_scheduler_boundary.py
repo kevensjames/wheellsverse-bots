@@ -216,31 +216,39 @@ def test_method_override_headers_do_not_reach_a_mutation(client, override):
 
 
 def test_the_prefix_exemption_is_gone_and_the_neighbours_are_intact():
-    """MUTATION GUARD on the exact defect: an entry without a trailing slash exempted a whole
-    subtree via startswith(). Assert this one is gone AND that every remaining prefix entry ends in
-    '/' — the shape that caused this must not be reintroduced next to it."""
-    import inspect as _inspect
-    import re
-    raw = _inspect.getsource(core_api.api_key_middleware)
-    # Comments only — the removed entry is quoted in the record above the tuple, deliberately.
-    src = "\n".join(re.sub(r"#.*$", "", ln) for ln in raw.splitlines())
-    assert '"/api/narai/schedules"' not in src, "the scheduler prefix exemption is back"
-    assert "INCIDENT 2026-09-08" in raw, "the incident record was deleted from the middleware"
-    block = re.search(r"_PUBLIC_PREFIXES\s*=\s*\((.*?)\)", src, re.S)
-    assert block, "could not locate _PUBLIC_PREFIXES"
-    entries = re.findall(r'"([^"]+)"', block.group(1))
-    # Three other entries share the missing-trailing-slash shape. They are OUT OF SCOPE for this
-    # incident — authorization covered the scheduler and the dashboard key — so they are recorded
-    # here rather than changed. Pinning the exact set means a FOURTH cannot be added quietly, and
-    # the day one of these is fixed this list shrinks deliberately.
-    KNOWN_OPEN_SUBTREE_PREFIXES = {"/api/narai/run", "/api/narai/revenue", "/api/narai/status",
-                                   "/api/store/redeliver"}
-    bad = {e for e in entries if not e.endswith("/")} - KNOWN_OPEN_SUBTREE_PREFIXES
-    assert not bad, (
-        f"NEW prefix entries that do not end in '/': {sorted(bad)} — startswith() makes each of "
-        "these exempt a whole subtree, which is exactly how the scheduler's PATCH and trigger "
-        "became public")
-    assert "/api/narai/schedules" not in entries
+    """MUTATION GUARD on the original defect, updated for the model that replaced it.
+
+    The exemption used to be a tuple of string prefixes tested with startswith(), so
+    "/api/narai/schedules" without a trailing slash exempted the whole subtree — PATCH and trigger
+    included. That tuple is gone. Public access is now an explicit PublicRule table matched exactly,
+    or by descendant with a "/" boundary, so a character-prefix exemption cannot be expressed at all.
+
+    This asserts the scheduler is absent from the table, that the shape which caused the defect is
+    structurally impossible, and that the withdrawn action exemptions have not crept back."""
+    rules = core_api.PUBLIC_API_RULES
+    assert rules, "the public rule table is empty — the guard would pass vacuously"
+
+    paths = {r.path for r in rules}
+    assert "/api/narai/schedules" not in paths, "the scheduler exemption is back"
+
+    # the exemptions withdrawn because they were unauthorized ACTION paths
+    for withdrawn in ("/api/narai/run", "/api/narai/revenue", "/api/store/redeliver"):
+        assert withdrawn not in paths, f"{withdrawn} was re-added as a public rule"
+
+    # and no rule may match a scheduler path, by any spelling
+    for spelling in ("/api/narai/schedules", "/api/narai/schedules/stats",
+                     "/api/narai/schedules/x", "//api/narai/schedules"):
+        for method in ("GET", "POST", "PATCH", "DELETE"):
+            assert core_api._public_rule_for(spelling, method) is None, \
+                f"{method} {spelling} matched a public rule"
+
+    # the defect's shape cannot be written any more: intent lives in a boolean, not in a string
+    for r in rules:
+        assert not r.path.endswith("/"), \
+            f"{r.path} encodes subtree intent in the string; use descendants=True"
+        assert isinstance(r.descendants, bool)
+        assert r.methods, f"{r.path} permits no method"
+        assert r.purpose and len(r.purpose) > 20, f"{r.path} has no documented purpose"
 
 
 def test_the_exact_path_exemption_is_gone():
@@ -249,11 +257,20 @@ def test_the_exact_path_exemption_is_gone():
 
 
 # ── honest unavailability ─────────────────────────────────────────────────────────────────────────
-def test_unreadable_state_reports_unavailable_not_a_fabricated_idle_scheduler(client, monkeypatch):
+def test_unreadable_state_reports_unavailable_not_a_fabricated_idle_scheduler(client, monkeypatch,
+                                                                              tmp_path):
     """`_load()` swallowed read errors and returned {}, so a corrupt or unreadable state file
     rendered as every schedule `run_count: 0, last_status: "never"` — an observation nobody made.
-    An unreadable source must say so."""
+    An unreadable source must say so.
+
+    HERMETIC. An earlier version depended on data/narai_schedules.json existing in the checkout:
+    where it did not, _load() short-circuited on the exists() check, never reached the patched
+    reader, and reported ABSENT — so the test passed or failed by accident of the working tree."""
     from core import narai_scheduler
+
+    state = tmp_path / "narai_schedules.json"
+    state.write_text("[]")
+    monkeypatch.setattr(narai_scheduler, "SCHEDULES_FILE", state)
 
     def _boom():
         raise OSError("state file unreadable")
@@ -272,7 +289,23 @@ def test_unreadable_state_reports_unavailable_not_a_fabricated_idle_scheduler(cl
             "a schedule reported run_count 0 while the state file was unreadable"
 
 
-def test_readable_state_reports_ok(client):
+def test_readable_state_reports_ok(client, monkeypatch, tmp_path):
+    """Also hermetic: a present, readable state file must report OK. Previously this asserted OK
+    while depending on the checkout to supply the file, so it reported ABSENT on a clean tree."""
+    from core import narai_scheduler
+    state = tmp_path / "narai_schedules.json"
+    state.write_text("[]")
+    monkeypatch.setattr(narai_scheduler, "SCHEDULES_FILE", state)
     d = client.get("/api/narai/schedules", headers=_owner_key()).json()
     assert d.get("state") == "OK"
     assert isinstance(d.get("schedules"), list)
+
+
+def test_absent_state_file_is_reported_as_absent_not_unavailable(client, monkeypatch, tmp_path):
+    """The third state, and the reason the other two needed pinning: a first run with no state file
+    is ABSENT — legitimately nothing has executed yet — and must not be confused with UNAVAILABLE,
+    which means the file exists and could not be read."""
+    from core import narai_scheduler
+    monkeypatch.setattr(narai_scheduler, "SCHEDULES_FILE", tmp_path / "does-not-exist.json")
+    d = client.get("/api/narai/schedules", headers=_owner_key()).json()
+    assert d.get("state") == "ABSENT"
