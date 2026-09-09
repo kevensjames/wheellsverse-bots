@@ -229,3 +229,101 @@ signature's absence of a `Signature=` line as ad-hoc) here.
 
 STILL NOT DONE: TCC not yet granted; desktop-effecting code intentionally unwritten
 (helper returns GATE_PASSED_EXECUTION_WITHHELD). So DEVICE_CONTROL_VERIFIED is NOT claimed.
+
+---
+
+## Session 6 (2026-09-09) — desktop-effecting bridge BUILT + adversarially tested (dark)
+
+The helper's mutating verbs are no longer withheld: the effecting code is written behind
+the full gate, and a rich request envelope + all the containment guards from the security
+architecture are implemented and proven. **Nothing was signed, granted, or executed against
+the real desktop in this session** — that is the operator boundary (re-sign + one physical
+keyboard-clear confirmation), after which `certify_desktop.py` produces the final block.
+
+Helper `main.swift` v0.2.0 (sha256 of source `c18f0004f9e4fde7…` after mutation restore):
+- Verbs: probe, list_windows, observe_window (window-only capture via ScreenCaptureKit —
+  `CGWindowListCreateImage` is unavailable on the macOS 26 SDK), launch_approved_application,
+  focus_window, type_text, press_shortcut, click_point, cancel, stop, reset. No shell, no
+  AppleScript, no arbitrary bundle id/path, no coordinate replay.
+- Envelope: request/correlation ids, principal, target bundle id + pid + window id, expected
+  title, bounded params, createdAt/expiresAt, nonce, policyDecision, evidence path.
+- Guards (each proven load-bearing by mutation testing): STOP-outranks-all, identity,
+  expiry, nonce replay, capability (interactive desktop + Accessibility), approval-required,
+  fresh-observation binding (windowId/pid/bundleId/title/geometry unchanged + frontmost +
+  focus-change abort), allowlist default-deny, sensitive app/title/secure-field blocks,
+  click-point-inside-bounds + non-secure role, shortcut allowlist (cmd+a only), type length
+  cap + credential-like refusal, rate limit, audit fail-closed, single-controller flock.
+- STOP: two independent paths — the `desktop.stop` verb and an external sentinel file
+  `~/.kai-desktop-bridge/STOP` any process can `touch`; persists across restart; `desktop.reset`
+  is the only clear. Audit log `~/.kai-desktop-bridge/audit.jsonl` records metadata only
+  (never typed text, titles, secrets, a11y trees, or image bytes).
+
+Test architecture: a compile-time `-DKAI_TEST_HARNESS` seam stubs the capability probes and
+effect emitters and drives the live window model from env + `test.*` control verbs, so the
+FULL decision chain is deterministically testable with no real desktop effects and no
+signing. The PRODUCTION build (no flag) contains none of that path.
+
+Evidence (all local, this session):
+- Adversarial protocol suite `test_bridge_adversarial.py`: **43/43** — 8 non-vacuous positive
+  controls + refusals for forged caller, unknown verb, malformed, no-approval, expired,
+  replayed nonce, wrong bundle/pid/window, no-observation, title/geometry/pid-reuse/
+  disappearance/focus-steal since observation, secure field, credential text, oversized,
+  forbidden shortcut, click-outside, secure click role, capture-without-target, sensitive-app
+  observe, STOP engage/persist/reset, external sentinel halt, second controller, audit
+  fail-closed, and a production-binary fail-closed check.
+- Mutation testing `mutate_test.py`: **16/16 mutants killed, 0 survived, 0 skipped**;
+  `main.swift` restored byte-identically (verified by sha256).
+- Helper signing gate `test_helper_gate.py`: rewritten for the new schema and made
+  environment-robust (accepts the earlier PERMISSION_NOT_GRANTED refusal when a host has not
+  inherited an Accessibility grant); **21/21** against the bare binary → `verify_signing.sh`
+  criterion 9 will pass at re-sign. `verify_signing.sh` correctly REFUSES the unsigned
+  `dist/KaiDesktopBridge.app` (packaging ≠ signing).
+
+Security-relevant finding: an UNSIGNED CLI launched under the shell reported
+`accessibility_granted=true` — a bare binary inherits an ancestor's Accessibility grant via
+responsible-process attribution. This is exactly the hazard the signed-helper design exists
+to prevent: the shipped bridge must be its OWN signed bundle so TCC attributes to it, not to
+Terminal/python. It reinforces "never grant TCC to a generic interpreter."
+
+Operator boundary (unchanged architecture, EXECUTE_SCOPED): (1) re-sign
+`dist/KaiDesktopBridge.app` with the existing Apple Development identity (keychain prompt) and
+run `verify_signing.sh` → exit 0; (2) confirm keyboard/mouse are clear ONCE; then
+`certify_desktop.py dist/KaiDesktopBridge.app` runs the bounded TextEdit certification and
+emits BOUNDED_DESKTOP_CONTROL_CERTIFIED or BLOCKED_WITH_EXACT_EVIDENCE. Production untouched.
+
+### Session 6 — independent adversarial review + fixes
+
+An independent security-reviewer pass (separate lane, read-only) audited `main.swift` and
+confirmed the core gate ordering, STOP-over-mutation, nonce single-use, coordinate math,
+sensitive protections, capture-window-only scope, audit privacy, and test-seam containment
+are sound. It found and I FIXED, each with an added adversarial regression + a mutation
+proving the new guard is load-bearing:
+
+- HIGH: `evidencePath` was a caller-controlled absolute path (arbitrary file write + capture
+  to anywhere) reachable via the non-mutating `observe`. Now confined to `STATE_DIR/evidence`
+  by basename only, traversal rejected, gated on the controller lock, and audited.
+- HIGH: `desktop.reset` could delete the operator's external STOP sentinel. STOP is now two
+  files — an operator `STOP` sentinel that reset NEVER clears (out-of-band `rm` only) and a
+  `STOP.verb` that the in-app reset clears; reset is also gated on the controller lock.
+- MED: the `KAI_BRIDGE_BUNDLE_ID` identity fallback shipped in production (a bare binary could
+  pass identity via env). Now behind `#if KAI_TEST_HARNESS`; production identity derives ONLY
+  from the signed bundle. (The helper gate now runs against the packaged `.app` inner binary,
+  which carries identity from its Info.plist.)
+- MED: type/click were bound to the frontmost APP, not the observed WINDOW's key focus. Added
+  an AX focused-window geometry binding (tolerant; falls back to the frontmost guarantee if AX
+  cannot resolve).
+- MED: the request allowlist is a KAI-side hint. Added an optional operator-owned
+  `STATE_DIR/approved-apps.json` that, when present, is authoritative (intersects the request).
+- LOW: require `expiresAt` on mutating verbs; audit ALL refusals + captures (not just mutating);
+  prune consumed nonces by expiry; gate capture on the controller lock.
+
+Accepted design boundaries (documented, not code): the `policyDecision` field is trusted
+because the stdio channel is owned exclusively by the trusted connector, which enforces
+approval integrity at its Ed25519-signed HTTP boundary; the check→effect TOCTOU is inherent to
+synthetic input and is bounded by the post-effect focus re-check.
+
+FINAL local evidence (source sha256 `7bd36a00ef2a1532db11aff23912394e336ddf92837f9ccb79b5389d3c0ef55a`):
+adversarial **50/50**, mutation **21/21 killed, 0 survived** (byte-identical restore), helper
+gate **20/20** against the packaged `.app`, `verify_signing.sh` correctly refuses the unsigned
+bundle. Live desktop effects remain UNCERTIFIED pending operator re-sign + one physical
+confirmation (`certify_desktop.py`).

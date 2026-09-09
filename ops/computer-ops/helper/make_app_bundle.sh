@@ -39,7 +39,7 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
     <key>CFBundlePackageType</key>      <string>APPL</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>CFBundleVersion</key>          <string>$VERSION</string>
-    <key>LSMinimumSystemVersion</key>   <string>13.0</string>
+    <key>LSMinimumSystemVersion</key>   <string>14.0</string>
     <key>LSUIElement</key>              <true/>
     <!-- Usage strings shown by macOS at the TCC prompt. Named narrowly on purpose. -->
     <key>NSAccessibilityUsageDescription</key>

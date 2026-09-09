@@ -133,3 +133,42 @@ enable. Production stays untouched until both the desktop and staging certificat
 | **Acceptance gate** | `./verify_signing.sh dist/KaiDesktopBridge.app` (exit 0 = may grant TCC) |
 | Confirm TCC | probe the binary; `accessibility_granted:true` |
 | Emergency | STOP in the panel; `desktop.stop` verb; both need no TCC and no signature |
+
+---
+
+## Session 6 — certify the desktop-effecting bridge (v0.2.0)
+
+The effecting code now exists behind the full gate. TWO operator boundaries remain; nothing
+else needs your input. Production stays untouched.
+
+**Boundary 1 — re-sign (keychain prompt).** The binary changed, so it must be re-signed with
+the existing identity. TCC persists across re-signs because the designated requirement pins
+identifier + leaf, so no re-grant is needed unless the cert is renewed.
+
+```
+cd ops/computer-ops/helper
+swift build -c release && ./make_app_bundle.sh
+codesign --force --options runtime --timestamp \
+  --sign 7A1F0293ADF6D0A957A9487C5F705EAE37260EAA dist/KaiDesktopBridge.app
+./verify_signing.sh dist/KaiDesktopBridge.app        # must print exit 0 / SIGNED_HELPER_VERIFIED
+```
+
+Accessibility + Screen Recording were already granted to this bundle id in Session 5; the
+re-sign keeps them. If the probe later reports `accessibility_granted:false`, re-grant in
+System Settings → Privacy & Security to **KaiDesktopBridge only** (never Terminal/python).
+
+**Boundary 2 — one keyboard/mouse-clear confirmation, then the bounded certification.**
+
+```
+python3 certify_desktop.py dist/KaiDesktopBridge.app
+```
+
+It verifies signature + DR + TCC, opens a NEW unsaved TextEdit document, arms STOP, shows a
+5-second countdown, and asks you ONCE to type `CLEAR` when your keyboard and mouse are free.
+Then it certifies — capture, focus, type a synthetic canary, Select All, one bounded click,
+STOP + refusal-after-STOP — reads the canary back out-of-band via AppleScript, closes the doc
+WITHOUT saving, deletes the screenshots after hashing, folds in the adversarial + mutation
+suites, and prints `BOUNDED_DESKTOP_CONTROL_CERTIFIED` or `BLOCKED_WITH_EXACT_EVIDENCE`.
+
+Emergency stop at any time (independent of KAI and of the cert tool):
+`touch ~/.kai-desktop-bridge/STOP`  — clear later with the `desktop.reset` verb.
