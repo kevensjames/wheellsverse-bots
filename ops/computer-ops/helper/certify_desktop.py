@@ -33,6 +33,8 @@ SENTINEL = os.path.join(STATE_DIR, "STOP")
 CANARY = "KAI_DESKTOP_BRIDGE_CERTIFICATION_" + uuid.uuid4().hex[:8]
 EVID = tempfile.mkdtemp(prefix="kai-cert-evid-")
 
+try: open("/tmp/kai_cert_debug.txt", "w").close()   # fresh debug log per run
+except Exception: pass
 R = {}   # result flags for the final block
 def osa(*script):
     args = ["osascript"]
