@@ -34,11 +34,19 @@ ID="$(printf '%s\n' "$INFO" | sed -n 's/^Identifier=//p' | head -1)"
 
 # 2. not ad-hoc. An ad-hoc DR is a content hash, so every rebuild changes it and any TCC
 #    grant made against the previous build silently stops matching.
-SIG="$(printf '%s\n' "$INFO" | sed -n 's/^Signature=//p' | head -1)"
-case "$SIG" in
-  *adhoc*|"") no "signature must not be ad-hoc" "Signature=${SIG:-<none>}" ;;
-  *) ok "signature is not ad-hoc ($SIG)" ;;
-esac
+#    codesign -dvv prints "Signature=adhoc" (and a flags=...(adhoc) line) ONLY for an
+#    ad-hoc signature. A REAL signature prints no "Signature=" line at all -- it prints
+#    "Signature size=NNNN" plus "Authority=" lines. So detect ad-hoc explicitly, accept a
+#    real Authority chain, and only then call it unsigned. (An earlier version grepped
+#    "^Signature=" and mis-read a real signature's ABSENCE of that line as ad-hoc.)
+if printf '%s\n' "$INFO" | grep -qiE '^Signature=adhoc|flags=0x[0-9a-fA-F]+\([^)]*adhoc'; then
+  no "signature must not be ad-hoc" "ad-hoc signature (rebuild breaks any TCC grant)"
+elif printf '%s\n' "$INFO" | grep -q '^Authority='; then
+  AUTH="$(printf '%s\n' "$INFO" | sed -n 's/^Authority=//p' | head -1)"
+  ok "signature is not ad-hoc (Authority: $AUTH)"
+else
+  no "signature must not be ad-hoc" "no signing authority found (unsigned)"
+fi
 
 # 3. a Team ID must be present
 TEAM="$(printf '%s\n' "$INFO" | sed -n 's/^TeamIdentifier=//p' | head -1)"
