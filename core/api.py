@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -124,6 +125,54 @@ logger = logging.getLogger("api")
 # ─── API Key Auth ─────────────────────────────────────────────────────────────
 
 _API_KEY = os.getenv("API_KEY", "").strip()
+_APP_ENV = os.getenv("APP_ENV", "").strip()
+
+# Environments where running without an API key is a legitimate developer convenience. Everything
+# else — including an unset or unrecognised APP_ENV — is treated as hosted and fails closed.
+_DEV_ENVS = frozenset({"development", "local", "dev", "test"})
+
+AUTH_OK = "OK"                      # a key is configured; normal policy applies
+AUTH_DEV_OPEN = "DEV_OPEN"          # no key, but the environment DECLARES itself local
+AUTH_MISCONFIGURED = "MISCONFIGURED"  # no key in a hosted (or unknown) environment — refuse everything
+
+
+def auth_config_state() -> tuple[str, str]:
+    """Is this process's authentication configuration usable? The ONE place that is decided.
+
+    WHY THIS EXISTS. Both gates used to begin `if not _API_KEY: return`, so an unset API_KEY opened
+    the entire owner /api/* surface and every protected /admin JSON route — silently, with no log and
+    nothing an operator could observe. `_API_KEY` is read once at import, so it is a whole-process
+    property fixed at boot: a redeploy or a rotation that leaves the variable briefly unset un-gates
+    the admin surface for the life of the process. App A is deployed by CLI upload with hand-managed
+    variables, which is exactly where a variable goes missing.
+
+    "No credential is configured" is not a reason to trust everyone. It is a reason to trust no one.
+
+    Local development stays workable, but only when the environment SAYS it is local. It is never
+    inferred from the missing secret itself — a missing secret is the failure being defended against,
+    so it cannot also be the evidence that defending is unnecessary. An unset or unrecognised APP_ENV
+    is therefore hosted: guessing "probably local" is how a production box ends up open.
+    """
+    if _API_KEY:
+        return AUTH_OK, "API_KEY is configured"
+    env = (_APP_ENV or "").strip().lower()
+    if env in _DEV_ENVS:
+        return AUTH_DEV_OPEN, f"no API_KEY, and APP_ENV={env!r} declares a local environment"
+    return AUTH_MISCONFIGURED, (
+        f"no API_KEY configured and APP_ENV={_APP_ENV or '(unset)'!r} is not a declared local "
+        "environment — refusing all protected requests")
+
+
+def _auth_config_allows_open_access() -> bool:
+    """True only for a declared local environment with no key. Fails CLOSED on ANY error.
+
+    A guard that opens when its own check raises is not a guard, so this never propagates an
+    exception and never defaults to permissive."""
+    try:
+        state, _ = auth_config_state()
+    except Exception:                                  # noqa: BLE001
+        return False
+    return state == AUTH_DEV_OPEN
 
 # ── Unified operator session (merge Phase P2). Default OFF. Defined here so both
 #    verify_api_key and api_key_middleware below can reference it. When the flag
@@ -151,6 +200,100 @@ _OPERATOR_SESSION_CFG = _SessionConfig(
 )
 
 
+# ─── CSRF: a cookie is presented by the browser, not by the user ──────────────────────────────────
+#
+# Owner-only closed the anonymous hole. It does not close this one: a session cookie is attached on
+# the basis of the DESTINATION, so another site can make the owner's own browser issue an authorised
+# request. Two things people expect to prevent that, and do not:
+#
+#   SameSite=Lax  blocks cross-SITE cookie sending on unsafe methods, where "site" is the registrable
+#                 domain. It stops evil.com -> app.wheellsverse.com. It does NOT stop
+#                 kai.wheellsverse.com -> app.wheellsverse.com, which is cross-ORIGIN but same-SITE.
+#                 Every wheellsverse.com subdomain sits inside the boundary Lax draws.
+#   CORS          does not stop state change at all. A cross-origin POST with a form or text/plain
+#                 body is a "simple request": the browser sends it and withholds only the RESPONSE.
+#                 By the time CORS blocks the read, the product is published.
+#
+# So an unsafe request authenticated BY COOKIE must come from an origin this app already trusts for
+# credentialed CORS. The allowlist is CORS_ORIGINS — the same list, so the two cannot drift into
+# disagreeing about who is trusted — plus the app's own origin, derived per-request because App A is
+# served on several hostnames. Deriving self-origin from the request is safe against the threat being
+# modelled: a foreign page cannot set the Host header, only the browser can.
+#
+# The machine path is deliberately exempt. Setting X-API-Key forces a CORS preflight that an attacker
+# cannot satisfy, so a header credential cannot be attached by a foreign page and carries no CSRF
+# risk. Cookie = browser = checked; header = machine = not. That distinction is Principal.source.
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+
+# Populated in two steps because the CORS allowlist this defaults to is configured ~700 lines
+# below, while the guard that consumes it is needed here. An explicit CSRF_TRUSTED_ORIGINS wins and
+# is complete on its own; otherwise _bind_csrf_origins() adopts CORS_ORIGINS once it exists. The
+# value is read at call time, never captured, so the later binding takes effect and a test can
+# substitute it.
+_CSRF_TRUSTED_ORIGINS = frozenset(
+    _o.strip().rstrip("/").lower()
+    for _o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if _o.strip()
+)
+
+
+def _origin_of(url: str):
+    """scheme://host[:port] of an absolute URL, lowercased, or None if it is not one.
+
+    urlsplit is used rather than string surgery because the hostile inputs here are precisely the
+    ones hand-parsing gets wrong: "https://trusted@evil.com" (userinfo), "https://evil.com/https://
+    trusted" (path), and "https://trusted.evil.com" (suffix). A prefix or substring comparison
+    accepts all three. This is the same defect as the startswith() route matching that caused the
+    incident these guards exist for, in a different field.
+    """
+    try:
+        from urllib.parse import urlsplit
+        u = urlsplit((url or "").strip())
+        if not u.scheme or not u.hostname:
+            return None
+        netloc = u.hostname.lower()
+        if u.port:
+            netloc = f"{netloc}:{u.port}"
+        return f"{u.scheme.lower()}://{netloc}"
+    except Exception:
+        return None
+
+
+def _trusted_origin_ok(method: str, origin, referer, allowed) -> bool:
+    """Whether an unsafe request's provenance is a trusted origin. Pure, so it can be tested below
+    the framework — the layer where the last two surviving mutants were hiding."""
+    if (method or "").upper() in _SAFE_METHODS:
+        return True
+    # "null" is a real Origin value (sandboxed iframe, data: URL, some redirect chains), not an
+    # absent one. _origin_of returns None for it, and the fall-through below must NOT then treat it
+    # as "no Origin header was sent" — so it is rejected explicitly before the fallback.
+    if origin is not None and origin.strip() != "":
+        return _origin_of(origin) in allowed
+    if referer is not None and referer.strip() != "":
+        return _origin_of(referer) in allowed
+    return False        # no provenance at all: fail closed
+
+
+def _csrf_required_for(source: str, method: str) -> bool:
+    """The cookie is the browser path and is checked; a header credential is the machine path and
+    is not. Principal.source is "session" only for the cookie."""
+    return source == "session" and (method or "").upper() not in _SAFE_METHODS
+
+
+def _csrf_ok(request) -> bool:
+    """Same-origin check for a cookie-authenticated unsafe request."""
+    self_origin = _origin_of(
+        f"{request.headers.get('x-forwarded-proto') or request.url.scheme}://"
+        f"{request.headers.get('x-forwarded-host') or request.url.netloc}"
+    )
+    allowed = set(_CSRF_TRUSTED_ORIGINS)
+    if self_origin:
+        allowed.add(self_origin)
+    return _trusted_origin_ok(request.method,
+                              request.headers.get("origin"),
+                              request.headers.get("referer"),
+                              allowed)
+
+
 def _session_owner_ok(request) -> bool:
     """True iff the unified session is enabled AND the request carries an
     OWNER-authority principal (cookie or legacy header). The /api/ admin surface
@@ -162,7 +305,13 @@ def _session_owner_ok(request) -> bool:
     try:
         from core.operator_session import ROLE_OWNER
         p = _principal_for_request(request, _OPERATOR_SESSION_CFG)
-        return p is not None and p.role == ROLE_OWNER
+        if p is None or p.role != ROLE_OWNER:
+            return False
+        # A cookie proves the browser, not the intent. For an unsafe method it authenticates only
+        # from an origin we trust; otherwise this falls through to 401 like any other bad credential.
+        if _csrf_required_for(p.source, request.method) and not _csrf_ok(request):
+            return False
+        return True
     except Exception:
         return False
 
@@ -187,16 +336,16 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/stripe/webhook", "/api/beehiiv/webhook",
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
                  "/api/canva/oauth-callback", "/api/canva/oauth-url",
-                 "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
+                 "/api/nexora/status", 
                  # Holding OS read-only stat shims (App B probes these to self-update those entities)
                  "/api/siteboost/stats", "/api/wmos/stats",
                  # NarAI autopilot — dashboard-only, protected by same-origin
-                 "/api/narai-autopilot/status", "/api/narai-autopilot/start",
-                 "/api/narai-autopilot/stop", "/api/narai-autopilot/log",
-                 "/api/narai-autopilot/queue", "/api/narai-autopilot/reels",
+                 "/api/narai-autopilot/status", 
+                 "/api/narai-autopilot/log",
+                 "/api/narai-autopilot/queue", 
                  # QC + Factory dashboard endpoints
-                 "/api/qc/stats", "/api/qc/results", "/api/qc/review",
-                 "/api/factory/alltime", "/api/factory/status", "/api/factory/reset",
+                 "/api/qc/stats", "/api/qc/results", 
+                 "/api/factory/alltime", "/api/factory/status", 
                  "/api/narai/memory/stats", "/api/narai/memory/search",
                  "/api/narai/memory/context",
                  # NEXORA platform — auth + public creator endpoints are their own auth
@@ -209,20 +358,18 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
 
 # Shopify dashboard endpoints — all served by the same-origin dashboard, no extra auth
 for _p in [
-    "/api/shopify/status", "/api/shopify/products", "/api/shopify/orders",
+    "/api/shopify/status", "/api/shopify/orders",
     "/api/shopify/customers", "/api/shopify/webhooks/status", "/api/shopify/webhook",
-    "/api/shopify/discount", "/api/shopify/register-webhooks",
     "/api/shopify/oauth-url", "/api/shopify/callback",
-    "/api/shopify/publish-narai-product",
+    
     # Agent Workforce
-    "/api/shopify/agents/start", "/api/shopify/agents/stop",
-    "/api/shopify/agents/status", "/api/shopify/agents/dispatch",
-    "/api/shopify/agents/upgrade-now", "/api/shopify/agents/logs",
+    
+    "/api/shopify/agents/status", 
+    "/api/shopify/agents/logs",
     # Media Engine
-    "/api/shopify/media/generate-batch",
+    
     # Store Intelligence
-    "/api/shopify/intelligence/analyze", "/api/shopify/intelligence/opportunities",
-    "/api/shopify/intelligence/autopilot", "/api/shopify/intelligence/status",
+    "/api/shopify/intelligence/status",
 ]:
     _PUBLIC_PATHS.add(_p)
 
@@ -232,13 +379,19 @@ async def verify_api_key(request: Request):
     Set API_KEY in .env to enable. If not set, all requests pass through.
     Dashboard always passes (it's served from the same origin with the key embedded).
     """
+    # INCIDENT FOLLOW-UP: this used to be `if not _API_KEY: return`, which opened the whole owner
+    # /api/* surface whenever the variable was missing. Absence of a credential now opens nothing
+    # outside a DECLARED local environment; see auth_config_state().
     if not _API_KEY:
-        return  # Auth disabled
+        if _auth_config_allows_open_access():
+            return                       # declared local development only
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
     path = request.url.path
     # NEXORA platform uses its own Bearer token auth — never block these with API key
-    if path in _PUBLIC_PATHS or not path.startswith("/api/") or path.startswith("/api/nx/"):
-        return  # Public route
+    if (path in _PUBLIC_PATHS or not path.startswith("/api/")
+            or _public_rule_for(path, request.method) is not None):
+        return  # Public route — decided by the ONE rule table, never by a character prefix
 
     key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
     if not key or not hmac.compare_digest(key, _API_KEY):
@@ -263,8 +416,12 @@ def require_admin_json(request: Request) -> None:
 
     Deliberately NOT applied to /openapi.json — assessed separately; it carries route shapes, not data.
     """
+    # Same correction as verify_api_key: a missing API_KEY is a misconfiguration, not permission.
+    # Both gates consult the one decision so they cannot drift apart.
     if not _API_KEY:
-        return                      # auth disabled entirely (local dev) — same contract as verify_api_key
+        if _auth_config_allows_open_access():
+            return                       # declared local development only
+        raise HTTPException(status_code=401, detail="owner authentication required")
     key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
     if key and hmac.compare_digest(key, _API_KEY):
         return
@@ -895,6 +1052,16 @@ app.add_middleware(
                     "Content-Length", "Content-Type"],
 )
 
+# Step two of the CSRF allowlist (declared above): with no explicit CSRF_TRUSTED_ORIGINS, the origins
+# already trusted to make credentialed cross-origin requests are exactly the origins trusted to make
+# cookie-authenticated state changes. Sourcing both from one list means they cannot drift apart and
+# quietly disagree about who is trusted.
+if not _CSRF_TRUSTED_ORIGINS:
+    _CSRF_TRUSTED_ORIGINS = frozenset(
+        o.strip().rstrip("/").lower() for o in _cors_origins if o and o.strip()
+    )
+logger.info("CSRF trusted origins: %d configured", len(_CSRF_TRUSTED_ORIGINS))
+
 
 # ─── Static mount: composed social images ──────────────────────────────────
 # Meta Graph API needs a public HTTPS URL it can fetch when posting photos to
@@ -1359,22 +1526,143 @@ def _admin_command_metrics(_auth: None = Depends(require_admin_json)):
     }, headers={"Cache-Control": "no-store"})
 
 
+# ── PUBLIC ROUTE RULES ────────────────────────────────────────────────────────────────────────────
+# INCIDENT FOLLOW-UP. This was a tuple of string prefixes tested with `path.startswith(...)`, and a
+# prefix is not a path. The entry "/api/narai/run" therefore exempted every route whose path merely
+# BEGINS with those characters — including POST /api/narai/run_bot, which nobody exempted on purpose
+# and which runs a bot. Measured with the gate live, anonymously: run_bot returned 200 and the
+# handler RAN (138 bots loaded, trigger attempted); /api/narai/revenue ran the revenue loop.
+#
+# A public exception is now an explicit rule with four fields that must each be decided deliberately:
+#   path         exact, normalised, no trailing slash
+#   methods      the HTTP methods this exception covers — never "all" by omission
+#   descendants  whether children are included, and children means a "/" boundary, never a substring
+#   purpose      why this is safe to expose, in words, so the next reader can re-judge it
+#
+# A rule for /api/narai/run cannot match /api/narai/run_bot. That is the whole point.
+@dataclass(frozen=True)
+class PublicRule:
+    path: str
+    methods: frozenset
+    descendants: bool
+    purpose: str
+
+
+def _norm_path(path: str) -> str:
+    """Normalise before matching, so a rewritten path cannot dodge or forge a rule.
+
+    Collapses duplicate slashes, resolves . and .. segments, and drops a trailing slash. Percent
+    escapes are NOT decoded: %2F is not a separator, and treating it as one is how a matcher is
+    tricked into seeing a shorter path than the router will."""
+    if not path:
+        return "/"
+    out = []
+    for seg in path.split("/"):
+        if seg in ("", "."):
+            continue
+        if seg == "..":
+            if out:
+                out.pop()
+            continue
+        out.append(seg)
+    return "/" + "/".join(out)
+
+
+PUBLIC_API_RULES = (
+    PublicRule("/api/nx", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
+               "Nexora platform: carries its own Bearer token auth, enforced inside the routers."),
+    PublicRule("/api/qc", frozenset({"GET"}), True,
+               "Quality-control READS the dashboard polls. GET-only: the old rule claimed these routes had \"their own token check\" and they do not — POST /api/qc/review was anonymous."),
+    PublicRule("/api/factory", frozenset({"GET"}), True,
+               "Factory pipeline READS. GET-only: the family's POST start/stop and DELETE reset were anonymous under the old rule, which claimed a token check that does not exist."),
+    PublicRule("/api/narai-autopilot", frozenset({"GET"}), True,
+               "NarAI autopilot READS only. The old rule said \"with its own auth\"; the handlers have none, so POST /start could publish to live social accounts anonymously."),
+    PublicRule("/api/shopify-autopilot", frozenset({"GET"}), True,
+               "Shopify autopilot READS. GET-only: start/stop/trend-scan had no auth."),
+    PublicRule("/api/shopify", frozenset({"GET"}), True,
+               "Shopify READS. GET-only: the multi-tenant routers do carry per-shop Bearer auth, but the single-tenant operator routes under the same prefix carry none — anonymous product create/update/DELETE and discount-code creation. Public POSTs (webhook, oauth) are exact entries."),
+    PublicRule("/api/sa", frozenset({"GET"}), True,
+               "Shopify-app dashboard READS. GET-only: /api/sa/start, /stop, /trend-scan and /setup-boutique had no signature verification despite the old rule claiming it."),
+    PublicRule("/api/v2/narai", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
+               "NarAI v2 uses its own JWT auth on every route."),
+    PublicRule("/api/narai/shopify", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Multi-tenant Shopify under NarAI: own Bearer auth."),
+    PublicRule("/api/google", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Google OAuth flow: protected by state-based CSRF, must be reachable pre-session."),
+    PublicRule("/api/store/download", frozenset({"GET"}), True,
+               "Customer download links carry their own signed, expiring token."),
+
+    # GET-only, EXACT path, no descendants. App B's holding entity_status probes this with a plain
+    # urlopen and no credentials (backend/app/services/holding/entity_status.py), so it is a real
+    # unauthenticated health consumer and cannot simply be gated. It is instead REDUCED to a bounded
+    # status contract — see narai_core_status(). Internal mood/mind/skills/bot-inventory and the
+    # integration-presence map are no longer served here, secret-free or not.
+    PublicRule("/api/narai/status", frozenset({"GET"}), False,
+               "Bounded liveness/status for the cross-app health probe; no internal state."),
+)
+
+# WITHDRAWN public exemptions, kept as the record rather than deleted:
+#   /api/narai/run        POST — runs a full autonomous cycle. Never a customer endpoint.
+#   /api/narai/revenue    POST — runs the revenue loop.
+#   /api/store/redeliver  GET  — re-sends a paid order's files. An unauthenticated email-send action.
+#   (/api/narai/run_bot was never intentionally public at all; the missing slash swept it in.)
+
+
+# Paths that are NEVER public, whatever the tables say. A GET-only family rule keeps a dashboard's
+# reads open, which is right until a "read" turns out to compute. GET /api/sa/trend-scan is
+# documented as a "cached read", and on a cold cache run_trend_scan() performs the full scrape and
+# LLM classification behind it — an anonymous GET that spends money. It was found by probing the
+# running app, not by reading it: a source scan of the handler shows only an import and an await,
+# because the cost is one call deeper. A comment can be wrong about a handler and a handler can be
+# wrong about its callee, so this list is short and holds only paths whose behaviour was observed.
+_NEVER_PUBLIC = frozenset({
+    "/api/sa/trend-scan",                       # cold cache -> scrape + Anthropic classification
+    "/api/shopify/intelligence/opportunities",  # same shape: cached read that computes when cold
+})
+
+
+def _public_rule_for(path: str, method: str):
+    """The ONE matcher. Returns the PublicRule permitting this request, or None."""
+    p = _norm_path(path)
+    if p in _NEVER_PUBLIC:
+        return None
+    # Methods are compared EXACTLY, not upper-cased. HTTP verbs are uppercase by spec, and being
+    # stricter than the router can only ever over-gate — a malformed `get` is refused rather than
+    # silently promoted into a public rule. Leniency here would be a permission decision made by a
+    # client's capitalisation.
+    m = method or ""
+    for rule in PUBLIC_API_RULES:
+        if m not in rule.methods:
+            continue
+        if p == rule.path:
+            return rule
+        if rule.descendants and p.startswith(rule.path + "/"):
+            return rule
+    return None
+
+
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
-    """Apply optional API key guard to all /api/ routes except public ones."""
+    """Apply the API key guard to all /api/ routes except public ones.
+
+    No longer "optional": when no key is configured this refuses protected /api routes unless the
+    environment declares itself local. auth_config_state() is the single decision."""
+    if not _API_KEY and not _auth_config_allows_open_access():
+        path = request.url.path
+        if (path.startswith("/api/") and path not in _PUBLIC_PATHS
+                and _public_rule_for(path, request.method) is None):
+            return JSONResponse({"error": "Unauthorized", "hint": "Set X-API-Key header"},
+                                status_code=401)
     if _API_KEY:
         path = request.url.path
-        _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
-                             "/api/shopify-autopilot/", "/api/shopify/agents/",
-                             "/api/shopify/media/", "/api/shopify/intelligence/",
-                             "/api/shopify/", "/api/narai/schedules", "/api/sa/",
-                             "/api/narai/run", "/api/narai/revenue", "/api/narai/status",
-                             "/api/v2/narai/",       # v2 uses its own JWT auth
-                 "/api/narai/shopify/",  # multi-tenant Shopify — own Bearer auth
-                             "/api/google/",   # OAuth flow: protected by state-based CSRF
-                             "/api/store/download/",  # uses its own signed-token auth
-                             "/api/store/redeliver")  # customer self-serve re-send (rate-limited internally via order lookup)
-        if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
+        # INCIDENT 2026-09-08 — "/api/narai/schedules" was an entry here, WITHOUT a trailing slash.
+        # This tuple is tested with path.startswith(), so that one missing character exempted the
+        # whole subtree: the read, the stats, PATCH /{id} (enable/disable, retime) and
+        # POST /{id}/trigger (run a job now) were all anonymous on production. Every other entry
+        # ends in "/" precisely so it cannot do this; a test now asserts that for all of them.
+        # Removed. The scheduler falls under this middleware's owner check like any other /api route.
+        if (path.startswith("/api/") and _public_rule_for(path, request.method) is None
+                and path not in _PUBLIC_PATHS):
             key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
             if not key or not hmac.compare_digest(key, _API_KEY):
                 # Flag-gated fallback: accept a valid unified session cookie in
@@ -2527,12 +2815,24 @@ async def _serve_old_dashboard(filename: str = "index.html"):
     if not html_path.exists():
         return HTMLResponse(f"<h1>Dashboard not found. Expected: dashboard/{filename}</h1>", status_code=500)
     html = html_path.read_text(encoding="utf-8")
-    # Inject API key for authenticated dashboard access
-    if _API_KEY:
-        html = html.replace(
-            "const API_KEY = '';",
-            f"const API_KEY = '{_API_KEY}';",
-        )
+    # INCIDENT 2026-09-08 — this function used to substitute the live owner API key into the page:
+    #
+    #     if _API_KEY:
+    #         html = html.replace("const API_KEY = '';", f"const API_KEY = '{_API_KEY}';")
+    #
+    # It served that key to ANONYMOUS callers on production and staging via /admin/ceo,
+    # /admin/legacy, and /admin whenever WHEELLSVERSE_COMMAND_CENTER is off. The key is not a read
+    # credential: verify_api_key accepts it across the owner /api/* surface including writes, and
+    # core/api.py's session config passes it as `owner_key`, so POST /admin/session/login with it
+    # MINTS AN OWNER SESSION (ROLE_OWNER, ALL_SCOPES — including kai.ultra into App B).
+    #
+    # It is not restored under authentication either. An authenticated owner does not need the
+    # SERVER'S credential in browser JavaScript, where it reaches sessionStorage, localStorage,
+    # extensions, screenshots and any XSS. The page authenticates with the session cookie instead:
+    # verify_api_key already accepts a valid owner session (_session_owner_ok), and
+    # OPERATOR_SESSION_ENABLED is true in production and staging.
+    #
+    # The template ships `const API_KEY = '';` and it stays empty. Nothing is substituted here.
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "Pragma": "no-cache",
@@ -4003,8 +4303,19 @@ async def health():
             build_time = bt_file.read_text().strip()
         except Exception:
             pass
+    # Readiness must SURFACE an unusable authentication configuration. Failing closed protects the
+    # data but is invisible from outside — an operator would see 401s and reasonably suspect their
+    # own credential. This names the real cause. Bounded enum, never a value, never protected
+    # content: with the gates closed, knowing the config is broken grants an attacker nothing.
+    # Deliberately NOT a boot abort — turning a missing variable into a total outage would be a
+    # worse failure than the one being fixed.
+    try:
+        _auth_state, _ = auth_config_state()
+    except Exception:                                  # noqa: BLE001
+        _auth_state = AUTH_MISCONFIGURED
     return {
         "status":   "ok" if memory_ok else "degraded",
+        "auth_config": _auth_state,
         "uptime":   uptime,
         "uptime_human": f"{uptime // 3600}h {(uptime % 3600) // 60}m",
         "browser":  browser_ok,
@@ -9738,8 +10049,34 @@ class NarAILearnHumanRequest(BaseModel):
     answer: str
 
 
+# The bounded public status contract. Everything else about NarAI is owner-gated.
+#
+# This route stays public for ONE named consumer: App B's holding entity_status probes it with a
+# plain urllib.request.urlopen and no credentials (backend/app/services/holding/entity_status.py),
+# reading the keys below. Gating it would break a cross-app health probe, so it is REDUCED instead.
+#
+# The full get_status() payload was 2,003 B and carried the operator's internal state — mood, mind,
+# a skills list, a bot-health report and `env`, a map of which integrations are configured. None of
+# that is secret and none of it belongs on an unauthenticated endpoint: an integration-presence map
+# is reconnaissance, and "contains no secret" is not the same as "is safe to publish". The owner
+# view keeps everything, at the gated /api/narai/status/full.
+_PUBLIC_STATUS_KEYS = ("name", "category", "status", "online", "posts", "videos", "images",
+                       "last_run", "run_count")
+
+
 @app.get("/api/narai/status")
 async def narai_status():
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    full = narai.get_status() or {}
+    return {k: full[k] for k in _PUBLIC_STATUS_KEYS if k in full}
+
+
+@app.get("/api/narai/status/full")
+async def narai_status_full():
+    """The unreduced status. Owner-gated: it is a descendant of an exact, non-descendant public
+    rule, so the middleware refuses it to anyone without an owner credential."""
     narai = _get_narai()
     if not narai:
         raise HTTPException(status_code=503, detail="NarAI offline")
@@ -14896,8 +15233,8 @@ _PUBLIC_PATHS.add("/api/shopify-autopilot/log")
 
 # /api/sa/* — short aliases used by the dashboard
 for _p in ["/api/sa/status", "/api/sa/store", "/api/sa/products", "/api/sa/funnel",
-           "/api/sa/trend-scan", "/api/sa/performance", "/api/sa/log",
-           "/api/sa/start", "/api/sa/stop", "/api/sa/setup-boutique"]:
+           "/api/sa/performance", "/api/sa/log",
+           ]:
     _PUBLIC_PATHS.add(_p)
 
 
@@ -15058,20 +15395,26 @@ async def sa_funnel():
 
 @app.get("/api/sa/trend-scan")
 async def sa_trend_scan_get():
-    """Cached read of the trend scan. Even refresh=False can be slow if
-    the cache is cold, so we offload to a worker thread with a tight
-    timeout — keeps the event loop free for everyone else."""
-    import asyncio
-    from core.viral_trend_engine import run_trend_scan
-    try:
-        opps = await asyncio.wait_for(
-            asyncio.to_thread(run_trend_scan, refresh=False),
-            timeout=8.0,
-        )
-    except asyncio.TimeoutError:
-        return {"opportunities": [], "count": 0,
-                "stale": True, "error": "scan timeout (>8s) — try POST to refresh"}
-    return {"opportunities": opps, "count": len(opps)}
+    """Cache read. Performs NO work: no scrape, no LLM call, no write.
+
+    It used to call run_trend_scan(refresh=False), which returns the cache only when the cache is
+    truthy and otherwise falls through to the full scrape, the LLM classification and a write of
+    data/viral_trends.json. So on a cold cache this "read" spent money and mutated state — and
+    SameSite=Lax deliberately sends the session cookie on top-level GET navigation, which means a
+    link was enough to trigger it. Being owner-only does not fix a side-effecting GET; only removing
+    the side effect does.
+
+    The timeout and the worker thread went with it. Both existed to survive work this endpoint no
+    longer does, and a timeout on a file read would only have converted a plain failure into a
+    fabricated empty success.
+
+    Refreshing is POST /api/sa/trend-scan, which is owner-authenticated and carries the CSRF guard.
+    """
+    from core.viral_trend_engine import cached_opportunities
+    status, opps, saved_at = cached_opportunities()
+    return {"status": status, "opportunities": opps, "count": len(opps),
+            "saved_at": saved_at,
+            "refresh_with": "POST /api/sa/trend-scan"}
 
 
 @app.post("/api/sa/trend-scan")
@@ -15128,7 +15471,7 @@ async def sa_setup_boutique():
 # NARAI POD ENGINE ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 
-for _p in ["/api/pod/status", "/api/pod/start", "/api/pod/stop",
+for _p in ["/api/pod/status", 
            "/api/pod/memory", "/api/pod/log"]:
     _PUBLIC_PATHS.add(_p)
 
@@ -15253,21 +15596,30 @@ async def shopify_intelligence_analyze():
 
 @app.get("/api/shopify/intelligence/opportunities")
 async def shopify_intelligence_opportunities():
+    """Cache read. Performs NO work: no live Shopify pull, no write.
+
+    Same defect as GET /api/sa/trend-scan and the same fix. `if not analysis: analysis =
+    analyze_store()` made a documented "return from the last cached analysis" pull live store data
+    and rewrite data/store_intelligence.json whenever the cache happened to be cold. A GET must not
+    decide to do the expensive thing because the cheap thing was unavailable — it must say so.
+
+    Refreshing is POST /api/shopify/intelligence/analyze, which is owner-authenticated.
     """
-    Return scored opportunities from the last cached analysis.
-    Call /analyze first to refresh data.
-    """
-    from core.store_intelligence import get_cached_analysis, score_opportunities, analyze_store
+    from core.store_intelligence import get_cached_analysis, score_opportunities
     analysis = get_cached_analysis()
     if not analysis:
-        analysis = analyze_store()
+        return {"status": "UNAVAILABLE", "opportunities": [], "count": 0,
+                "analyzed_at": None, "store_summary": {},
+                "refresh_with": "POST /api/shopify/intelligence/analyze"}
     opportunities = score_opportunities(analysis)
     return {
+        "status": "OK",
         "opportunities": opportunities,
         "count": len(opportunities),
         "analyzed_at": analysis.get("analyzed_at"),
         "store_summary": {
             "total_products": analysis.get("total_products"),
+
             "total_revenue":  analysis.get("total_revenue"),
             "total_orders":   analysis.get("total_orders"),
             "gaps_count":     len(analysis.get("category_gaps", [])),
@@ -15391,21 +15743,48 @@ async def shopify_agents_logs(limit: int = 50):
 # NARAI SCHEDULE ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 
-_PUBLIC_PATHS.add("/api/narai/schedules")
+# INCIDENT 2026-09-08 — this file used to carry:
+#
+#     _PUBLIC_PATHS.add("/api/narai/schedules")
+#
+# the SECOND of two independent exemptions that made the scheduler anonymous (the other was a
+# missing trailing slash in api_key_middleware's _PUBLIC_PREFIXES). Removing either one alone would
+# have looked like a fix while the subtree stayed open, which is why both are named here and there.
+# The scheduler now falls under the ordinary /api owner check: owner API key, or an owner session.
+
+
+def _refuse_verifier_on_consequential_action(request: Request) -> None:
+    """Defence in depth for the two consequential scheduler routes.
+
+    api_key_middleware already admits only an owner, and a release verifier is not part of the /api
+    policy on App A — so this refuses nothing today. It exists so that if /api is ever extended to
+    accept a verifier (the role's whole purpose is reading protected surfaces), enabling a schedule
+    and running a job do not silently come with it. A verifier holds SCOPE_READ and SCOPE_VERIFY and
+    none of MUTATING_SCOPES; changing a cadence or dispatching a job is neither."""
+    if _release_verifier_ok(request):
+        raise HTTPException(
+            status_code=403,
+            detail="release verifier is read-only: it may not change or trigger a schedule")
 
 
 @app.get("/api/narai/schedules")
 async def narai_get_schedules():
     """List all NarAI scheduled tasks with status, next run, last run."""
-    from core.narai_scheduler import get_schedules, get_schedule_stats
+    from core.narai_scheduler import get_schedules, get_schedule_stats, state_status
+    # Order matters. state_status() reports the provenance of the LAST load, so the load must happen
+    # first — evaluated inside the dict literal it described the PREVIOUS request's read.
+    schedules = get_schedules()
+    stats = get_schedule_stats()
     return {
-        "schedules": get_schedules(),
-        "stats":     get_schedule_stats(),
+        "state":     state_status(),
+        "schedules": schedules,
+        "stats":     stats,
     }
 
 
 @app.patch("/api/narai/schedules/{schedule_id}")
-async def narai_update_schedule(schedule_id: str, request: Request):
+async def narai_update_schedule(schedule_id: str, request: Request,
+                                _v: None = Depends(_refuse_verifier_on_consequential_action)):
     """
     Enable/disable a schedule or change its run time.
     Body: {enabled?: bool, time?: "HH:MM"}
@@ -15421,7 +15800,8 @@ async def narai_update_schedule(schedule_id: str, request: Request):
 
 
 @app.post("/api/narai/schedules/{schedule_id}/trigger")
-async def narai_trigger_schedule(schedule_id: str):
+async def narai_trigger_schedule(schedule_id: str, request: Request,
+                                 _v: None = Depends(_refuse_verifier_on_consequential_action)):
     """Manually trigger a schedule right now (runs in background)."""
     from core.narai_scheduler import trigger_schedule
     result = trigger_schedule(schedule_id)
