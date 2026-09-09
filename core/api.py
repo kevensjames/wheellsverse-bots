@@ -200,6 +200,100 @@ _OPERATOR_SESSION_CFG = _SessionConfig(
 )
 
 
+# ─── CSRF: a cookie is presented by the browser, not by the user ──────────────────────────────────
+#
+# Owner-only closed the anonymous hole. It does not close this one: a session cookie is attached on
+# the basis of the DESTINATION, so another site can make the owner's own browser issue an authorised
+# request. Two things people expect to prevent that, and do not:
+#
+#   SameSite=Lax  blocks cross-SITE cookie sending on unsafe methods, where "site" is the registrable
+#                 domain. It stops evil.com -> app.wheellsverse.com. It does NOT stop
+#                 kai.wheellsverse.com -> app.wheellsverse.com, which is cross-ORIGIN but same-SITE.
+#                 Every wheellsverse.com subdomain sits inside the boundary Lax draws.
+#   CORS          does not stop state change at all. A cross-origin POST with a form or text/plain
+#                 body is a "simple request": the browser sends it and withholds only the RESPONSE.
+#                 By the time CORS blocks the read, the product is published.
+#
+# So an unsafe request authenticated BY COOKIE must come from an origin this app already trusts for
+# credentialed CORS. The allowlist is CORS_ORIGINS — the same list, so the two cannot drift into
+# disagreeing about who is trusted — plus the app's own origin, derived per-request because App A is
+# served on several hostnames. Deriving self-origin from the request is safe against the threat being
+# modelled: a foreign page cannot set the Host header, only the browser can.
+#
+# The machine path is deliberately exempt. Setting X-API-Key forces a CORS preflight that an attacker
+# cannot satisfy, so a header credential cannot be attached by a foreign page and carries no CSRF
+# risk. Cookie = browser = checked; header = machine = not. That distinction is Principal.source.
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+
+# Populated in two steps because the CORS allowlist this defaults to is configured ~700 lines
+# below, while the guard that consumes it is needed here. An explicit CSRF_TRUSTED_ORIGINS wins and
+# is complete on its own; otherwise _bind_csrf_origins() adopts CORS_ORIGINS once it exists. The
+# value is read at call time, never captured, so the later binding takes effect and a test can
+# substitute it.
+_CSRF_TRUSTED_ORIGINS = frozenset(
+    _o.strip().rstrip("/").lower()
+    for _o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if _o.strip()
+)
+
+
+def _origin_of(url: str):
+    """scheme://host[:port] of an absolute URL, lowercased, or None if it is not one.
+
+    urlsplit is used rather than string surgery because the hostile inputs here are precisely the
+    ones hand-parsing gets wrong: "https://trusted@evil.com" (userinfo), "https://evil.com/https://
+    trusted" (path), and "https://trusted.evil.com" (suffix). A prefix or substring comparison
+    accepts all three. This is the same defect as the startswith() route matching that caused the
+    incident these guards exist for, in a different field.
+    """
+    try:
+        from urllib.parse import urlsplit
+        u = urlsplit((url or "").strip())
+        if not u.scheme or not u.hostname:
+            return None
+        netloc = u.hostname.lower()
+        if u.port:
+            netloc = f"{netloc}:{u.port}"
+        return f"{u.scheme.lower()}://{netloc}"
+    except Exception:
+        return None
+
+
+def _trusted_origin_ok(method: str, origin, referer, allowed) -> bool:
+    """Whether an unsafe request's provenance is a trusted origin. Pure, so it can be tested below
+    the framework — the layer where the last two surviving mutants were hiding."""
+    if (method or "").upper() in _SAFE_METHODS:
+        return True
+    # "null" is a real Origin value (sandboxed iframe, data: URL, some redirect chains), not an
+    # absent one. _origin_of returns None for it, and the fall-through below must NOT then treat it
+    # as "no Origin header was sent" — so it is rejected explicitly before the fallback.
+    if origin is not None and origin.strip() != "":
+        return _origin_of(origin) in allowed
+    if referer is not None and referer.strip() != "":
+        return _origin_of(referer) in allowed
+    return False        # no provenance at all: fail closed
+
+
+def _csrf_required_for(source: str, method: str) -> bool:
+    """The cookie is the browser path and is checked; a header credential is the machine path and
+    is not. Principal.source is "session" only for the cookie."""
+    return source == "session" and (method or "").upper() not in _SAFE_METHODS
+
+
+def _csrf_ok(request) -> bool:
+    """Same-origin check for a cookie-authenticated unsafe request."""
+    self_origin = _origin_of(
+        f"{request.headers.get('x-forwarded-proto') or request.url.scheme}://"
+        f"{request.headers.get('x-forwarded-host') or request.url.netloc}"
+    )
+    allowed = set(_CSRF_TRUSTED_ORIGINS)
+    if self_origin:
+        allowed.add(self_origin)
+    return _trusted_origin_ok(request.method,
+                              request.headers.get("origin"),
+                              request.headers.get("referer"),
+                              allowed)
+
+
 def _session_owner_ok(request) -> bool:
     """True iff the unified session is enabled AND the request carries an
     OWNER-authority principal (cookie or legacy header). The /api/ admin surface
@@ -211,7 +305,13 @@ def _session_owner_ok(request) -> bool:
     try:
         from core.operator_session import ROLE_OWNER
         p = _principal_for_request(request, _OPERATOR_SESSION_CFG)
-        return p is not None and p.role == ROLE_OWNER
+        if p is None or p.role != ROLE_OWNER:
+            return False
+        # A cookie proves the browser, not the intent. For an unsafe method it authenticates only
+        # from an origin we trust; otherwise this falls through to 401 like any other bad credential.
+        if _csrf_required_for(p.source, request.method) and not _csrf_ok(request):
+            return False
+        return True
     except Exception:
         return False
 
@@ -236,16 +336,16 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/stripe/webhook", "/api/beehiiv/webhook",
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
                  "/api/canva/oauth-callback", "/api/canva/oauth-url",
-                 "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
+                 "/api/nexora/status", 
                  # Holding OS read-only stat shims (App B probes these to self-update those entities)
                  "/api/siteboost/stats", "/api/wmos/stats",
                  # NarAI autopilot — dashboard-only, protected by same-origin
-                 "/api/narai-autopilot/status", "/api/narai-autopilot/start",
-                 "/api/narai-autopilot/stop", "/api/narai-autopilot/log",
-                 "/api/narai-autopilot/queue", "/api/narai-autopilot/reels",
+                 "/api/narai-autopilot/status", 
+                 "/api/narai-autopilot/log",
+                 "/api/narai-autopilot/queue", 
                  # QC + Factory dashboard endpoints
-                 "/api/qc/stats", "/api/qc/results", "/api/qc/review",
-                 "/api/factory/alltime", "/api/factory/status", "/api/factory/reset",
+                 "/api/qc/stats", "/api/qc/results", 
+                 "/api/factory/alltime", "/api/factory/status", 
                  "/api/narai/memory/stats", "/api/narai/memory/search",
                  "/api/narai/memory/context",
                  # NEXORA platform — auth + public creator endpoints are their own auth
@@ -258,20 +358,18 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
 
 # Shopify dashboard endpoints — all served by the same-origin dashboard, no extra auth
 for _p in [
-    "/api/shopify/status", "/api/shopify/products", "/api/shopify/orders",
+    "/api/shopify/status", "/api/shopify/orders",
     "/api/shopify/customers", "/api/shopify/webhooks/status", "/api/shopify/webhook",
-    "/api/shopify/discount", "/api/shopify/register-webhooks",
     "/api/shopify/oauth-url", "/api/shopify/callback",
-    "/api/shopify/publish-narai-product",
+    
     # Agent Workforce
-    "/api/shopify/agents/start", "/api/shopify/agents/stop",
-    "/api/shopify/agents/status", "/api/shopify/agents/dispatch",
-    "/api/shopify/agents/upgrade-now", "/api/shopify/agents/logs",
+    
+    "/api/shopify/agents/status", 
+    "/api/shopify/agents/logs",
     # Media Engine
-    "/api/shopify/media/generate-batch",
+    
     # Store Intelligence
-    "/api/shopify/intelligence/analyze", "/api/shopify/intelligence/opportunities",
-    "/api/shopify/intelligence/autopilot", "/api/shopify/intelligence/status",
+    "/api/shopify/intelligence/status",
 ]:
     _PUBLIC_PATHS.add(_p)
 
@@ -954,6 +1052,16 @@ app.add_middleware(
                     "Content-Length", "Content-Type"],
 )
 
+# Step two of the CSRF allowlist (declared above): with no explicit CSRF_TRUSTED_ORIGINS, the origins
+# already trusted to make credentialed cross-origin requests are exactly the origins trusted to make
+# cookie-authenticated state changes. Sourcing both from one list means they cannot drift apart and
+# quietly disagree about who is trusted.
+if not _CSRF_TRUSTED_ORIGINS:
+    _CSRF_TRUSTED_ORIGINS = frozenset(
+        o.strip().rstrip("/").lower() for o in _cors_origins if o and o.strip()
+    )
+logger.info("CSRF trusted origins: %d configured", len(_CSRF_TRUSTED_ORIGINS))
+
 
 # ─── Static mount: composed social images ──────────────────────────────────
 # Meta Graph API needs a public HTTPS URL it can fetch when posting photos to
@@ -1445,18 +1553,18 @@ def _norm_path(path: str) -> str:
 PUBLIC_API_RULES = (
     PublicRule("/api/nx", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
                "Nexora platform: carries its own Bearer token auth, enforced inside the routers."),
-    PublicRule("/api/qc", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "Quality-control callbacks with their own token check."),
-    PublicRule("/api/factory", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "Factory pipeline callbacks with their own token check."),
-    PublicRule("/api/narai-autopilot", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "NarAI autopilot surface with its own auth."),
-    PublicRule("/api/shopify-autopilot", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "Shopify autopilot surface with its own auth."),
-    PublicRule("/api/shopify", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
-               "Multi-tenant Shopify app: per-shop Bearer auth enforced in the routers."),
-    PublicRule("/api/sa", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "Shopify-app callbacks with their own signature verification."),
+    PublicRule("/api/qc", frozenset({"GET"}), True,
+               "Quality-control READS the dashboard polls. GET-only: the old rule claimed these routes had \"their own token check\" and they do not — POST /api/qc/review was anonymous."),
+    PublicRule("/api/factory", frozenset({"GET"}), True,
+               "Factory pipeline READS. GET-only: the family's POST start/stop and DELETE reset were anonymous under the old rule, which claimed a token check that does not exist."),
+    PublicRule("/api/narai-autopilot", frozenset({"GET"}), True,
+               "NarAI autopilot READS only. The old rule said \"with its own auth\"; the handlers have none, so POST /start could publish to live social accounts anonymously."),
+    PublicRule("/api/shopify-autopilot", frozenset({"GET"}), True,
+               "Shopify autopilot READS. GET-only: start/stop/trend-scan had no auth."),
+    PublicRule("/api/shopify", frozenset({"GET"}), True,
+               "Shopify READS. GET-only: the multi-tenant routers do carry per-shop Bearer auth, but the single-tenant operator routes under the same prefix carry none — anonymous product create/update/DELETE and discount-code creation. Public POSTs (webhook, oauth) are exact entries."),
+    PublicRule("/api/sa", frozenset({"GET"}), True,
+               "Shopify-app dashboard READS. GET-only: /api/sa/start, /stop, /trend-scan and /setup-boutique had no signature verification despite the old rule claiming it."),
     PublicRule("/api/v2/narai", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
                "NarAI v2 uses its own JWT auth on every route."),
     PublicRule("/api/narai/shopify", frozenset({"GET", "POST", "OPTIONS"}), True,
@@ -1482,9 +1590,24 @@ PUBLIC_API_RULES = (
 #   (/api/narai/run_bot was never intentionally public at all; the missing slash swept it in.)
 
 
+# Paths that are NEVER public, whatever the tables say. A GET-only family rule keeps a dashboard's
+# reads open, which is right until a "read" turns out to compute. GET /api/sa/trend-scan is
+# documented as a "cached read", and on a cold cache run_trend_scan() performs the full scrape and
+# LLM classification behind it — an anonymous GET that spends money. It was found by probing the
+# running app, not by reading it: a source scan of the handler shows only an import and an await,
+# because the cost is one call deeper. A comment can be wrong about a handler and a handler can be
+# wrong about its callee, so this list is short and holds only paths whose behaviour was observed.
+_NEVER_PUBLIC = frozenset({
+    "/api/sa/trend-scan",                       # cold cache -> scrape + Anthropic classification
+    "/api/shopify/intelligence/opportunities",  # same shape: cached read that computes when cold
+})
+
+
 def _public_rule_for(path: str, method: str):
     """The ONE matcher. Returns the PublicRule permitting this request, or None."""
     p = _norm_path(path)
+    if p in _NEVER_PUBLIC:
+        return None
     # Methods are compared EXACTLY, not upper-cased. HTTP verbs are uppercase by spec, and being
     # stricter than the router can only ever over-gate — a malformed `get` is refused rather than
     # silently promoted into a public rule. Leniency here would be a permission decision made by a
@@ -15092,8 +15215,8 @@ _PUBLIC_PATHS.add("/api/shopify-autopilot/log")
 
 # /api/sa/* — short aliases used by the dashboard
 for _p in ["/api/sa/status", "/api/sa/store", "/api/sa/products", "/api/sa/funnel",
-           "/api/sa/trend-scan", "/api/sa/performance", "/api/sa/log",
-           "/api/sa/start", "/api/sa/stop", "/api/sa/setup-boutique"]:
+           "/api/sa/performance", "/api/sa/log",
+           ]:
     _PUBLIC_PATHS.add(_p)
 
 
@@ -15254,20 +15377,26 @@ async def sa_funnel():
 
 @app.get("/api/sa/trend-scan")
 async def sa_trend_scan_get():
-    """Cached read of the trend scan. Even refresh=False can be slow if
-    the cache is cold, so we offload to a worker thread with a tight
-    timeout — keeps the event loop free for everyone else."""
-    import asyncio
-    from core.viral_trend_engine import run_trend_scan
-    try:
-        opps = await asyncio.wait_for(
-            asyncio.to_thread(run_trend_scan, refresh=False),
-            timeout=8.0,
-        )
-    except asyncio.TimeoutError:
-        return {"opportunities": [], "count": 0,
-                "stale": True, "error": "scan timeout (>8s) — try POST to refresh"}
-    return {"opportunities": opps, "count": len(opps)}
+    """Cache read. Performs NO work: no scrape, no LLM call, no write.
+
+    It used to call run_trend_scan(refresh=False), which returns the cache only when the cache is
+    truthy and otherwise falls through to the full scrape, the LLM classification and a write of
+    data/viral_trends.json. So on a cold cache this "read" spent money and mutated state — and
+    SameSite=Lax deliberately sends the session cookie on top-level GET navigation, which means a
+    link was enough to trigger it. Being owner-only does not fix a side-effecting GET; only removing
+    the side effect does.
+
+    The timeout and the worker thread went with it. Both existed to survive work this endpoint no
+    longer does, and a timeout on a file read would only have converted a plain failure into a
+    fabricated empty success.
+
+    Refreshing is POST /api/sa/trend-scan, which is owner-authenticated and carries the CSRF guard.
+    """
+    from core.viral_trend_engine import cached_opportunities
+    status, opps, saved_at = cached_opportunities()
+    return {"status": status, "opportunities": opps, "count": len(opps),
+            "saved_at": saved_at,
+            "refresh_with": "POST /api/sa/trend-scan"}
 
 
 @app.post("/api/sa/trend-scan")
@@ -15324,7 +15453,7 @@ async def sa_setup_boutique():
 # NARAI POD ENGINE ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 
-for _p in ["/api/pod/status", "/api/pod/start", "/api/pod/stop",
+for _p in ["/api/pod/status", 
            "/api/pod/memory", "/api/pod/log"]:
     _PUBLIC_PATHS.add(_p)
 
@@ -15449,21 +15578,30 @@ async def shopify_intelligence_analyze():
 
 @app.get("/api/shopify/intelligence/opportunities")
 async def shopify_intelligence_opportunities():
+    """Cache read. Performs NO work: no live Shopify pull, no write.
+
+    Same defect as GET /api/sa/trend-scan and the same fix. `if not analysis: analysis =
+    analyze_store()` made a documented "return from the last cached analysis" pull live store data
+    and rewrite data/store_intelligence.json whenever the cache happened to be cold. A GET must not
+    decide to do the expensive thing because the cheap thing was unavailable — it must say so.
+
+    Refreshing is POST /api/shopify/intelligence/analyze, which is owner-authenticated.
     """
-    Return scored opportunities from the last cached analysis.
-    Call /analyze first to refresh data.
-    """
-    from core.store_intelligence import get_cached_analysis, score_opportunities, analyze_store
+    from core.store_intelligence import get_cached_analysis, score_opportunities
     analysis = get_cached_analysis()
     if not analysis:
-        analysis = analyze_store()
+        return {"status": "UNAVAILABLE", "opportunities": [], "count": 0,
+                "analyzed_at": None, "store_summary": {},
+                "refresh_with": "POST /api/shopify/intelligence/analyze"}
     opportunities = score_opportunities(analysis)
     return {
+        "status": "OK",
         "opportunities": opportunities,
         "count": len(opportunities),
         "analyzed_at": analysis.get("analyzed_at"),
         "store_summary": {
             "total_products": analysis.get("total_products"),
+
             "total_revenue":  analysis.get("total_revenue"),
             "total_orders":   analysis.get("total_orders"),
             "gaps_count":     len(analysis.get("category_gaps", [])),
