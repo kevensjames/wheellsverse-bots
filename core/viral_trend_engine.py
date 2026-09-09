@@ -343,6 +343,42 @@ def get_trending_opportunities() -> List[dict]:
     return []
 
 
+CACHE_FRESH_SECONDS = 6 * 3600
+
+
+def cached_opportunities():
+    """(status, opportunities, saved_at) read purely from the cache. Never computes.
+
+    get_trending_opportunities() returns [] for three different situations — the file has never been
+    written, the file cannot be parsed, and a scan legitimately found nothing — so a caller cannot
+    tell "we have never looked" from "we looked and there is nothing". That is the same conflation
+    the scheduler made when it reported zeros for state it could not read, and it is why an endpoint
+    built on it cannot answer honestly.
+
+      OK           parsed, and written within CACHE_FRESH_SECONDS
+      STALE        parsed, but older than that — the data is returned, and so is its age
+      UNAVAILABLE  never written, or unreadable. NOT an empty result.
+
+    Pure: no scan, no LLM call, no write. The refresh path is the POST, which is authenticated.
+    """
+    try:
+        if not TRENDS_FILE.exists():
+            return "UNAVAILABLE", [], None
+        data = json.loads(TRENDS_FILE.read_text())
+        opps = data.get("opportunities", [])
+        saved_at = data.get("saved_at")
+        if not isinstance(opps, list):
+            return "UNAVAILABLE", [], saved_at
+        if not saved_at:
+            return "STALE", opps, None
+        age = (datetime.now(timezone.utc)
+               - datetime.fromisoformat(saved_at)).total_seconds()
+        return ("OK" if age <= CACHE_FRESH_SECONDS else "STALE"), opps, saved_at
+    except Exception:
+        # Unreadable is not empty. Report the absence of knowledge, never a confident [].
+        return "UNAVAILABLE", [], None
+
+
 def save_opportunities(opportunities: List[dict], market_intel: Optional[dict] = None):
     """Persist opportunities to data/viral_trends.json."""
     try:

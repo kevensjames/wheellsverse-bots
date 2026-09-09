@@ -285,63 +285,94 @@ def test_the_audited_families_are_no_longer_mutating():
 
 
 # ── 5. THE DURABLE GUARD ──────────────────────────────────────────────────────────────────────────
-def test_no_unauthenticated_mutating_route_is_anonymously_public():
-    """Enumerate the surface instead of listing routes by hand.
+def test_the_anonymously_mutable_surface_is_a_pinned_reviewed_set():
+    """Enumerate the surface and pin it. Do not try to detect authentication.
 
-    The public set is assembled by FOURTEEN scattered sites: the `_PUBLIC_PATHS` literal, eleven
-    `_PUBLIC_PATHS.add(...)` calls, and three `for _p in [...]` loops that run at import time
-    thousands of lines from the declaration — one of them 3,000 lines away, right above the handlers
-    it exempts. Nobody can read the effective public surface from any single place, which is why
-    three separate incidents each found "the" anonymous route and each missed the rest.
+    The previous version of this test scanned each handler's source for an auth signal, and that
+    approach failed in both directions within one session:
 
-    So this test does not name routes. It walks every registered route, asks the real matchers
-    whether it is anonymously reachable, and reads the handler's own source for any authentication
-    signal. A new exemption added at ANY of the fourteen sites fails here.
+      FALSE NEGATIVE  POST /api/shopify/register-webhooks passed the scan because the word
+                      "webhook" was in its path, so the test declared it protected. It had no
+                      authentication at all and would re-register every Shopify webhook — that is,
+                      repoint the store's webhook delivery — for any anonymous caller. It survived
+                      the commit that was supposed to close exactly this class.
+      FALSE POSITIVE  /api/v2/narai/insider/revoke and /reissue were reported as unguarded because
+                      the scan looked for a fixed list of guard names and theirs, _require_admin,
+                      was not on it. Both are properly protected.
 
-    Both directions of scan were needed. A dependency-only scan called /api/nx a false claim —
-    13 mutating routes, zero `Depends`. Reading the source showed `_nx_require_creator(request)` in
-    the body: the auth is real, just not declarative. Trusting the route signature would have been
-    the same mistake as trusting the purpose comment, in the opposite direction.
+    Detecting "is this authenticated?" from source needs a name list or a regex, and both are
+    guesses about vocabulary. So this test stops guessing. It answers only the question it can
+    answer exactly — "can an anonymous request reach this route?" — using the real matchers, and
+    compares the result to a set reviewed by a human. Adding an anonymously-reachable mutating
+    route now fails until someone puts it here deliberately, whatever it is called.
+
+    A new entry belongs in exactly one of these three groups, and the group is the review.
     """
-    import inspect, re
-    AUTH = re.compile(r"_require_|require_auth|verify_admin|verify_api_key|current_user|"
-                      r"_nx_require|check_token|_verify_|signature|hmac", re.I)
-    # Deliberately public entry points: unauthenticated by design because the caller cannot yet
-    # have a credential (login, signup, lead capture, public chat) or authenticates by another
-    # scheme (webhook signatures). Each is a customer-facing surface, not an operator action.
+    # Unauthenticated by design: the caller cannot yet hold a credential.
     ENTRY_POINTS = {
-        "/api/auth/login", "/api/lead", "/api/subscribe", "/api/public/chat",
-        "/api/narai/chat", "/api/narai/conversations", "/api/narai/shopify/billing/checkout",
-        "/api/v2/narai/auth/login", "/api/v2/narai/insider/lead",
-        "/api/v2/narai/telegram/subscription/checkout", "/api/payhip/mark-registered",
+        ("POST", "/api/auth/login"), ("POST", "/api/lead"), ("POST", "/api/subscribe"),
+        ("POST", "/api/public/chat"), ("POST", "/api/narai/chat"),
+        ("POST", "/api/narai/conversations"),
+        ("POST", "/api/narai/shopify/billing/checkout"),
+        ("POST", "/api/v2/narai/auth/login"), ("POST", "/api/v2/narai/insider/lead"),
+        ("POST", "/api/v2/narai/telegram/subscription/checkout"),
+        ("POST", "/api/payhip/mark-registered"),
+        ("POST", "/api/nx/login"), ("POST", "/api/nx/logout"), ("POST", "/api/nx/register"),
+        ("POST", "/api/nx/fan/login"), ("POST", "/api/nx/fan/logout"),
+        ("POST", "/api/nx/fan/register"), ("POST", "/api/nx/subscribe"),
     }
-    offenders = set()
+    # Authenticated by a scheme other than ours. Stripe and Shopify verify a signature; the other
+    # four DO NOT and are carried as a known open finding, not as something this test endorses.
+    WEBHOOKS = {
+        ("POST", "/api/stripe/webhook"), ("POST", "/api/shopify/webhook"),
+        ("POST", "/api/nx/stripe-webhook"),
+        ("POST", "/api/telegram/webhook"), ("POST", "/api/whatsapp/webhook"),
+        ("POST", "/api/beehiiv/webhook"), ("POST", "/api/payhip/webhook"),
+    }
+    # Guarded inside the handler rather than by a dependency — each one read and confirmed.
+    IN_HANDLER_AUTH = {
+        ("PATCH", "/api/nx/me"), ("POST", "/api/nx/messages"), ("POST", "/api/nx/payouts"),
+        ("POST", "/api/nx/posts"), ("DELETE", "/api/nx/posts/{post_id}"),
+        ("POST", "/api/narai/shopify/test-printify"),
+        ("POST", "/api/narai/shopify/merchants/{merchant_id}/test-product"),
+        ("POST", "/api/v2/narai/briefing/now"), ("POST", "/api/v2/narai/briefing/preview"),
+        ("POST", "/api/v2/narai/briefing/test"), ("POST", "/api/v2/narai/briefing/markdown"),
+        ("POST", "/api/v2/narai/insider/revoke"), ("POST", "/api/v2/narai/insider/reissue"),
+    }
+    REVIEWED = ENTRY_POINTS | WEBHOOKS | IN_HANDLER_AUTH
+
+    actual = set()
     for r in core_api.app.routes:
         for m in getattr(r, "methods", set()) or set():
             if m not in ("POST", "PUT", "PATCH", "DELETE"):
                 continue
-            path = r.path
-            if not (core_api._public_rule_for(path, m) or path in core_api._PUBLIC_PATHS):
-                continue
-            if "webhook" in path or path in ENTRY_POINTS or path.startswith("/api/nx/"):
-                continue
-            deps = [d.call.__name__ for d in r.dependant.dependencies] if getattr(r, "dependant", None) else []
-            try:
-                src = inspect.getsource(r.endpoint)
-            except Exception:
-                src = ""
-            if deps or AUTH.search(src):
-                continue
-            offenders.add((m, path))
-    assert not offenders, (
-        "anonymously reachable, mutating, and with no authentication signal anywhere in the "
-        f"handler:\n" + "\n".join(f"  {m} {p}" for m, p in sorted(offenders)))
+            if core_api._public_rule_for(r.path, m) or r.path in core_api._PUBLIC_PATHS:
+                actual.add((m, r.path))
+
+    unreviewed = actual - REVIEWED
+    assert not unreviewed, (
+        "anonymously reachable and mutating, and not in any reviewed group:\n"
+        + "\n".join(f"  {m} {p}" for m, p in sorted(unreviewed))
+        + "\n\nGate it, or add it to a group above with a reason.")
+
+    departed = REVIEWED - actual
+    assert not departed, (
+        "these are no longer anonymously reachable — good, but remove them here in the same commit "
+        "so the reviewed set keeps describing reality:\n"
+        + "\n".join(f"  {m} {p}" for m, p in sorted(departed)))
+
+
+def test_register_webhooks_is_gated():
+    """The route the name-based scan waved through. It re-registers every Shopify webhook, which
+    repoints where the store delivers its events, and it had no authentication of any kind."""
+    assert core_api._public_rule_for("/api/shopify/register-webhooks", "POST") is None
+    assert "/api/shopify/register-webhooks" not in core_api._PUBLIC_PATHS
 
 
 def test_the_public_surface_is_pinned():
     """A count is a cheap tripwire for an exemption added where the scan above has a blind spot."""
     assert len(core_api.PUBLIC_API_RULES) == 12
-    assert len(core_api._PUBLIC_PATHS) == 95, (
+    assert len(core_api._PUBLIC_PATHS) == 94, (
         f"the public path set is now {len(core_api._PUBLIC_PATHS)}; if you added one deliberately, "
         "update this number in the same commit so the change is visible in review")
 
