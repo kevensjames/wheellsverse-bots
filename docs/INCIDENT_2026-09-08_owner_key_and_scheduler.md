@@ -258,13 +258,43 @@ with `railway variable set --stdin` so no value ever appeared on a command line 
 Redeploy order App B → App A → monitor, to keep the shared session secret matched for as short a
 window as possible. Staging was rotated first as a rehearsal of the exact procedure.
 
-**Monitor state — NOT YET RECOVERED.** `kai-prod-monitor` is a `*/5` cron service with no
-long-running deployment, so `railway redeploy` refuses it ("the latest deployment cannot be
-redeployed"). Its `SESSION_SIGNING_SECRET` variable is set to the new value (fp `96065a2cc60b143d`,
-confirmed), but **a run has not been observed since rotation**, so recovery is unproven. Its last
-recorded deployment is `bbdfac27-c4bf-4f8b-ae70-bcf0382b65cf` (2026-09-07T04:27:02Z), which predates
-the rotation. Until a post-rotation run is observed, assume an alerting gap. Tracked as an open item
-in §8; a changed variable is not evidence of recovery.
+**Monitor — BROKEN BY THE ROTATION, THEN RECOVERED. Observed, not inferred.**
+
+`kai-prod-monitor` is a `*/5` cron service. `railway redeploy` refuses it ("the latest deployment
+cannot be redeployed") because there is no long-running deployment to restart. Its
+`SESSION_SIGNING_SECRET` was set with `--skip-deploys`, so the **running deployment kept its old env
+snapshot** while App A and App B moved to the new secret.
+
+That mattered, because the monitor is not a passive prober: `ops/monitor/collectors.py:104-106`
+mints an owner session in-memory from `SESSION_SIGNING_SECRET` and probes App A and App B with it.
+A stale secret means every authenticated probe fails.
+
+Measured, every run from 23:25Z to 01:00Z:
+
+```
+cron_tick=true environment="production" healthy=false did_canary=false alerts=1 sent=… 
+```
+
+A no-secret marker variable (`MONITOR_ROTATION_EPOCH`) was then set **without** `--skip-deploys`,
+purely to force a new deployment that picks up the already-rotated secret — deployment
+`c69e495d-2aa4-4572-a685-ca0421b6bbaa`. The very next run flipped:
+
+```
+2026-09-09T01:05:38Z  healthy=true  did_canary=false  alerts=0  sent=3  delivery_failures=0
+2026-09-09T01:10:29Z  healthy=true  did_canary=false  alerts=0  sent=0  delivery_failures=0
+```
+
+`sent=3` on the first clean run is the recovery notification for the signals that had been alerting.
+
+**Alerting gap: none — but a ~2h16m degraded window.** From rotation (2026-09-08T22:49Z) to
+2026-09-09T01:05Z the monitor ran on schedule and *was* alerting (`alerts=1`, deliveries succeeding,
+`delivery_failures=0`). It was correctly reporting its own broken authentication rather than going
+silent. The risk in that window was masking: a genuine stack problem would have been hard to
+distinguish from the standing auth alert.
+
+**Lesson for the runbook:** `--skip-deploys` is right for a service you will redeploy immediately
+afterwards, and wrong for a cron service you cannot redeploy. Rotate cron consumers with a normal
+(deploy-triggering) variable set, or force a deployment straight after.
 
 **Proof of revocation** (production):
 
@@ -347,10 +377,11 @@ unauthorized call reached the dispatcher or the writer.
    tree matches the contained runtime source, merge, and verify the Git-triggered deployment builds
    the exact merged commit with an identical tree and introduces no new behaviour. Only then does
    App A gain reproducible provenance.
-2. **Monitor recovery** — observe at least one scheduled run after the rotation, and record whether
-   its authenticated probe succeeded, with timestamp and evidence.
+2. ~~**Monitor recovery**~~ — **CLOSED 2026-09-09T01:05:38Z.** The rotation did break it (stale env
+   snapshot on a cron service set with `--skip-deploys`); a forced deployment recovered it, and two
+   consecutive runs report `healthy=true alerts=0`. See §4.
 
-Until both are satisfied the status remains `INCIDENT_CONTAINED_PENDING_GIT_RECONCILIATION`.
+Until item 1 is satisfied the status remains `INCIDENT_CONTAINED_PENDING_GIT_RECONCILIATION`.
 
 ---
 
