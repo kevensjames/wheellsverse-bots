@@ -579,7 +579,8 @@ func handle(_ req: Request) -> Response {
             "identity_acceptable": String(identityAcceptable()),
             "interactive_desktop": String(hasInteractiveDesktop()),
             "accessibility_granted": String(hasAccessibility()),
-            "stop_engaged": String(stopEngaged()), "required_bundle_id": BUNDLE_ID],
+            "stop_engaged": String(stopEngaged()), "required_bundle_id": BUNDLE_ID,
+            "frontmost_bundle_id": frontmostBundleId()],
             correlationId: req.correlationId)
     }
 
@@ -726,13 +727,17 @@ func handle(_ req: Request) -> Response {
         guard let liveBounds = windowBounds(obs.windowId), liveBounds == obs.bounds else {
             return deny(req, "window geometry changed since observation", category: "stale")
         }
-        if frontmostBundleId() != obs.frontmostBundleId {
-            observations.removeAll()
-            return deny(req, "focus changed since observation (user intervention); control released",
-                        category: "focus")
-        }
-        if obs.frontmostBundleId != obs.bundleId {
-            return deny(req, "target window is not frontmost; refusing background action", category: "focus")
+        if verb != .focusWindow {
+            // Input verbs must land in the frontmost target; focus_window is the primitive that
+            // ESTABLISHES focus, so it is exempt (it activates the observed, vetted window).
+            if frontmostBundleId() != obs.frontmostBundleId {
+                observations.removeAll()
+                return deny(req, "focus changed since observation (user intervention); control released",
+                            category: "focus")
+            }
+            if obs.frontmostBundleId != obs.bundleId {
+                return deny(req, "target window is not frontmost; refusing background action", category: "focus")
+            }
         }
         if verb == .typeText || verb == .clickPoint {
             if let fwb = focusedWindowBounds(), !boundsApproximatelyEqual(fwb, obs.bounds) {

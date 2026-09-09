@@ -162,21 +162,31 @@ def observe(capture=False):
     if not o.get("ok"): die(f"observe failed: {o.get('reason')} (WID={WID})")
     return o
 
-def raise_front():
-    # Make the target doc the frontmost/key window right before an effecting action, so the
-    # bridge's (correct) not-frontmost guard passes. Retries because focus can drift back to the
-    # terminal after the osascript call returns.
-    for _ in range(15):
+def make_front():
+    # Establish focus HELPER-SIDE and verify with the helper's OWN frontmost view, so there is no
+    # cross-process race (the earlier osascript approach confirmed frontmost on the terminal side
+    # while the helper's NSWorkspace saw focus drift back). The bridge activates the observed
+    # window via focus_window (exempt from the frontmost precondition), and we poll its probe
+    # until it reports the target frontmost.
+    for _ in range(10):
+        # reliable activation (osascript) AND the helper's own activation (focus_window, the cert proof)
         osa('tell application "TextEdit" to activate')
         osa(f'tell application "TextEdit" to set index of (first window whose name is "{docname}") to 1')
-        time.sleep(0.3)
-        f = osa('tell application "System Events" to name of first application process whose frontmost is true').stdout.strip()
-        if f == "TextEdit":
-            return
-    die("could not bring the TextEdit target to the front (focus kept being stolen)")
+        o = observe()
+        r = bridge.call(req("desktop.focus_window", windowId=WID, targetBundleId="com.apple.TextEdit",
+                            targetPid=PID, expectedTitle=(o.get('data') or {}).get('title'),
+                            observationToken=o["observationToken"]))
+        if not r.get("ok"):
+            die(f"focus_window failed: {r.get('reason')}")
+        # wait until the HELPER ITSELF reports the target frontmost (no cross-process race)
+        for _ in range(15):
+            if (bridge.call(req("desktop.probe")).get("data") or {}).get("frontmost_bundle_id") == "com.apple.TextEdit":
+                return
+            time.sleep(0.2)
+    die("could not make the target frontmost (helper never reported it frontmost)")
 
 def act(verb, **kw):
-    raise_front()
+    make_front()
     o = observe()
     r = bridge.call(req(verb, windowId=WID, targetBundleId="com.apple.TextEdit", targetPid=PID,
                         expectedTitle=(o.get('data') or {}).get('title'),
@@ -198,8 +208,7 @@ except EOFError:
 if ans != "CLEAR":
     die("physical keyboard/mouse-clear confirmation not given")
 
-# After CLEAR the terminal was frontmost; raise the target (also re-verified before each action).
-raise_front()
+# focus is established (and verified) helper-side per action by make_front(); nothing to do here.
 
 # ---- 4. certify one action at a time ----
 print("\n[certify] window-only capture")
@@ -216,9 +225,8 @@ print(f"  captured window PNG sha256={shot_hash[:16]}... ({len(shot_bytes)} byte
 os.remove(shot)   # delete the screenshot immediately after extracting its hash
 
 print("[certify] focus the window")
-_, r = act("desktop.focus_window")
-R["focus"] = bool(r.get("ok"))
-if not R["focus"]: die(f"focus failed: {r.get('reason')}")
+make_front()                     # focus_window succeeded and the helper confirms the target is frontmost
+R["focus"] = True
 
 print("[certify] synthetic typing (canary)")
 _, r = act("desktop.type_text", text=CANARY)
@@ -236,7 +244,7 @@ if not R["shortcut"]: die(f"shortcut failed: {r.get('reason')}")
 
 print("[certify] bounded single click inside the document")
 import re as _re
-raise_front()
+make_front()
 ob = observe()
 nums = _re.findall(r"[-0-9.]+", (ob.get("data") or {}).get("bounds", ""))
 cw, ch = (float(nums[2]), float(nums[3])) if len(nums) >= 4 else (200.0, 200.0)

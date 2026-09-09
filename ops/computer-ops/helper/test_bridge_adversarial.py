@@ -339,6 +339,19 @@ check("operator allowlist excludes TextEdit -> denied", b.call(req("desktop.obse
       False, "no approved applications")
 b.close()
 
+# focus_window is exempt from the frontmost precondition (its job IS to establish focus);
+# input verbs still require the target frontmost.
+b = Bridge(frontmost="com.apple.finder")
+o = observe(b)                     # observed while a DIFFERENT app is frontmost
+tok = o["observationToken"]
+check("type refused when target not frontmost at observe", b.call(req("desktop.type_text", observationToken=tok,
+      windowId=42, targetBundleId="com.apple.TextEdit", targetPid=1000, expectedTitle="Untitled", text="x")),
+      False, "not frontmost")
+o = observe(b); tok = o["observationToken"]
+check("focus_window ALLOWED when not frontmost (establishes focus)", b.call(req("desktop.focus_window",
+      observationToken=tok, windowId=42, targetBundleId="com.apple.TextEdit", targetPid=1000)), True)
+b.close()
+
 # ---------- production binary: real accessibility not granted ----------
 if PROD_BIN:
     print("[production binary: permission not granted]")

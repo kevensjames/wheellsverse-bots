@@ -394,3 +394,22 @@ the cert simply must present a genuinely-frontmost target. Fix (cert, no re-sign
 activates TextEdit + raises the doc and POLLS System Events until TextEdit is actually frontmost
 (retry), called right before EACH effecting action (focus/type/shortcut/click). Rehearsal through
 a 12s keepalive idle: raise_front makes TextEdit frontmost and focus_window succeeds. 2/2.
+
+### Session 6 (cont.) — focus fight resolved: helper-side focus + focus_window exemption
+
+The osascript raise confirmed TextEdit frontmost on the terminal side, but the helper's own
+NSWorkspace saw focus drift back before it observed (a cross-process race). Reproducing under
+Terminal.app did NOT fail (timing-dependent), confirming the fragility rather than a fixed cause.
+
+Two changes (bridge -> needs re-sign; cert):
+- Bridge: focus_window is now EXEMPT from the frontmost precondition + focus-change guard (its
+  job is to ESTABLISH focus; requiring it already be frontmost was contradictory). type/click/
+  shortcut still require the target frontmost. probe now returns `frontmost_bundle_id` (the
+  helper's own view). Adversarial 52/52 (added: input refused when target not frontmost at
+  observe; focus_window allowed when not frontmost). Mutation 22/22 killed (added a not-frontmost
+  mutant), byte-identical restore, source sha 55d557a1.
+- Cert: make_front() activates the target via osascript AND the helper's focus_window, then polls
+  the helper's OWN probe.frontmost_bundle_id until it reports TextEdit -- so the subsequent observe
+  is guaranteed to agree (no cross-process race). Called before each effecting action.
+
+Binary changed -> operator must re-sign once, then re-run the cert.

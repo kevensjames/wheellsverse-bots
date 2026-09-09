@@ -30,6 +30,7 @@ MUTANTS = [
     ("geometry-change", 'guard let liveBounds = windowBounds(obs.windowId), liveBounds == obs.bounds else {',
      'guard let liveBounds = windowBounds(obs.windowId), liveBounds == liveBounds else {'),
     ("pid/window reuse", 'if live.pid != obs.pid || live.bundleId != obs.bundleId {', 'if false {'),
+    ("not-frontmost guard", 'if obs.frontmostBundleId != obs.bundleId {', 'if false {'),
     ("focus-change", 'if frontmostBundleId() != obs.frontmostBundleId {', 'if false {'),
     ("secure field (type)", 'if focusedElementIsSecureOrUnknown() {', 'if false {'),
     ("click point-inside", 'if !obs.bounds.contains(point) { return deny(req, "click point outside target window",',
