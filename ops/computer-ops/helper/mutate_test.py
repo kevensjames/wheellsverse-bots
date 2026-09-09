@@ -29,7 +29,7 @@ MUTANTS = [
      'if false { return deny(req, "window title changed since observation", category: "stale") }'),
     ("geometry-change", 'guard let liveBounds = windowBounds(obs.windowId), liveBounds == obs.bounds else {',
      'guard let liveBounds = windowBounds(obs.windowId), liveBounds == liveBounds else {'),
-    ("pid/window reuse", 'if live.pid != obs.pid || live.bundleId != obs.bundleId {', 'if false {'),
+    ("pid/window reuse", 'if live.pid != obs.pid {   // kCGWindowOwnerPID is stable; same pid => same process (bundle-id derivation flakes)', 'if false {   // kCGWindowOwnerPID is stable; same pid => same process (bundle-id derivation flakes)'),
     ("frontmost window guard", 'if frontmostWindowId() != obs.windowId {\n                return deny(req, "target window is not frontmost; refusing background action", category: "focus")', 'if false {\n                return deny(req, "target window is not frontmost; refusing background action", category: "focus")'),
     ("secure field (type)", 'if focusedElementIsSecureOrUnknown() {', 'if false {'),
     ("click point-inside", 'if !obs.bounds.contains(point) { return deny(req, "click point outside target window",',

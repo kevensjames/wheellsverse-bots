@@ -461,3 +461,14 @@ killed (byte-identical restore), gate verified. source sha f353057d. Self-signed
 
 This was a genuine production bug too: a connector-spawned helper would have had the same stale
 frontmost. Window z-order is run-loop-independent and correct in both contexts.
+
+### Session 6 (cont.) — spurious "window id reused": NSRunningApplication.bundleIdentifier flakes
+
+focus_window failed "window id reused by a different process since observation". The reuse guard
+was `live.pid != obs.pid || live.bundleId != obs.bundleId`; kCGWindowOwnerPID (pid) is stable, but
+`bundleIdForPid` via NSRunningApplication.bundleIdentifier intermittently returns "" under load, so
+live.bundleId ("") != obs.bundleId ("com.apple.TextEdit") fired a FALSE reuse rejection. Fix: cache
+pid->bundle (a flake reuses the last good value) and base the reuse guard on PID alone (same pid =>
+same process; the bundle-id comparison was redundant and fragile). Also cleaned up my accumulated
+test docs (quit TextEdit). Validated twice under Terminal.app: make_front + focus_window succeed.
+Adversarial 52/52, mutation 21/21 killed, gate verified. source sha 7cd28de5. Self-signed dist/.

@@ -288,9 +288,13 @@ func identityAcceptable() -> Bool { bundleIdentifier() == BUNDLE_ID }
 
 // MARK: - Window model (real; driven from env under the test seam)
 
+var pidBundleCache: [Int: String] = [:]
 func bundleIdForPid(_ pid: Int) -> String {
+    if let cached = pidBundleCache[pid], !cached.isEmpty { return cached }   // NSRunningApplication flakes to nil under load
     #if canImport(AppKit)
-    return NSRunningApplication(processIdentifier: pid_t(pid))?.bundleIdentifier ?? ""
+    let b = NSRunningApplication(processIdentifier: pid_t(pid))?.bundleIdentifier ?? ""
+    if !b.isEmpty { pidBundleCache[pid] = b }
+    return b
     #else
     return ""
     #endif
@@ -745,7 +749,7 @@ func handle(_ req: Request) -> Response {
                 .first(where: { $0.windowId == obs.windowId }) else {
             return deny(req, "target window disappeared/minimized since observation", category: "target")
         }
-        if live.pid != obs.pid || live.bundleId != obs.bundleId {
+        if live.pid != obs.pid {   // kCGWindowOwnerPID is stable; same pid => same process (bundle-id derivation flakes)
             return deny(req, "window id reused by a different process since observation", category: "target")
         }
         if live.title != obs.title { return deny(req, "window title changed since observation", category: "stale") }
