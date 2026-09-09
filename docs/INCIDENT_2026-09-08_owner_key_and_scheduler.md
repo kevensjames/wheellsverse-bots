@@ -3,8 +3,9 @@
 **Status: `INCIDENT_CONTAINED_PENDING_GIT_RECONCILIATION`**
 
 Production and staging are patched, credentials are rotated, and old credentials and old sessions are
-proven rejected. The incident is **not** closed: the serving artifact has no Git provenance until the
-incident PR merges, and the monitor has not yet been observed recovering.
+proven rejected. The monitor was broken by the rotation and has been **observed recovering**
+(§4). The incident is **not** closed: the serving artifact has no Git provenance until the incident
+PR merges.
 
 ---
 
