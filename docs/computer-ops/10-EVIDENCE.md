@@ -442,3 +442,22 @@ Note: to iterate this fix without repeated operator re-sign+CLEAR cycles, the he
 LOCALLY with the same Apple Development identity -- codesign runs non-interactively here (the key
 is pre-authorized; no keychain prompt), so no macOS signing interaction was required. dist/ is
 signed and verified; the operator runs only the final certification.
+
+### Session 6 (cont.) — the focus bug: NSWorkspace.frontmostApplication is stale in a CLI
+
+make_front failed: the debug log showed `sysfront='TextEdit' focus_window_ok=True` but
+`helperfront='com.apple.Terminal'` on every poll. Root cause: `NSWorkspace.shared.frontmostApplication`
+needs a live run loop to update; in the helper's run-loop-less stdin loop it stays FROZEN at the
+launch-time value (Terminal was frontmost when the helper spawned), so the bridge's frontmost
+guard never saw TextEdit. (My earlier repros happened to launch with TextEdit frontmost, hiding it.)
+
+Fix (bridge): determine "frontmost" from window z-order -- the topmost NORMAL (layer 0) on-screen
+window via CGWindowListCopyWindowInfo, a LIVE query. The interaction guard for input verbs is now
+"the target window is the topmost window" (which also subsumes the old focus-changed-since-observation
+check); focus_window stays exempt. probe reports frontmost_window_id; the cert's make_front polls it
+until it equals the target WID. Validated under Terminal.app: helper reports the target window
+frontmost, make_front and focus_window succeed. Suites re-run: adversarial 52/52, mutation 21/21
+killed (byte-identical restore), gate verified. source sha f353057d. Self-signed dist/.
+
+This was a genuine production bug too: a connector-spawned helper would have had the same stale
+frontmost. Window z-order is run-loop-independent and correct in both contexts.

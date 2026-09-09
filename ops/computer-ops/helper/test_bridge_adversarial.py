@@ -189,10 +189,10 @@ check("target disappeared/app exit", b.call(req("desktop.type_text", observation
 b.close()
 
 b = Bridge(); o = observe(b); tok = o["observationToken"]
-b.call({"id": uid(), "verb": "test.set_frontmost", "frontmost": "com.apple.finder"})
+b.call({"id": uid(), "verb": "test.set_frontmost_window", "frontmostWindow": 999})
 check("focus stolen before input", b.call(req("desktop.type_text", observationToken=tok, windowId=42,
       targetBundleId="com.apple.TextEdit", targetPid=1000, expectedTitle="Untitled", text="x")),
-      False, "focus changed")
+      False, "not frontmost")
 b.close()
 
 # ---------- adversarial: sensitive / privacy / bounds ----------
@@ -341,7 +341,7 @@ b.close()
 
 # focus_window is exempt from the frontmost precondition (its job IS to establish focus);
 # input verbs still require the target frontmost.
-b = Bridge(frontmost="com.apple.finder")
+b = Bridge(env_extra={"KAI_TEST_FRONTMOST_WINDOW": "999"})
 o = observe(b)                     # observed while a DIFFERENT app is frontmost
 tok = o["observationToken"]
 check("type refused when target not frontmost at observe", b.call(req("desktop.type_text", observationToken=tok,

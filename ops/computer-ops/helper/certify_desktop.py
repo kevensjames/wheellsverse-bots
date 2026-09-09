@@ -205,9 +205,10 @@ def make_front():
             die(f"focus_window failed: {r.get('reason')}")
         # wait until the HELPER ITSELF reports the target frontmost (no cross-process race)
         for _ in range(15):
-            fm = (bridge.call(req("desktop.probe")).get("data") or {}).get("frontmost_bundle_id")
-            dbg(f"helperfront={fm!r}")
-            if fm == "com.apple.TextEdit":
+            data = bridge.call(req("desktop.probe")).get("data") or {}
+            fwid = data.get("frontmost_window_id")
+            dbg(f"frontmost_window_id={fwid!r} target_WID={WID}")
+            if fwid == str(WID):
                 return
             time.sleep(0.2)
     die("could not make the target frontmost (helper never reported it frontmost)")

@@ -181,7 +181,7 @@ var haveController = false
 #if KAI_TEST_HARNESS
 struct TestControl: Decodable {
     let id: String; let verb: String
-    var windows: String?; var frontmost: String?; var secure: Bool?; var roleSensitive: Bool?; var bounds: [String: Double]?
+    var windows: String?; var frontmost: String?; var secure: Bool?; var roleSensitive: Bool?; var bounds: [String: Double]?; var frontmostWindow: Int?
 }
 enum TestModel {
     static func env(_ k: String) -> String { ProcessInfo.processInfo.environment[k] ?? "" }
@@ -208,6 +208,7 @@ enum TestModel {
     static var _windows: [WindowInfo] = parseWindows(env("KAI_TEST_WINDOWS"))
     static var _bounds: [Int: CGRect] = parseBounds(env("KAI_TEST_WINDOWS"))
     static var frontmost: String = env("KAI_TEST_FRONTMOST")
+    static var frontmostWindowId: Int = Int(env("KAI_TEST_FRONTMOST_WINDOW")) ?? (parseWindows(env("KAI_TEST_WINDOWS")).first?.windowId ?? 0)
     static var secureField: Bool = env("KAI_TEST_SECURE") == "1"
     static var roleSensitive: Bool = env("KAI_TEST_ROLE_SENSITIVE") == "1"
     static var focusedBounds: CGRect? = nil
@@ -294,11 +295,35 @@ func bundleIdForPid(_ pid: Int) -> String {
     return ""
     #endif
 }
+func frontmostWindowId() -> Int? {
+    // The frontmost/key window is the topmost NORMAL (layer 0) on-screen window. This is a LIVE
+    // query; NSWorkspace.frontmostApplication is unreliable here (a run-loop-less CLI never updates
+    // it -- it stays frozen at the launch-time value).
+    #if KAI_TEST_HARNESS
+    return TestModel.frontmostWindowId
+    #elseif canImport(AppKit)
+    guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                               kCGNullWindowID) as? [[String: Any]] else { return nil }
+    for w in raw {
+        let layer = (w[kCGWindowLayer as String] as? Int) ?? 0
+        if layer == 0, let wid = w[kCGWindowNumber as String] as? Int { return wid }
+    }
+    return nil
+    #else
+    return nil
+    #endif
+}
 func frontmostBundleId() -> String {
     #if KAI_TEST_HARNESS
     return TestModel.frontmost
     #elseif canImport(AppKit)
-    return NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
+    guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                               kCGNullWindowID) as? [[String: Any]] else { return "" }
+    for w in raw {
+        let layer = (w[kCGWindowLayer as String] as? Int) ?? 0
+        if layer == 0, let pid = w[kCGWindowOwnerPID as String] as? Int { return bundleIdForPid(pid) }
+    }
+    return ""
     #else
     return ""
     #endif
@@ -580,7 +605,8 @@ func handle(_ req: Request) -> Response {
             "interactive_desktop": String(hasInteractiveDesktop()),
             "accessibility_granted": String(hasAccessibility()),
             "stop_engaged": String(stopEngaged()), "required_bundle_id": BUNDLE_ID,
-            "frontmost_bundle_id": frontmostBundleId()],
+            "frontmost_bundle_id": frontmostBundleId(),
+            "frontmost_window_id": String(frontmostWindowId() ?? -1)],
             correlationId: req.correlationId)
     }
 
@@ -728,14 +754,10 @@ func handle(_ req: Request) -> Response {
             return deny(req, "window geometry changed since observation", category: "stale")
         }
         if verb != .focusWindow {
-            // Input verbs must land in the frontmost target; focus_window is the primitive that
-            // ESTABLISHES focus, so it is exempt (it activates the observed, vetted window).
-            if frontmostBundleId() != obs.frontmostBundleId {
-                observations.removeAll()
-                return deny(req, "focus changed since observation (user intervention); control released",
-                            category: "focus")
-            }
-            if obs.frontmostBundleId != obs.bundleId {
+            // Input verbs must land in the frontmost target window (topmost by z-order). This also
+            // subsumes the old "focus changed since observation" check: if the user grabbed focus,
+            // their window is topmost, not the target. focus_window is exempt (it establishes focus).
+            if frontmostWindowId() != obs.windowId {
                 return deny(req, "target window is not frontmost; refusing background action", category: "focus")
             }
         }
@@ -793,7 +815,7 @@ func handle(_ req: Request) -> Response {
                 return deny(req, "UI element at click point is secure/unknown", category: "secure_field")
             }
             let ok = clickAt(point)
-            if frontmostBundleId() != obs.bundleId { observations.removeAll() }
+            if frontmostWindowId() != obs.windowId { observations.removeAll() }
             auditPrivacySafe(["event": ok ? "CLICK" : "CLICK_FAIL", "bundle_id": obs.bundleId,
                               "window_id": String(obs.windowId), "correlation_id": obs.correlationId])
             return Response(id: req.id, ok: ok, verb: req.verb,
@@ -837,6 +859,7 @@ while let line = readLine(strippingNewline: true) {
         switch tc.verb {
         case "test.set_windows": if let w = tc.windows { TestModel.setWindows(w) }
         case "test.set_frontmost": TestModel.frontmost = tc.frontmost ?? ""
+        case "test.set_frontmost_window": TestModel.frontmostWindowId = tc.frontmostWindow ?? 0
         case "test.set_secure": TestModel.secureField = tc.secure ?? false
         case "test.set_role_sensitive": TestModel.roleSensitive = tc.roleSensitive ?? false
         case "test.set_focused_bounds":
