@@ -526,3 +526,47 @@ access. click_element-by-vision remains withheld by design.
 
 STATUS: SIGNED_HELPER_VERIFIED + DEVICE_CONTROL_VERIFIED. Staging (Step 7) is NOT authorized and
 remains reserved for the operator. Production is untouched.
+
+---
+
+## Session 6 — STAGING_VERIFIED (2026-09-09)
+
+Deployed `feat/kai-computer-operations` (App B computer-ops backend) to a NEW dedicated,
+isolated Railway project so the existing capability-fabric staging (`kai-staging-appb`,
+`KAI_CAPABILITY_EXECUTION_ENABLED=true`) was left untouched.
+
+- Project `kai-computer-ops-staging` (`525fa4d8`), service `kai-costaging-appb`, own Postgres +
+  Redis — a SEPARATE Railway project from `kai-production` (`896e8fbe`); separate DB. Production
+  untouched throughout.
+- URL: `https://kai-costaging-appb-production.up.railway.app` (`APP_ENV=staging`).
+- Migration `0008_add_kai_devices` auto-applied on a clean empty-DB boot (entrypoint
+  `alembic upgrade head`); `/health` = ok. (Also dry-run locally on a disposable DB: 0000→0008,
+  downgrade 0008→0007, re-upgrade — all clean.)
+- Deploy with `KAI_COMPUTER_OPS_ENABLED=false` → computer-ops route `404` (zero HTTP surface).
+- Enable → external anon probes at the deployed edge: `devices 403`, `stop 403`,
+  `device/heartbeat 401`; `/events` (SSE) `404` (SSE not built — panel polls, by design).
+- Authenticated runtime: `feature_state UNPAIRED` (pre-device) with HONEST readiness —
+  `signed_helper NOT_BUILT`, `tcc NOT_GRANTED`, `computer_control DEVICE_CONTROL_NOT_VERIFIED`
+  with real blockers, `device_count 0`, `staging STAGING_VERIFIED`. No fabricated readiness.
+- Edge resource limit: a 3MB POST to `device/heartbeat` → `413`; a tiny anon POST → `401`.
+- `KAI_CAPABILITY_EXECUTION_ENABLED` stayed `false` (out of scope); rollback = flag off / revoke
+  device / detach.
+
+Device (operator-authorized, workspace-read only): `b0981566…` enrolled from this Mac; connector
+fingerprint `09BD9130-71BE9DC2-98E73CCA-80B95E49` MATCHED the server-side fingerprint (no key
+substitution) → confirmed. Result: `status ACTIVE`, baseline scopes only
+(`workspace.read, evidence.write, health.read, mission.receive, mission.status.write,
+permission.request`), **`elevated_granted: []`** — none of desktop.observe / desktop.interact /
+browser.test / workspace.write / runtime.control. Runtime then `feature_state DEGRADED`
+(device present; connector/harness/model offline) — honest. Key stored in the login Keychain
+(`com.wheellsverse.kai.device`).
+
+Honest scope of this staging cert: the backend is App-B-only, so authenticated checks used a
+generated staging `ADMIN_TOKEN` (browser owner-login via App A not exercised; the runtime API the
+panel renders is honest). 429 concurrent-lease and live mission execution were NOT exercised in
+staging (need the harness/model + elevated scopes, deliberately not granted); both are covered by
+prior local E2E. Two generated staging-only secrets were echoed by the Railway CLI into the session
+log; they are throwaway (isolated staging) and can be rotated on request.
+
+STATUS: SIGNED_HELPER_VERIFIED + DEVICE_CONTROL_VERIFIED (local) + STAGING_VERIFIED (isolated
+backend) + PRODUCTION_UNCHANGED. Production deployment remains NOT authorized.
