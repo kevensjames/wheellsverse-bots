@@ -53,11 +53,19 @@ class Bridge:
         threading.Thread(target=self._keepalive, daemon=True).start()
     def _keepalive(self):
         # 1s << the throttle threshold (which beginActivity in the helper pushes past ~15s), so the
-        # helper's window-server access never lapses during the human CLEAR pause.
+        # helper's window-server access never lapses. Logs each poll's window count so a block is
+        # diagnosable from /tmp/kai_cert_debug.txt.
         while self._alive:
             time.sleep(1)
-            try: self.call({"id": "keepalive", "verb": "desktop.list_windows", "allowedApps": ["TextEdit"]})
-            except Exception: break
+            try:
+                r = self.call({"id": "keepalive", "verb": "desktop.list_windows", "allowedApps": ["TextEdit"]})
+                try:
+                    with open("/tmp/kai_cert_debug.txt", "a") as f:
+                        f.write(f"{time.time():.1f} keepalive windows={len(r.get('windows') or [])}\n")
+                except Exception:
+                    pass
+            except Exception:
+                break
     def call(self, obj):
         with self._lock:
             self.p.stdin.write(json.dumps(obj) + "\n"); self.p.stdin.flush()
@@ -215,7 +223,10 @@ except EOFError:
 if ans != "CLEAR":
     die("physical keyboard/mouse-clear confirmation not given")
 
-# focus is established (and verified) helper-side per action by make_front(); nothing to do here.
+# The single bridge, kept warm from birth by the 1s keepalive + the helper's beginActivity
+# assertion, holds window enumeration live through the human pause (measured: counts stay full
+# across a >15s input() wait with Terminal frontmost). A helper is NOT re-spawned here: one born
+# into an already-throttled window-server state stays cold. focus is established per make_front().
 
 # ---- 4. certify one action at a time ----
 print("\n[certify] window-only capture")
