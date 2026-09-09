@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -290,8 +291,9 @@ async def verify_api_key(request: Request):
 
     path = request.url.path
     # NEXORA platform uses its own Bearer token auth — never block these with API key
-    if path in _PUBLIC_PATHS or not path.startswith("/api/") or path.startswith("/api/nx/"):
-        return  # Public route
+    if (path in _PUBLIC_PATHS or not path.startswith("/api/")
+            or _public_rule_for(path, request.method) is not None):
+        return  # Public route — decided by the ONE rule table, never by a character prefix
 
     key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
     if not key or not hmac.compare_digest(key, _API_KEY):
@@ -1398,18 +1400,104 @@ def _admin_command_metrics(_auth: None = Depends(require_admin_json)):
     }, headers={"Cache-Control": "no-store"})
 
 
-# Hoisted to module scope so the fail-closed pre-check and the normal check consult the
-# SAME list. Two copies of an exemption list is how one of them drifts.
-_PUBLIC_API_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
-                             "/api/shopify-autopilot/", "/api/shopify/agents/",
-                             "/api/shopify/media/", "/api/shopify/intelligence/",
-                             "/api/shopify/", "/api/sa/",
-                             "/api/narai/run", "/api/narai/revenue", "/api/narai/status",
-                             "/api/v2/narai/",       # v2 uses its own JWT auth
-                 "/api/narai/shopify/",  # multi-tenant Shopify — own Bearer auth
-                             "/api/google/",   # OAuth flow: protected by state-based CSRF
-                             "/api/store/download/",  # uses its own signed-token auth
-                             "/api/store/redeliver")  # customer self-serve re-send (rate-limited internally via order lookup)
+# ── PUBLIC ROUTE RULES ────────────────────────────────────────────────────────────────────────────
+# INCIDENT FOLLOW-UP. This was a tuple of string prefixes tested with `path.startswith(...)`, and a
+# prefix is not a path. The entry "/api/narai/run" therefore exempted every route whose path merely
+# BEGINS with those characters — including POST /api/narai/run_bot, which nobody exempted on purpose
+# and which runs a bot. Measured with the gate live, anonymously: run_bot returned 200 and the
+# handler RAN (138 bots loaded, trigger attempted); /api/narai/revenue ran the revenue loop.
+#
+# A public exception is now an explicit rule with four fields that must each be decided deliberately:
+#   path         exact, normalised, no trailing slash
+#   methods      the HTTP methods this exception covers — never "all" by omission
+#   descendants  whether children are included, and children means a "/" boundary, never a substring
+#   purpose      why this is safe to expose, in words, so the next reader can re-judge it
+#
+# A rule for /api/narai/run cannot match /api/narai/run_bot. That is the whole point.
+@dataclass(frozen=True)
+class PublicRule:
+    path: str
+    methods: frozenset
+    descendants: bool
+    purpose: str
+
+
+def _norm_path(path: str) -> str:
+    """Normalise before matching, so a rewritten path cannot dodge or forge a rule.
+
+    Collapses duplicate slashes, resolves . and .. segments, and drops a trailing slash. Percent
+    escapes are NOT decoded: %2F is not a separator, and treating it as one is how a matcher is
+    tricked into seeing a shorter path than the router will."""
+    if not path:
+        return "/"
+    out = []
+    for seg in path.split("/"):
+        if seg in ("", "."):
+            continue
+        if seg == "..":
+            if out:
+                out.pop()
+            continue
+        out.append(seg)
+    return "/" + "/".join(out)
+
+
+PUBLIC_API_RULES = (
+    PublicRule("/api/nx", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
+               "Nexora platform: carries its own Bearer token auth, enforced inside the routers."),
+    PublicRule("/api/qc", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Quality-control callbacks with their own token check."),
+    PublicRule("/api/factory", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Factory pipeline callbacks with their own token check."),
+    PublicRule("/api/narai-autopilot", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "NarAI autopilot surface with its own auth."),
+    PublicRule("/api/shopify-autopilot", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Shopify autopilot surface with its own auth."),
+    PublicRule("/api/shopify", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
+               "Multi-tenant Shopify app: per-shop Bearer auth enforced in the routers."),
+    PublicRule("/api/sa", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Shopify-app callbacks with their own signature verification."),
+    PublicRule("/api/v2/narai", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
+               "NarAI v2 uses its own JWT auth on every route."),
+    PublicRule("/api/narai/shopify", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Multi-tenant Shopify under NarAI: own Bearer auth."),
+    PublicRule("/api/google", frozenset({"GET", "POST", "OPTIONS"}), True,
+               "Google OAuth flow: protected by state-based CSRF, must be reachable pre-session."),
+    PublicRule("/api/store/download", frozenset({"GET"}), True,
+               "Customer download links carry their own signed, expiring token."),
+
+    # GET-only, EXACT path, no descendants. App B's holding entity_status probes this with a plain
+    # urlopen and no credentials (backend/app/services/holding/entity_status.py), so it is a real
+    # unauthenticated health consumer and cannot simply be gated. It is instead REDUCED to a bounded
+    # status contract — see narai_core_status(). Internal mood/mind/skills/bot-inventory and the
+    # integration-presence map are no longer served here, secret-free or not.
+    PublicRule("/api/narai/status", frozenset({"GET"}), False,
+               "Bounded liveness/status for the cross-app health probe; no internal state."),
+)
+
+# WITHDRAWN public exemptions, kept as the record rather than deleted:
+#   /api/narai/run        POST — runs a full autonomous cycle. Never a customer endpoint.
+#   /api/narai/revenue    POST — runs the revenue loop.
+#   /api/store/redeliver  GET  — re-sends a paid order's files. An unauthenticated email-send action.
+#   (/api/narai/run_bot was never intentionally public at all; the missing slash swept it in.)
+
+
+def _public_rule_for(path: str, method: str):
+    """The ONE matcher. Returns the PublicRule permitting this request, or None."""
+    p = _norm_path(path)
+    # Methods are compared EXACTLY, not upper-cased. HTTP verbs are uppercase by spec, and being
+    # stricter than the router can only ever over-gate — a malformed `get` is refused rather than
+    # silently promoted into a public rule. Leniency here would be a permission decision made by a
+    # client's capitalisation.
+    m = method or ""
+    for rule in PUBLIC_API_RULES:
+        if m not in rule.methods:
+            continue
+        if p == rule.path:
+            return rule
+        if rule.descendants and p.startswith(rule.path + "/"):
+            return rule
+    return None
 
 
 @app.middleware("http")
@@ -1421,7 +1509,7 @@ async def api_key_middleware(request: Request, call_next):
     if not _API_KEY and not _auth_config_allows_open_access():
         path = request.url.path
         if (path.startswith("/api/") and path not in _PUBLIC_PATHS
-                and not any(path.startswith(p) for p in _PUBLIC_API_PREFIXES)):
+                and _public_rule_for(path, request.method) is None):
             return JSONResponse({"error": "Unauthorized", "hint": "Set X-API-Key header"},
                                 status_code=401)
     if _API_KEY:
@@ -1432,7 +1520,8 @@ async def api_key_middleware(request: Request, call_next):
         # POST /{id}/trigger (run a job now) were all anonymous on production. Every other entry
         # ends in "/" precisely so it cannot do this; a test now asserts that for all of them.
         # Removed. The scheduler falls under this middleware's owner check like any other /api route.
-        if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_API_PREFIXES) and path not in _PUBLIC_PATHS:
+        if (path.startswith("/api/") and _public_rule_for(path, request.method) is None
+                and path not in _PUBLIC_PATHS):
             key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
             if not key or not hmac.compare_digest(key, _API_KEY):
                 # Flag-gated fallback: accept a valid unified session cookie in
@@ -9819,8 +9908,34 @@ class NarAILearnHumanRequest(BaseModel):
     answer: str
 
 
+# The bounded public status contract. Everything else about NarAI is owner-gated.
+#
+# This route stays public for ONE named consumer: App B's holding entity_status probes it with a
+# plain urllib.request.urlopen and no credentials (backend/app/services/holding/entity_status.py),
+# reading the keys below. Gating it would break a cross-app health probe, so it is REDUCED instead.
+#
+# The full get_status() payload was 2,003 B and carried the operator's internal state — mood, mind,
+# a skills list, a bot-health report and `env`, a map of which integrations are configured. None of
+# that is secret and none of it belongs on an unauthenticated endpoint: an integration-presence map
+# is reconnaissance, and "contains no secret" is not the same as "is safe to publish". The owner
+# view keeps everything, at the gated /api/narai/status/full.
+_PUBLIC_STATUS_KEYS = ("name", "category", "status", "online", "posts", "videos", "images",
+                       "last_run", "run_count")
+
+
 @app.get("/api/narai/status")
 async def narai_status():
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    full = narai.get_status() or {}
+    return {k: full[k] for k in _PUBLIC_STATUS_KEYS if k in full}
+
+
+@app.get("/api/narai/status/full")
+async def narai_status_full():
+    """The unreduced status. Owner-gated: it is a descendant of an exact, non-descendant public
+    rule, so the middleware refuses it to anyone without an owner credential."""
     narai = _get_narai()
     if not narai:
         raise HTTPException(status_code=503, detail="NarAI offline")

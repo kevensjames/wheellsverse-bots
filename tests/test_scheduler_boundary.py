@@ -216,35 +216,39 @@ def test_method_override_headers_do_not_reach_a_mutation(client, override):
 
 
 def test_the_prefix_exemption_is_gone_and_the_neighbours_are_intact():
-    """MUTATION GUARD on the exact defect: an entry without a trailing slash exempted a whole
-    subtree via startswith(). Assert this one is gone AND that no NEW entry has that shape.
+    """MUTATION GUARD on the original defect, updated for the model that replaced it.
 
-    The tuple was later hoisted to module scope so the fail-closed pre-check and the normal check
-    consult ONE list — two copies of an exemption list is how one of them drifts — so this reads the
-    module constant rather than the middleware's source text."""
-    import inspect as _inspect
+    The exemption used to be a tuple of string prefixes tested with startswith(), so
+    "/api/narai/schedules" without a trailing slash exempted the whole subtree — PATCH and trigger
+    included. That tuple is gone. Public access is now an explicit PublicRule table matched exactly,
+    or by descendant with a "/" boundary, so a character-prefix exemption cannot be expressed at all.
 
-    entries = list(core_api._PUBLIC_API_PREFIXES)
-    assert entries, "the public-prefix list is empty — the guard would pass vacuously"
-    assert "/api/narai/schedules" not in entries, "the scheduler prefix exemption is back"
+    This asserts the scheduler is absent from the table, that the shape which caused the defect is
+    structurally impossible, and that the withdrawn action exemptions have not crept back."""
+    rules = core_api.PUBLIC_API_RULES
+    assert rules, "the public rule table is empty — the guard would pass vacuously"
 
-    # the record of WHY must survive at the site
-    assert "INCIDENT 2026-09-08" in _inspect.getsource(core_api), \
-        "the incident record was deleted from core/api.py"
+    paths = {r.path for r in rules}
+    assert "/api/narai/schedules" not in paths, "the scheduler exemption is back"
 
-    # Four entries share the missing-trailing-slash shape. They are OUT OF SCOPE for the incident
-    # authorization, so they are recorded here rather than changed. Pinning the exact set means a
-    # FIFTH cannot be added quietly, and the day one is fixed this list shrinks deliberately.
-    KNOWN_OPEN_SUBTREE_PREFIXES = {"/api/narai/run", "/api/narai/revenue", "/api/narai/status",
-                                   "/api/store/redeliver"}
-    bad = {e for e in entries if not e.endswith("/")} - KNOWN_OPEN_SUBTREE_PREFIXES
-    assert not bad, (
-        f"NEW prefix entries that do not end in '/': {sorted(bad)} — startswith() makes each of "
-        "these exempt a whole subtree, which is exactly how the scheduler's PATCH and trigger "
-        "became public")
-    # and the known set must not silently shrink by deletion either
-    assert KNOWN_OPEN_SUBTREE_PREFIXES <= set(entries), \
-        "a known-open prefix vanished from the list — if it was fixed, update this test deliberately"
+    # the exemptions withdrawn because they were unauthorized ACTION paths
+    for withdrawn in ("/api/narai/run", "/api/narai/revenue", "/api/store/redeliver"):
+        assert withdrawn not in paths, f"{withdrawn} was re-added as a public rule"
+
+    # and no rule may match a scheduler path, by any spelling
+    for spelling in ("/api/narai/schedules", "/api/narai/schedules/stats",
+                     "/api/narai/schedules/x", "//api/narai/schedules"):
+        for method in ("GET", "POST", "PATCH", "DELETE"):
+            assert core_api._public_rule_for(spelling, method) is None, \
+                f"{method} {spelling} matched a public rule"
+
+    # the defect's shape cannot be written any more: intent lives in a boolean, not in a string
+    for r in rules:
+        assert not r.path.endswith("/"), \
+            f"{r.path} encodes subtree intent in the string; use descendants=True"
+        assert isinstance(r.descendants, bool)
+        assert r.methods, f"{r.path} permits no method"
+        assert r.purpose and len(r.purpose) > 20, f"{r.path} has no documented purpose"
 
 
 def test_the_exact_path_exemption_is_gone():
