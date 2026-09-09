@@ -341,6 +341,12 @@ def test_the_anonymously_mutable_surface_is_a_pinned_reviewed_set():
     }
     REVIEWED = ENTRY_POINTS | WEBHOOKS | IN_HANDLER_AUTH
 
+    # WHAT THIS ENUMERATION CANNOT SEE. A WebSocket route has methods=None, so the inner loop below
+    # never runs for one and it is skipped in silence — this found 387 mutating routes and missed
+    # /api/code/stream/{run_id}, which was reachable with no credential at all because
+    # api_key_middleware is @app.middleware("http") and never sees a WebSocket scope. WebSocket
+    # routes are pinned separately in tests/test_websocket_auth_boundary.py. A guard pins only the
+    # part of the surface it knows how to enumerate, and saying so is part of the guard.
     actual = set()
     for r in core_api.app.routes:
         for m in getattr(r, "methods", set()) or set():

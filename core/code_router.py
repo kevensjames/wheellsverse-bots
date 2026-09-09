@@ -136,6 +136,14 @@ async def code_stream(websocket: WebSocket, run_id: str):
     Sends: {"line": "...", "ts": 1234567890.0}
     Closes with: {"done": true, "exit": <code>}
     """
+    # BEFORE accept(). The HTTP api_key_middleware never sees a WebSocket scope, so this route was
+    # reachable by anyone; accepting first and closing after still completes a handshake with an
+    # unauthenticated peer, so the refusal has to come first.
+    from core.api import _ws_owner_ok
+    if not _ws_owner_ok(websocket):
+        await websocket.close(code=1008)      # 1008 = policy violation
+        return
+
     await websocket.accept()
     logger.info(f"[code_router] WebSocket connected for run_id={run_id}")
 

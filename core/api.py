@@ -294,6 +294,50 @@ def _csrf_ok(request) -> bool:
                               allowed)
 
 
+def _ws_owner_ok(websocket) -> bool:
+    """Owner gate for a WebSocket handshake. Must be called BEFORE accept().
+
+    api_key_middleware is registered as @app.middleware("http"), and Starlette's BaseHTTPMiddleware
+    only wraps scopes of type "http" — every other scope passes straight through untouched. So a
+    WebSocket handshake never reaches the gate that protects the rest of /api/, and any route added
+    with @router.websocket is unauthenticated by default and silently so.
+
+    Two accepted identities, matching the HTTP rules exactly so the two cannot drift:
+
+      X-API-Key    the machine path. A browser cannot set custom headers on a WebSocket handshake at
+                   all, so this can only come from a non-browser client and carries no cross-origin
+                   risk — the origin check does not apply to it.
+      wv_session   the browser path, and it needs the origin check. A WebSocket handshake is NOT
+                   subject to CORS, so nothing stops a foreign page opening one; the cookie is
+                   attached because the browser decides on the destination. That is cross-site
+                   WebSocket hijacking, and Origin is the defence. It reuses _csrf_ok's allowlist so
+                   there is one answer to "who do we trust" rather than two.
+    """
+    try:
+        key = websocket.headers.get("x-api-key")
+        if key and _API_KEY and hmac.compare_digest(key, _API_KEY):
+            return True
+        if not _OPERATOR_SESSION_CFG.enabled:
+            return False
+        from core.operator_session import ROLE_OWNER
+        p = _principal_for_request(websocket, _OPERATOR_SESSION_CFG)
+        if p is None or p.role != ROLE_OWNER:
+            return False
+        # Same allowlist as the HTTP guard. A handshake carries no method, so it is treated as
+        # unsafe: there is no read-only WebSocket.
+        allowed = set(_CSRF_TRUSTED_ORIGINS)
+        self_origin = _origin_of(
+            f"{websocket.headers.get('x-forwarded-proto') or websocket.url.scheme.replace('ws', 'http')}://"
+            f"{websocket.headers.get('x-forwarded-host') or websocket.url.netloc}"
+        )
+        if self_origin:
+            allowed.add(self_origin)
+        origin = websocket.headers.get("origin")
+        return _origin_of(origin) in allowed if origin else False
+    except Exception:
+        return False
+
+
 def _session_owner_ok(request) -> bool:
     """True iff the unified session is enabled AND the request carries an
     OWNER-authority principal (cookie or legacy header). The /api/ admin surface
