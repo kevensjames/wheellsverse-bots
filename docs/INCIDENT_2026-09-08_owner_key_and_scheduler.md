@@ -1,7 +1,42 @@
 # INCIDENT 2026-09-08 — anonymous owner-key exposure and open scheduler control
 
-**Status: CONTAINED AND ROTATED.** Production and staging patched, credentials rotated, old
-credentials and old sessions proven rejected.
+**Status: `INCIDENT_CONTAINED_PENDING_GIT_RECONCILIATION`**
+
+Production and staging are patched, credentials are rotated, and old credentials and old sessions are
+proven rejected. The incident is **not** closed: the serving artifact has no Git provenance until the
+incident PR merges, and the monitor has not yet been observed recovering.
+
+---
+
+## 0. ⚠ CORRECTED — the rollback target named in the first draft was unsafe
+
+An earlier version of this document named App A deployment
+`f0d5527a-7121-47d5-8593-d62b23f0db43` as the "rollback target". **That was wrong and dangerous, and
+the statement is superseded here rather than deleted.**
+
+`f0d5527a` contains `_serve_old_dashboard()` with the credential substitution intact. Redeploying it
+now — after rotation — would publish the **newly rotated** owner key to anonymous callers, recreating
+the incident with the replacement credential.
+
+> **`f0d5527a-7121-47d5-8593-d62b23f0db43` — HISTORICAL PRE-INCIDENT DEPLOYMENT — SECURITY-UNSAFE,
+> DO NOT REDEPLOY.**
+>
+> The same designation applies to every App A deployment created before `f064fe2e`, including
+> `6e54483d-6b24-418c-be61-ed87d91c35ab` and `c81a3b11-d096-4fa5-8c1c-53215ae2e568`: all predate the
+> fix and all contain the publishing implementation.
+
+### Safe recovery hierarchy
+
+| # | Action | Identity |
+|---|---|---|
+| 1 | **Redeploy the currently contained artifact** — the primary recovery reference | App A deployment **`f7b56e12-3522-492e-8166-baa1f92de4f9`** (SUCCESS, 2026-09-08T22:49:44Z) |
+| 2 | Deploy the Git-reconciled identical artifact | the merge commit of the incident PR, once its tree is proven identical |
+| 3 | If neither can serve | disable `/admin/ceo`, `/admin/legacy` and the `/api/narai/schedules` subtree, or put the administrative surface into maintenance mode |
+| 4 | **Never** | restore the credential-publishing implementation |
+
+`f064fe2e-58f4-4f4f-9e57-90c6f6304bf1` was the first contained deployment; it is now `REMOVED`,
+superseded by `f7b56e12` (the redeploy that picked up the rotated variables). Both are contained;
+`f7b56e12` is the one currently serving.
 
 No secret value appears in this document, in the commits, in the diff, or in any artifact produced
 during the response. Credentials are identified only by salted, truncated SHA-256 fingerprints.
@@ -92,16 +127,109 @@ unauthorized call reached them. Every guard mutation-tested.
 
 ## 3. Deployment record
 
+### Commits (full SHAs)
+
+```
+2b21d1b46dc7c07c506b52202f09823b27b60a20  fix(security): stop serving the owner API key to browsers
+868e320e7f620c0935f89e2c17cf1e8e5e0356e6  fix(security): close the NarAI scheduler boundary
+ca0c8fa845c0dd8c85442534b6b6625fba9336ec  docs: incident record
+```
+
 | Field | Value |
 |---|---|
-| Source SHA deployed | `868e320e7f620c0935f89e2c17cf1e8e5e0356e6` |
-| Staging App A deployment | `7ab3d2ab-64b3-4748-8a04-bd104f9d307b` (SUCCESS 2026-09-08T22:26:52Z) |
-| Production App A deployment | `f064fe2e-58f4-4f4f-9e57-90c6f6304bf1` |
-| **Production rollback target** | `f0d5527a-7121-47d5-8593-d62b23f0db43` (SUCCESS 2026-09-08T04:26:17Z) |
-| Image digests | **UNAVAILABLE** — App A is deployed by `railway up` (CLI upload, NIXPACKS), not a git-integrated build, so no image digest or attested SHA is exposed by the platform. Binding evidence is the deployment id plus the uploaded tree having been a clean checkout of `868e320e`. |
+| Branch | `hotfix/production-owner-key-and-scheduler-containment` |
+| Branch head | `ca0c8fa845c0dd8c85442534b6b6625fba9336ec` |
+| Branch tree | `273e4954a33d680e670dfe0c5b000441fa473bce` |
+| Base | production `073c9a46c39f2fa9969f8126f9c06bf004a75cf3` |
+| Code SHA deployed | `868e320e7f620c0935f89e2c17cf1e8e5e0356e6` (the doc commit adds no served file) |
 
-A single 502 was observed on production during the deploy swap and once during the credential
-redeploy. Both are the expected fail-closed window.
+### Changed files
+
+```
+M  core/api.py
+M  core/narai_scheduler.py
+M  dashboard/ceo.html
+A  docs/INCIDENT_2026-09-08_owner_key_and_scheduler.md
+A  tests/test_owner_key_not_served.py
+A  tests/test_scheduler_boundary.py
+```
+
+Zero SOL-owned files. Zero unrelated files.
+
+### Deployments
+
+| Service | Deployment | Note |
+|---|---|---|
+| Staging App A `kai-appA-staging` | `7ab3d2ab-64b3-4748-8a04-bd104f9d307b` | SUCCESS 2026-09-08T22:26:52Z |
+| Production App A — first contained | `f064fe2e-58f4-4f4f-9e57-90c6f6304bf1` | REMOVED, superseded |
+| **Production App A — currently serving** | **`f7b56e12-3522-492e-8166-baa1f92de4f9`** | SUCCESS 2026-09-08T22:49:44Z — **primary recovery reference** |
+| Pre-incident App A | `f0d5527a-7121-47d5-8593-d62b23f0db43` | **SECURITY-UNSAFE — DO NOT REDEPLOY** (see §0) |
+
+`commitHash` on the serving deployment is `None`. App A is deployed by `railway up`, a CLI upload
+with no Git integration, so **no image digest and no platform-attested source SHA exist.** Provenance
+rests on the file-level attestation in §3a, not on platform metadata.
+
+A single 502 was observed on production during the code deploy swap, and one more during the
+credential redeploy. Both are the expected fail-closed window.
+
+---
+
+## 3a. Artifact identity — running container vs branch tree
+
+Every file under App A's application roots (`core/`, `dashboard/`, `frontend/`, `narai/`) was
+SHA-256 hashed inside the running container and compared with the same roots in the branch.
+
+| Result | Count |
+|---|---:|
+| **Mismatched (present in both, different bytes)** | **0** |
+| Present in both, byte-identical | 538 |
+| In branch, absent from container | 124 |
+| In container, absent from branch | 1 |
+
+**The three changed served files are byte-identical in the container:** `core/api.py`,
+`core/narai_scheduler.py`, `dashboard/ceo.html`. (`tests/` and `docs/` are outside the served roots
+and are not deployed, by design.)
+
+**The one extra file** is `narai/data/narai.db` — a SQLite database created at runtime inside the
+container. Not source.
+
+**The 124 absent files**, classified:
+
+| Count | Files | Explained by |
+|---:|---|---|
+| 2 | `frontend/admin/nexus-assets/*.mp4` | `.railwayignore` rule `*.mp4` |
+| 2 | `narai/.env.example`, `narai/marketing/.env.example` | `.railwayignore` rule `.env.*` |
+| 1 | `narai/godmode/logs/media_pipeline.log` | `.railwayignore` rule `logs/` |
+| 114 | `frontend/blog/_archive/*.html` | **no ignore rule** — unexplained |
+| 5 | `frontend/blueprint.pdf`, 4 × `frontend/tiktok*.txt` | **no ignore rule** — unexplained |
+
+The 119 unexplained absences are **all static content, no code**, and none is currently served:
+`/blueprint.pdf` and `/tiktok…txt` both return **404** on production, so this is a pre-existing
+content-delivery gap unrelated to the incident. It is recorded, not fixed.
+
+### Served-bytes comparison
+
+| Route | Result |
+|---|---|
+| `/admin/ceo` | served SHA-256 **identical** to branch `dashboard/ceo.html` |
+| `/admin/legacy` | served SHA-256 **identical** to branch `dashboard/index.html` |
+| `/admin` | server-composed (presence layer injected, +64,145 B over any single source file), so not byte-comparable to one file. Verified to contain **no `const API_KEY`**. |
+
+The first two are the strongest available evidence that the substitution is gone: the server now
+returns the source file **unmodified**. Under the old code these bytes could not have matched,
+because the key was injected into them.
+
+### Attestation limitation — stated, not glossed
+
+This is a **complete file-level attestation of App A's application roots** — zero mismatches, all
+changed files identical, every absence classified — combined with **served-byte equality on both
+incident routes**. It is **not** cryptographic source provenance: `railway up` produces no image
+digest, the deployment carries no `commitHash`, and base layers, installed wheels and OS packages
+are outside the comparison. Reproducible provenance requires the Git-integrated deployment in §5.
+
+Manifest digests (SHA-256 of the sorted hash listing): container `2c79e5674de64011bd6616539c6b7392`,
+branch `2b32368c4f5b193ee430826576a91f19`. They differ only by the 124 absences and 1 runtime file
+enumerated above.
 
 ---
 
@@ -130,9 +258,13 @@ with `railway variable set --stdin` so no value ever appeared on a command line 
 Redeploy order App B → App A → monitor, to keep the shared session secret matched for as short a
 window as possible. Staging was rotated first as a rehearsal of the exact procedure.
 
-**Monitor caveat:** `kai-prod-monitor` is a `*/5` cron service with no long-running deployment, so it
-cannot be redeployed. Its variable is set and it picks the new secret up on its next scheduled run.
-Until then its authenticated probes fail closed.
+**Monitor state — NOT YET RECOVERED.** `kai-prod-monitor` is a `*/5` cron service with no
+long-running deployment, so `railway redeploy` refuses it ("the latest deployment cannot be
+redeployed"). Its `SESSION_SIGNING_SECRET` variable is set to the new value (fp `96065a2cc60b143d`,
+confirmed), but **a run has not been observed since rotation**, so recovery is unproven. Its last
+recorded deployment is `bbdfac27-c4bf-4f8b-ae70-bcf0382b65cf` (2026-09-07T04:27:02Z), which predates
+the rotation. Until a post-rotation run is observed, assume an alerting gap. Tracked as an open item
+in §8; a changed variable is not evidence of recovery.
 
 **Proof of revocation** (production):
 
@@ -182,6 +314,43 @@ script, and 401s from the anonymous API calls, which are the correct signed-out 
 | MED | Three further prefix entries lack a trailing slash and therefore exempt whole subtrees: `/api/narai/run`, `/api/narai/revenue`, `/api/store/redeliver`. Pinned by test as a known set so a fourth cannot appear quietly. |
 | LOW | `/api/settings` masks secrets as `"***" + val[-4:]`, exposing a 4-character suffix to an owner-authenticated caller. |
 | LOW | App A is not git-integrated, so no deployment can attest its own source SHA. |
+
+---
+
+## 6a. Scheduler authorization matrix (production, post-containment)
+
+| Identity | `GET /schedules` | `GET /stats` | `PATCH /{id}` | `POST /{id}/trigger` |
+|---|---|---|---|---|
+| anonymous | 401 | 401 | 401 | 401 |
+| wrong API key | 401 | 401 | 401 | 401 |
+| operator session | 401 | 401 | 401 | 401 |
+| viewer session | 401 | 401 | 401 | 401 |
+| signed-out / garbage cookie | 401 | 401 | 401 | 401 |
+| session signed with a foreign secret | 401 | 401 | 401 | 401 |
+| forged verifier token | 401 | 401 | 401 | 401 |
+| release verifier (validly signed) | 401 | 401 | 401 + 403 guard | 401 + 403 guard |
+| **owner (API key or session)** | **200** | **200** | **200** | **200** |
+
+The release verifier is refused on reads as well. Its scope on App A is `require_admin_json` for
+`/admin` JSON; extending it onto `/api` during an incident would broaden authority rather than
+contain it. A deliberate decision, not an oversight.
+
+No production job was triggered while establishing this. Write-path tests use a deliberately
+non-existent schedule id, and tripwires on `trigger_schedule` / `update_schedule` assert no
+unauthorized call reached the dispatcher or the writer.
+
+---
+
+## 8. Open items before this incident can be CLOSED
+
+1. **Git reconciliation** — push the branch, open the incident PR against `production`, prove the PR
+   tree matches the contained runtime source, merge, and verify the Git-triggered deployment builds
+   the exact merged commit with an identical tree and introduces no new behaviour. Only then does
+   App A gain reproducible provenance.
+2. **Monitor recovery** — observe at least one scheduled run after the rotation, and record whether
+   its authenticated probe succeeded, with timestamp and evidence.
+
+Until both are satisfied the status remains `INCIDENT_CONTAINED_PENDING_GIT_RECONCILIATION`.
 
 ---
 
