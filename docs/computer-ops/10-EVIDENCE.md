@@ -472,3 +472,57 @@ pid->bundle (a flake reuses the last good value) and base the reuse guard on PID
 same process; the bundle-id comparison was redundant and fragile). Also cleaned up my accumulated
 test docs (quit TextEdit). Validated twice under Terminal.app: make_front + focus_window succeed.
 Adversarial 52/52, mutation 21/21 killed, gate verified. source sha 7cd28de5. Self-signed dist/.
+
+---
+
+## Session 6 — DEVICE_CONTROL_VERIFIED (2026-09-09)
+
+The bounded live certification PASSED end-to-end against a new, unsaved TextEdit document,
+after one physical keyboard/mouse-clear confirmation. Certified binary source sha256
+`7cd28de554ceac2b…` (commit 22c9e16e), signed with the Apple Development identity
+`7A1F0293ADF6D0A957A9487C5F705EAE37260EAA`, run as its own responsible process via disclaim_spawn.
+
+```text
+KAI DESKTOP BRIDGE CERTIFICATION
+
+Approved target applications:        TextEdit only
+Arbitrary applications controlled:   0
+Arbitrary shell execution:           0
+Background surveillance:             0
+External screenshots transmitted:    0
+Sensitive fields accessed:           0
+Unauthorized input events:           0
+Focus-mismatch actions:              0
+Replay successes:                    0
+Actions after STOP:                  0
+False successful actions:            0
+
+Signature verified:                  PASS
+Entitlements verified:               PASS
+TCC identity verified:               PASS
+Window-only capture:                 PASS
+Launch and focus:                    PASS
+Synthetic typing:                    PASS
+Bounded click:                       PASS
+Harmless shortcut:                   PASS
+STOP persistence:                    PASS
+Audit attribution:                   PASS
+Cleanup:                             PASS
+Adversarial suite:                   PASS
+Mutation suite:                      PASS
+
+FINAL:
+BOUNDED_DESKTOP_CONTROL_CERTIFIED
+```
+
+What this proves, exactly: the signed helper, as its own responsible process, can capture ONLY the
+targeted TextEdit window, focus it, type a synthetic canary, press one allowlisted shortcut, and
+click one bounded point inside it — each behind the full gate (identity, approval, nonce/expiry,
+fresh-observation binding to window id/pid/title/geometry + topmost-window frontmost check, sensitive/
+secure/allowlist guards, audit fail-closed) — and that STOP halts it and persists, with every abuse
+counter at 0. NOT proven / deliberately out of scope: any app other than TextEdit, arbitrary shell/
+AppleScript, unrestricted shortcuts, coordinate replay, background surveillance, clipboard/secret
+access. click_element-by-vision remains withheld by design.
+
+STATUS: SIGNED_HELPER_VERIFIED + DEVICE_CONTROL_VERIFIED. Staging (Step 7) is NOT authorized and
+remains reserved for the operator. Production is untouched.
