@@ -162,7 +162,21 @@ def observe(capture=False):
     if not o.get("ok"): die(f"observe failed: {o.get('reason')} (WID={WID})")
     return o
 
+def raise_front():
+    # Make the target doc the frontmost/key window right before an effecting action, so the
+    # bridge's (correct) not-frontmost guard passes. Retries because focus can drift back to the
+    # terminal after the osascript call returns.
+    for _ in range(15):
+        osa('tell application "TextEdit" to activate')
+        osa(f'tell application "TextEdit" to set index of (first window whose name is "{docname}") to 1')
+        time.sleep(0.3)
+        f = osa('tell application "System Events" to name of first application process whose frontmost is true').stdout.strip()
+        if f == "TextEdit":
+            return
+    die("could not bring the TextEdit target to the front (focus kept being stolen)")
+
 def act(verb, **kw):
+    raise_front()
     o = observe()
     r = bridge.call(req(verb, windowId=WID, targetBundleId="com.apple.TextEdit", targetPid=PID,
                         expectedTitle=(o.get('data') or {}).get('title'),
@@ -184,11 +198,8 @@ except EOFError:
 if ans != "CLEAR":
     die("physical keyboard/mouse-clear confirmation not given")
 
-# After CLEAR the terminal was frontmost; bring the target doc to the front so it is the key
-# window for synthesized input (else the bridge correctly refuses a non-frontmost target).
-osa('tell application "TextEdit" to activate')
-osa(f'tell application "TextEdit" to set index of (first window whose name is "{docname}") to 1')
-time.sleep(0.6)
+# After CLEAR the terminal was frontmost; raise the target (also re-verified before each action).
+raise_front()
 
 # ---- 4. certify one action at a time ----
 print("\n[certify] window-only capture")
@@ -225,6 +236,7 @@ if not R["shortcut"]: die(f"shortcut failed: {r.get('reason')}")
 
 print("[certify] bounded single click inside the document")
 import re as _re
+raise_front()
 ob = observe()
 nums = _re.findall(r"[-0-9.]+", (ob.get("data") or {}).get("bounds", ""))
 cw, ch = (float(nums[2]), float(nums[3])) if len(nums) >= 4 else (200.0, 200.0)

@@ -383,3 +383,14 @@ PRODUCTION IMPLICATION (documented): the connector must keep the helper warm the
 while a desktop session is active (a light periodic query), or the helper must hold a
 ProcessInfo activity — otherwise an idle helper's window enumeration is throttled. NSAppSleepDisabled
 is insufficient for the posix_spawn launch style.
+
+### Session 6 (cont.) — third block: focus drifted back to Terminal before the effecting step
+
+Capture then succeeded, but focus_window was refused "target window is not frontmost". Measured:
+the raise->capture->focus sequence works when nothing competes for focus (focus_window returns
+True), so the cause was focus drifting back to the terminal between the one-shot raise and the
+focus step. The bridge's not-frontmost guard is CORRECT (type/click must hit a frontmost target);
+the cert simply must present a genuinely-frontmost target. Fix (cert, no re-sign): `raise_front()`
+activates TextEdit + raises the doc and POLLS System Events until TextEdit is actually frontmost
+(retry), called right before EACH effecting action (focus/type/shortcut/click). Rehearsal through
+a 12s keepalive idle: raise_front makes TextEdit frontmost and focus_window succeeds. 2/2.
