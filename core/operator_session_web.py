@@ -46,15 +46,25 @@ class SessionConfig:
 
 
 def resolve_api_key(request, cfg: SessionConfig) -> Optional[str]:
-    """The effective legacy API key for a request: the X-API-Key header always,
-    but the ``?api_key=`` query param ONLY while the unified session is disabled.
-    Once sessions are enabled, cookie auth replaces the query param and it is
-    ignored — closing the C1 URL-secret-leak vector. Shared by App A's
-    verify_api_key and api_key_middleware so both enforce it identically."""
-    key = request.headers.get("x-api-key")
-    if not key and not cfg.enabled:
-        key = request.query_params.get("api_key")
-    return key
+    """The effective legacy API key for a request: the X-API-Key header, and nothing else.
+
+    THE REMOVED BRANCH, kept here as the record rather than deleted from history:
+
+        if not key and not cfg.enabled:
+            key = request.query_params.get("api_key")
+
+    A credential in a URL is not private. It lands in Cloudflare edge logs, Railway access logs,
+    Referer headers sent to third parties, browser history, bookmarks and analytics — none of which
+    are places a secret can be revoked from. The branch was gated on the unified session being
+    DISABLED, which reads like a safe migration shim, but disabling that flag is the documented
+    ROLLBACK step: rolling back one feature flag silently reinstated URL-borne credentials.
+
+    A security property that a rollback can switch off is not a security property. The query-string
+    path is now gone in every configuration, so no flag state can restore it. `cfg` is retained in
+    the signature because both call sites pass it and the parameter documents that this decision is
+    deliberately NOT configuration-dependent.
+    """
+    return request.headers.get("x-api-key")
 
 
 def principal_for_request(request: Request, cfg: SessionConfig) -> Optional[Principal]:

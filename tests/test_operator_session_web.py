@@ -21,17 +21,29 @@ def _fake_req(header=None, query=None):
 
 
 # ── C1 regression: ?api_key= accepted only while sessions are OFF ─────────────
-def test_query_api_key_allowed_only_when_sessions_off():
+def test_query_api_key_is_never_accepted_in_any_configuration():
+    """SUPERSEDES `test_query_api_key_allowed_only_when_sessions_off`.
+
+    That test pinned the old rule: a `?api_key=` query parameter authenticated whenever the unified
+    session was DISABLED. The rule was written as a migration shim, but disabling that flag is the
+    documented ROLLBACK step — so rolling back one feature flag silently reinstated URL-borne
+    credentials, which land in edge logs, access logs, Referer headers, history and analytics, none
+    of which a secret can be revoked from.
+
+    A security property a rollback can switch off is not a security property. The query-string path
+    is gone in EVERY configuration, and this test now pins that instead. The old expectation is
+    quoted above rather than deleted, so the change of rule is visible to the next reader."""
     off = SessionConfig(enabled=False, owner_key="k", admin_token=None, session_secret="s")
     on = SessionConfig(enabled=True, owner_key="k", admin_token=None, session_secret="s")
-    # header always works, both states
+    # header always works, both states — unchanged
     assert resolve_api_key(_fake_req(header="K"), off) == "K"
     assert resolve_api_key(_fake_req(header="K"), on) == "K"
-    # query param: accepted when OFF, IGNORED (rejected) when ON
-    assert resolve_api_key(_fake_req(query="K"), off) == "K"
+    # query param: IGNORED in BOTH states now (previously accepted when sessions were off)
+    assert resolve_api_key(_fake_req(query="K"), off) is None
     assert resolve_api_key(_fake_req(query="K"), on) is None
-    # header wins over query
+    # header still wins, and the query value is never consulted even as a fallback
     assert resolve_api_key(_fake_req(header="H", query="Q"), off) == "H"
+    assert resolve_api_key(_fake_req(header="H", query="Q"), on) == "H"
 
 from core import operator_session as osess
 from core.operator_session_web import SessionConfig, install_operator_session, COOKIE_NAME, HINT_COOKIE
