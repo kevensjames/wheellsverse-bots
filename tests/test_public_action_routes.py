@@ -341,6 +341,16 @@ def test_no_unauthenticated_mutating_route_is_anonymously_public():
 def test_the_public_surface_is_pinned():
     """A count is a cheap tripwire for an exemption added where the scan above has a blind spot."""
     assert len(core_api.PUBLIC_API_RULES) == 12
-    assert len(core_api._PUBLIC_PATHS) == 96, (
+    assert len(core_api._PUBLIC_PATHS) == 95, (
         f"the public path set is now {len(core_api._PUBLIC_PATHS)}; if you added one deliberately, "
         "update this number in the same commit so the change is visible in review")
+
+
+def test_a_get_that_computes_is_not_public():
+    """Found by probing the running app: GET /api/sa/trend-scan returned 500 from deep inside the
+    Anthropic client. Its docstring calls it a "cached read"; on a cold cache the read performs the
+    scrape and the LLM classification. A GET-only rule is only as safe as the GETs behind it."""
+    for path in core_api._NEVER_PUBLIC:
+        assert core_api._public_rule_for(path, "GET") is None, f"{path} matched a rule"
+        assert path not in core_api._PUBLIC_PATHS, f"{path} is still an exact public entry"
+    assert "/api/sa/trend-scan" in core_api._NEVER_PUBLIC

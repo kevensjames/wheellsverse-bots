@@ -270,7 +270,6 @@ for _p in [
     # Media Engine
     
     # Store Intelligence
-    "/api/shopify/intelligence/opportunities",
     "/api/shopify/intelligence/status",
 ]:
     _PUBLIC_PATHS.add(_p)
@@ -1482,9 +1481,24 @@ PUBLIC_API_RULES = (
 #   (/api/narai/run_bot was never intentionally public at all; the missing slash swept it in.)
 
 
+# Paths that are NEVER public, whatever the tables say. A GET-only family rule keeps a dashboard's
+# reads open, which is right until a "read" turns out to compute. GET /api/sa/trend-scan is
+# documented as a "cached read", and on a cold cache run_trend_scan() performs the full scrape and
+# LLM classification behind it — an anonymous GET that spends money. It was found by probing the
+# running app, not by reading it: a source scan of the handler shows only an import and an await,
+# because the cost is one call deeper. A comment can be wrong about a handler and a handler can be
+# wrong about its callee, so this list is short and holds only paths whose behaviour was observed.
+_NEVER_PUBLIC = frozenset({
+    "/api/sa/trend-scan",                       # cold cache -> scrape + Anthropic classification
+    "/api/shopify/intelligence/opportunities",  # same shape: cached read that computes when cold
+})
+
+
 def _public_rule_for(path: str, method: str):
     """The ONE matcher. Returns the PublicRule permitting this request, or None."""
     p = _norm_path(path)
+    if p in _NEVER_PUBLIC:
+        return None
     # Methods are compared EXACTLY, not upper-cased. HTTP verbs are uppercase by spec, and being
     # stricter than the router can only ever over-gate — a malformed `get` is refused rather than
     # silently promoted into a public rule. Leniency here would be a permission decision made by a
