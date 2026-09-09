@@ -122,6 +122,8 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger("api")
 
+from core import webhook_auth as _wa
+
 # ─── API Key Auth ─────────────────────────────────────────────────────────────
 
 _API_KEY = os.getenv("API_KEY", "").strip()
@@ -358,6 +360,31 @@ def _session_owner_ok(request) -> bool:
         return True
     except Exception:
         return False
+
+# ─── Webhook provider authentication ──────────────────────────────────────────────────────────────
+# Four receivers accepted anything anyone sent them. They are in _PUBLIC_PATHS by design — a provider
+# cannot hold our API key — so authentication has to come from the provider's own mechanism, and for
+# these four it did not come at all. core/webhook_auth.py holds the verifiers; this is the one place
+# that turns an outcome into a response, so the four handlers cannot drift apart on what a refusal
+# means. UNAVAILABLE is 503 and never 401: our misconfiguration must not be reported as the caller's
+# lack of permission, or it hides in the logs as ordinary noise.
+def _webhook_gate(outcome: str, reason: str, provider: str):
+    if outcome == _wa.OK:
+        return None
+    if outcome == _wa.UNAVAILABLE:
+        logger.error("webhook %s refused: %s (%s)", provider, outcome, reason)
+        raise HTTPException(status_code=503, detail=_wa.UNAVAILABLE)
+    # Everything else is the caller's problem. The reason is logged, never returned: telling a
+    # forger which check failed is free help.
+    logger.warning("webhook %s refused: %s (%s)", provider, outcome, reason)
+    raise HTTPException(status_code=403, detail="invalid signature")
+
+
+async def _webhook_body(request: Request) -> bytes:
+    """The raw bytes, read once. Signatures cover exactly what was sent — re-serialising parsed JSON
+    changes key order, spacing and unicode escaping, and the HMAC no longer matches."""
+    return await request.body()
+
 
 # Public paths that never require auth
 _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "/favicon.ico",
@@ -5116,24 +5143,38 @@ async def capture_lead(req: LeadRequest):
 async def beehiiv_webhook(request: Request):
     """Receive subscription events from Beehiiv and mirror to local leads.
 
-    Auth: optional `?token=...` query parameter. If `BEEHIIV_WEBHOOK_TOKEN` env
-    var is set, the query token must match. If it isn't set, we accept any
-    request (the URL itself is the shared secret). Returning 200 fast prevents
-    Beehiiv from retrying duplicates.
-    """
-    expected = os.getenv("BEEHIIV_WEBHOOK_TOKEN", "").strip()
-    if expected:
-        provided = request.query_params.get("token", "").strip()
-        if provided != expected:
-            logger.warning("beehiiv webhook: bad token from %s",
-                           request.headers.get("x-forwarded-for", "?"))
-            raise HTTPException(401, "Bad token")
+    Auth: the Svix signature Beehiiv delivers with. THE REMOVED CODE, kept as the record:
 
+        expected = os.getenv("BEEHIIV_WEBHOOK_TOKEN", "").strip()
+        if expected:
+            provided = request.query_params.get("token", "").strip()
+            ...
+        # "If it isn't set, we accept any request (the URL itself is the shared secret)."
+
+    Two defects in four lines. A URL is not a private channel — it lands in Cloudflare edge logs,
+    Railway access logs, Referer headers sent to third parties, browser history and analytics, none
+    of which a secret can be revoked from. And an unset variable meant accept everything, the same
+    fail-open that made the owner surface anonymous two incidents earlier.
+
+    Beehiiv delivers through Svix: HMAC-SHA256 over `{svix-id}.{svix-timestamp}.{raw body}`, keyed by
+    the decoded half of a `whsec_` secret. That binds the body, the id AND the timestamp, so a
+    captured delivery cannot be edited or replayed with a fresh timestamp. `?token=` is now inert.
+    """
+    raw = await _webhook_body(request)
+    _webhook_gate(*_wa.verify_svix(raw,
+                                   request.headers.get("svix-id"),
+                                   request.headers.get("svix-timestamp"),
+                                   request.headers.get("svix-signature"),
+                                   os.getenv("BEEHIIV_WEBHOOK_SECRET")), provider="beehiiv")
     try:
-        payload = await request.json()
+        payload = json.loads(raw)
     except Exception as e:
         logger.warning(f"beehiiv webhook: invalid JSON: {e}")
         raise HTTPException(400, "Invalid JSON")
+
+    # svix-id is the delivery identifier; Svix reuses it across retries of the same message.
+    if not _wa.claim_event("beehiiv", request.headers.get("svix-id") or ""):
+        return {"ok": True, "duplicate": True}
 
     event = (payload.get("event") or payload.get("type") or "").lower()
     data = payload.get("data") or payload
@@ -7487,16 +7528,40 @@ async def whatsapp_webhook_verify(
     hub_challenge: str = Query(None, alias="hub.challenge"),
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
 ):
-    """Meta webhook verification handshake."""
-    if hub_mode == "subscribe" and hub_verify_token == WHATSAPP_VERIFY_TOKEN:
-        return PlainTextResponse(hub_challenge)
-    raise HTTPException(403, "Verification failed")
+    """Meta webhook verification handshake — subscription only, never delivery authentication."""
+    _webhook_gate(*_wa.verify_meta_handshake(hub_mode, hub_verify_token, hub_challenge,
+                                             os.getenv("WHATSAPP_VERIFY_TOKEN") or WHATSAPP_VERIFY_TOKEN),
+                  provider="whatsapp-handshake")
+    return PlainTextResponse(hub_challenge)
 
 
 @app.post("/api/whatsapp/webhook")
 async def whatsapp_webhook_receive(request: Request, background_tasks: BackgroundTasks):
-    """Receive incoming WhatsApp messages and status updates."""
-    data = await request.json()
+    """Receive incoming WhatsApp messages and status updates.
+
+    This had no authentication at all: it parsed the JSON and handed it straight to
+    handle_payload, so anyone could inject arbitrary inbound "messages" and status updates.
+
+    Meta signs the raw body with HMAC-SHA256 keyed by the App Secret and sends it as
+    X-Hub-Signature-256. The GET handshake above is a SEPARATE mechanism and deliberately grants
+    nothing here — letting a verification endpoint authenticate delivery is how it becomes a bypass.
+    """
+    raw = await _webhook_body(request)
+    _webhook_gate(*_wa.verify_meta_signature(raw, request.headers.get("x-hub-signature-256"),
+                                             os.getenv("WHATSAPP_APP_SECRET")), provider="whatsapp")
+    try:
+        data = json.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON")
+
+    # Meta retries until it gets a 200, so duplicates are expected rather than suspicious. Dedupe on
+    # the message ids the payload carries; acknowledge either way so a retry is not punished into
+    # retrying harder.
+    ids = [m.get("id") for e in (data.get("entry") or []) for c in (e.get("changes") or [])
+           for m in ((c.get("value") or {}).get("messages") or []) if m.get("id")]
+    if ids and not any(_wa.claim_event("whatsapp", i) for i in ids):
+        return {"status": "ok", "duplicate": True}
+
     logger.info("WhatsApp webhook received: %s", json.dumps(data)[:500])
     from core.whatsapp import get_client
     background_tasks.add_task(get_client().handle_payload, data)
@@ -8074,14 +8139,24 @@ async def telegram_webhook(
     TELEGRAM_WEBHOOK_SECRET when set. Returns 200 immediately so Telegram doesn't
     retry — the reply is sent from a background asyncio task.
     """
-    expected_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
-    if expected_secret and x_telegram_bot_api_secret_token != expected_secret:
-        raise HTTPException(status_code=403, detail="invalid secret")
+    # Telegram echoes setWebhook's `secret_token` in this header on every request. The old guard was
+    # `if expected_secret and header != expected_secret` — with the variable unset the check vanished
+    # and every anonymous POST was processed as a genuine update. Unset is now 503, and the compare
+    # is constant-time.
+    _webhook_gate(*_wa.verify_telegram(x_telegram_bot_api_secret_token,
+                                       os.getenv("TELEGRAM_WEBHOOK_SECRET")), provider="telegram")
 
+    raw = await _webhook_body(request)
     try:
-        data = await request.json()
+        data = json.loads(raw)
     except Exception:
         return {"ok": True}
+    if not isinstance(data, dict):
+        return {"ok": True}
+
+    # update_id is Telegram's own delivery identifier; a retry carries the same one.
+    if not _wa.claim_event("telegram", str(data.get("update_id") or "")):
+        return {"ok": True, "duplicate": True}
 
     msg = (data.get("message")
            or data.get("channel_post")
@@ -13314,9 +13389,22 @@ async def payhip_webhook(request: Request):
     Payhip POSTs here on every sale (and sends a test ping when first registered).
     Register this URL in Payhip: Account → Settings → Webhooks → Add Webhook
     URL: https://grateful-flexibility-production.up.railway.app/api/payhip/webhook
+
+    AUTHENTICATION, AND ITS LIMIT. Payhip documents `signature = hash('sha256', $apiKey)` — the API
+    key alone. That value is IDENTICAL on every request, so it is a shared secret carried in the
+    body, not a signature over the payload. Checking it excludes an anonymous stranger, which is
+    worth having: before this, an unsigned POST wrote a fabricated sale into the sales file, flipped
+    the integration to "verified", and fired a Telegram notification.
+
+    It cannot do more than that. Anyone who ever observes one delivery — a log line, a proxy, a
+    support ticket, a screenshot — can replay it forever and forge every other field. Payhip's public
+    API exposes coupons and license keys only, so there is no transaction endpoint to confirm a sale
+    against server-to-server. Both facts are recorded on the stored record rather than smoothed over:
+    a Payhip sale is written with confirmation="UNCONFIRMED", and the integration's verified flag is
+    no longer settable by the callback that claims it.
     """
     try:
-        body = await request.body()
+        body = await _webhook_body(request)
         # Payhip sends form-encoded or JSON
         try:
             data = json.loads(body)
@@ -13325,11 +13413,15 @@ async def payhip_webhook(request: Request):
             parsed = parse_qs(body.decode("utf-8", errors="replace"))
             data = {k: v[0] if len(v) == 1 else v for k, v in parsed.items()}
 
+        _webhook_gate(*_wa.verify_payhip_static(str(data.get("signature") or ""),
+                                                os.getenv("PAYHIP_API_KEY")), provider="payhip")
+
         now_iso = datetime.now().isoformat()
 
-        # Mark webhook as verified (Payhip sends a test ping on registration)
         state = _payhip_load_state()
-        state["verified"]  = True
+        # state["verified"] is NOT set here any more. It was set from the callback itself, so anyone
+        # who could POST could make the dashboard report a verified integration. A claim cannot be
+        # its own evidence. The flag now moves only through the explicit operator action.
         state["registered"] = True
         state["last_event_at"] = now_iso
         state["event_count"]   = state.get("event_count", 0) + 1
@@ -13359,6 +13451,11 @@ async def payhip_webhook(request: Request):
             "email":        data.get("buyer_email") or data.get("email") or "",
             "country":      data.get("buyer_country") or data.get("country") or "",
             "created_at":   data.get("purchase_date") or data.get("created_at") or now_iso,
+            # Provenance travels with the record. Payhip's signature does not bind the payload and
+            # offers no endpoint to confirm the transaction against, so this is a report of a sale,
+            # not a confirmed one, and anything downstream that treats it as accounting must know.
+            "confirmation": "UNCONFIRMED",
+            "confirmation_reason": _wa.payhip_trust_level(),
             "raw":          data,
         }
 
@@ -13382,6 +13479,11 @@ async def payhip_webhook(request: Request):
             pass
 
         return {"status": "ok", "type": "sale"}
+    except HTTPException:
+        # A refusal is a decision, not a failure. The blanket handler below caught HTTPException too
+        # and turned every one into a 200 {"status": "error"} — which would have converted this
+        # endpoint's 403 and its 503 into "accepted", the exact outcome the gate exists to prevent.
+        raise
     except Exception as e:
         _add_log(f"Payhip webhook error: {e}", "ERROR")
         return {"status": "error", "detail": str(e)}
