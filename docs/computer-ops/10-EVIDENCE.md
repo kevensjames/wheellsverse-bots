@@ -360,3 +360,26 @@ disclaim technique, or the helper borrows the connector process's TCC identity �
 narrow-signed-helper design. The connector (`acp_client.py`) currently spawns only the harness,
 not the desktop helper, so there is no production spawn to fix yet; this is a hard requirement
 for that future wiring.
+
+### Session 6 (cont.) — second block: window-server throttle after idle (App Nap-class)
+
+The disclaim fix made capture work, but the cert blocked AGAIN at the capture step after the
+human CLEAR pause. Measured: the disclaim'd helper sees all windows at t=0 and t+5s idle, but
+returns an EMPTY window list at t+10s and t+15s idle. macOS throttles a backgrounded helper's
+window-server queries (CGWindowListCopyWindowInfo) after ~10s idle; the fixture's rapid poll
+kept it awake, the human-paced CLEAR wait did not. `NSAppSleepDisabled` (user default) did NOT
+help (not honored for a posix_spawn'd binary). A 2.5s keepalive DID hold full enumeration for
+20s; once throttled, retries return a degraded/partial list (missing the target), so prevention
+beats retry.
+
+Fix (cert, no re-sign): `certify_desktop.py`'s Bridge runs a background keepalive
+(list_windows every 2s, lock-serialized on the stdio pipe) so the helper stays warm through the
+CLEAR pause; observe() re-resolves the target by doc name with retry; and after CLEAR the cert
+raises the target doc to the front (Terminal was frontmost after the prompt, which the bridge's
+own "not frontmost" guard would otherwise correctly refuse). Rehearsal through a 15s idle:
+target still enumerated, capture succeeds, target frontmost after raise. 3/3.
+
+PRODUCTION IMPLICATION (documented): the connector must keep the helper warm the same way
+while a desktop session is active (a light periodic query), or the helper must hold a
+ProcessInfo activity — otherwise an idle helper's window enumeration is throttled. NSAppSleepDisabled
+is insufficient for the posix_spawn launch style.

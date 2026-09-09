@@ -14,7 +14,7 @@ Two independent stop paths during the run:
   1. Ctrl-C in this harness  -> sends desktop.stop to the bridge.
   2. `touch <state-dir>/STOP` -> halts the bridge with no dependency on this harness.
 """
-import json, os, subprocess, sys, time, uuid, hashlib, signal, tempfile
+import json, os, subprocess, sys, time, uuid, hashlib, signal, tempfile, threading
 
 if len(sys.argv) < 2:
     print("usage: certify_desktop.py /path/to/KaiDesktopBridge.app"); sys.exit(2)
@@ -44,10 +44,24 @@ class Bridge:
         self.p = subprocess.Popen([LAUNCH_SHIM, BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   text=True, bufsize=1, env={**os.environ,
                                   "KAI_BRIDGE_BUNDLE_ID": "com.wheellsverse.kai.desktopbridge"})
+        self._lock = threading.Lock()
+        self._alive = True
+        # macOS throttles a backgrounded helper's window-server queries after ~10s idle, so the
+        # human-paced CLEAR wait would otherwise leave window enumeration empty. A light periodic
+        # list_windows keeps it warm. (Production: the connector must keep the helper warm the
+        # same way, or the helper must hold a ProcessInfo activity while a session is active.)
+        threading.Thread(target=self._keepalive, daemon=True).start()
+    def _keepalive(self):
+        while self._alive:
+            time.sleep(2)
+            try: self.call({"id": "keepalive", "verb": "desktop.list_windows", "allowedApps": ["TextEdit"]})
+            except Exception: break
     def call(self, obj):
-        self.p.stdin.write(json.dumps(obj) + "\n"); self.p.stdin.flush()
-        return json.loads(self.p.stdout.readline())
+        with self._lock:
+            self.p.stdin.write(json.dumps(obj) + "\n"); self.p.stdin.flush()
+            return json.loads(self.p.stdout.readline())
     def close(self):
+        self._alive = False
         try: self.p.stdin.close(); self.p.wait(timeout=5)
         except Exception: self.p.kill()
 
@@ -128,11 +142,24 @@ WID, PID = win["windowId"], win["pid"]
 print(f"  TextEdit new doc {docname!r} -> id={WID} pid={PID} title={win['title']!r}")
 
 def observe(capture=False):
+    global WID, PID
+    # Re-resolve the target by its doc name each time: window ids can churn, and if the helper
+    # was briefly throttled the enumeration may lag, so retry before giving up.
+    wins = []
+    for _ in range(10):
+        wins = [w for w in (bridge.call(req("desktop.list_windows")).get("windows") or [])
+                if w.get("bundleId") == "com.apple.TextEdit" and w.get("title") == docname]
+        if wins:
+            WID, PID = wins[0]["windowId"], wins[0]["pid"]
+            break
+        time.sleep(0.3)
+    else:
+        die(f"target window {docname!r} not visible to the bridge (window-server throttle?)")
     payload = {"windowId": WID}
     if capture:
         payload["evidencePath"] = os.path.join(EVID, f"{uuid.uuid4().hex}.png")
     o = bridge.call(req("desktop.observe_window", **payload))
-    if not o.get("ok"): die(f"observe failed: {o.get('reason')}")
+    if not o.get("ok"): die(f"observe failed: {o.get('reason')} (WID={WID})")
     return o
 
 def act(verb, **kw):
@@ -156,6 +183,12 @@ except EOFError:
     ans = ""
 if ans != "CLEAR":
     die("physical keyboard/mouse-clear confirmation not given")
+
+# After CLEAR the terminal was frontmost; bring the target doc to the front so it is the key
+# window for synthesized input (else the bridge correctly refuses a non-frontmost target).
+osa('tell application "TextEdit" to activate')
+osa(f'tell application "TextEdit" to set index of (first window whose name is "{docname}") to 1')
+time.sleep(0.6)
 
 # ---- 4. certify one action at a time ----
 print("\n[certify] window-only capture")
