@@ -143,24 +143,29 @@ print(f"  TextEdit new doc {docname!r} -> id={WID} pid={PID} title={win['title']
 
 def observe(capture=False):
     global WID, PID
-    # Re-resolve the target by its doc name each time: window ids can churn, and if the helper
-    # was briefly throttled the enumeration may lag, so retry before giving up.
-    wins = []
-    for _ in range(10):
+    # Resolve by the STABLE window id first (survives empty titles when the helper is briefly
+    # throttled), then fall back to the doc name; retry (list_windows also re-warms the helper),
+    # and on failure dump exactly what the bridge sees so a block is diagnosable, not a guess.
+    last = ""
+    for _ in range(15):
         wins = [w for w in (bridge.call(req("desktop.list_windows")).get("windows") or [])
-                if w.get("bundleId") == "com.apple.TextEdit" and w.get("title") == docname]
-        if wins:
-            WID, PID = wins[0]["windowId"], wins[0]["pid"]
-            break
-        time.sleep(0.3)
-    else:
-        die(f"target window {docname!r} not visible to the bridge (window-server throttle?)")
-    payload = {"windowId": WID}
-    if capture:
-        payload["evidencePath"] = os.path.join(EVID, f"{uuid.uuid4().hex}.png")
-    o = bridge.call(req("desktop.observe_window", **payload))
-    if not o.get("ok"): die(f"observe failed: {o.get('reason')} (WID={WID})")
-    return o
+                if w.get("bundleId") == "com.apple.TextEdit"]
+        w = next((x for x in wins if x.get("windowId") == WID), None) \
+            or next((x for x in wins if x.get("title") == docname), None)
+        if w:
+            WID, PID = w["windowId"], w["pid"]
+            payload = {"windowId": WID}
+            if capture:
+                payload["evidencePath"] = os.path.join(EVID, f"{uuid.uuid4().hex}.png")
+            o = bridge.call(req("desktop.observe_window", **payload))
+            if o.get("ok"):
+                return o
+            last = f"observe_window refused: {o.get('reason')}"
+        else:
+            last = (f"no window matched id={WID} / name={docname!r}; bridge sees "
+                    f"ids={[x.get('windowId') for x in wins]} titles={[x.get('title') for x in wins]}")
+        time.sleep(0.4)
+    die(f"could not observe the target after retries -> {last}")
 
 def make_front():
     # Establish focus HELPER-SIDE and verify with the helper's OWN frontmost view, so there is no

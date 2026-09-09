@@ -413,3 +413,13 @@ Two changes (bridge -> needs re-sign; cert):
   is guaranteed to agree (no cross-process race). Called before each effecting action.
 
 Binary changed -> operator must re-sign once, then re-run the cert.
+
+### Session 6 (cont.) — capture re-block: throttle returns windows with EMPTY titles
+
+After re-sign the cert blocked at capture again: observe() re-resolved the target by DOC NAME,
+but under the window-server throttle the helper returns windows with empty titles, so the
+name-match missed a window that WAS enumerated. Fix (cert only, no re-sign): observe() matches by
+the STABLE window id first (survives empty titles), falls back to name, retries ~6s (list_windows
+also re-warms), and dumps the ids/titles the bridge sees on failure. Validated against the real
+re-signed binary through a 14s keepalive idle: observe+capture, make_front (focus_window exempt +
+helper-confirmed frontmost), and STOP all pass. 3/3. Only the physically-gated type/click remain.
