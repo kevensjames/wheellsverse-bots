@@ -183,19 +183,29 @@ def make_front():
     # while the helper's NSWorkspace saw focus drift back). The bridge activates the observed
     # window via focus_window (exempt from the frontmost precondition), and we poll its probe
     # until it reports the target frontmost.
+    def dbg(msg):
+        try:
+            with open("/tmp/kai_cert_debug.txt", "a") as f:
+                f.write(f"{time.time():.1f} make_front {msg}\n")
+        except Exception:
+            pass
     for _ in range(10):
         # reliable activation (osascript) AND the helper's own activation (focus_window, the cert proof)
         osa('tell application "TextEdit" to activate')
         osa(f'tell application "TextEdit" to set index of (first window whose name is "{docname}") to 1')
+        sf = osa('tell application "System Events" to name of first application process whose frontmost is true').stdout.strip()
         o = observe()
         r = bridge.call(req("desktop.focus_window", windowId=WID, targetBundleId="com.apple.TextEdit",
                             targetPid=PID, expectedTitle=(o.get('data') or {}).get('title'),
                             observationToken=o["observationToken"]))
+        dbg(f"sysfront={sf!r} focus_window_ok={r.get('ok')} reason={r.get('reason')!r}")
         if not r.get("ok"):
             die(f"focus_window failed: {r.get('reason')}")
         # wait until the HELPER ITSELF reports the target frontmost (no cross-process race)
         for _ in range(15):
-            if (bridge.call(req("desktop.probe")).get("data") or {}).get("frontmost_bundle_id") == "com.apple.TextEdit":
+            fm = (bridge.call(req("desktop.probe")).get("data") or {}).get("frontmost_bundle_id")
+            dbg(f"helperfront={fm!r}")
+            if fm == "com.apple.TextEdit":
                 return
             time.sleep(0.2)
     die("could not make the target frontmost (helper never reported it frontmost)")
