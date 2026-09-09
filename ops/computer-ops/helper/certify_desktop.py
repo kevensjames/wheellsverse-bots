@@ -22,6 +22,12 @@ TARGET = sys.argv[1]
 HELPER_DIR = os.path.dirname(os.path.abspath(__file__))
 APP = TARGET if TARGET.endswith(".app") else None
 BIN = os.path.join(TARGET, "Contents/MacOS/KaiDesktopBridge") if APP else TARGET
+# The helper MUST run as its OWN responsible process, or macOS attributes its TCC to the
+# parent (this python/Terminal) and the bundle's own Screen Recording grant is IGNORED.
+# disclaim_spawn sets responsibility_spawnattrs_setdisclaim so the bridge gets its own identity.
+LAUNCH_SHIM = os.path.join(HELPER_DIR, "disclaim_spawn")
+if not os.path.exists(LAUNCH_SHIM):
+    subprocess.run(["clang", "-O2", "-o", LAUNCH_SHIM, os.path.join(HELPER_DIR, "disclaim_spawn.c")], check=True)
 STATE_DIR = os.path.join(os.path.expanduser("~"), ".kai-desktop-bridge")
 SENTINEL = os.path.join(STATE_DIR, "STOP")
 CANARY = "KAI_DESKTOP_BRIDGE_CERTIFICATION_" + uuid.uuid4().hex[:8]
@@ -35,7 +41,7 @@ def osa(*script):
 
 class Bridge:
     def __init__(self):
-        self.p = subprocess.Popen([BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        self.p = subprocess.Popen([LAUNCH_SHIM, BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   text=True, bufsize=1, env={**os.environ,
                                   "KAI_BRIDGE_BUNDLE_ID": "com.wheellsverse.kai.desktopbridge"})
     def call(self, obj):
@@ -91,24 +97,41 @@ R["tcc"] = True
 
 # ---- 2. fixture: a NEW, empty, unsaved TextEdit document ----
 print("[fixture] creating a new unsaved TextEdit document")
-osa('tell application "TextEdit" to activate',
-    'tell application "TextEdit" to make new document')
-time.sleep(1.0)
-txt = osa('tell application "TextEdit" to get text of front document').stdout.strip()
-if txt != "":
-    die("front TextEdit document is not empty; certification requires a fresh unsaved document")
-
-# find the TextEdit window through the bridge
-lw = bridge.call(req("desktop.list_windows"))
-wins = [w for w in (lw.get("windows") or []) if w.get("bundleId") == "com.apple.TextEdit"]
-if not wins:
-    die("bridge does not see a TextEdit window among approved applications")
-win = wins[0]
+subprocess.run(["open", "-a", "TextEdit"])          # launch via LaunchServices (no Apple Events needed)
+for _ in range(25):                                  # wait until TextEdit answers AppleScript
+    time.sleep(0.4)
+    if osa('tell application "TextEdit" to count windows').returncode == 0:
+        break
+# create the doc and capture ITS name, then raise exactly that window (leaves other docs untouched)
+r = osa('tell application "TextEdit"', 'activate', 'set d to make new document', 'name of d', 'end tell')
+docname = r.stdout.strip()
+if not docname:
+    die(f"could not create a TextEdit document (AppleScript: {r.stderr.strip()!r})")
+osa(f'tell application "TextEdit" to set index of (first window whose name is "{docname}") to 1')
+time.sleep(0.5)
+txt = osa(f'tell application "TextEdit" to get text of document "{docname}"').stdout
+if txt.strip() != "":
+    die("the new TextEdit document is not empty; certification requires a fresh unsaved document")
+# match the bridge window by the new doc's name (poll: enumeration can lag window creation)
+win = None
+for _ in range(20):
+    lw = bridge.call(req("desktop.list_windows"))
+    wins = [w for w in (lw.get("windows") or []) if w.get("bundleId") == "com.apple.TextEdit"]
+    win = next((w for w in wins if w.get("title") == docname), None)
+    if win:
+        break
+    time.sleep(0.4)
+if not win:
+    die(f"bridge does not see the new TextEdit window {docname!r} among approved applications")
+front_name = docname
 WID, PID = win["windowId"], win["pid"]
-print(f"  TextEdit window id={WID} pid={PID} title={win['title']!r}")
+print(f"  TextEdit new doc {docname!r} -> id={WID} pid={PID} title={win['title']!r}")
 
-def observe():
-    o = bridge.call(req("desktop.observe_window", windowId=WID, evidencePath=os.path.join(EVID, f"{uuid.uuid4().hex}.png")))
+def observe(capture=False):
+    payload = {"windowId": WID}
+    if capture:
+        payload["evidencePath"] = os.path.join(EVID, f"{uuid.uuid4().hex}.png")
+    o = bridge.call(req("desktop.observe_window", **payload))
     if not o.get("ok"): die(f"observe failed: {o.get('reason')}")
     return o
 
@@ -136,14 +159,17 @@ if ans != "CLEAR":
 
 # ---- 4. certify one action at a time ----
 print("\n[certify] window-only capture")
-o = observe()
+o = observe(capture=True)
 cap = (o.get("data") or {})
 shot = cap.get("capture_path")
 if cap.get("captured") != "true" or not shot or not os.path.exists(shot):
-    die("window capture failed -> Screen Recording likely not granted to the signed helper")
-shot_hash = hashlib.sha256(open(shot, "rb").read()).hexdigest()
+    die("window capture failed -> the helper is not running as its own responsible process, "
+        "or Screen Recording is not granted to the signed bundle")
+shot_bytes = open(shot, "rb").read()
+shot_hash = hashlib.sha256(shot_bytes).hexdigest()
 R["capture"] = True
-print(f"  captured window PNG sha256={shot_hash[:16]}... ({os.path.getsize(shot)} bytes)")
+print(f"  captured window PNG sha256={shot_hash[:16]}... ({len(shot_bytes)} bytes)")
+os.remove(shot)   # delete the screenshot immediately after extracting its hash
 
 print("[certify] focus the window")
 _, r = act("desktop.focus_window")

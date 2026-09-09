@@ -327,3 +327,36 @@ adversarial **50/50**, mutation **21/21 killed, 0 survived** (byte-identical res
 gate **20/20** against the packaged `.app`, `verify_signing.sh` correctly refuses the unsigned
 bundle. Live desktop effects remain UNCERTIFIED pending operator re-sign + one physical
 confirmation (`certify_desktop.py`).
+
+### Session 6 (cont.) — certification BLOCK diagnosed: responsible-process TCC attribution
+
+The first live cert run reached the physical CLEAR confirmation, then BLOCKED at the capture
+step: `observe failed: window not found` / capture `captured=false`, titles empty — despite
+the probe reporting `accessibility_granted:true`.
+
+Measured (not reasoned) against the actual TCC databases:
+- SYSTEM TCC.db HAS both grants for the bundle: `kTCCServiceScreenCapture|com.wheellsverse.kai.desktopbridge|2`
+  and `kTCCServiceAccessibility|com.wheellsverse.kai.desktopbridge|2`. The operator's grants were correct.
+- The SAME table shows `com.apple.Terminal` HAS Accessibility but is ABSENT from Screen Recording.
+
+Root cause: when the cert (python, under Terminal) fork/execs the signed inner binary, macOS
+attributes the helper's TCC to the RESPONSIBLE PROCESS (Terminal), not to the helper's own
+bundle identity. Terminal has Accessibility (so AXIsProcessTrusted→true and observe worked)
+but NOT Screen Recording — so capture failed and titles were empty, while the bridge's OWN
+Screen Recording grant sat unused. This is the responsible-process-attribution hazard flagged
+in the review, now proven from the TCC tables themselves.
+
+Fix (production-relevant): `disclaim_spawn.c` — a tiny launcher that calls
+`responsibility_spawnattrs_setdisclaim` + `posix_spawn` so the helper becomes its OWN
+responsible process, inheriting the caller's stdio (ACP protocol passes through
+transparently). Measured through the launcher: window titles populate, `captured=true`, a
+valid 603x505 PNG is written and confined to the evidence dir. `certify_desktop.py` now
+launches the bridge via `disclaim_spawn` (auto-built with clang if absent) and targets the
+new doc by name. Rehearsal of the full non-input path (fixture -> capture -> STOP/refusal/
+reset -> cleanup): 10/10. No helper code changed, so NO re-sign is needed.
+
+IMPLICATION FOR PRODUCTION: whenever the connector spawns the desktop helper, it MUST use the
+disclaim technique, or the helper borrows the connector process's TCC identity — defeating the
+narrow-signed-helper design. The connector (`acp_client.py`) currently spawns only the harness,
+not the desktop helper, so there is no production spawn to fix yet; this is a hard requirement
+for that future wiring.

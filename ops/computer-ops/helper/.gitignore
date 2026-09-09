@@ -4,3 +4,6 @@
 # docs/computer-ops/70-HELPER-SIGNING.md (path, size, sha256, signature state).
 .build/
 dist/
+
+# Launcher build artifact; reproducible from disclaim_spawn.c
+disclaim_spawn

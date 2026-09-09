@@ -172,3 +172,21 @@ suites, and prints `BOUNDED_DESKTOP_CONTROL_CERTIFIED` or `BLOCKED_WITH_EXACT_EV
 
 Emergency stop at any time (independent of KAI and of the cert tool):
 `touch ~/.kai-desktop-bridge/STOP`  — clear later with the `desktop.reset` verb.
+
+### Session 6 (cont.) — cert unblock: NO re-sign needed, just re-run
+
+The first cert blocked at capture because a fork/exec'd helper is attributed to its parent
+(Terminal) for TCC, and Terminal lacks Screen Recording. Fixed with `disclaim_spawn` (the
+helper now runs as its own responsible process, so its OWN Screen Recording + Accessibility
+grants apply). The helper binary is UNCHANGED, so the Session-6 signature still stands.
+
+Just re-run the cert (it auto-builds `disclaim_spawn` with clang if needed):
+
+```
+cd ops/computer-ops/helper
+python3 certify_desktop.py dist/KaiDesktopBridge.app
+```
+
+It creates a fresh named TextEdit doc, raises it, arms STOP, shows a 5-second countdown, and
+asks once for `CLEAR`. If the typing step ever reports "key-focused window is not the observed
+window", that's the focused-window binding being conservative — paste it and it can be tuned.
