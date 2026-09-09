@@ -1,11 +1,10 @@
 # INCIDENT 2026-09-08 — anonymous owner-key exposure and open scheduler control
 
-**Status: `INCIDENT_CONTAINED_PENDING_GIT_RECONCILIATION`**
+**Status: `PRODUCTION_OWNER_KEY_AND_SCHEDULER_INCIDENT_CLOSED`**
 
-Production and staging are patched, credentials are rotated, and old credentials and old sessions are
-proven rejected. The monitor was broken by the rotation and has been **observed recovering**
-(§4). The incident is **not** closed: the serving artifact has no Git provenance until the incident
-PR merges.
+Production and staging are patched, credentials are rotated, old credentials and old sessions are
+proven rejected, the monitor was broken by the rotation and has been **observed recovering** (§4),
+and the serving artifact now has **Git provenance** (§9).
 
 ---
 
@@ -395,3 +394,63 @@ Until item 1 is satisfied the status remains `INCIDENT_CONTAINED_PENDING_GIT_REC
 - Did not print, store or commit any secret value.
 - Did not touch `hotfix/kai-admin-capability-auth` (four commits, preserved, unpushed).
 - Did not expand scope to the residuals above.
+
+
+---
+
+## 9. Git reconciliation — CLOSED
+
+PR **#71** merged into `production`.
+
+| Field | Value |
+|---|---|
+| Merge commit | `8789c0eea049f720ca11c81fa0f0d453433bd603` |
+| Parents | `073c9a46…` (previous production) + `1d360adc…` (incident branch head) |
+| Tree | `8516deaf1d16935e38d90652b96e2ec869fc0c49` — **identical to the branch tree**, so the merge introduced no content |
+| Git-triggered App A deployment | `61713c5a-4aed-4422-bd28-b45a7f3f2372` · SUCCESS |
+| Its `commitHash` | `8789c0eea049f720ca11c81fa0f0d453433bd603` — **matches the merge commit exactly** |
+| Branch | `production` |
+
+**App A now has platform-attested provenance for the first time.** The `commitHash: None` limitation
+recorded in §3 is resolved: the running deployment names its own source commit, and that commit is
+the merged incident PR.
+
+### The Git artifact vs the contained CLI artifact
+
+Both containers hashed over the same application roots:
+
+| Result | Count |
+|---|---:|
+| **Mismatched** | **0** |
+| Only in the CLI artifact | 0 |
+| Only in the Git artifact | 123 |
+
+**Zero code files differ.** The 123 additions are entirely static content — 114 archived blog HTML,
+4 TikTok verification `.txt`, 2 `.mp4`, 1 `.pdf`, 2 `.env.example`. They are the files the
+`railway up` upload had been dropping, so the Git build is a strict superset that restores intended
+content. `/admin/nexus-assets/kai-idle.mp4` now returns 200 where it previously 404'd.
+`/blueprint.pdf` and the TikTok files remain 404 — they are present in the container but no route
+serves them, a pre-existing routing gap, now correctly distinguished from the delivery gap recorded
+in §3.
+
+### Post-merge verification
+
+| Check | Result |
+|---|---|
+| `/admin/ceo`, `/admin/legacy` | `const API_KEY` **empty** |
+| `/admin` | assignment absent |
+| Served bytes vs source for both incident routes | **identical** |
+| Scheduler GET / PATCH / trigger, anonymous | **401 / 401 / 401** |
+| Proposals · nonces · migration · timeline · jobs | 11 (2 exec/9 proposed) · 0 · `0007` · 15 · 0 — unchanged |
+| Eight authority flags | **0 ON** |
+| App A · App B health | 200 · 200 |
+
+CI matched the baseline: `Workers Builds` failed exactly as it does on `073c9a46`; Cloudflare Pages,
+`ingest` and the Cursor Security Agent review all passed.
+
+### Recovery hierarchy, updated
+
+The primary recovery reference is now the **Git-attested** deployment
+`61713c5a-4aed-4422-bd28-b45a7f3f2372`, with the CLI-deployed
+`f7b56e12-3522-492e-8166-baa1f92de4f9` retained as the secondary contained artifact. Everything in §0
+still stands: no deployment predating `f064fe2e` may ever be redeployed.
