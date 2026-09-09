@@ -236,16 +236,16 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/stripe/webhook", "/api/beehiiv/webhook",
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
                  "/api/canva/oauth-callback", "/api/canva/oauth-url",
-                 "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
+                 "/api/nexora/status", 
                  # Holding OS read-only stat shims (App B probes these to self-update those entities)
                  "/api/siteboost/stats", "/api/wmos/stats",
                  # NarAI autopilot — dashboard-only, protected by same-origin
-                 "/api/narai-autopilot/status", "/api/narai-autopilot/start",
-                 "/api/narai-autopilot/stop", "/api/narai-autopilot/log",
-                 "/api/narai-autopilot/queue", "/api/narai-autopilot/reels",
+                 "/api/narai-autopilot/status", 
+                 "/api/narai-autopilot/log",
+                 "/api/narai-autopilot/queue", 
                  # QC + Factory dashboard endpoints
-                 "/api/qc/stats", "/api/qc/results", "/api/qc/review",
-                 "/api/factory/alltime", "/api/factory/status", "/api/factory/reset",
+                 "/api/qc/stats", "/api/qc/results", 
+                 "/api/factory/alltime", "/api/factory/status", 
                  "/api/narai/memory/stats", "/api/narai/memory/search",
                  "/api/narai/memory/context",
                  # NEXORA platform — auth + public creator endpoints are their own auth
@@ -258,20 +258,20 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
 
 # Shopify dashboard endpoints — all served by the same-origin dashboard, no extra auth
 for _p in [
-    "/api/shopify/status", "/api/shopify/products", "/api/shopify/orders",
+    "/api/shopify/status", "/api/shopify/orders",
     "/api/shopify/customers", "/api/shopify/webhooks/status", "/api/shopify/webhook",
-    "/api/shopify/discount", "/api/shopify/register-webhooks",
+    "/api/shopify/register-webhooks",
     "/api/shopify/oauth-url", "/api/shopify/callback",
-    "/api/shopify/publish-narai-product",
+    
     # Agent Workforce
-    "/api/shopify/agents/start", "/api/shopify/agents/stop",
-    "/api/shopify/agents/status", "/api/shopify/agents/dispatch",
-    "/api/shopify/agents/upgrade-now", "/api/shopify/agents/logs",
+    
+    "/api/shopify/agents/status", 
+    "/api/shopify/agents/logs",
     # Media Engine
-    "/api/shopify/media/generate-batch",
+    
     # Store Intelligence
-    "/api/shopify/intelligence/analyze", "/api/shopify/intelligence/opportunities",
-    "/api/shopify/intelligence/autopilot", "/api/shopify/intelligence/status",
+    "/api/shopify/intelligence/opportunities",
+    "/api/shopify/intelligence/status",
 ]:
     _PUBLIC_PATHS.add(_p)
 
@@ -1445,18 +1445,18 @@ def _norm_path(path: str) -> str:
 PUBLIC_API_RULES = (
     PublicRule("/api/nx", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
                "Nexora platform: carries its own Bearer token auth, enforced inside the routers."),
-    PublicRule("/api/qc", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "Quality-control callbacks with their own token check."),
-    PublicRule("/api/factory", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "Factory pipeline callbacks with their own token check."),
-    PublicRule("/api/narai-autopilot", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "NarAI autopilot surface with its own auth."),
-    PublicRule("/api/shopify-autopilot", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "Shopify autopilot surface with its own auth."),
-    PublicRule("/api/shopify", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
-               "Multi-tenant Shopify app: per-shop Bearer auth enforced in the routers."),
-    PublicRule("/api/sa", frozenset({"GET", "POST", "OPTIONS"}), True,
-               "Shopify-app callbacks with their own signature verification."),
+    PublicRule("/api/qc", frozenset({"GET"}), True,
+               "Quality-control READS the dashboard polls. GET-only: the old rule claimed these routes had \"their own token check\" and they do not — POST /api/qc/review was anonymous."),
+    PublicRule("/api/factory", frozenset({"GET"}), True,
+               "Factory pipeline READS. GET-only: the family's POST start/stop and DELETE reset were anonymous under the old rule, which claimed a token check that does not exist."),
+    PublicRule("/api/narai-autopilot", frozenset({"GET"}), True,
+               "NarAI autopilot READS only. The old rule said \"with its own auth\"; the handlers have none, so POST /start could publish to live social accounts anonymously."),
+    PublicRule("/api/shopify-autopilot", frozenset({"GET"}), True,
+               "Shopify autopilot READS. GET-only: start/stop/trend-scan had no auth."),
+    PublicRule("/api/shopify", frozenset({"GET"}), True,
+               "Shopify READS. GET-only: the multi-tenant routers do carry per-shop Bearer auth, but the single-tenant operator routes under the same prefix carry none — anonymous product create/update/DELETE and discount-code creation. Public POSTs (webhook, oauth) are exact entries."),
+    PublicRule("/api/sa", frozenset({"GET"}), True,
+               "Shopify-app dashboard READS. GET-only: /api/sa/start, /stop, /trend-scan and /setup-boutique had no signature verification despite the old rule claiming it."),
     PublicRule("/api/v2/narai", frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}), True,
                "NarAI v2 uses its own JWT auth on every route."),
     PublicRule("/api/narai/shopify", frozenset({"GET", "POST", "OPTIONS"}), True,
@@ -15092,8 +15092,8 @@ _PUBLIC_PATHS.add("/api/shopify-autopilot/log")
 
 # /api/sa/* — short aliases used by the dashboard
 for _p in ["/api/sa/status", "/api/sa/store", "/api/sa/products", "/api/sa/funnel",
-           "/api/sa/trend-scan", "/api/sa/performance", "/api/sa/log",
-           "/api/sa/start", "/api/sa/stop", "/api/sa/setup-boutique"]:
+           "/api/sa/performance", "/api/sa/log",
+           ]:
     _PUBLIC_PATHS.add(_p)
 
 
@@ -15324,7 +15324,7 @@ async def sa_setup_boutique():
 # NARAI POD ENGINE ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 
-for _p in ["/api/pod/status", "/api/pod/start", "/api/pod/stop",
+for _p in ["/api/pod/status", 
            "/api/pod/memory", "/api/pod/log"]:
     _PUBLIC_PATHS.add(_p)
 
