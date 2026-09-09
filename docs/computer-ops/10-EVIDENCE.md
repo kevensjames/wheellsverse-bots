@@ -202,3 +202,30 @@ tcc NOT_GRANTED, computer_control DEVICE_CONTROL_NOT_VERIFIED, staging STAGING_N
 - A real crash of the connector *process* mid-model-generation (tested via lease
   expiry + kill, not via a SIGKILL during an in-flight ACP prompt).
 - Staging — not deployed.
+
+---
+
+## Session 5 — SIGNED_HELPER_VERIFIED achieved (2026-09-09)
+
+Operator installed Xcode 26.6 and created an Apple Development certificate
+(`Apple Development: kevens.james48029@gmail.com (2SU92QSQ9G)`, Team ID `H433CF2GPU`).
+After importing the Apple WWDR G3 intermediate into the login keychain (the missing chain
+link that caused `errSecInternalComponent` / "unable to build chain to self-signed root"),
+`codesign --force --options runtime --timestamp` signed `dist/KaiDesktopBridge.app`.
+
+`codesign --verify --strict` → "valid on disk; satisfies its Designated Requirement".
+`verify_signing.sh dist/KaiDesktopBridge.app` → **RESULT: SIGNED_HELPER_VERIFIED, exit 0**
+(7/7; Gatekeeper a non-fatal NOTE — not notarized, correct for a locally-built,
+non-quarantined helper).
+
+Designated requirement: `identifier "com.wheellsverse.kai.desktopbridge" and anchor apple
+generic and certificate leaf[subject.CN] = "Apple Development: …(2SU92QSQ9G)"`. Pins the
+leaf CN → TCC persists across rebuilds; re-grant only if an annual renewal changes the CN.
+Cert notAfter 2027-09-09.
+
+Two gate defects were found and fixed only once a real signature existed to test against:
+criterion 9 (bare-binary assumption) in session 4, and criterion 2 (mis-read a real
+signature's absence of a `Signature=` line as ad-hoc) here.
+
+STILL NOT DONE: TCC not yet granted; desktop-effecting code intentionally unwritten
+(helper returns GATE_PASSED_EXECUTION_WITHHELD). So DEVICE_CONTROL_VERIFIED is NOT claimed.
