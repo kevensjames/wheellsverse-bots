@@ -884,6 +884,17 @@ function badge(s) {
 function fmt$(c) { return '$'+(c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
 function fmtDate(iso) { return iso ? new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'; }
 
+// Escape HTML to prevent XSS when interpolating user-controlled data into HTML strings
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 // ── Overview ──────────────────────────────────────────────────────────────────
 async function loadOverview() {
   const el = document.getElementById('overviewStats');
@@ -925,7 +936,7 @@ async function loadOverview() {
     ra.innerHTML = `<table>
       <thead><tr><th>User</th><th>Account</th><th>KYC</th><th>Joined</th></tr></thead>
       <tbody>${recent.map(u=>`
-        <tr><td>${u.email}</td><td>${badge(u.account_status)}</td><td>${badge(u.kyc_status)}</td><td style="color:var(--muted)">${fmtDate(u.created_at)}</td></tr>
+        <tr><td>${escapeHtml(u.email)}</td><td>${badge(u.account_status)}</td><td>${badge(u.kyc_status)}</td><td style="color:var(--muted)">${fmtDate(u.created_at)}</td></tr>
       `).join('')}</tbody>
     </table>`;
   } catch(e) {
@@ -957,8 +968,8 @@ function renderUsers(statusFilter) {
     .filter(u => !statusFilter || u.account_status === statusFilter)
     .filter(u => !q || u.email.toLowerCase().includes(q) || (u.full_name || '').toLowerCase().includes(q))
     .map(u => `<tr style="cursor:pointer" onclick="openUserModal('${u.id}')">
-      <td>${u.email}</td>
-      <td>${u.full_name || '—'}</td>
+      <td>${escapeHtml(u.email)}</td>
+      <td>${escapeHtml(u.full_name) || '—'}</td>
       <td>${badge(u.account_status)}</td>
       <td>${badge(u.kyc_status)}</td>
       <td><span style="color:var(--green)">${u.successful_payments}</span> / <span style="color:var(--red)">${u.failed_payments}</span></td>
@@ -990,8 +1001,8 @@ function renderUserDetail(d) {
   const banksHtml = d.bank_accounts.length ? d.bank_accounts.map(b => `
     <div style="display:flex;justify-content:space-between;padding:.5rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
       <div>
-        <div style="font-weight:600">${b.institution_name || b.provider} ···· ${b.account_last4}</div>
-        <div style="font-size:.75rem;color:var(--muted)">${b.account_type || '—'} · ${b.provider}</div>
+        <div style="font-weight:600">${escapeHtml(b.institution_name || b.provider)} ···· ${escapeHtml(b.account_last4)}</div>
+        <div style="font-size:.75rem;color:var(--muted)">${escapeHtml(b.account_type) || '—'} · ${escapeHtml(b.provider)}</div>
       </div>
       <div style="display:flex;gap:.4rem;align-items:center">
         ${b.verified ? '<span class="badge badge-green">✓ Verified</span>' : '<span class="badge badge-yellow">Pending</span>'}
@@ -1003,7 +1014,7 @@ function renderUserDetail(d) {
   const groupsHtml = d.groups.length ? d.groups.map(g => `
     <div style="display:flex;justify-content:space-between;padding:.5rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
       <div>
-        <div style="font-weight:600">${g.name} ${g.is_private ? '🔒' : ''}</div>
+        <div style="font-weight:600">${escapeHtml(g.name)} ${g.is_private ? '🔒' : ''}</div>
         <div style="font-size:.75rem;color:var(--muted)">Cycle ${g.current_cycle_number} · ${fmt$(g.contribution_cents)}/member</div>
       </div>
       ${badge(g.status)}
@@ -1017,7 +1028,7 @@ function renderUserDetail(d) {
       <td>${fmt$(p.amount_cents)}</td>
       <td>${badge(p.status)}</td>
       <td>${p.attempt_count}</td>
-      <td style="color:var(--red);font-size:.72rem">${p.ach_error_code || '—'}</td>
+      <td style="color:var(--red);font-size:.72rem">${escapeHtml(p.ach_error_code) || '—'}</td>
     </tr>`).join('')}</tbody></table>
   ` : '<div class="empty" style="padding:1rem">No payments yet</div>';
 
@@ -1082,7 +1093,7 @@ async function loadCyclesData() {
         : `<button class="btn btn-sm btn-ghost" onclick="checkCycleById('${currentCycle.id}')">Check completion</button>`;
       const memberCount = d.members.filter(m => m.status === 'ACTIVE').length;
       return `<tr>
-        <td style="font-weight:500">${g.name}${g.is_private ? ' 🔒' : ''}</td>
+        <td style="font-weight:500">${escapeHtml(g.name)}${g.is_private ? ' 🔒' : ''}</td>
         <td>#${currentCycle.cycle_number}</td>
         <td>${badge(currentCycle.status)}</td>
         <td>${memberCount} / ${g.max_members}</td>
@@ -1178,7 +1189,7 @@ function renderGroupDetail(d) {
     <table style="width:100%;font-size:.8rem"><thead><tr><th>Pos</th><th>Email</th><th>Status</th><th>Payments</th><th>Payout</th></tr></thead><tbody>
     ${d.members.map(m => `<tr>
       <td>${m.position ?? '—'}</td>
-      <td>${m.user_email}</td>
+      <td>${escapeHtml(m.user_email)}</td>
       <td>${badge(m.status)}</td>
       <td>${m.successful_payments_in_group}</td>
       <td>${m.has_received_payout ? '<span style="color:var(--green)">✓</span>' : '—'}</td>
@@ -1228,7 +1239,7 @@ function renderGroupDetail(d) {
           <td>${fmt$(p.amount_cents)}</td>
           <td>${badge(p.status)}</td>
           <td>${p.attempt_count}</td>
-          <td style="color:var(--red);font-size:.7rem">${p.ach_error_code || '—'}</td>
+          <td style="color:var(--red);font-size:.7rem">${escapeHtml(p.ach_error_code) || '—'}</td>
         </tr>`).join('')}</tbody></table>` : '<div class="empty" style="padding:1rem">No payments yet</div>'}
     </div>
   `;
@@ -1257,12 +1268,12 @@ function renderGroups(statusFilter) {
     .filter(g => !statusFilter || g.status === statusFilter)
     .filter(g => !q || g.name.toLowerCase().includes(q) || (g.invite_code || '').toLowerCase().includes(q))
     .map(g => `<tr style="cursor:pointer" onclick="openGroupModal('${g.id}')">
-      <td style="font-weight:500">${g.name} ${g.is_private ? '<span style="color:var(--gold);font-size:.7rem">🔒</span>' : ''}</td>
+      <td style="font-weight:500">${escapeHtml(g.name)} ${g.is_private ? '<span style="color:var(--gold);font-size:.7rem">🔒</span>' : ''}</td>
       <td>${badge(g.status)}</td>
       <td>${g.member_count || 0} / ${g.max_members}</td>
       <td>${fmt$(g.contribution_cents)}</td>
       <td>Cycle ${g.current_cycle_number} · day ${g.payout_day_of_month || 1}</td>
-      <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${g.invite_code || '—'}</td>
+      <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${escapeHtml(g.invite_code) || '—'}</td>
     </tr>`).join('');
   document.getElementById('groupTable').innerHTML = rows ||
     '<tr><td colspan="6" class="empty">No circles match</td></tr>';
@@ -1353,8 +1364,8 @@ function renderKYC() {
     ['PENDING', 'SUBMITTED', 'REJECTED'].includes(u.kyc_status)
   );
   const rows = actionable.map(u => `<tr>
-    <td>${u.email}</td>
-    <td>${u.full_name || '—'}</td>
+    <td>${escapeHtml(u.email)}</td>
+    <td>${escapeHtml(u.full_name) || '—'}</td>
     <td>${badge(u.kyc_status)}</td>
     <td>${badge(u.account_status)}</td>
     <td style="color:var(--muted)">${fmtDate(u.created_at)}</td>
