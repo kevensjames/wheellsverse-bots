@@ -92,10 +92,26 @@ def demo() -> None:
     """Self-check against the live public endpoints (no secrets)."""
     st = collect_live_entity_status()
     assert set(st) >= {"kai", "nexora", "narai", "sol"}, st
-    assert all(set(v) >= {"ok", "http", "source", "detail"} for v in st.values())
+
+    # `http` is OPTIONAL and this used to require it, so the self-check failed against correct
+    # output. collect_internal_status() merges sol and suprema in-process and they never carry an
+    # HTTP status because nothing was fetched over HTTP — the function's own docstring says
+    # "{ok, http?, source, detail}". The demo was asserting a stricter contract than the code
+    # promises, which is a broken test rather than a broken function.
+    REQUIRED = {"ok", "source", "detail"}
+    for eid, v in st.items():
+        assert set(v) >= REQUIRED, f"{eid} missing {REQUIRED - set(v)}: {v}"
+        if "http" in v:
+            assert isinstance(v["http"], int), f"{eid} http is not a status code: {v['http']!r}"
+
+    http_probed = {e for e, v in st.items() if "http" in v}
+    in_process = set(st) - http_probed
+    assert http_probed, "no entity was probed over HTTP — _PROBES is empty or all were overridden"
+
     up = [e for e, v in st.items() if v["ok"]]
-    print(f"entity_status.demo OK — {len(up)}/{len(st)} entities live:",
-          {e: v.get("detail") or v["http"] for e, v in st.items()})
+    print(f"entity_status.demo OK — {len(up)}/{len(st)} entities live "
+          f"({len(http_probed)} probed over HTTP, {len(in_process)} read in-process):",
+          {e: (v.get("detail") or v.get("http") or "in-process") for e, v in st.items()})
 
 
 if __name__ == "__main__":
