@@ -88,7 +88,24 @@ TOO_LARGE = "WS_METADATA_TOO_LARGE"
 # may open a live microphone channel that spends money and speaks as the owner.
 VOICE_ROLES = frozenset({"owner", "operator"})
 
-_STORE = Path(os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "data")) / "ws_tickets"
+_VOLUME = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "").strip()
+_STORE = Path(_VOLUME or "data") / "ws_tickets"
+
+
+def store_is_persistent() -> bool:
+    """Whether a consumed ticket survives a container restart.
+
+    Without a mounted volume the marker lives in the container filesystem, so a redeploy reopens the
+    replay window for any ticket still inside its TTL. That is a 30-second window and the ticket is
+    still route- and environment-bound, so it is a degradation rather than a hole — but it is a
+    SILENT one, and a silent degradation of a replay defence is exactly the shape of thing this
+    sequence keeps finding. Surfaced on /api/health so it is a fact about the deployment rather than
+    an assumption about it.
+
+    Production mounts a volume at /var/data. The staging service does not, which is how this was
+    noticed at all.
+    """
+    return bool(_VOLUME)
 
 
 def redact(value: Optional[str]) -> str:

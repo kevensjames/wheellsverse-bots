@@ -470,3 +470,35 @@ def test_both_websocket_routes_use_the_same_resolver():
     assert "resolve_ws_principal" in voice_src, "voice_ws does not use the shared resolver"
     assert ("_ws_owner_ok" in code_src or "resolve_ws_principal" in code_src), (
         "code_stream has no WebSocket gate")
+
+
+def test_ticket_store_persistence_is_reported_not_assumed(monkeypatch):
+    """Without a mounted volume the replay marker lives in the container filesystem, so a redeploy
+    reopens the window for any ticket still inside its 30-second TTL. That is a degradation, not a
+    hole — the ticket stays route- and environment-bound — but a SILENT degradation of a replay
+    defence is the exact shape this whole sequence keeps finding. It is measured and surfaced.
+
+    Found by measuring rather than assuming: production mounts a volume at /var/data and the staging
+    service does not, and nothing said so until the restart certification asked.
+    """
+    import importlib
+    monkeypatch.setenv("RAILWAY_VOLUME_MOUNT_PATH", "/var/data")
+    m = importlib.reload(W)
+    assert m.store_is_persistent() is True
+    assert str(m._STORE).startswith("/var/data")
+
+    monkeypatch.delenv("RAILWAY_VOLUME_MOUNT_PATH", raising=False)
+    m = importlib.reload(W)
+    assert m.store_is_persistent() is False, "no volume must report EPHEMERAL, not silently degrade"
+    importlib.reload(W)
+
+
+def test_health_reports_router_completeness_and_store_persistence():
+    """Both signals on the readiness surface, so a probe can refuse a reduced deployment instead of
+    reporting a healthy one."""
+    from fastapi.testclient import TestClient
+    from core import api as core_api
+    body = TestClient(core_api.app).get("/api/health").json()
+    assert body["routers"] in ("OK", "INCOMPLETE")
+    assert body["ws_ticket_store"] in ("PERSISTENT", "EPHEMERAL")
+    assert isinstance(body["routers_missing"], list)

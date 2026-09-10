@@ -4392,6 +4392,11 @@ async def health():
             # a readiness probe can refuse rather than report a healthy, quietly-reduced build.
             "routers": ("OK" if router_manifest_status()[0] else "INCOMPLETE"),
             "routers_missing": router_manifest_status()[1],
+            # Whether a consumed WebSocket ticket survives a container restart. False means the
+            # replay marker lives in the container filesystem and a redeploy reopens a 30-second
+            # window. Reported rather than assumed — staging has no volume and production does, and
+            # that difference was invisible until it was measured.
+            "ws_ticket_store": ("PERSISTENT" if _ws_store_persistent() else "EPHEMERAL"),
         "uptime":   uptime,
         "uptime_human": f"{uptime // 3600}h {(uptime % 3600) // 60}m",
         "browser":  browser_ok,
@@ -16102,6 +16107,16 @@ REQUIRED_V2_ROUTERS = frozenset({
 
 def _record_router(name: str, required: bool, mounted: bool, reason: str = "") -> None:
     ROUTER_MANIFEST[name] = {"required": required, "mounted": mounted, "reason": reason}
+
+
+def _ws_store_persistent() -> bool:
+    """False (the safe answer) if the v2 package did not import — never claim persistence we cannot
+    demonstrate."""
+    try:
+        from narai.api.ws_auth import store_is_persistent
+        return store_is_persistent()
+    except Exception:
+        return False
 
 
 def router_manifest_status() -> tuple:
