@@ -273,7 +273,41 @@ contained; four webhook trust boundaries and the remaining public-route inventor
 | LOW | Three plaintext `http://localhost` origins sit in App A's credentialed CORS allowlist. |
 | LOW | `CHANGELOG.md:44` still claims App A's CORS "falls back to `["*"]` if unset". Stale — it falls back to a six-entry explicit list. |
 
-## 12. Customer-facing regression still outstanding
+## 12. Superseded after this record was first frozen
+
+**A WebSocket boundary the HTTP gate never covered — found, fixed, merged as PR #77 (production
+`e885feeb`).** `api_key_middleware` is `@app.middleware("http")`, and Starlette's
+`BaseHTTPMiddleware` passes every non-HTTP scope through untouched, so a WebSocket handshake never
+reached it. App A's one WebSocket route, `/api/code/stream/{run_id}`, called `await
+websocket.accept()` unconditionally and was reachable with no credential. Direct impact was bounded
+— `run_id` is an unguessable `uuid4` — but every WebSocket route was unauthenticated by default.
+
+**The guard in §5 could not see it.** The enumeration iterates `getattr(r, "methods", set())`, and a
+WebSocket route has `methods = None`, so the inner loop never runs. It reported 387 mutating routes
+and this was not among them. The limit is now written into the guard, and WebSocket routes are pinned
+separately by path. A guard pins only the part of the surface it knows how to enumerate.
+
+Verified on production with a genuine `wss://` handshake: anonymous and bad-key both **403**, from
+the gate rather than from the HTTP middleware.
+
+**The Aikido OS-command finding (PR #65) is `NOT_REACHABLE_IN_PRODUCTION`.** The sink is real and
+unpatched — `subprocess.Popen(cmd, shell=True)` at `money_center/dashboard.py:484` fed by an
+unvalidated `run_command` form field with no authentication on either route — but no deployed app
+imports the module (the three `main.py` imports are function-local on CLI-only branches), no
+`WSGIMiddleware` exists repo-wide, and **no deployment artifact has ever referenced it in the entire
+git history**. It also `sys.exit(1)`s unless `/Volumes/Wheellsverse` is mounted, so it cannot run in
+a container. Exploitation requires someone to start it by hand on the operator's Mac plus LAN
+position. **LOW — local hardening, not a production change window.** Two caveats: the source *is*
+baked into the App A image (`COPY . .`), dormant; and `.github/workflows/phase0-gate.yml` reports
+green while running **zero** money_center security tests, because the file it guards does not exist.
+
+**Production moved twice more while this record was open**, and neither move was part of this
+incident: `8ef0c3e3` (a ~44-commit KAI Computer Operations branch, including migration
+`0008_add_kai_devices.py`) and `e885feeb` (PR #77). PR #74's controls were re-verified intact against
+both — all six families still GET-only, `_NEVER_PUBLIC`, `_csrf_ok` and the rest all present, and the
+newer code's only contact with them is additive and correctly calls `_session_owner_ok`.
+
+## 13. Customer-facing regression still outstanding
 
 `/api/store/redeliver` remains owner-only from PR #73. A customer can no longer re-request a paid
 order's files. Restoration is designed separately — authenticated customer session, order-ownership
