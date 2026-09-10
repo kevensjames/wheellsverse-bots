@@ -1,12 +1,29 @@
-# 🤖 WheellsVerse Bot Ecosystem
+# WheellsVerse
 
-**70 Autonomous AI Bots — Built for Jhon Kevens D Wheeler / J.K. Blaze**
+**An inspectable Python runtime for AI workflows, data pipelines, scheduling, and operator-controlled automation.**
 
-Production-ready, modular, and fully automated. Runs locally on your Mac.
+WheellsVerse brings workflow discovery, lifecycle management, APIs, data services, and operator interfaces into one codebase. Created by **Jhon Wheeler, Founder & CEO of WheellsVerse**, it explores how raw inputs can move through data and software into explicit, reviewable decisions.
+
+[Quick start](#quick-start) · [Proof in the source](#proof-in-the-source) · [Open an issue](https://github.com/kevensjames/wheellsverse-bots/issues)
+
+> **Status:** active development. Coverage and integration readiness vary by module; inspect the relevant code and tests before deployment.
 
 ---
 
-## 🗺️ FOLDER STRUCTURE
+## Why it exists
+
+Automation projects often become disconnected scripts with duplicated setup, inconsistent scheduling, and unclear execution paths. WheellsVerse centralizes those shared concerns so each workflow can stay focused while operators retain visibility into inputs, logic, outputs, and failures.
+
+## Proof in the source
+
+- **Automation runtime:** [`BaseBot`](./core/base_bot.py) → [orchestrator](./core/orchestrator.py) → [scheduler](./core/scheduler.py) → [pipelines](./core/pipeline.py)
+- **Market-data path:** [OHLCV ingestion](./backend/app/services/market_data.py) → [indicators](./backend/app/ml/indicators.py) → [explicit signal rules](./backend/app/ml/predictor.py) → [client](./trade-app)
+- **NarAI request path:** [chat routing](./narai/api/routes/chat.py) → [memory](./narai/api/routes/memory.py) → [architecture](./narai/ARCHITECTURE.md)
+
+<details>
+<summary><strong>Repository map</strong></summary>
+
+<br>
 
 ```
 wheellsverse_bots/
@@ -70,23 +87,26 @@ wheellsverse_bots/
 └── data/                          ← Persistent data (tasks, invoices, etc.)
 ```
 
+</details>
+
 ---
 
-## ⚡ QUICK START (3 Steps)
+## Quick start
+
+Clone the repository, run the setup, and add only the credentials required by the workflow you plan to use.
 
 ```bash
-# Step 1 — Setup (one time)
+git clone https://github.com/kevensjames/wheellsverse-bots.git
+cd wheellsverse-bots
+
 bash setup.sh
 
-# Step 2 — Add your OpenAI API key
 nano .env
-# Set: OPENAI_API_KEY=sk-your-key-here
 
-# Step 3 — Launch
 ./launch.sh
 ```
 
-That's it. The interactive menu opens.
+The interactive menu opens. Start with `./launch.sh --list`, inspect one workflow's source and configuration, then run that workflow directly.
 
 ---
 
@@ -96,7 +116,7 @@ That's it. The interactive menu opens.
 # Interactive menu (recommended first time)
 ./launch.sh
 
-# Check status of all 70 bots
+# Check status of discovered workflows
 ./launch.sh --status
 
 # List all bot names
@@ -112,10 +132,10 @@ That's it. The interactive menu opens.
 ./launch.sh --category business
 ./launch.sh --category social_media
 
-# Run ALL 70 bots (sequential)
+# Run all enabled workflows (sequential)
 ./launch.sh --all
 
-# Run ALL bots in PARALLEL (faster, uses more memory)
+# Run all enabled workflows in parallel (uses more memory)
 ./launch.sh --all --parallel
 
 # Launch Web Dashboard (http://localhost:5050)
@@ -131,7 +151,14 @@ That's it. The interactive menu opens.
 
 ---
 
-## 🤖 ALL 70 BOTS
+## Starter workflow catalog
+
+The original catalog contains 70 numbered workflows. The repository also contains newer services and specialized modules outside this list.
+
+<details>
+<summary><strong>View the 70 numbered workflows</strong></summary>
+
+<br>
 
 ### 📣 MARKETING (Bots 1-20)
 | # | Bot | Purpose | Schedule |
@@ -247,6 +274,8 @@ That's it. The interactive menu opens.
 | 69 | Invoice Management | Invoice tracking and reporting | Daily 8am |
 | 70 | Reporting Dashboard | Weekly/monthly business reports | Weekly Mon |
 
+</details>
+
 ---
 
 ## ⚙️ CONFIGURATION
@@ -324,18 +353,19 @@ The orchestrator auto-discovers it on next launch. That's it.
 | `Module not found` | Run `source venv/bin/activate` then `pip install -r requirements.txt` |
 | Bot fails silently | Check `logs/[bot_name].log` |
 | Dashboard not loading | Check port 5050 is free: `lsof -i :5050` |
-| Slow first run | Normal — orchestrator loads all 70 bots once |
+| Slow first run | The orchestrator discovers and loads enabled workflows |
 | Mac notification not working | Allow Terminal notifications in System Preferences |
 
 ---
 
-## 📞 CONTACT
+## Contribute
 
-**Jhon Kevens D Wheeler**
-Email: wheelerjhonkevensd@gmail.com
-Brand: J.K. Blaze / WheellsVerse
-Location: Taunton, MA
+Try the quickstart with a real workflow. If the project earns a place in your stack, **star the repository** so other builders can discover it.
+
+Found a defect or unclear setup step? [Open an issue](https://github.com/kevensjames/wheellsverse-bots/issues). Contributions that improve tests, documentation, data paths, or integration reliability are welcome.
+
+Maintained by [Jhon Wheeler](https://github.com/kevensjames), Founder & CEO of WheellsVerse.
 
 ---
 
-*WheellsVerse Bot Ecosystem v1.0 — 70 Autonomous AI Bots*
+*Inspect the code. Test the path. Improve the system.*
