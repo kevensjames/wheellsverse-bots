@@ -8,6 +8,7 @@ client_secret.json
 *_secret.json
 *credentials*.json
 youtube_client_secret.json
+data/canva_backup_codes.txt
 
 # Python
 __pycache__/
