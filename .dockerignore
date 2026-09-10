@@ -60,3 +60,13 @@ node_modules/
 *.mp4
 *.mp3
 *.wav
+
+# money_center — operator workstation tooling, never served by either deployed app.
+# It holds the only shell=True subprocess calls in the repository, fed by an unvalidated form field
+# with no authentication in front of it. Nothing deployed imports it and no deployment artifact has
+# ever started it, but the Dockerfile is `COPY . .`, so without this the vulnerable source shipped
+# inside the production image — dormant, and a convenience for anyone who gets execution by another
+# route. assets.json and config.yaml are deliberately NOT excluded: GET /api/money/assets reads the
+# JSON at runtime, and data is not a sink.
+money_center/*.py
+money_center/tests/
