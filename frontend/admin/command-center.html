@@ -856,7 +856,7 @@
   // not in a variable that outlives this function, not in the URL. Losing it on reload is the point
   // — a stored operator key is what the /admin/ceo leak was.
   function signIn(){
-    var el=$("ownerkey"); if(!el) return;
+    var el=$("cc-owner-key-field"); if(!el) return;
     var secret=el.value; el.value="";
     var msg=$("signin-msg"); if(msg) msg.textContent="Signing in…";
     fetch("/admin/session/login",{method:"POST",credentials:"same-origin",
@@ -877,7 +877,7 @@
       '(<code>/admin/registry.json</code>), and no owner session is present in this browser. '+
       'Nothing is fabricated in its place.'+
       '<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
-      '<input id="ownerkey" type="password" autocomplete="current-password" '+
+      '<input id="cc-owner-key-field" type="password" autocomplete="current-password" '+
       'placeholder="Owner key" aria-label="Owner key" '+
       'style="padding:6px 10px;min-width:260px;font:inherit">'+
       '<button id="signin-btn" type="button" style="padding:6px 14px;font:inherit;cursor:pointer">Sign in</button>'+
@@ -901,7 +901,7 @@
         // operator looking for an outage that does not exist.
         if(/\b401\b/.test(e.message||"")){
           $("err").innerHTML=signInPrompt();
-          var b=$("signin-btn"), k=$("ownerkey");
+          var b=$("signin-btn"), k=$("cc-owner-key-field");
           if(b) b.addEventListener("click",signIn);
           if(k) k.addEventListener("keydown",function(ev){if(ev.key==="Enter")signIn();});
           if(k) k.focus();

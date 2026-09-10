@@ -71,9 +71,17 @@ check("the key never travels in a URL",
   !/session\/login\?[^"]*secret=/.test(PAGE) && !/[?&]api_key=/.test(PAGE));
 
 check("the field is a password input, not plain text",
-  /id="ownerkey"[^>]*type="password"/.test(PAGE) ||
-  /type="password"[^>]*id="ownerkey"/.test(PAGE) ||
-  /'<input id="ownerkey" type="password"/.test(PAGE));
+  /id="cc-owner-key-field"[^>]*type="password"/.test(PAGE) ||
+  /type="password"[^>]*id="cc-owner-key-field"/.test(PAGE) ||
+  /'<input id="cc-owner-key-field" type="password"/.test(PAGE));
+
+// The element id must not be a string that could equal a real credential VALUE.
+// tests/test_owner_key_not_served.py greps served bytes for the owner key as a plain substring — it
+// cannot distinguish "the key" from "a string identical to the key", and that bluntness is exactly
+// what makes it hard to fool. id="ownerkey" collided with the test fixture's API_KEY ("ownerkey")
+// and tripped the leak guard on eight routes. The guard was right; the id was wrong.
+check("the field id cannot collide with a credential value",
+  !/id="ownerkey"/.test(PAGE) && /id="cc-owner-key-field"/.test(PAGE));
 
 // ── failure feedback is specific ─────────────────────────────────────────────────────────────────
 check("a rejected key says so, rather than looking like an outage",
