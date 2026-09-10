@@ -552,7 +552,7 @@ function boot(){
 fetch('/admin/session/whoami', {headers:{Accept:'application/json'}})
   .then(r=>r.json())
   .then(w=>{ if(!w || !w.authenticated || w.role !== 'owner'){
-    $('boot-t').textContent='KAI · SIGN IN REQUIRED — owner session needed (/admin/session/login)'; } })
+    $('boot-t').textContent='KAI · SIGN IN REQUIRED — no owner session. Sign in from the Command Center at /admin.'; } })
   .catch(()=>{ $('boot-t').textContent='KAI · SESSION STATE UNAVAILABLE'; });
 boot();
 </script>
