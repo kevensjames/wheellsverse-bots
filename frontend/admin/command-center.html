@@ -847,15 +847,70 @@
   if(window.ResizeObserver){var ro=new ResizeObserver(function(){clearTimeout(rt);rt=setTimeout(function(){if(REG)layoutUniverse();},120);});var ub=$("universe");if(ub)ro.observe(ub);}
 
   // ── single shared telemetry load (§28) + bounded polling ──
+  // Owner sign-in. /admin/registry.json is owner-gated (require_admin_json), and this page had no
+  // way to authenticate — so a signed-out owner saw "Telemetry unavailable: registry 401" with no
+  // indication that signing in was the missing step. Reporting the failure honestly was right;
+  // leaving no way to fix it was not.
+  //
+  // The key is exchanged for the HttpOnly wv_session cookie and never stored: not in localStorage,
+  // not in a variable that outlives this function, not in the URL. Losing it on reload is the point
+  // — a stored operator key is what the /admin/ceo leak was.
+  function signIn(){
+    var el=$("cc-owner-key-field"); if(!el) return;
+    var secret=el.value; el.value="";
+    var msg=$("signin-msg"); if(msg) msg.textContent="Signing in…";
+    fetch("/admin/session/login",{method:"POST",credentials:"same-origin",
+      headers:{"Content-Type":"application/json",Accept:"application/json"},
+      body:JSON.stringify({secret:secret})})
+      .then(function(r){
+        if(r.status===401){ if(msg) msg.textContent="That key was not accepted."; return null; }
+        if(!r.ok){ if(msg) msg.textContent="Sign-in unavailable ("+r.status+")."; return null; }
+        return r.json();
+      })
+      .then(function(j){ if(!j) return; if(msg) msg.textContent="Signed in as "+esc(j.role)+". Loading…";
+                         $("err").innerHTML=""; load(); })
+      .catch(function(){ if(msg) msg.textContent="Sign-in request failed."; });
+  }
+
+  function signInPrompt(){
+    return '<div class="err">Owner sign-in required — this console reads owner-gated telemetry '+
+      '(<code>/admin/registry.json</code>), and no owner session is present in this browser. '+
+      'Nothing is fabricated in its place.'+
+      '<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+      '<input id="cc-owner-key-field" type="password" autocomplete="current-password" '+
+      'placeholder="Owner key" aria-label="Owner key" '+
+      'style="padding:6px 10px;min-width:260px;font:inherit">'+
+      '<button id="signin-btn" type="button" style="padding:6px 14px;font:inherit;cursor:pointer">Sign in</button>'+
+      '<span id="signin-msg" role="status" style="opacity:.8"></span></div></div>';
+  }
+
   function load(){
-    var ac=new AbortController();var opt={headers:{Accept:"application/json"},signal:ac.signal};
+    var ac=new AbortController();
+    // credentials is explicit rather than relying on the fetch default, because the whole failure
+    // being fixed here is a credential not arriving.
+    var opt={headers:{Accept:"application/json"},credentials:"same-origin",signal:ac.signal};
     setTimeout(function(){ac.abort();},9000);
     return Promise.all([
       fetch("/admin/registry.json",opt).then(function(r){if(!r.ok)throw new Error("registry "+r.status);return r.json();}),
       fetch("/admin/capabilities.json",opt).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}),
       fetch("/admin/command/metrics.json",opt).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
     ]).then(function(res){REG=res[0];CAPS=res[1];MET=res[2];renderAll();})
-      .catch(function(e){if(!REG)$("err").innerHTML='<div class="err">Telemetry unavailable: '+esc(e.message)+'. Last successful update: '+(LOADED_AT?ago(LOADED_AT):"never")+'. Nothing fabricated in its place.</div>';});
+      .catch(function(e){
+        if(REG) return;                                   // already have data; keep showing it
+        // 401 is a DIFFERENT problem from "telemetry is down", and conflating them sent the
+        // operator looking for an outage that does not exist.
+        if(/\b401\b/.test(e.message||"")){
+          $("err").innerHTML=signInPrompt();
+          var b=$("signin-btn"), k=$("cc-owner-key-field");
+          if(b) b.addEventListener("click",signIn);
+          if(k) k.addEventListener("keydown",function(ev){if(ev.key==="Enter")signIn();});
+          if(k) k.focus();
+          return;
+        }
+        $("err").innerHTML='<div class="err">Telemetry unavailable: '+esc(e.message)+
+          '. Last successful update: '+(LOADED_AT?ago(LOADED_AT):"never")+
+          '. Nothing fabricated in its place.</div>';
+      });
   }
   load();
   // refresh metrics only (not registry) every 30s — bounded, single timer
