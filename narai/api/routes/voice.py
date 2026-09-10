@@ -55,8 +55,10 @@ def _verify_token(token: str) -> str | None:
     """Validate a JWT and return the subject, or None if invalid."""
     try:
         import jwt  # PyJWT — pure Python, no compiled extensions
-        secret = os.getenv("NARAI_JWT_SECRET", "change-me-in-production-narai-2026")
-        payload = jwt.decode(token, secret, algorithms=["HS256"])
+        # Import the validated secret from auth module to ensure consistency
+        # and prevent duplication of security-critical validation logic
+        from narai.api.auth import _SECRET, _ALGORITHM
+        payload = jwt.decode(token, _SECRET, algorithms=[_ALGORITHM])
         return payload.get("sub")
     except Exception as e:
         logger.warning(f"WS JWT verify failed: {e}")

@@ -5,14 +5,35 @@ Shared fixtures, sample texts, and Claude mock for the WheellsVerse test suite.
 No real API calls — all Claude responses are stubbed.
 """
 import json
+import os
 import sys
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+
+# ── Security setup ────────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="session", autouse=True)
+def _set_test_jwt_secret():
+    """Set a valid JWT secret for all tests.
+    
+    The narai.api.auth module validates NARAI_JWT_SECRET at import time and
+    exits if it's missing or insecure. This fixture runs before any test
+    imports the auth module, ensuring tests can run without requiring
+    developers to set the environment variable manually.
+    """
+    if "NARAI_JWT_SECRET" not in os.environ:
+        # Use a test-specific secret that meets security requirements:
+        # - Not in _INSECURE_DEFAULTS
+        # - At least 32 characters long
+        os.environ["NARAI_JWT_SECRET"] = "test-secret-for-narai-api-tests-minimum-32-chars"
 
 
 # ── Sample manuscripts ────────────────────────────────────────────────────────
