@@ -151,22 +151,51 @@ def test_every_websocket_route_is_pinned_and_guarded():
     among them. Counting WebSocket routes separately is the only way a new one cannot be added
     without a decision.
     """
+    import importlib.util
+
+    def importable(m):
+        try:
+            return importlib.util.find_spec(m) is not None
+        except Exception:
+            return False
+
+    # THE ENVIRONMENT DECIDES WHAT THIS TEST CAN SEE. /api/v2/narai/voice/ws only exists when the
+    # NarAI v2 voice router imports, which needs chromadb + litellm. The venv used for every earlier
+    # audit in this sequence had neither, so this pin passed while asserting the WebSocket surface
+    # was a single route — and production was serving two more. A guard that audits less than
+    # production and reports success is the exact failure it exists to prevent.
+    missing = [m for m in ("chromadb", "litellm") if not importable(m)]
+    assert not missing, (
+        f"optional deps missing: {missing} — the v2 voice router will not load and this test would "
+        "pin a SMALLER WebSocket surface than production serves. Both are pinned in requirements.txt.")
+
     ws = [r for r in core_api.app.routes
           if isinstance(r, WebSocketRoute) or r.__class__.__name__ == "APIWebSocketRoute"]
-    paths = sorted(getattr(r, "path", "") for r in ws)
-    assert paths == ["/api/code/stream/{run_id}"], (
+    paths = sorted(set(getattr(r, "path", "") for r in ws))
+    assert paths == ["/api/code/stream/{run_id}", "/api/v2/narai/voice/ws"], (
         f"the WebSocket surface changed: {paths}. Every WebSocket route bypasses api_key_middleware "
         "by construction, so a new one needs its own gate and its own entry here.")
+
+    import inspect
     for r in ws:
-        src = ""
+        path = getattr(r, "path", "?")
         try:
-            import inspect
             src = inspect.getsource(r.endpoint)
         except Exception:
-            pass
+            src = ""
+        if path == "/api/v2/narai/voice/ws":
+            # Guarded, but by a JWT in a QUERY PARAMETER: `token: str = Query(...)`, verified before
+            # accept(). That is the standard WebSocket workaround — a browser cannot set headers on a
+            # handshake — but it is still a credential in a URL, which is what ?api_key= was removed
+            # from this codebase for. It lands in edge logs, access logs, Referer and history, none of
+            # which it can be revoked from. Carried as a known residual, not endorsed.
+            assert "token" in src and ("Query(" in src or "verify" in src.lower()), (
+                f"{path} no longer verifies its JWT before accepting — it is on the one code path "
+                "the HTTP middleware never sees")
+            continue
         assert "_ws_owner_ok" in src, (
-            f"{getattr(r, 'path', '?')} does not call the WebSocket owner gate — the HTTP middleware "
-            "will not do it for you")
+            f"{path} does not call the WebSocket owner gate — the HTTP middleware will not do it "
+            "for you")
 
 
 def test_the_gate_runs_before_accept():

@@ -4,6 +4,9 @@ import os
 def _client(monkeypatch, tmp_path):
     monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
     monkeypatch.setenv("API_KEY", "test-key-123")
+    # core/api.py reads _API_KEY ONCE at import, so setenv alone is a no-op whenever an earlier
+    # test already imported the module — which is why these passed alone and failed in a full run.
+    monkeypatch.setattr("core.api._API_KEY", "test-key-123", raising=False)
     from fastapi.testclient import TestClient
     from core.api import app
     return TestClient(app, raise_server_exceptions=False)

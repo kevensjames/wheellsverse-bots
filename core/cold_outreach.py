@@ -431,6 +431,11 @@ def _city_from_address(addr: str) -> str:
     optionally followed by digits).
     """
     import re
+    # A Google formatted address always contains commas. A single bare token is not one, and
+    # trusting it puts whatever it happens to be straight into outreach copy a prospect reads
+    # ("businesses in solo"). Unparseable input falls back to the neutral phrasing instead.
+    if "," not in addr:
+        return "your area"
     parts = [p.strip() for p in addr.split(",") if p.strip()]
     if not parts:
         return "your area"

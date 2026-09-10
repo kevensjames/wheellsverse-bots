@@ -15,7 +15,12 @@ def test_snapshot_real_values_and_derivations(monkeypatch):
     assert m["users"]["value"] == 3
     assert m["leads"]["value"] == 40
     assert m["conversion"]["value"] == round(3 / 40, 4)
-    assert m["deployments"]["value"] == 0          # honest: nothing deployed
+    # NOT 0. core/scoreboard.py:4 is explicit: an unconnected surface reports value=None with
+    # connected=False, "NEVER as a fake 0", because a real 0 (genuinely zero deployments) and
+    # "no deploy-count source wired" are different facts. This test used to assert the fake 0 —
+    # the exact thing the module exists to prevent.
+    assert m["deployments"]["value"] is None
+    assert m["deployments"]["connected"] is False
 
 
 def test_not_connected_is_never_a_fake_zero(monkeypatch):
