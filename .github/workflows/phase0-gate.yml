@@ -1,13 +1,23 @@
 name: Phase 0 Deploy Gate
 
 # Phase 0 of the platform-maturity roadmap: mandatory pre-merge checks so no
-# change reaches a deployable branch (main / istanbul) unless it passes.
+# change reaches a deployable branch unless it passes.
 # Starts small and honest — it blocks the things that actually caused the
 # 2026-07-12 audit findings (missing tests, newly committed secrets), and
 # reports (not blocks) on pre-existing debt so it isn't red on day one.
 #
+# WHY production IS IN THE TRIGGER LIST. It was [main, istanbul] only, and
+# `production` is the branch that actually deploys — every release since
+# 2026-09-03 targets it. So this gate ran exactly ONCE in its life (2026-07-14)
+# and never on a single release. PR #78 rewrote the security-tests job so it can
+# no longer report green while executing zero tests, but left the trigger alone,
+# which meant that hardening had still never executed on anything that shipped.
+# A gate that does not run on the deployable branch is decoration.
+#
 # To make these BLOCK a merge (not just report), enable branch protection on
-# main + istanbul and require the "gate" check (see PR description).
+# production and require the "gate" check. Until that is enabled the gate
+# reports but cannot stop a merge — PRs #69-#79 all merged with a red check
+# because nothing enforced anything.
 #
 # Security note (matches brain-feedback-ingest.yml): values from github.event.*
 # are passed through `env:` and never interpolated inline in `run:` blocks, so
@@ -19,7 +29,7 @@ name: Phase 0 Deploy Gate
 
 on:
   pull_request:
-    branches: [main, istanbul]
+    branches: [main, istanbul, production]
 
 permissions:
   contents: read
