@@ -44,26 +44,43 @@ jobs:
           python-version: "3.11"
       - name: Install test deps
         run: python -m pip install --upgrade pip pytest
-      - name: Run security suites (present-guarded)
-        # POST-MERGE FOLLOW-UP: once PRs #31/#34/#35 land these files on istanbul,
-        # drop this guard (or assert the files exist) so a later refactor that
-        # renames/moves a suite fails loudly instead of silently passing with zero
-        # security tests.
+      - name: Run security suites (REQUIRED — fails if a suite is missing)
+        # This gate used to be "present-guarded": it globbed for three suites, found none of them,
+        # printed "Nothing to run" and exited 0 — reporting GREEN while executing ZERO security
+        # tests. Its own comment predicted that exact failure mode. All three files were absent, so
+        # the gate had been decorative for its whole life.
+        #
+        # A required suite that vanishes is now a hard failure. That is the entire point: a rename,
+        # a move, or a deletion has to break the build instead of quietly reducing coverage to zero.
         run: |
           set -euo pipefail
-          targets=""
-          for f in \
-            tests/test_nexora_payment_security.py \
-            tests/test_money_center_security.py \
-            tests/test_api_auth.py ; do
-            [ -f "$f" ] && targets="$targets $f"
+          REQUIRED="tests/test_money_center_security.py"
+          missing=""
+          for f in $REQUIRED; do
+            [ -f "$f" ] || missing="$missing $f"
           done
-          if [ -z "$targets" ]; then
-            echo "No security suites present on this ref yet (they arrive with the security PRs). Nothing to run."
-            exit 0
+          if [ -n "$missing" ]; then
+            echo "::error::Required security suite(s) missing:$missing"
+            echo "These are REQUIRED. If a suite was deliberately renamed or removed, update"
+            echo "REQUIRED in this workflow in the same commit so coverage stays visible."
+            exit 1
           fi
-          echo "Running:$targets"
-          python -m pytest $targets -v
+          echo "Running:$REQUIRED"
+          python -m pytest $REQUIRED -v
+
+      - name: Report acknowledged-absent suites
+        # Named, not silently skipped. These two were referenced by the old guard and never landed
+        # on this branch — they belong to security PRs #31/#34/#35, which were opened against a
+        # different base. Listing them keeps the gap visible instead of letting it disappear into a
+        # glob that matches nothing.
+        run: |
+          for f in tests/test_nexora_payment_security.py tests/test_api_auth.py ; do
+            if [ -f "$f" ]; then
+              echo "::notice::$f has landed — promote it into REQUIRED above."
+            else
+              echo "::warning::ACKNOWLEDGED ABSENT: $f (from security PRs #31/#34/#35, never merged here)"
+            fi
+          done
 
   # ── Gate 2: secret scan (BLOCKING on NEW secrets) ────────────────────────
   # gitleaks scans only the commits introduced by this PR, so it blocks newly
