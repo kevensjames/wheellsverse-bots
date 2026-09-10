@@ -1,3 +1,4 @@
+import pytest
 """
 tests/conftest.py
 ─────────────────────────────────────────────────────────────────────────────
@@ -207,3 +208,27 @@ def make_temp_manuscript(content: str) -> Path:
     tmp.write(content)
     tmp.close()
     return Path(tmp.name)
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Clear core.api's per-IP rate limiter around every test.
+
+    rate_limit_middleware keeps a process-global dict keyed on client IP, and TestClient presents the
+    same IP for every request in the run. A suite that makes a few hundred requests therefore
+    exhausts the window and every LATER test starts getting 429 — which looks exactly like an
+    authorization regression, in unrelated files, with no connection to whatever actually changed.
+
+    That is not hypothetical: it produced ten mystery failures in tests/test_scheduler_boundary.py and
+    tests/test_public_route_rules.py during this work, twice, and both times the first hypothesis was
+    a security regression. The limiter is shared mutable state between tests, so it gets cleaned up
+    between tests like any other.
+    """
+    try:
+        from core.api import _rate_limit_store
+    except Exception:
+        yield
+        return
+    _rate_limit_store.clear()
+    yield
+    _rate_limit_store.clear()

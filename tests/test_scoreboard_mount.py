@@ -1,5 +1,8 @@
 def _client(monkeypatch):
     monkeypatch.setenv("API_KEY", "test-key-123")
+    # core/api.py reads _API_KEY ONCE at import, so setenv alone is a no-op whenever an earlier
+    # test already imported the module — which is why these passed alone and failed in a full run.
+    monkeypatch.setattr("core.api._API_KEY", "test-key-123", raising=False)
     from fastapi.testclient import TestClient
     from core.api import app
     return TestClient(app, raise_server_exceptions=False)
@@ -19,7 +22,9 @@ def test_scoreboard_api_real_and_authed(monkeypatch):
     j = r.json()
     assert "metrics" in j and "surfaces" in j
     assert j["surfaces"]["ds24"] is False          # honestly not connected
-    assert j["metrics"]["deployments"]["value"] == 0
+    # See test_scoreboard.py: unconnected means value=None, never a fake 0.
+    assert j["metrics"]["deployments"]["value"] is None
+    assert j["metrics"]["deployments"]["connected"] is False
     # global middleware enforces auth on /api/*
     assert c.get("/api/narai/scoreboard").status_code in (401, 403)
 

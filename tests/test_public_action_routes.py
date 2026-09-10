@@ -107,6 +107,34 @@ def _prod(monkeypatch):
     monkeypatch.setattr(core_api, "_APP_ENV", "production", raising=False)
 
 
+
+def _importable(mod: str) -> bool:
+    import importlib.util
+    try:
+        return importlib.util.find_spec(mod) is not None
+    except Exception:
+        return False
+
+
+def test_the_environment_can_see_the_whole_surface():
+    """This suite is only as good as the routes that actually loaded.
+
+    core/api.py mounts the NarAI v2 routers inside try/except blocks, so a missing optional
+    dependency does not raise — it logs a warning and those routes silently never exist. Every
+    earlier audit in this sequence ran in a venv without chromadb, litellm, cachetools or aiosqlite,
+    and therefore walked a route table ~120 routes smaller than production's, with 33 mutating routes
+    among the ones it could not see.
+
+    A security guard that quietly audits less than production is worse than no guard, because it
+    reports success while doing so. This fails loudly instead.
+    """
+    missing = [m for m in ("chromadb", "litellm", "cachetools", "aiosqlite") if not _importable(m)]
+    assert not missing, (
+        f"optional deps missing: {missing} — the /api/v2/narai routers will not load and this suite "
+        "audits a SMALLER surface than production serves. All four are pinned in requirements.txt; "
+        "install them before trusting a green run here.")
+
+
 # ── 1. no unauthorized identity may act ───────────────────────────────────────────────────────────
 @pytest.mark.parametrize("method,path", ACTIONS)
 @pytest.mark.parametrize("label", sorted(UNAUTHORIZED))
@@ -329,6 +357,52 @@ def test_the_anonymously_mutable_surface_is_a_pinned_reviewed_set():
         ("POST", "/api/telegram/webhook"), ("POST", "/api/whatsapp/webhook"),
         ("POST", "/api/beehiiv/webhook"), ("POST", "/api/payhip/webhook"),
     }
+    # NarAI v2. THESE WERE INVISIBLE TO EVERY EARLIER AUDIT IN THIS SEQUENCE. The /api/v2/narai
+    # routers are mounted inside try/except blocks in core/api.py, so a missing optional dependency
+    # does not raise — it logs a warning and the routes silently never exist. The local venv lacked
+    # chromadb, litellm, cachetools and aiosqlite, so roughly 120 production routes were absent from
+    # the table this test walks, 33 of them mutating. Production installs the full requirements and
+    # serves every one.
+    #
+    # Now that they load, the PublicRule purpose "NarAI v2 uses its own JWT auth on every route" is
+    # VERIFIED rather than assumed: every route below carries a require_auth dependency. It had been
+    # recorded as an UNVERIFIED claim precisely because nothing here could see it.
+    V2_NARAI_REQUIRE_AUTH = {
+        ("DELETE", "/api/v2/narai/memory/{key}"),
+        ("DELETE", "/api/v2/narai/ops/tasks/{task_id}"),
+        ("PATCH", "/api/v2/narai/sales/deals/amount"),
+        ("PATCH", "/api/v2/narai/sales/deals/stage"),
+        ("POST", "/api/v2/narai/briefing/markdown"),
+        ("POST", "/api/v2/narai/briefing/now"),
+        ("POST", "/api/v2/narai/briefing/preview"),
+        ("POST", "/api/v2/narai/briefing/test"),
+        ("POST", "/api/v2/narai/chat"),
+        ("POST", "/api/v2/narai/chat/stream"),
+        ("POST", "/api/v2/narai/content/batch"),
+        ("POST", "/api/v2/narai/content/generate"),
+        ("POST", "/api/v2/narai/creative/images"),
+        ("POST", "/api/v2/narai/creative/music"),
+        ("POST", "/api/v2/narai/creative/video"),
+        ("POST", "/api/v2/narai/kdp/metadata"),
+        ("POST", "/api/v2/narai/kdp/royalties"),
+        ("POST", "/api/v2/narai/memory"),
+        ("POST", "/api/v2/narai/memory/recall"),
+        ("POST", "/api/v2/narai/ops/habits"),
+        ("POST", "/api/v2/narai/ops/habits/{habit_id}/checkin"),
+        ("POST", "/api/v2/narai/ops/tasks"),
+        ("POST", "/api/v2/narai/ops/tasks/{task_id}/complete"),
+        ("POST", "/api/v2/narai/rag/ingest/file"),
+        ("POST", "/api/v2/narai/rag/ingest/text"),
+        ("POST", "/api/v2/narai/rag/query"),
+        ("POST", "/api/v2/narai/research"),
+        ("POST", "/api/v2/narai/sales/deals"),
+        ("POST", "/api/v2/narai/sales/outreach"),
+        ("POST", "/api/v2/narai/sales/score"),
+        ("POST", "/api/v2/narai/sales/score_batch"),
+        ("POST", "/api/v2/narai/skills/activate/{name}"),
+        ("POST", "/api/v2/narai/skills/deactivate"),
+    }
+
     # Guarded inside the handler rather than by a dependency — each one read and confirmed.
     IN_HANDLER_AUTH = {
         ("PATCH", "/api/nx/me"), ("POST", "/api/nx/messages"), ("POST", "/api/nx/payouts"),
@@ -339,7 +413,7 @@ def test_the_anonymously_mutable_surface_is_a_pinned_reviewed_set():
         ("POST", "/api/v2/narai/briefing/test"), ("POST", "/api/v2/narai/briefing/markdown"),
         ("POST", "/api/v2/narai/insider/revoke"), ("POST", "/api/v2/narai/insider/reissue"),
     }
-    REVIEWED = ENTRY_POINTS | WEBHOOKS | IN_HANDLER_AUTH
+    REVIEWED = ENTRY_POINTS | WEBHOOKS | IN_HANDLER_AUTH | V2_NARAI_REQUIRE_AUTH
 
     # WHAT THIS ENUMERATION CANNOT SEE. A WebSocket route has methods=None, so the inner loop below
     # never runs for one and it is skipped in silence — this found 387 mutating routes and missed
@@ -362,10 +436,22 @@ def test_the_anonymously_mutable_surface_is_a_pinned_reviewed_set():
         + "\n\nGate it, or add it to a group above with a reason.")
 
     departed = REVIEWED - actual
-    assert not departed, (
-        "these are no longer anonymously reachable — good, but remove them here in the same commit "
-        "so the reviewed set keeps describing reality:\n"
-        + "\n".join(f"  {m} {p}" for m, p in sorted(departed)))
+    if departed:
+        # A reduced-dependency environment makes routes VANISH rather than appear, which would let
+        # this test pass while auditing a smaller surface than production serves. That is exactly the
+        # failure mode that hid 33 mutating /api/v2/narai routes from every earlier audit in this
+        # sequence, so it is named rather than tolerated.
+        missing_optional = [m for m in ("chromadb", "litellm", "cachetools", "aiosqlite")
+                            if not _importable(m)]
+        assert not missing_optional, (
+            f"{len(departed)} reviewed routes are absent because optional dependencies are missing: "
+            f"{missing_optional}. This environment audits a SMALLER surface than production serves — "
+            f"a green run here would be meaningless. All are pinned in requirements.txt. "
+            f"Absent here, for example: {sorted(pp for _m, pp in departed)[:3]}")
+        assert False, (
+            "these are no longer anonymously reachable — good, but remove them here in the same "
+            "commit so the reviewed set keeps describing reality:\n"
+            + "\n".join(f"  {m} {pp}" for m, pp in sorted(departed)))
 
 
 def test_register_webhooks_is_gated():

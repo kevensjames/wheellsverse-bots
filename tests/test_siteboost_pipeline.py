@@ -59,7 +59,9 @@ class TestPlacesScanner:
                      phone="555", website="https://example.com", country_code="US")
         ok, reason = p.is_targetable()
         assert not ok
-        assert reason == "has-website"
+        # The rejection reason was renamed has-website -> good-website when the scanner began
+        # distinguishing "has any site" from "has a site good enough to skip".
+        assert reason == "good-website"
 
     def test_prospect_without_phone_is_rejected(self):
         from core.places_scanner import Prospect

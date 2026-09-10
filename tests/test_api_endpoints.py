@@ -1,4 +1,5 @@
 """tests/test_api_endpoints.py — API endpoint contract tests using FastAPI TestClient."""
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -15,7 +16,10 @@ def _get_client():
     """Import app and return TestClient — deferred so env vars can be set first."""
     from fastapi.testclient import TestClient
     from core.api import app
-    return TestClient(app, raise_server_exceptions=False)
+    # This suite predates owner-key enforcement on /api/*. conftest sets API_KEY; send it,
+    # rather than asserting the pre-enforcement behaviour that no longer exists.
+    return TestClient(app, raise_server_exceptions=False,
+                      headers={"X-API-Key": os.environ["API_KEY"]})
 
 
 class TestPublisherEngineEndpoints(unittest.TestCase):

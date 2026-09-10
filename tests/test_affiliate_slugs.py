@@ -1,10 +1,11 @@
 """Catch broken /go/<slug> references before they ship to production.
 
 The /go/<partner> redirector in core/api.py looks up `partner` in
-core.click_tracker._affiliate_urls(). Any slug used in code, bots, or
+core.click_tracker._resolve_destination(). Any slug used in code, bots, or
 frontend HTML that isn't registered will 404 in production.
 
-This test scans the tree and asserts every distinct slug is registered.
+This test scans the tree and asserts every distinct slug RESOLVES to a destination.
+(It formerly asserted registry membership; see _resolves() for why that changed.)
 """
 from __future__ import annotations
 
@@ -26,10 +27,23 @@ TEMPLATE_PLACEHOLDERS = {
 }
 
 
-def _registered_slugs() -> set[str]:
-    """Reflect on click_tracker._affiliate_urls() so the test follows the source of truth."""
-    from core.click_tracker import _affiliate_urls
-    return set(_affiliate_urls().keys())
+def _resolves(slug: str) -> bool:
+    """Whether click_tracker can turn this slug into a destination URL.
+
+    This used to reflect on _affiliate_urls().keys(), because a slug that was not a key of that map
+    really would 404. Commit a0e6cfa1 changed the design: _affiliate_urls() is now env-backed for the
+    single owned-funnel key 'insider', and _resolve_destination() resolves EVERY other partner key on
+    demand to the digital-product URL with utm_content set. So the failure this test was written to
+    catch can no longer happen, and the old assertion failed on 16 perfectly working slugs.
+
+    The invariant that still matters is the one the redirect actually depends on: every referenced
+    slug must resolve to a non-empty destination. That is what is asserted now.
+    """
+    from core.click_tracker import _resolve_destination
+    try:
+        return bool(_resolve_destination(slug))
+    except Exception:
+        return False
 
 
 EXCLUDE_DIR_NAMES = {".venv", "venv", "node_modules", "__pycache__", ".git", "_archive"}
@@ -68,14 +82,14 @@ USED = _used_slugs()
 
 
 @pytest.mark.parametrize("slug", sorted(USED.keys()))
-def test_slug_is_registered(slug: str) -> None:
-    registered = _registered_slugs()
-    if slug not in registered:
+def test_slug_resolves_to_a_destination(slug: str) -> None:
+    if not _resolves(slug):
         sample = USED[slug][0].relative_to(ROOT)
         more = f" (+{len(USED[slug]) - 1} more)" if len(USED[slug]) > 1 else ""
         pytest.fail(
-            f"/go/{slug} is referenced (e.g. {sample}{more}) but not registered "
-            f"in core.click_tracker._affiliate_urls(). It will 404 in production."
+            f"/go/{slug} is referenced (e.g. {sample}{more}) but "
+            f"core.click_tracker._resolve_destination() returns nothing for it — "
+            f"the redirect would have no destination."
         )
 
 
