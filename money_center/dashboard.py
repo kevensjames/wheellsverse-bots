@@ -12,20 +12,28 @@ Usage:
 """
 
 import argparse
+import os
+import secrets
+import shlex
 import subprocess
 import sys
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
 
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 
-from flask import Flask, abort, redirect, render_template_string, request, url_for
+from flask import Flask, abort, redirect, render_template_string, request, url_for, session
 
 from money_center import registry as reg
 
 app = Flask(__name__)
-app.secret_key = "money_center_dev"
+# Generate a secure secret key from environment or create one
+app.secret_key = os.environ.get("MONEY_CENTER_SECRET_KEY", secrets.token_hex(32))
+
+# Authentication token - must be set via environment variable
+AUTH_TOKEN = os.environ.get("MONEY_CENTER_AUTH_TOKEN", "")
 
 # ─── CSS ─────────────────────────────────────────────────────────────────────
 
@@ -75,6 +83,40 @@ form label { display: block; color: #81d4fa; margin-bottom: .25rem; font-size: .
 .flash-ok  { background: #1b5e20; color: #c8e6c9; }
 .flash-err { background: #b71c1c; color: #ffcdd2; }
 """
+
+# ─── Authentication ───────────────────────────────────────────────────────────
+
+def require_auth(f):
+    """Decorator to require authentication token for protected routes."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Check if authentication is configured
+        if not AUTH_TOKEN:
+            # If no token is set, show warning but allow access (backward compatibility for local dev)
+            # In production, AUTH_TOKEN should always be set
+            pass
+        else:
+            # Check session for authenticated flag
+            if not session.get("authenticated"):
+                # Check if token is provided in request
+                provided_token = request.form.get("auth_token") or request.args.get("auth_token")
+                if provided_token != AUTH_TOKEN:
+                    return _render(
+                        '<div class="card" style="border-color:#f44336">'
+                        '<h1>🔒 Authentication Required</h1>'
+                        '<p style="color:#ef9a9a">This endpoint requires authentication.</p>'
+                        '<form method="post">'
+                        '<div class="form-row"><label>Authentication Token</label>'
+                        '<input type="password" name="auth_token" required></div>'
+                        '<button class="btn btn-start" type="submit">Authenticate</button>'
+                        '</form></div>',
+                        flash_msg="Authentication required",
+                        flash_cls="flash-err"
+                    )
+                # Valid token provided, set session
+                session["authenticated"] = True
+        return f(*args, **kwargs)
+    return decorated_function
 
 # ─── Template helpers ─────────────────────────────────────────────────────────
 
@@ -321,6 +363,7 @@ def report():
 
 
 @app.route("/add", methods=["GET", "POST"])
+@require_auth
 def add_asset():
     if not reg.check_ssd():
         return _ssd_error()
@@ -393,6 +436,7 @@ def add_asset():
 
 
 @app.route("/edit/<asset_id>", methods=["GET", "POST"])
+@require_auth
 def edit_asset(asset_id):
     if not reg.check_ssd():
         return _ssd_error()
@@ -463,6 +507,7 @@ def edit_asset(asset_id):
 
 
 @app.route("/start/<asset_id>", methods=["POST"])
+@require_auth
 def start_asset(asset_id):
     if not reg.check_ssd():
         return redirect(url_for("index", msg="SSD not mounted.", cls="flash-err"))
@@ -480,9 +525,17 @@ def start_asset(asset_id):
     try:
         log_path = HERE / "logs" / f"{asset_id}.log"
         log_fd = open(log_path, "a", encoding="utf-8")
-        import os
+        
+        # Parse command safely - split into arguments to avoid shell injection
+        # Use shlex.split to properly handle quoted arguments
+        try:
+            cmd_args = shlex.split(cmd)
+        except ValueError as e:
+            return redirect(url_for("index", msg=f"Invalid command syntax: {e}", cls="flash-err"))
+        
+        # Execute without shell=True to prevent command injection
         subprocess.Popen(
-            cmd, shell=True, cwd=wdir,
+            cmd_args, cwd=wdir,
             stdout=log_fd, stderr=log_fd,
             env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
@@ -496,6 +549,7 @@ def start_asset(asset_id):
 
 
 @app.route("/stop/<asset_id>", methods=["POST"])
+@require_auth
 def stop_asset(asset_id):
     if not reg.check_ssd():
         return redirect(url_for("index", msg="SSD not mounted.", cls="flash-err"))
@@ -509,7 +563,14 @@ def stop_asset(asset_id):
         return redirect(url_for("index", msg=f"No stop_command for '{asset_id}'.", cls="flash-err"))
 
     try:
-        subprocess.run(cmd, shell=True, timeout=10)
+        # Parse command safely - split into arguments to avoid shell injection
+        try:
+            cmd_args = shlex.split(cmd)
+        except ValueError as e:
+            return redirect(url_for("index", msg=f"Invalid command syntax: {e}", cls="flash-err"))
+        
+        # Execute without shell=True to prevent command injection
+        subprocess.run(cmd_args, timeout=10)
         reg.update_status(asset_id, "stopped", "last_stop")
         reg._log("info", asset_id, "stop", f"Stopped via dashboard: {cmd}")
         return redirect(url_for("index", msg=f"'{asset_id}' stopped."))
@@ -519,6 +580,7 @@ def stop_asset(asset_id):
 
 
 @app.route("/remove/<asset_id>", methods=["POST"])
+@require_auth
 def remove_asset(asset_id):
     if not reg.check_ssd():
         return redirect(url_for("index", msg="SSD not mounted.", cls="flash-err"))
@@ -549,7 +611,7 @@ def logs_page(asset_id):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=reg._cfg.get("dashboard_port", 7777))
-    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--host", default="127.0.0.1")  # Changed from 0.0.0.0 to localhost only
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
@@ -558,7 +620,18 @@ def main():
         print(f"✗ SSD not mounted: '{ssd}'. Connect the drive and retry.")
         sys.exit(1)
 
-    print(f"💰 Money Center dashboard → http://localhost:{args.port}")
+    # Warn if no authentication token is set
+    if not AUTH_TOKEN:
+        print("⚠️  WARNING: MONEY_CENTER_AUTH_TOKEN not set!")
+        print("   The dashboard is running WITHOUT authentication.")
+        print("   Set MONEY_CENTER_AUTH_TOKEN environment variable to enable authentication.")
+        print("   Example: export MONEY_CENTER_AUTH_TOKEN=$(openssl rand -hex 32)")
+        print()
+
+    print(f"💰 Money Center dashboard → http://{args.host}:{args.port}")
+    if args.host != "127.0.0.1" and args.host != "localhost":
+        print(f"⚠️  WARNING: Binding to {args.host} - dashboard will be accessible from network!")
+        print("   Consider using --host 127.0.0.1 for local-only access.")
     app.run(host=args.host, port=args.port, debug=args.debug)
 
 
