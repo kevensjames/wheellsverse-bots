@@ -594,3 +594,56 @@ snapshot. Corrected: a deployment was forced (`70591c4f`, SUCCESS 11:14:24Z); `b
 - `KAI_HOLDING_DELIVERY_ENABLED` is **not** one of the eight (it controls the separate
   EXTERNAL_COMMUNICATION row). It is false on both cron services, running-confirmed on
   kai-briefing-cron by run 288.
+
+---
+
+## 15. Closure — schedules corrected, Gitea fully contained
+
+### Cron schedules (owner-applied in the dashboard, verified here)
+
+| Service | Deployment | Cron | Restart | Retired |
+|---|---|---|---|---|
+| `kai-production/kai-briefing-cron` | `ff4ceda7` SUCCESS 11:52:14Z | **`0 11 * * *`** | NEVER | `093f7de7` (`011 * * * *`) REMOVED |
+| `kai-staging/kai-briefing-cron-staging` | `ee826272` SUCCESS 11:49:32Z | **`0 11 * * *`** | NEVER | `27038165` (no cron) REMOVED |
+
+The hourly cadence is gone: **24 briefings/day → 1**, next run 2026-09-12 11:00 UTC
+(= 07:00 America/New_York EDT, matching `KAI_HOLDING_BRIEFING_UTC_HOUR = 11`).
+
+Both redeploys were created *after* delivery was stored false, so the new env snapshots carry the
+containment forward rather than resurrecting it. Re-verified after the change:
+`kai-briefing-cron` → `KAI_HOLDING_DELIVERY_ENABLED=false`;
+`kai-watch-cron` → `KAI_HOLDING_DELIVERY_ENABLED=false`, `KAI_HOLDING_WATCH_ENABLED=false`.
+
+**DST note:** Railway cron is UTC-only. `0 11 * * *` is 07:00 EDT but **06:00 EST**. Holding 07:00
+local year-round requires changing to `0 12 * * *` at the November DST transition — the runbook and
+`config.py:92` both say so. Nothing enforces it; it will silently drift by an hour.
+
+### Gitea — final posture
+
+| Setting | Value |
+|---|---|
+| `HTTP_ADDR` | `127.0.0.1` (was `100.112.218.95`, the Tailscale address) |
+| `DISABLE_REGISTRATION` | `true` |
+| `ENABLE_OPENID_SIGNUP` | `false` (the second signup door — explicit `true` overrides `DISABLE_REGISTRATION` in Gitea) |
+| `REQUIRE_SIGNIN_VIEW` | `true` |
+
+Proven, not assumed:
+
+- listener: `127.0.0.1:3000` only; Tailscale `100.112.218.95`, LAN `10.0.0.142`/`10.0.0.127`, and
+  the tailnet hostname all refuse
+- `/user/sign_up` and `/user/sign_up?openid=1` → "registration disabled", no signup form in body
+- anonymous `/explore/repos` → **303** → `/user/login`
+- anonymous `git clone` and `git ls-remote` → **`remote: Unauthorized`**
+- owner access still works: the working copy fetches via the **macOS keychain** helper — no
+  credentials in the remote URL, no `~/.git-credentials`
+
+Backups: `app.ini.bak-2026-09-11-pre-containment`, `app.ini.bak-2026-09-11-pre-signin`.
+
+**Residual, unchanged by this work:** the supply-chain *architecture* remains — four LaunchAgents
+still run production-adjacent work from a laptop, and `wheellsverse_bots` still tracks Gitea on a
+2026-07-06 branch. Gitea itself is now a stale June mirror (`main` = `343fb2e`, 2026-06-19) that
+nothing pushes to. The acute network exposure is closed; the architectural question is open.
+
+### Branch protection
+
+`required_conversation_resolution` retained at the owner's direction.
