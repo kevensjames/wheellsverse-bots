@@ -384,6 +384,9 @@ def test_the_anonymously_mutable_surface_is_a_pinned_reviewed_set():
         ("POST", "/api/v2/narai/creative/music"),
         ("POST", "/api/v2/narai/creative/video"),
         ("POST", "/api/v2/narai/kdp/metadata"),
+        # Added with the WebSocket ticket flow: it is the authenticated HTTPS POST that
+        # replaced the JWT-in-a-URL on /api/v2/narai/voice/ws. Carries require_auth.
+        ("POST", "/api/v2/narai/voice/ws-ticket"),
         ("POST", "/api/v2/narai/kdp/royalties"),
         ("POST", "/api/v2/narai/memory"),
         ("POST", "/api/v2/narai/memory/recall"),
