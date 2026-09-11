@@ -64,7 +64,7 @@ Ordered: set `KAI_HOLDING_DELIVERY_ENABLED=false` on both cron services, and ens
 Applied with `--skip-deploys`. Deployment IDs identical before and after
 (`fc3811e7`, `b7f5f856`) — **zero deployments triggered**, as required.
 
-**Step 2 — NOT YET PROVEN.** `railway redeploy` refuses a completed cron deployment
+**Step 2 — PROVEN STALE, then fixed by a forced deployment.** `railway redeploy` refuses a completed cron deployment
 ("cannot be redeployed"). Whether a cron run resolves variables fresh or inherits the
 deployment's snapshot is **not established**: cron runs create no deployment records, but
 that shows runs aren't recorded, not that the environment is stale. Those are different
@@ -449,3 +449,58 @@ two-month staleness, or production loops living on a laptop — those need an ow
 2. Decide whether these four LaunchAgents should run at all - and if so, not from a laptop.
 3. Wire a server-side demotion on `customer.subscription.deleted` so no laptop job is the
    only mechanism keeping paid tiers honest.
+
+---
+
+## 13. Delivery containment — resolved: `--skip-deploys` was proven ineffective
+
+The 02:11Z test settled the open question in §2, and it settled it against the optimistic reading.
+
+**Evidence.** Briefing run **287 at `2026-09-11 02:13:52Z`** — 63 minutes after the flag write
+at ~01:10Z — returned:
+
+```
+{'generated': True, 'audit_event_ids': [287], 'entities': 11,
+ 'delivery': {'delivered': False, 'reason': 'send error: HTTP Error 404: Not Found'}}
+```
+
+A `404` means an **HTTP send was attempted**. Had the process observed
+`KAI_HOLDING_DELIVERY_ENABLED=false`, `deliver_briefing` would have short-circuited to
+`delivery disabled (default) — opt in via KAI_HOLDING_DELIVERY_ENABLED` with no HTTP call.
+
+**Conclusion: a Railway cron run inherits the deployment's environment snapshot.** It does not
+re-read current variables. `--skip-deploys` therefore stores the value and changes nothing about
+what executes. This is the third time this trap has caught this estate.
+
+### A harness lied again — caught before it was reported
+
+The first verification run concluded `STALE ENV` from a log line carrying
+`audit_event_ids: [286]` — the 01:11:47 run, which *predates* the test window and had already
+been ruled inconclusive. The capture began at `02:13:34Z`; run 287 finished at `02:13:52Z`,
+eighteen seconds later. **The harness reached the right verdict from the wrong evidence**, which
+is indistinguishable from luck. The re-run required an audit id strictly greater than 287 before
+emitting any verdict.
+
+Rule reinforced: a verdict script must prove it observed the event it claims to judge, not merely
+find *a* line that matches its pattern.
+
+### Fix applied
+
+`railway redeploy` refuses a completed cron deployment. A deployment was therefore forced by
+setting a marker variable **without** `--skip-deploys`:
+
+- `DELIVERY_CONTAINMENT_APPLIED=2026-09-11T02-15Z`
+- new deployment **`093f7de7`**, `reason: redeploy`, cron schedule preserved (`011 * * * *`)
+- `BUILDING` at 02:16:40Z → **`SUCCESS` at 02:18:00Z**; the September-7 upload source rebuilt
+  cleanly, so the briefing cron is intact
+
+Note the containment previously rested on an accident: the running container also had the
+**placeholder token** baked into the same stale snapshot, so no send could have succeeded
+regardless. That is fragile and was not relied upon.
+
+**Operational consequence for the token install:** because a cron inherits its deployment's
+environment, installing a real `TELEGRAM_BOT_TOKEN` with `--skip-deploys` would *also* have no
+effect — and installing it *with* a deployment would take effect immediately, at the current
+hourly cadence. Fix the schedule before the credential, not after.
+
+Final confirmation pending the 03:11Z run, which must show `delivery disabled (default)`.
