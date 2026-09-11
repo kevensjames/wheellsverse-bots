@@ -347,3 +347,52 @@ sending 24 messages a day immediately.
 mis-targeted `railway up` left no trace. `sol-scheduler` carries no Railway cron
 (`cronSchedule: None`) — it is a long-running service scheduling internally. Per instruction,
 any scheduler work happens **only in the standalone SOL repository**. Nothing changed here.
+
+---
+
+## 11. Post-merge verification of PR #82 — including one qualification
+
+**WebSocket auth suites pass on the merged code.** Run from a detached worktree at
+`b486a138` (the merge commit), because the earlier failure — `ImportError: cannot import
+name 'ws_auth' from 'narai.api'` — was purely a checkout artifact: `fix/loop-repairs` was
+branched pre-merge and lacks `narai/api/ws_auth.py`. Confirmed: the file is present on
+`origin/production` and absent on that branch.
+
+`tests/test_ws_principal_resolver.py` + `tests/test_websocket_auth_boundary.py` +
+`tests/test_router_manifest_gate.py` → **70 passed**. Properties confirmed: non-owner
+sessions refused (`operator`, `viewer`); foreign-secret sessions refused; owner-from-trusted
+origin accepted; cookie handshakes refused from `https://evil.com`, `null`,
+`https://app.wheellsverse.com.evil.com`, and `https://kai.wheellsverse.com` (the cross-app
+origin — the SameSite=Lax gap that motivated the CSRF work).
+
+### Qualification: staging did not run the merged head
+
+| Commit | UTC | Content |
+|---|---|---|
+| `48095a6a` | 22:24:45 | the functional security change (ws_auth, voice, router manifest) |
+| `c10871f8` | 22:31:39 | docs + the `ws_ticket_store` health field |
+| `b486a138` | 00:58:51 | the merge |
+
+Staging App A deployment `af0ba44d` reports `build_time 2026-09-10T22:25:14Z` — **29 seconds
+after `48095a6a` and 6½ minutes before `c10871f8`**. Confirmed independently: staging's
+`/api/health` **omits `ws_ticket_store` entirely**, while the merged code emits it
+unconditionally (`core/api.py:4399`, always `PERSISTENT` or `EPHEMERAL`).
+
+So the 19/19 staging certification ran against `48095a6a`. That commit contains the **entire
+functional security boundary**; the untested delta is a docs commit plus one health-payload
+field — observability, not a security control. The accurate statement is therefore:
+*"the security behaviour was certified on staging; the merged head additionally carries a
+docs commit and one health field that staging never ran."* Not: *"the merged head was
+certified on staging."*
+
+### Production provenance — and a reporting defect
+
+Production genuinely runs the merged code: `deploy_id f937da79`, `build_time
+2026-09-11T01:00:42Z` (immediately after the 00:58:51Z merge), `ws_ticket_store: PERSISTENT`,
+`routers_missing: []`.
+
+**But `/api/health` reports `git_sha: 5e767a4`** — the PR #69 merge from 2026-09-07, not
+`b486a138`. This is the known stale-SHA defect (App A is deployed by upload, so the SHA comes
+from an env var nobody updates). Production's self-reported provenance is **wrong**, and any
+verification trusting `git_sha` would draw a false conclusion. Trust `deploy_id` + `build_time`
++ feature presence instead. Staging reports `git_sha: unknown`.
