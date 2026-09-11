@@ -53,21 +53,38 @@ logging.basicConfig(
 logger = logging.getLogger("tier_heal")
 
 
-def main() -> int:
-    from sqlalchemy import text
-
-    from app.database import SessionLocal
-
-    sql = text("""
+# The guard `stripe_customer_id IS NOT NULL` is load-bearing, not defensive noise.
+#
+# Without it this query demotes COMPED accounts — profiles granted a paid tier that were
+# never provisioned through Stripe and therefore correctly have no subscription row. The
+# operator's own profile is exactly that: backend/app/routers/admin_chat.py pins it to
+# tier='ultra' on every /admin/kai-chat call ("so a stray DB edit can't silently downgrade"),
+# while this job demoted it every night at 04:00 and fired a Telegram alert blaming dropped
+# `customer.subscription.deleted` webhooks. Two subsystems fighting over one row; no webhook
+# was ever involved. Measured 2026-09-11: current query demotes 1 (the comped operator),
+# this query demotes 0, and the 2 ex-customers carrying a stripe_customer_id are already free.
+#
+# Restricting to Stripe-provisioned accounts keeps the real capability — a genuine customer
+# who cancels still gets demoted — while making a comped grant un-demotable by construction.
+HEAL_SQL = """
         UPDATE profiles
         SET tier = 'free'
         WHERE tier IN ('pro','max','ultra')
+          AND stripe_customer_id IS NOT NULL
           AND id NOT IN (
               SELECT user_id FROM subscriptions
               WHERE status IN ('active','trialing')
           )
         RETURNING id, email, tier
-    """)
+"""
+
+
+def main() -> int:
+    from sqlalchemy import text
+
+    from app.database import SessionLocal
+
+    sql = text(HEAL_SQL)
     db = SessionLocal()
     try:
         result = db.execute(sql)
@@ -93,7 +110,9 @@ def main() -> int:
             f"⚠️ <b>Tier-mirror drift</b>\n"
             f"Healed {n} orphan profile.tier row{'s' if n != 1 else ''}:\n"
             f"{details}\n"
-            f"<i>Check whether webhooks are dropping customer.subscription.deleted events.</i>"
+            f"<i>These accounts were provisioned through Stripe and have no active subscription. "
+            f"Check whether customer.subscription.deleted is reaching the webhook — note that "
+            f"no server-side demotion is wired at all (nai_subscription.py is unreferenced).</i>"
         )
     except Exception as e:
         logger.warning("could not send TG alert: %s", e)
