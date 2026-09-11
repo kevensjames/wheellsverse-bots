@@ -265,3 +265,85 @@ uploading App A into the SOL project. **Never run `railway up` from those direct
 - Enable branch protection requiring `gate`
 - Supply the `kai-briefing-cron` Telegram token — **only after** bot identity and recipient are
   verified, the schedule is fixed, and one controlled staging delivery has completed
+
+---
+
+## 8. Branch protection — ready, not enabled (owner action)
+
+`production` is currently **unprotected** (`GET .../branches/production/protection` → 404
+"Branch not protected"). The repo's default branch is `main`, but `production` is the real trunk.
+
+The gate emits four check runs. **Only `gate` may be required:**
+
+| Check run | Conclusion on PR #82 |
+|---|---|
+| Security tests | success |
+| Secret scan | success |
+| Dependency scan (report-only) | **failure — by design** |
+| `gate` | **success** |
+
+Requiring "all checks" would block every merge, because the dependency scan is report-only
+and fails intentionally. The workflow's own comment says to require `gate`.
+
+Confirmed the gate now runs on releases: run `34537964163` (PR #82) — **success**, 48s.
+Before PR #80 it had run exactly once in its life and never on anything that shipped.
+
+Command (owner to run; requires admin, which is held):
+
+```bash
+gh api -X PUT repos/kevensjames/wheellsverse-bots/branches/production/protection \
+  --input - <<'JSON'
+{
+  "required_status_checks": { "strict": true, "contexts": ["gate"] },
+  "enforce_admins": false,
+  "required_pull_request_reviews": null,
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+JSON
+```
+
+`enforce_admins: false` deliberately — it preserves an owner break-glass path during an
+incident. Tighten once the gate has proven stable across several releases.
+
+---
+
+## 9. kai-briefing-cron repair — evidence and the one unproven variable
+
+**Cadence: established.** The manifest says `011 * * * *` and behaviour confirms 24 runs/day.
+The intended expression is almost certainly `0 11 * * *` — a lost space.
+
+**Timezone: NOT established, and this is the one thing still unproven.** Railway cron runs in
+**UTC**. The repo's commits carry `-0400`, so the operator is America/New_York (EDT). Therefore:
+
+- `0 11 * * *` UTC = **07:00 local** — coherent for a task literally named
+  `holding.morning_briefing`
+- `0 15 * * *` UTC = 11:00 local — if "11:00" meant wall-clock local time
+
+Both readings are plausible and they differ by four hours. Per standing instruction, delivery
+stays **OFF** until the owner states which is intended. Do not guess.
+
+**Repair sequence (in order, none of it started):**
+
+1. Owner confirms cadence + timezone (the choice above).
+2. Validate in staging — no briefing cron exists in either `kai-staging` project, so one must
+   be created there rather than testing on production.
+3. Install a real `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` via stdin or Railway's protected
+   variable UI — **after** verifying bot identity and recipient. Never paste a token in chat.
+4. Fix the production schedule.
+5. Only then re-enable `KAI_HOLDING_DELIVERY_ENABLED`, and confirm exactly one controlled
+   staging delivery before production.
+
+Ordering is not cosmetic: installing a working token while `011 * * * *` stands would begin
+sending 24 messages a day immediately.
+
+---
+
+## 10. SOL — untouched and healthy; changes belong in the standalone repo
+
+`wheellsverse-sol`: `sol-scheduler` last SUCCESS `2026-08-20T07:26:05`, `sol-api` SUCCESS
+`2026-08-21T01:05:46`. Both predate this session entirely, independently confirming the earlier
+mis-targeted `railway up` left no trace. `sol-scheduler` carries no Railway cron
+(`cronSchedule: None`) — it is a long-running service scheduling internally. Per instruction,
+any scheduler work happens **only in the standalone SOL repository**. Nothing changed here.
