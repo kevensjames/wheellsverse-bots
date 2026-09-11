@@ -11346,9 +11346,26 @@ async def stripe_webhook(request: Request):
             try:
                 from core.narai_user import get_supabase
                 sb = get_supabase()
-                # Find user by email and upgrade their tier
-                res = sb.table("profiles").update({"tier": narai_plan}).eq("email", user_email).execute()
-                _add_log(f"NarAI tier upgraded: {user_email} → {narai_plan}", "INFO")
+                # Find user by email and upgrade their tier.
+                #
+                # stripe_customer_id is recorded HERE because this inline path is the only live
+                # promoter of profiles.tier (narai/integrations/nai_subscription.py implements the
+                # full flow but is imported by nothing except its own test). Without it a paying
+                # customer is indistinguishable from a comped grant: both show a paid tier with no
+                # Stripe provenance and no subscriptions row. scripts/heal_tier_mirror.py — the only
+                # demotion mechanism in the system — must tell them apart, so it demotes only
+                # accounts carrying a stripe_customer_id. Omit that write and a real customer who
+                # cancels keeps paid access forever.
+                #
+                # Written only when Stripe supplied it, so a payload without `customer` cannot blank
+                # an id that was already recorded.
+                patch = {"tier": narai_plan}
+                stripe_customer = (data.get("customer") or "").strip()
+                if stripe_customer:
+                    patch["stripe_customer_id"] = stripe_customer
+                res = sb.table("profiles").update(patch).eq("email", user_email).execute()
+                _add_log(f"NarAI tier upgraded: {user_email} → {narai_plan}"
+                         f"{' (stripe provenance recorded)' if stripe_customer else ' (NO stripe customer in payload)'}", "INFO")
             except Exception as _e:
                 _add_log(f"NarAI tier upgrade failed: {_e}", "WARNING")
 

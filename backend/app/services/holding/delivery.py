@@ -10,6 +10,7 @@ deliberate operator choice. The token is never logged or returned. Never raises.
 """
 from __future__ import annotations
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -40,8 +41,23 @@ def _send_text(text: str) -> dict:
         req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=payload)
         with urllib.request.urlopen(req, timeout=10) as r:
             return {"delivered": r.status == 200, "channel": "telegram"}
+    except urllib.error.HTTPError as e:
+        # Telegram encodes WHICH thing is wrong in the status, and the difference is the whole
+        # triage. A raw "HTTP Error 404" reads like a transient outage and gets ignored; it is not.
+        # kai-briefing-cron produced exactly that on every run for days while holding a bot token
+        # that no longer existed — the service was missed when the others were rotated. Naming the
+        # cause is the difference between a loop that looks flaky and one that is provably
+        # misconfigured.
+        cause = {
+            404: "bot token invalid or revoked (Telegram 404 means the bot does not exist)",
+            401: "bot token unauthorized",
+            400: "bad request — chat_id likely wrong or the bot was never started by that chat",
+            403: "bot blocked by the chat, or not a member of it",
+        }.get(e.code, f"HTTP {e.code}")
+        return {"delivered": False, "reason": f"telegram rejected: {cause}",
+                "actionable": e.code in (400, 401, 403, 404)}
     except Exception as e:
-        return {"delivered": False, "reason": f"send error: {str(e)[:80]}"}
+        return {"delivered": False, "reason": f"send error: {str(e)[:80]}", "actionable": False}
 
 
 def deliver_briefing(briefing: dict) -> dict:
@@ -72,6 +88,38 @@ def demo() -> None:
     r = deliver_briefing({"kpis": {"entities_total": 11}, "todays_priorities": []})
     assert r["delivered"] is False and "disabled" in r["reason"], r   # default off
     print("delivery.demo OK — default no-op:", r["reason"])
+
+    # HTTP status -> cause. The reason a 404 was ignored for days is that it read like an outage.
+    import urllib.error as _ue
+
+    def _fake(code):
+        def _raise(*a, **k):
+            raise _ue.HTTPError("https://api.telegram.org/botX/sendMessage", code, "x", None, None)
+        return _raise
+
+    _real = urllib.request.urlopen
+    os.environ["TELEGRAM_BOT_TOKEN"] = "t"
+    os.environ["TELEGRAM_CHAT_ID"] = "c"
+    try:
+        for code, needle, actionable in ((404, "invalid or revoked", True),
+                                         (401, "unauthorized", True),
+                                         (400, "chat_id", True),
+                                         (403, "blocked", True),
+                                         (500, "HTTP 500", False)):
+            urllib.request.urlopen = _fake(code)
+            r = _send_text("x")
+            assert r["delivered"] is False, code
+            assert needle in r["reason"], f"{code}: {r['reason']}"
+            assert r["actionable"] is actionable, code
+        # a missing channel is still a clean no-op, not an "actionable" failure
+        os.environ.pop("TELEGRAM_BOT_TOKEN")
+        r = _send_text("x")
+        assert r["delivered"] is False and "no channel configured" in r["reason"]
+    finally:
+        urllib.request.urlopen = _real
+        os.environ.pop("TELEGRAM_CHAT_ID", None)
+        os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+    print("delivery.demo OK — 404/401/400/403 classified and marked actionable")
 
 
 if __name__ == "__main__":

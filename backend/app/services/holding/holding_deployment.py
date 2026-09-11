@@ -205,6 +205,11 @@ FEATURE_REGISTRY = [
     Feature("proactive_engine", "ProactiveBriefingEngine funnel (§11)", "P1", "adds no sender; routes via NotificationPolicy", "KAI_PROACTIVE_ENABLED", "b543521"),
     Feature("voice_command", "Voice Command Center (§7)", "P2", "same §8 resolver; can never approve a consequential action", "KAI_VOICE_ENABLED", "d22aa8c", route="/admin/holding/voice/capabilities"),
     Feature("camera_gesture", "Camera + gesture (§8/§94)", "P2", "NO certified local recognizer — RECOGNIZER_UNAVAILABLE_NOT_CERTIFIED; also needs a per-session owner enable", "KAI_CAMERA_ENABLED", "7f1103a", route="/admin/holding/gesture/capabilities"),
+    # Flags whose code ships in this release but which NO surface reported. Their absence is the exact
+    # failure this registry's docstring warns about: "a flag it omits has no reported state at all".
+    Feature("computer_operations", "Computer-operations device plane (§KAI)", "P2", "STAGING_VERIFIED on an isolated project; production deploy NOT authorized", "KAI_COMPUTER_OPS_ENABLED", "8ef0c3e3", route="/admin/kai/computer-operations/devices"),
+    Feature("holding_manual_cycle", "Manual bounded cycle (cert/diagnostics)", "P1", "staging-only; route 404 by default; grants no authority — the engine brakes stay authoritative", "KAI_HOLDING_MANUAL_CYCLE_ENABLED", "1f2c45b", route="/admin/holding/run-cycle"),
+    Feature("holding_selfcert", "Hosted-runtime self-certification", "P1", "owner-only, staging-only; route 404 by default; runs the FIXED A0/A1 cert scripts in-container", "KAI_HOLDING_SELFCERT_ENABLED", "1f2c45b", route="/admin/holding/self-cert"),
 ]
 
 

@@ -64,7 +64,7 @@ jobs:
         # a move, or a deletion has to break the build instead of quietly reducing coverage to zero.
         run: |
           set -euo pipefail
-          REQUIRED="tests/test_money_center_security.py"
+          REQUIRED="tests/test_money_center_security.py tests/test_authority_flag_coverage.py tests/test_tier_heal_guard.py"
           missing=""
           for f in $REQUIRED; do
             [ -f "$f" ] || missing="$missing $f"

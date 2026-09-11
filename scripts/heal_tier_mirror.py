@@ -53,23 +53,88 @@ logging.basicConfig(
 logger = logging.getLogger("tier_heal")
 
 
-def main() -> int:
-    from sqlalchemy import text
+# The guard `stripe_customer_id IS NOT NULL` is load-bearing, not defensive noise.
+#
+# Without it this query demotes COMPED accounts — profiles granted a paid tier that were
+# never provisioned through Stripe and therefore correctly have no subscription row. The
+# operator's own profile is exactly that: backend/app/routers/admin_chat.py pins it to
+# tier='ultra' on every /admin/kai-chat call ("so a stray DB edit can't silently downgrade"),
+# while this job demoted it every night at 04:00 and fired a Telegram alert blaming dropped
+# `customer.subscription.deleted` webhooks. Two subsystems fighting over one row; no webhook
+# was ever involved. Measured 2026-09-11: current query demotes 1 (the comped operator),
+# this query demotes 0, and the 2 ex-customers carrying a stripe_customer_id are already free.
+#
+# Restricting to Stripe-provisioned accounts keeps the real capability — a genuine customer
+# who cancels still gets demoted — while making a comped grant un-demotable by construction.
+# THE PRECONDITION. This job infers "cancelled" from the ABSENCE of an active/trialing row in
+# `subscriptions`. That inference is only valid if something actually WRITES that table — and
+# nothing live does: narai/integrations/nai_subscription.py implements the full flow (_apply_tier
+# upserts the row) but is imported by nothing except its own test, and the live promoter in
+# core/api.py writes profiles.tier only.
+#
+# So if `subscriptions` holds zero active/trialing rows, every paying customer looks cancelled and
+# this job would demote all of them at 04:00 while their Stripe subscriptions are live. An empty
+# signal is a DATA-AVAILABILITY FAILURE, not evidence of mass cancellation. Fail closed: demote
+# nothing, and say why.
+#
+# Raised in review on PR #83 (High). The earlier stripe_customer_id guard spares comped accounts;
+# it does not make an unwritten table mean what this query assumes it means.
+def should_heal(active_subscription_count: int) -> tuple[bool, str]:
+    """Run only when the cancellation signal is actually present. Pure; see demo()."""
+    if active_subscription_count is None:
+        return False, "subscriptions count unreadable — refusing to infer cancellation"
+    if active_subscription_count <= 0:
+        return False, ("subscriptions holds 0 active/trialing rows — the cancellation signal is "
+                       "unusable and every paid profile would look cancelled. Demoting nothing. "
+                       "Root cause: no live code writes subscriptions (nai_subscription.py is "
+                       "unreferenced); wire it before this job can mean anything.")
+    return True, ""
 
-    from app.database import SessionLocal
 
-    sql = text("""
+HEAL_SQL = """
         UPDATE profiles
         SET tier = 'free'
         WHERE tier IN ('pro','max','ultra')
+          AND stripe_customer_id IS NOT NULL
           AND id NOT IN (
               SELECT user_id FROM subscriptions
               WHERE status IN ('active','trialing')
           )
         RETURNING id, email, tier
-    """)
+"""
+
+
+def _alert_precondition(why: str, active: int) -> None:
+    """Tell the operator the job stood down. Silence would look identical to 'nothing to heal'."""
+    try:
+        from app.services import observability
+        observability.notify(
+            "⚠️ <b>Tier-heal stood down</b>\n"
+            f"active/trialing subscription rows: {active}\n{why}")
+    except Exception as e:                                       # noqa: BLE001
+        logger.warning("could not send TG alert: %s", e)
+
+
+def main() -> int:
+    from sqlalchemy import text
+
+    from app.database import SessionLocal
+
+    sql = text(HEAL_SQL)
     db = SessionLocal()
     try:
+        try:
+            active = db.execute(text(
+                "SELECT count(*) FROM subscriptions WHERE status IN ('active','trialing')")).scalar()
+        except Exception as e:                                   # noqa: BLE001
+            db.rollback()
+            logger.error("could not read the subscriptions signal (%s) — demoting nothing", type(e).__name__)
+            return 0
+        ok, why = should_heal(active)
+        if not ok:
+            logger.warning("PRECONDITION NOT MET — %s", why)
+            _alert_precondition(why, active)
+            return 0
         result = db.execute(sql)
         rows = result.fetchall()
         db.commit()
@@ -93,7 +158,9 @@ def main() -> int:
             f"⚠️ <b>Tier-mirror drift</b>\n"
             f"Healed {n} orphan profile.tier row{'s' if n != 1 else ''}:\n"
             f"{details}\n"
-            f"<i>Check whether webhooks are dropping customer.subscription.deleted events.</i>"
+            f"<i>These accounts were provisioned through Stripe and have no active subscription. "
+            f"Check whether customer.subscription.deleted is reaching the webhook — note that "
+            f"no server-side demotion is wired at all (nai_subscription.py is unreferenced).</i>"
         )
     except Exception as e:
         logger.warning("could not send TG alert: %s", e)
