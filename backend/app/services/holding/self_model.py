@@ -70,6 +70,12 @@ FLAG_KEYS = (
     # §8/§94 camera authority — declared in config.py and enforced by gesture_policy.camera_open_allowed,
     # but it was absent here, so NO surface reported it: the one reader must cover every real flag.
     "KAI_CAMERA_ENABLED",
+    # §KAI device-control authority. KAI_COMPUTER_OPS_ENABLED is the SOLE gate for the computer-
+    # operations plane — main.py mounts admin_computer_ops + device_connector on it, exposing mission
+    # creation, device enrolment and elevated-scope grants. It was absent from FLAG_KEYS,
+    # FEATURE_REGISTRY and brakes.py alike, so — exactly like KAI_CAMERA_ENABLED above — ZERO surfaces
+    # reported it and an operator could not distinguish a disabled device plane from an unreported one.
+    "KAI_COMPUTER_OPS_ENABLED",
 )
 
 
