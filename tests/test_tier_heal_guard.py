@@ -89,3 +89,102 @@ def test_without_the_guard_the_operator_would_be_demoted():
     db = _fixture_db()
     demoted = {row[0] for row in db.execute(unguarded).fetchall()}
     assert "op" in demoted, "fixture no longer reproduces the original bug — it has lost its point"
+
+
+# ── the promoter/demoter contract ────────────────────────────────────────────────────────────────
+#
+# Found by review on PR #83, and it was a real hole. The heal guard added above spares accounts with
+# no `stripe_customer_id`, on the reasoning that a comped grant has no Stripe provenance. But the
+# LIVE promoter — the inline `checkout.session.completed` handler in core/api.py, which is the only
+# code that grants a paid tier (nai_subscription.py implements the full flow and is imported by
+# nothing but its own test) — did not write `stripe_customer_id` either. So a real paying customer
+# looked exactly like a comped grant, and since this job is the only demotion mechanism in the
+# system, a cancellation would have left paid access in place forever.
+#
+# The two sides are now one contract: whatever column the demoter uses to recognise a Stripe-
+# provisioned account, the promoter must write. These tests fail if either side drifts.
+
+API = Path(__file__).resolve().parent.parent / "core" / "api.py"
+
+
+def _narai_upgrade_node():
+    """The `if narai_plan in (...)` branch that grants a paid tier, located structurally.
+
+    core/api.py is ~16.5k lines. Calling ast.get_source_segment for every If node re-splits the
+    whole file each time and took over two minutes; this narrows to candidate nodes by line range
+    first (integer comparisons) and builds exactly one string.
+    """
+    import ast as _ast
+    src = API.read_text()
+    lines = src.splitlines()
+    targets = [n for n, ln in enumerate(lines, 1) if "narai_plan in (" in ln]
+    assert targets, "could not find the NarAI tier-upgrade branch in core/api.py"
+    target = targets[0]
+    tree = _ast.parse(src)
+    best = None
+    for node in _ast.walk(tree):
+        if not isinstance(node, _ast.If) or node.end_lineno is None:
+            continue
+        if node.lineno <= target <= node.end_lineno:
+            if best is None or (node.end_lineno - node.lineno) < (best.end_lineno - best.lineno):
+                best = node
+    assert best is not None, "no enclosing If found for the tier-upgrade branch"
+    return best, "\n".join(lines[best.lineno - 1:best.end_lineno])
+
+
+def _provenance_assignments(node):
+    """Every `<something>["stripe_customer_id"] = ...` inside the branch, with its ancestor chain."""
+    import ast as _ast
+    parents = {}
+    for parent in _ast.walk(node):
+        for child in _ast.iter_child_nodes(parent):
+            parents[child] = parent
+    found = []
+    for n in _ast.walk(node):
+        if not isinstance(n, _ast.Assign):
+            continue
+        for t in n.targets:
+            if (isinstance(t, _ast.Subscript) and isinstance(t.slice, _ast.Constant)
+                    and t.slice.value == "stripe_customer_id"):
+                chain, cur = [], n
+                while cur in parents:
+                    cur = parents[cur]
+                    chain.append(cur)
+                found.append((n, chain))
+    return found
+
+
+def test_the_promoter_records_stripe_provenance():
+    node, src = _narai_upgrade_node()
+    assert _provenance_assignments(node), (
+        "The live checkout handler grants a paid profiles.tier without recording "
+        "stripe_customer_id. The heal job uses that column to tell a paying customer from a comped "
+        "grant, so omitting it means a real customer who cancels keeps paid access forever."
+    )
+
+
+def test_the_demoter_uses_the_column_the_promoter_writes():
+    """The contract: the discriminator must be written by the promoter and read by the demoter."""
+    node, _ = _narai_upgrade_node()
+    assert "stripe_customer_id" in _heal_sql(), "stripe_customer_id left the heal SQL"
+    assert _provenance_assignments(node), "stripe_customer_id left the promoter"
+
+
+def test_provenance_is_written_conditionally_not_unconditionally():
+    """Writing the column unconditionally blanks a good id when Stripe omits `customer`.
+
+    Checked STRUCTURALLY — an earlier version of this test looked for the substring "if
+    stripe_customer" and a mutant that removed the guard survived it. The assignment must sit
+    inside an `if`, nested within the upgrade branch.
+    """
+    import ast as _ast
+    node, _ = _narai_upgrade_node()
+    assigns = _provenance_assignments(node)
+    assert assigns, "no stripe_customer_id assignment found at all"
+    for assign, ancestors in assigns:
+        guarded = any(isinstance(a, _ast.If) for a in ancestors[:-1]) or (
+            len(ancestors) > 0 and isinstance(ancestors[0], _ast.If))
+        assert guarded, (
+            "stripe_customer_id is assigned unconditionally — a checkout payload with no "
+            "`customer` field would blank a previously recorded id."
+        )
