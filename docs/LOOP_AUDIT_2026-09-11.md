@@ -396,3 +396,56 @@ Production genuinely runs the merged code: `deploy_id f937da79`, `build_time
 from an env var nobody updates). Production's self-reported provenance is **wrong**, and any
 verification trusting `git_sha` would draw a false conclusion. Trust `deploy_id` + `build_time`
 + feature presence instead. Staging reports `git_sha: unknown`.
+
+---
+
+## 12. The most consequential finding: production loops run stale code from the unsecured Gitea
+
+`tier-heal` is not the only thing running on this Mac, and *where its code comes from* matters
+more than the bug it carries.
+
+The LaunchAgent executes `/Users/jhonwheeler/wheellsverse_bots/scripts/heal_tier_mirror.py`.
+That working copy:
+
+| Property | Value |
+|---|---|
+| branch | `feat/sol-v1` |
+| HEAD | `01bb127`, dated **2026-07-06** — over two months stale |
+| **origin** | **`http://localhost:3000/jhonwheeler/wheellsverse-bots.git`** |
+| uncommitted | 16 entries (15 untracked + `frontend/nexora/landing.html`) |
+
+The origin is the **local Gitea** — the instance already flagged as bound to `0.0.0.0:3000`
+with anonymous read and open self-registration. The same tree backs the other live agents
+(`com.wheellsverse.kai-holding-worker` PID 840, `com.wheellsverse.nai` PID 849,
+`com.wheellsverse.missioncontrol` PID 836).
+
+So: **code that writes to the production customer database nightly is served from an
+unsecured Git server on a laptop, from a branch two months behind GitHub.** "Contain Gitea"
+is therefore not merely an exposed-service item — Gitea is an upstream supply-chain path into
+production data. Anyone who can write to that Gitea can change what runs at 04:00 against
+`profiles`.
+
+None of the security work in PRs #73-#82 reaches these processes. They do not run App A or
+App B; they run a July checkout.
+
+### Fix applied tonight (bounded, reversible)
+
+The heal script in that working copy was **byte-identical** to the pre-fix version (verified
+by diff against `HEAD~1`), and none of the 16 uncommitted entries touched it. The fixed file
+was installed there so tonight's 04:00 run does not repeat the demotion:
+
+- backup: `scripts/heal_tier_mirror.py.prefix-backup-2026-09-11`
+- guard present; `py_compile` OK under `/Users/jhonwheeler/wheellsverse_bots/.venv/bin/python`
+- the installed copy's `HEAL_SQL` executed against a fixture: demotes only the cancelled
+  Stripe customer, spares the comped operator
+- dry check against live data: **0 rows** would be demoted tonight (was 1)
+
+Reverting is a `mv` of the backup. This does **not** address the Gitea exposure, the
+two-month staleness, or production loops living on a laptop — those need an owner decision.
+
+### Recommended (needs a decision, not started)
+
+1. Contain Gitea, or repoint these working copies at GitHub.
+2. Decide whether these four LaunchAgents should run at all - and if so, not from a laptop.
+3. Wire a server-side demotion on `customer.subscription.deleted` so no laptop job is the
+   only mechanism keeping paid tiers honest.
