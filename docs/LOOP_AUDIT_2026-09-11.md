@@ -503,4 +503,22 @@ environment, installing a real `TELEGRAM_BOT_TOKEN` with `--skip-deploys` would 
 effect — and installing it *with* a deployment would take effect immediately, at the current
 hourly cadence. Fix the schedule before the credential, not after.
 
-Final confirmation pending the 03:11Z run, which must show `delivery disabled (default)`.
+### CONFIRMED CONTAINED
+
+Run **288**, the first cron execution after deployment `093f7de7`:
+
+```
+{'generated': True, 'audit_event_ids': [288], 'entities': 11,
+ 'delivery': {'delivered': False,
+              'reason': 'delivery disabled (default) - opt in via KAI_HOLDING_DELIVERY_ENABLED'}}
+```
+
+No HTTP call was made — this is the short-circuit branch, not a failed send. Contrast run 287
+one hour earlier, which returned `send error: HTTP Error 404` from an attempted send.
+
+The verdict harness cleared its own guard (`id 288 > 287`), so it proved it observed a
+post-redeploy run rather than matching a stale line. Live variable set confirms
+`KAI_HOLDING_DELIVERY_ENABLED=false` alongside the `DELIVERY_CONTAINMENT_APPLIED` marker.
+
+**Both ordered steps are now satisfied: the stored variable is false, and the running
+deployment observes false.**
