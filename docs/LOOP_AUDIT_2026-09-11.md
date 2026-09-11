@@ -522,3 +522,75 @@ post-redeploy run rather than matching a stale line. Live variable set confirms
 
 **Both ordered steps are now satisfied: the stored variable is false, and the running
 deployment observes false.**
+
+---
+
+## 14. Authority statement — refuted, corrected, and re-verified
+
+The proposed wording was:
+
+> "All eight authority flags are OFF across all six inventoried Railway services, with
+> running-process confirmation where applicable."
+
+It was put through a 7-agent adversarial verification (3 independent derivations + 4 refutation
+lenses). **All four lenses refuted it, and the three derivations disagreed (8 / 10 / 4 flags).**
+It must not be published as written.
+
+### Why it failed
+
+**1. "The eight" does not name a unique set.** Three enumerations exist:
+- union of `_FLAG_BRAKES` (brakes.py:188-200) → **8**: WATCH, CYCLE, SELF_IMPROVEMENT_DETECT,
+  PROACTIVE, CAPABILITY_EXECUTION, HOLDING_AUTONOMY, A2_EXECUTION, SELF_IMPROVEMENT
+- **§3 of THIS document listed a different eight** (MONEY_MODE, KAI_HOLDING_COMMAND_ENABLED
+  included; WATCH and SELF_IMPROVEMENT_DETECT excluded). That inconsistency is mine and is
+  corrected here: §3's list was the *execution-authority* subset, not the brake-controlling set.
+- enforcement-derived → **4** hard execution grants, or **10** including COMPUTER_OPS + DELIVERY
+
+**2. A real authority grant sits outside every enumeration.** `KAI_COMPUTER_OPS_ENABLED` is the
+sole gate for the device-control plane (`main.py` mounts `admin_computer_ops` +
+`device_connector` only when true: mission creation, device enrolment, scope granting). It appears
+in **neither** `brakes.py`, **nor** `self_model.FLAG_KEYS`, **nor** `FEATURE_REGISTRY` — despite
+`self_model.py`'s own comment that "the one reader must cover every real flag". It is reported by
+zero surfaces. It reads **False** on kai-prod (confirmed in-process).
+
+**3. Scope.** Six services is **6 of 41**, across **6 of 12** Railway projects. Staging services run
+the same codebase and legitimately have some of the eight ON (`kai-staging-appb`). Any estate-wide
+reading is false.
+
+**4. I repeated the `--skip-deploys` error I had just documented.** `KAI_HOLDING_WATCH_ENABLED`
+(one of the eight) was **true** on `kai-watch-cron`. I set it false with `--skip-deploys`, leaving
+deployment `b7f5f856` intact — after proving in §13 that a run inherits its deployment's env
+snapshot. Corrected: a deployment was forced (`70591c4f`, SUCCESS 11:14:24Z); `b7f5f856` is now
+**REMOVED**, so the snapshot carrying `true` no longer exists.
+
+### The corrected statement
+
+> **On the six inventoried production Railway services, none of the eight flags controlling the
+> five autonomy brakes in `_FLAG_BRAKES` is enabled.** The basis differs per service and is not
+> uniform:
+>
+> | Service | Basis |
+> |---|---|
+> | `kai-prod` (App B) | **Running-process confirmed** — all eight read `False` from the live settings object inside the container; `APP_ENV=production` |
+> | `wheellsverse-v2` (App A) | **Not applicable** — `core/api.py` contains zero references to any of the eight |
+> | `kai-prod-monitor` | **Not applicable** — zero references across every `ops/monitor/` file |
+> | `kai-briefing-cron` | **Stored/default** — none of the eight set; `config.py` declares each `bool = False` |
+> | `kai-watch-cron` | **Stored + deployment replaced** — was `true`; set false and deployment forced (`70591c4f`); no live read possible (one-shot container, exited) |
+> | `kdp-scheduler` | **Stored/default** — none set; never executes (20/20 SKIPPED) |
+>
+> This is **not** an estate-wide statement: the account holds 12 Railway projects / 41 services.
+> Staging services run the same code and some of the eight are legitimately ON there.
+
+### Caveats that must travel with it
+
+- Only **two cells are explicitly `false`** (`KAI_CAPABILITY_EXECUTION_ENABLED` on kai-prod;
+  `KAI_HOLDING_WATCH_ENABLED` on kai-watch-cron). Every other cell is **unset, defaulting false**.
+- `KAI_HOLDING_CYCLE_ENABLED` and `KAI_PROACTIVE_ENABLED` are **not declared on the production
+  lineage**, so setting them is silently dropped and an in-container read returns `False`
+  regardless — the probe cannot distinguish "off" from "unreadable" for those two.
+- Flag state alone does not determine brake state: `APP_ENV != "staging"` forces A2_PREPARATION and
+  SELF_IMPROVEMENT OFF, and the STOP record forces the three consequential brakes OFF
+  (unreadable STOP is treated as engaged — fail closed).
+- `KAI_HOLDING_DELIVERY_ENABLED` is **not** one of the eight (it controls the separate
+  EXTERNAL_COMMUNICATION row). It is false on both cron services, running-confirmed on
+  kai-briefing-cron by run 288.
