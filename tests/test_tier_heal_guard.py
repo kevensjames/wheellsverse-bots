@@ -188,3 +188,84 @@ def test_provenance_is_written_conditionally_not_unconditionally():
             "stripe_customer_id is assigned unconditionally — a checkout payload with no "
             "`customer` field would blank a previously recorded id."
         )
+
+
+# ── the precondition: an unwritten table is not evidence of mass cancellation ─────────────────────
+#
+# Second review finding on PR #83 (High). Stamping stripe_customer_id on paid profiles made them
+# selectable by this job — but the job still reads "no active/trialing subscriptions row" as
+# "cancelled", and NOTHING live writes that table (nai_subscription.py is unreferenced; the live
+# promoter writes profiles.tier only). So every paying customer would have been demoted at 04:00
+# while their Stripe subscription was live.
+#
+# The premise, not the selector, was wrong. An empty signal is a data-availability failure.
+
+def _should_heal():
+    """Load the pure precondition WITHOUT importing the module (it loads .env at import time)."""
+    import ast as _ast
+    src = SCRIPT.read_text()
+    tree = _ast.parse(src)
+    for node in tree.body:
+        if isinstance(node, _ast.FunctionDef) and node.name == "should_heal":
+            ns: dict = {}
+            exec(compile(_ast.Module(body=[node], type_ignores=[]), "<should_heal>", "exec"), ns)
+            return ns["should_heal"]
+    raise AssertionError("should_heal() not found in heal_tier_mirror.py")
+
+
+def test_zero_active_subscriptions_demotes_nothing():
+    """Today's actual production state: 0 active/trialing rows in either store."""
+    ok, why = _should_heal()(0)
+    assert ok is False, "with no cancellation signal the job MUST stand down, not demote everyone"
+    assert "unusable" in why or "0 active" in why
+
+
+def test_an_unreadable_count_demotes_nothing():
+    ok, _ = _should_heal()(None)
+    assert ok is False, "an unreadable signal must fail closed, not proceed"
+
+
+def test_a_real_signal_lets_the_job_run():
+    ok, why = _should_heal()(7)
+    assert ok is True and why == "", "a populated subscriptions table must not be blocked"
+
+
+def test_the_precondition_is_actually_ENFORCED_not_merely_defined():
+    """A guard that is called but whose ANSWER is ignored is still decoration.
+
+    An earlier version of this test asserted only that should_heal() is invoked before the UPDATE.
+    A mutant that deleted the `if not ok: return` block — leaving the call in place and the result
+    discarded — passed it. So the assertion is now about reachability: between the guard and the
+    UPDATE there must be a conditional early return, so a False answer cannot fall through.
+    """
+    import ast as _ast
+    src = SCRIPT.read_text()
+    tree = _ast.parse(src)
+    main = next((n for n in tree.body if isinstance(n, _ast.FunctionDef) and n.name == "main"), None)
+    assert main is not None, "main() not found"
+
+    calls = [n for n in _ast.walk(main)
+             if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name) and n.func.id == "should_heal"]
+    assert calls, "main() never calls should_heal() — the precondition is not enforced"
+    guard_line = min(c.lineno for c in calls)
+
+    update_lines = [n.lineno for n in _ast.walk(main)
+                    if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Attribute)
+                    and n.func.attr == "execute" and n.lineno > guard_line]
+    assert update_lines, "no execute() follows the precondition — is the UPDATE still reachable?"
+    update_line = min(update_lines)
+
+    # There must be an `if` that short-circuits (return/raise) between the guard and the UPDATE.
+    gating = []
+    for node in _ast.walk(main):
+        if not isinstance(node, _ast.If):
+            continue
+        if not (guard_line <= node.lineno < update_line):
+            continue
+        if any(isinstance(b, (_ast.Return, _ast.Raise)) for b in _ast.walk(node)):
+            gating.append(node)
+    assert gating, (
+        "should_heal() is called but nothing acts on its answer: there is no conditional "
+        "return/raise between the guard and the UPDATE, so a False result falls through and the "
+        "job demotes anyway."
+    )

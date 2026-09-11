@@ -66,6 +66,31 @@ logger = logging.getLogger("tier_heal")
 #
 # Restricting to Stripe-provisioned accounts keeps the real capability — a genuine customer
 # who cancels still gets demoted — while making a comped grant un-demotable by construction.
+# THE PRECONDITION. This job infers "cancelled" from the ABSENCE of an active/trialing row in
+# `subscriptions`. That inference is only valid if something actually WRITES that table — and
+# nothing live does: narai/integrations/nai_subscription.py implements the full flow (_apply_tier
+# upserts the row) but is imported by nothing except its own test, and the live promoter in
+# core/api.py writes profiles.tier only.
+#
+# So if `subscriptions` holds zero active/trialing rows, every paying customer looks cancelled and
+# this job would demote all of them at 04:00 while their Stripe subscriptions are live. An empty
+# signal is a DATA-AVAILABILITY FAILURE, not evidence of mass cancellation. Fail closed: demote
+# nothing, and say why.
+#
+# Raised in review on PR #83 (High). The earlier stripe_customer_id guard spares comped accounts;
+# it does not make an unwritten table mean what this query assumes it means.
+def should_heal(active_subscription_count: int) -> tuple[bool, str]:
+    """Run only when the cancellation signal is actually present. Pure; see demo()."""
+    if active_subscription_count is None:
+        return False, "subscriptions count unreadable — refusing to infer cancellation"
+    if active_subscription_count <= 0:
+        return False, ("subscriptions holds 0 active/trialing rows — the cancellation signal is "
+                       "unusable and every paid profile would look cancelled. Demoting nothing. "
+                       "Root cause: no live code writes subscriptions (nai_subscription.py is "
+                       "unreferenced); wire it before this job can mean anything.")
+    return True, ""
+
+
 HEAL_SQL = """
         UPDATE profiles
         SET tier = 'free'
@@ -79,6 +104,17 @@ HEAL_SQL = """
 """
 
 
+def _alert_precondition(why: str, active: int) -> None:
+    """Tell the operator the job stood down. Silence would look identical to 'nothing to heal'."""
+    try:
+        from app.services import observability
+        observability.notify(
+            "⚠️ <b>Tier-heal stood down</b>\n"
+            f"active/trialing subscription rows: {active}\n{why}")
+    except Exception as e:                                       # noqa: BLE001
+        logger.warning("could not send TG alert: %s", e)
+
+
 def main() -> int:
     from sqlalchemy import text
 
@@ -87,6 +123,18 @@ def main() -> int:
     sql = text(HEAL_SQL)
     db = SessionLocal()
     try:
+        try:
+            active = db.execute(text(
+                "SELECT count(*) FROM subscriptions WHERE status IN ('active','trialing')")).scalar()
+        except Exception as e:                                   # noqa: BLE001
+            db.rollback()
+            logger.error("could not read the subscriptions signal (%s) — demoting nothing", type(e).__name__)
+            return 0
+        ok, why = should_heal(active)
+        if not ok:
+            logger.warning("PRECONDITION NOT MET — %s", why)
+            _alert_precondition(why, active)
+            return 0
         result = db.execute(sql)
         rows = result.fetchall()
         db.commit()
