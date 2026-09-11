@@ -16,16 +16,20 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import HTTPException, Depends, APIRouter, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from infra.brain.interface import BrainClient
-from narai.api.auth import require_auth  # noqa: F401 (re-used below)
+from narai.api.auth import require_auth
 from narai.voice.session import VoiceSession
 from narai.voice.stt import get_stt
 from narai.voice.tts import get_tts
 
 rt = APIRouter(tags=["voice"])
+from pydantic import BaseModel
+
+from narai.api import ws_auth
+
 logger = logging.getLogger("narai.voice")
 
 _AVATAR_HTML_PATH = Path(__file__).parent.parent.parent / "voice" / "avatar.html"
@@ -51,32 +55,74 @@ async def voice_ui() -> HTMLResponse:
 
 # ── WebSocket endpoint ───────────────────────────────────────────────────────
 
-def _verify_token(token: str) -> str | None:
-    """Validate a JWT and return the subject, or None if invalid."""
-    try:
-        import jwt  # PyJWT — pure Python, no compiled extensions
-        secret = os.getenv("NARAI_JWT_SECRET", "change-me-in-production-narai-2026")
-        payload = jwt.decode(token, secret, algorithms=["HS256"])
-        return payload.get("sub")
-    except Exception as e:
-        logger.warning(f"WS JWT verify failed: {e}")
-        return None
+# _verify_token was REMOVED with the ?token= parameter it served. It called
+#     jwt.decode(token, os.getenv("NARAI_JWT_SECRET", "change-me-in-production-narai-2026"), ...)
+# so an unset NARAI_JWT_SECRET made every token forgeable by anyone who read this file — and this
+# repository is public. The variable IS set on production, so the fallback was latent rather than
+# live, but a fail-open default is not something to leave behind once its only caller is gone.
+# Bearer-JWT verification for HTTP routes remains in narai/api/auth.py::require_auth, which is now
+# also the only path by which a WebSocket ticket can be obtained.
+
+
+VOICE_WS_ROUTE = "/api/v2/narai/voice/ws"
+
+
+class _TicketOut(BaseModel):
+    ticket: str
+    expires_in: int
+    route: str
+
+
+@rt.post("/voice/ws-ticket", response_model=_TicketOut)
+async def mint_voice_ws_ticket(sub: str = Depends(require_auth)) -> _TicketOut:
+    """Exchange a bearer JWT for a single-use WebSocket ticket, over HTTPS, in a POST body.
+
+    This exists so the JWT never has to appear in a URL. The client authenticates normally here —
+    Authorization header, same as every other v2 route — and receives an artifact that is bound to
+    one principal, one route and one environment, expires in 30 seconds, and can be spent exactly
+    once. Browsers should not need this at all: they present the session cookie on the handshake.
+    """
+    secret = os.getenv("NARAI_WS_TICKET_SECRET") or os.getenv("SESSION_SIGNING_SECRET") or ""
+    if not secret:
+        # No signing key means we cannot mint something we could later trust. Refusing to issue is
+        # the only honest answer; issuing an unverifiable ticket would be worse than issuing none.
+        raise HTTPException(status_code=503, detail=ws_auth.UNAVAILABLE)
+    ticket = ws_auth.mint_ticket(
+        subject=sub, role="operator", route=VOICE_WS_ROUTE,
+        environment=os.getenv("APP_ENV", "production").strip().lower(), secret=secret,
+    )
+    return _TicketOut(ticket=ticket, expires_in=ws_auth.TICKET_TTL_SECONDS, route=VOICE_WS_ROUTE)
 
 
 @rt.websocket("/voice/ws")
-async def voice_ws(
-    websocket: WebSocket,
-    token: str = Query(..., description="JWT from /auth/login"),
-) -> None:
-    # 1. Verify JWT before accepting (FastAPI requires accept() before close
-    # can send a meaningful code, so we accept + close on failure).
-    sub = _verify_token(token)
-    if not sub:
-        await websocket.close(code=1008, reason="Invalid or missing token")
+async def voice_ws(websocket: WebSocket) -> None:
+    # RESOLVED BEFORE accept(). The previous version accepted first and closed after, and its own
+    # comment explained why — but a handshake completed with an unauthenticated peer is still a
+    # handshake completed with them. `token: str = Query(...)` is gone entirely: the parameter is now
+    # refused by the resolver rather than read, so a client still sending a standing JWT in a URL
+    # fails loudly instead of silently working.
+    trusted = frozenset(
+        o.strip().rstrip("/").lower()
+        for o in (os.getenv("CSRF_TRUSTED_ORIGINS", "") or "").split(",") if o.strip()
+    )
+    outcome, principal, reason = ws_auth.resolve_ws_principal(
+        websocket, VOICE_WS_ROUTE,
+        trusted_origins=trusted,
+        session_secret=os.getenv("SESSION_SIGNING_SECRET") or "",
+        ticket_secret=(os.getenv("NARAI_WS_TICKET_SECRET")
+                       or os.getenv("SESSION_SIGNING_SECRET") or ""),
+    )
+    if outcome != ws_auth.OK or principal is None:
+        # The outcome names the failure class; `reason` never echoes the credential. Closing without
+        # accepting is what makes this a refusal rather than an accepted-then-dropped connection.
+        logger.warning("voice WS refused: %s (%s)", outcome, reason)
+        await websocket.close(code=1008, reason=outcome)
         return
 
+    sub = principal.subject
     await websocket.accept()
-    logger.info(f"voice WS connected: sub={sub}")
+    # role and source only — never the subject, the ticket, the cookie or the JWT.
+    logger.info("voice WS connected: role=%s via=%s", principal.role, principal.source)
 
     # 2. Per-socket BrainClient. WebSocket connections are long-lived, so a
     # single instance per session gives implicit caching without touching
@@ -113,11 +159,11 @@ async def voice_ws(
             # Binary audio frame
             if "bytes" in message and message["bytes"] is not None:
                 audio = message["bytes"]
-                # Log size + magic bytes so we know what the browser actually sent.
-                head_hex = audio[:16].hex() if audio else ""
-                logger.info(
-                    f"voice audio in: sub={sub} bytes={len(audio)} head={head_hex}"
-                )
+                # Size only. This used to log sub= plus the first 16 bytes as hex "so we know what
+                # the browser actually sent" — that is the authenticated subject and a slice of the
+                # audio stream, in a log. A byte count answers the same operational question ("did a
+                # frame arrive, and was it plausible") without recording who spoke or what was sent.
+                logger.info("voice audio in: bytes=%d", len(audio))
                 # Reject obviously-empty audio with a clear user-facing message.
                 if len(audio) < 256:
                     await websocket.send_text(json.dumps({
@@ -145,7 +191,7 @@ async def voice_ws(
                 try:
                     result = await session.handle_audio_input(audio)
                 except Exception as exc:
-                    logger.warning(f"voice pipeline failed: sub={sub} err={exc}")
+                    logger.warning("voice pipeline failed: err=%s", exc)   # no subject: identifying
                     await websocket.send_text(json.dumps({
                         "type": "transcript",
                         "user": "",
@@ -183,12 +229,12 @@ async def voice_ws(
                 if data.get("type") == "interrupt":
                     if session._current_tts_task:
                         session._current_tts_task.cancel()
-                        logger.info(f"voice WS interrupt: sub={sub}")
+                        logger.info("voice WS interrupt")                      # no subject: identifying
 
     except WebSocketDisconnect:
-        logger.info(f"voice WS disconnected: sub={sub}")
+        logger.info("voice WS disconnected")
     except Exception as e:
-        logger.warning(f"voice WS error (sub={sub}): {e}")
+        logger.warning("voice WS error: %s", e)
         try:
             await websocket.close(code=1011, reason=str(e)[:120])
         except Exception:

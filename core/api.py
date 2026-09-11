@@ -4387,6 +4387,16 @@ async def health():
     return {
         "status":   "ok" if memory_ok else "degraded",
         "auth_config": _auth_state,
+            # An incomplete route set is a deployment fault, not a feature gap: it means this
+            # instance serves a smaller application than the one that was audited. Surfaced here so
+            # a readiness probe can refuse rather than report a healthy, quietly-reduced build.
+            "routers": ("OK" if router_manifest_status()[0] else "INCOMPLETE"),
+            "routers_missing": router_manifest_status()[1],
+            # Whether a consumed WebSocket ticket survives a container restart. False means the
+            # replay marker lives in the container filesystem and a redeploy reopens a 30-second
+            # window. Reported rather than assumed — staging has no volume and production does, and
+            # that difference was invisible until it was measured.
+            "ws_ticket_store": ("PERSISTENT" if _ws_store_persistent() else "EPHEMERAL"),
         "uptime":   uptime,
         "uptime_human": f"{uptime // 3600}h {(uptime % 3600) // 60}m",
         "browser":  browser_ok,
@@ -16072,6 +16082,54 @@ async def email_subscribe(req: SubscribeRequest):
 # ── NarAI v2 — routes + auth under /api/v2/narai ──────────────────────────────
 # Two-layer load: auth/health are pure-Python (always work); chat/memory/RAG need
 # chromadb and degrade gracefully if it isn't installed in the current venv.
+# ─── Router mount manifest ────────────────────────────────────────────────────────────────────
+# Every optional router below is wrapped in try/except, so a missing dependency does not raise — it
+# logs a warning and the routes silently never exist. Survivable for a feature; NOT survivable for a
+# security audit. A venv without chromadb/litellm/cachetools/aiosqlite made ~120 production routes
+# invisible, including 33 mutating /api/v2/narai routes and the /api/v2/narai/voice/ws WebSocket, and
+# every audit in the 2026-09 security sequence ran against that smaller surface and reported success.
+#
+# So each attempt's outcome is RECORDED, not only logged. The security gate and the readiness probe
+# both read this: a router marked required that did not mount is a failure, not a warning.
+#
+# Declared HERE, unconditionally, rather than inside `if _v2_auth_loaded:` — if the auth router
+# itself fails to import, the manifest must still exist and say so, or the gate that reads it would
+# raise AttributeError and be mistaken for a broken gate rather than a broken build.
+ROUTER_MANIFEST: dict = {}
+
+# Routers whose ABSENCE must fail a security gate. Each carries authenticated mutating routes, so a
+# build without them serves a different, smaller application than the one that was audited.
+REQUIRED_V2_ROUTERS = frozenset({
+    "auth", "content", "sales", "research", "ops", "creative", "kdp", "voice", "briefing",
+    "telegram_subscription", "insider_admin",
+})
+
+
+def _record_router(name: str, required: bool, mounted: bool, reason: str = "") -> None:
+    ROUTER_MANIFEST[name] = {"required": required, "mounted": mounted, "reason": reason}
+
+
+def _ws_store_persistent() -> bool:
+    """False (the safe answer) if the v2 package did not import — never claim persistence we cannot
+    demonstrate."""
+    try:
+        from narai.api.ws_auth import store_is_persistent
+        return store_is_persistent()
+    except Exception:
+        return False
+
+
+def router_manifest_status() -> tuple:
+    """(ok, missing_required, detail). The one verdict the gate and readiness probe both use."""
+    missing = sorted(n for n, r in ROUTER_MANIFEST.items()
+                     if r.get("required") and not r.get("mounted"))
+    unrecorded = sorted(REQUIRED_V2_ROUTERS - set(ROUTER_MANIFEST))
+    # An unrecorded required router is as bad as a failed one: it means the mount loop never even
+    # reached it, which is exactly what happens when an earlier import aborts the block.
+    problems = missing + [f"{n} (never attempted)" for n in unrecorded]
+    return (not problems), problems, dict(ROUTER_MANIFEST)
+
+
 _v2_auth_loaded = False
 try:
     from pydantic import BaseModel as _V2BaseModel
@@ -16097,9 +16155,12 @@ try:
         return {"status": "ok", "v2_chat": _v2_auth_loaded and "_v2_chat_rt" in globals()}
 
     _v2_auth_loaded = True
+    _record_router("auth", required=True, mounted=True)
     logger.info("NarAI v2 auth/health loaded at /api/v2/narai")
 except Exception as _e:
     logger.warning(f"NarAI v2 auth not loaded: {_e}")
+    _record_router("auth", required=True, mounted=False,
+                   reason=f"{type(_e).__name__}: {_e}")
 
 if _v2_auth_loaded:
     try:
@@ -16141,6 +16202,20 @@ if _v2_auth_loaded:
     except Exception as _e:
         logger.warning(f"NarAI v2 trading not loaded: {_e}")
 
+    # Routers whose ABSENCE must fail a security gate rather than pass quietly. These carry
+    # authenticated mutating routes; a build that ships without them is serving a different, smaller
+    # application than the one that was audited.
+    # ─── Router mount manifest ────────────────────────────────────────────────────────────────
+    # Every optional router below is wrapped in try/except, so a missing dependency does not raise —
+    # it logs a warning and the routes silently never exist. That is survivable for a feature, and
+    # NOT survivable for a security audit: a venv without chromadb/litellm/cachetools/aiosqlite made
+    # ~120 production routes invisible, including 33 mutating /api/v2/narai routes and the
+    # /api/v2/narai/voice/ws WebSocket. Every audit in the 2026-09 security sequence ran against
+    # that smaller surface and reported success.
+    #
+    # So the outcome of each attempt is RECORDED rather than only logged. ROUTER_MANIFEST is what
+    # the security gate and the readiness probe both read: a router marked required that did not
+    # mount is a failure, not a warning. `_router_manifest_status()` turns it into a verdict.
     # NarAI v2 Domains 2-7 + voice + briefing: content, sales, research, ops,
     # creative, kdp, voice, briefing. Each registered independently so a
     # missing optional dep (e.g. edge-tts) only breaks that domain's call
@@ -16162,8 +16237,14 @@ if _v2_auth_loaded:
             _mod = _il.import_module(_module_path)
             app.include_router(_mod.rt, prefix="/api/v2/narai")
             logger.info(f"NarAI v2 {_domain_name} loaded at /api/v2/narai/{_domain_name}")
+            _record_router(_domain_name, required=_domain_name in REQUIRED_V2_ROUTERS,
+                           mounted=True)
         except Exception as _e:
             logger.warning(f"NarAI v2 {_domain_name} not loaded: {_e}")
+            # The reason is kept because "not mounted" alone cannot be triaged: a missing optional
+            # dependency, a syntax error and a renamed module all look identical from the route table.
+            _record_router(_domain_name, required=_domain_name in REQUIRED_V2_ROUTERS,
+                           mounted=False, reason=f"{type(_e).__name__}: {_e}")
 
     # Daily briefing scheduler — APScheduler cron registered on FastAPI
     # startup so it lives in the same event loop. Skips itself if Telegram
