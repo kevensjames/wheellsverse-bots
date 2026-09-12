@@ -12,10 +12,11 @@
     "sourceMap": true,
     "declaration": false,
     "experimentalDecorators": true,
+    "isolatedModules": true,
     "moduleResolution": "bundler",
     "importHelpers": true,
     "target": "ES2022",
-    "module": "ES2022",
+    "module": "preserve",
     "lib": ["ES2022", "dom"]
   },
   "angularCompilerOptions": {

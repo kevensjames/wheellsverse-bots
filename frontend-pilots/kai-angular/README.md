@@ -1,9 +1,19 @@
 # KAI Angular pilot — DARK
 
-A scoped, hand-authored Angular 17 (standalone) workspace skeleton. It realizes
+A scoped, hand-authored Angular 22 (standalone) workspace skeleton. It realizes
 the governed-frontend capability family from
 [`docs/kai-frontend/ANGULAR_CAPABILITY_SPEC.md`](../../docs/kai-frontend/ANGULAR_CAPABILITY_SPEC.md)
 as a concrete pilot app — **dark, uninstalled, unbuilt, undeployed.**
+
+## Supported-version baseline
+
+Pinned to **Angular 22.1.x** (the active supported release as of 2026-09; v20–21
+are LTS, ≤19 are unsupported), which requires **TypeScript 6.0.x**, rxjs 7.8.x,
+zone.js 0.16.x, and **Node `^22.22.3 || ^24.15.0 || >=26`**. Versions were taken
+from the npm registry + the v22 workspace schematic, not guessed. The current dev
+host runs node 22.22.2 — one patch **below** Angular 22's floor — which is another
+reason the build must run in the governed sandbox on a conformant Node, not here.
+The build/serve/test targets use the modern `@angular/build` builder.
 
 ## What "dark" means here (read before running anything)
 
