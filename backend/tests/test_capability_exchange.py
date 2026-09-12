@@ -1,21 +1,23 @@
-"""Capability Exchange — inert Stage 1 tests.
+"""Capability Exchange — catalog-only tests (Phase 1).
 
-The load-bearing invariant is the honesty one: with no adapters bound, NOTHING
-is executable and execute() refuses. The rest guard manifest validation,
-CONSEQUENTIAL governance, and scope-gated lifecycle (via a dummy adapter that
-would only ever be bound in a later, separately-approved stage).
+Corrected from an earlier version that tested bind_adapter/execute/scope-gated
+lifecycle. The registry is now a CATALOG: it cannot execute and has no surface
+to bind/run a capability. Load-bearing negative control: the execution surface
+does not exist (allowlist of public methods), so no in-process caller can
+activate a capability. Manifest validation + the CONSEQUENTIAL construction
+invariant remain (declarative, not execution).
 """
 from __future__ import annotations
 
 import pytest
 
+import app.services.capability_exchange as cx_module
 from app.services.capability_exchange import (
     ANGULAR_CAPABILITIES,
     CapabilityError,
     CapabilityManifest,
     CapabilityRegistry,
     ExecutionMode,
-    Lifecycle,
     RiskClass,
     default_registry,
     scope_env_var,
@@ -29,7 +31,7 @@ def _read_cap(cid="test.thing.v1", scope="test.thing"):
     )
 
 
-# ─── manifest validation ────────────────────────────────────────────────
+# ─── manifest validation (declarative, construction-time) ──────────────────
 
 
 @pytest.mark.parametrize("bad", ["Frontend.Scaffold.v1", "no_dots_v1", "a.b", "a.b.v", "a.b.1"])
@@ -43,29 +45,25 @@ def test_manifest_accepts_versioned_dotted_id():
 
 
 def test_consequential_requires_full_governance():
-    # wrong execution mode for a consequential capability (pin the branch with match)
     with pytest.raises(ValueError, match="approve_execute"):
         CapabilityManifest(
             capability_id="x.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
             execution_mode=ExecutionMode.DRAFT, provider="p", scope="x.publish",
             approval_policy="named", rollback_target="prev",
         )
-    # missing approval_policy (execution mode ok) — pinned to the approval branch
     with pytest.raises(ValueError, match="approval_policy"):
         CapabilityManifest(
             capability_id="x.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
             execution_mode=ExecutionMode.APPROVE_EXECUTE, provider="p", scope="x.publish",
         )
-    # approval_policy present but rollback_target missing — the ONLY input that
-    # reaches the rollback guard; without this case, deleting that guard leaves
-    # the suite green (this is the negative control for the rollback requirement).
+    # approval_policy present, rollback_target missing — the only input that reaches
+    # the rollback guard (negative control for that requirement).
     with pytest.raises(ValueError, match="rollback_target"):
         CapabilityManifest(
             capability_id="x.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
             execution_mode=ExecutionMode.APPROVE_EXECUTE, provider="p", scope="x.publish",
             approval_policy="named",
         )
-    # fully-governed consequential capability is accepted
     ok = CapabilityManifest(
         capability_id="x.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
         execution_mode=ExecutionMode.APPROVE_EXECUTE, provider="p", scope="x.publish",
@@ -75,46 +73,12 @@ def test_consequential_requires_full_governance():
     assert ok.rollback_target == "prev build"
 
 
-def test_consequential_scope_ignores_wildcard_parent(monkeypatch):
-    """A CONSEQUENTIAL capability must require its EXACT scope env — a coarse
-    wildcard parent (KAI_SCOPE_FRONTEND) must NOT enable it, even with an adapter
-    bound. A lower-risk capability sharing the parent still honors the wildcard.
-    Negative control for the scope-granularity fix."""
-    r = CapabilityRegistry()
-    r.register(CapabilityManifest(
-        capability_id="frontend.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
-        execution_mode=ExecutionMode.APPROVE_EXECUTE, provider="p", scope="frontend.publish",
-        approval_policy="named", rollback_target="prev",
-    ))
-    r.register(CapabilityManifest(
-        capability_id="frontend.scaffold.v1", risk_class=RiskClass.CREATE,
-        execution_mode=ExecutionMode.DRAFT, provider="p", scope="frontend.scaffold",
-    ))
-    r.bind_adapter("frontend.publish.v1", lambda **k: "deployed")
-    r.bind_adapter("frontend.scaffold.v1", lambda **k: "scaffolded")
-
-    monkeypatch.delenv("KAI_SCOPE_FRONTEND_PUBLISH", raising=False)
-    monkeypatch.delenv("KAI_SCOPE_FRONTEND_SCAFFOLD", raising=False)
-    monkeypatch.setenv("KAI_SCOPE_FRONTEND", "1")  # coarse wildcard only
-
-    # wildcard does NOT enable the consequential deploy...
-    assert r.lifecycle("frontend.publish.v1") is Lifecycle.DISABLED
-    with pytest.raises(CapabilityError, match="DISABLED"):
-        r.execute("frontend.publish.v1")
-    # ...but does enable the lower-risk sibling
-    assert r.lifecycle("frontend.scaffold.v1") is Lifecycle.ENABLED
-
-    # only the EXACT scope enables the consequential capability
-    monkeypatch.setenv("KAI_SCOPE_FRONTEND_PUBLISH", "1")
-    assert r.lifecycle("frontend.publish.v1") is Lifecycle.ENABLED
-    assert r.execute("frontend.publish.v1") == "deployed"
-
-
-def test_scope_env_var_matches_governance_normalization():
+def test_scope_env_var_is_pure_formatter():
+    # Formats the env name only — the catalog never reads it.
     assert scope_env_var("frontend.scaffold") == "KAI_SCOPE_FRONTEND_SCAFFOLD"
 
 
-# ─── registry ─────────────────────────────────────────────────────────────
+# ─── catalog behavior ───────────────────────────────────────────────────────
 
 
 def test_register_get_list_and_duplicate():
@@ -128,56 +92,37 @@ def test_register_get_list_and_duplicate():
         r.get("nope.v1")
 
 
-def test_bind_adapter_to_unknown_refused():
-    r = CapabilityRegistry()
-    with pytest.raises(KeyError):
-        r.bind_adapter("ghost.thing.v1", lambda: None)
-
-
-# ─── the load-bearing honesty invariant ────────────────────────────────────
-
-
-def test_stage1_default_registry_is_fully_inert(monkeypatch):
-    # Even if an operator turns every Angular scope ON, nothing runs: no adapters.
-    for m in ANGULAR_CAPABILITIES:
-        monkeypatch.setenv(scope_env_var(m.scope), "1")
+def test_for_risk_filter():
     r = default_registry()
-    assert r.summary()["adapters_bound"] == 0
-    assert len(r.ids()) == len(ANGULAR_CAPABILITIES)
-    for cid in r.ids():
-        assert r.lifecycle(cid) is Lifecycle.INERT
-        assert r.is_executable(cid) is False
-        with pytest.raises(CapabilityError, match="INERT"):
-            r.execute(cid)
+    consequential = [m.capability_id for m in r.for_risk(RiskClass.CONSEQUENTIAL)]
+    assert consequential == ["kai.frontend.publish.v1"]
 
 
-# ─── lifecycle (adapter would only be bound in a later approved stage) ──────
-
-
-def test_lifecycle_scope_gates_a_bound_adapter(monkeypatch):
-    r = CapabilityRegistry()
-    r.register(_read_cap(cid="demo.run.v1", scope="demo.run"))
-    calls = []
-    r.bind_adapter("demo.run.v1", lambda **kw: calls.append(kw) or "ran")
-
-    # scope OFF → DISABLED, execute refuses, adapter never called
-    monkeypatch.delenv("KAI_SCOPE_DEMO_RUN", raising=False)
-    assert r.lifecycle("demo.run.v1") is Lifecycle.DISABLED
-    with pytest.raises(CapabilityError, match="DISABLED"):
-        r.execute("demo.run.v1")
-    assert calls == []
-
-    # scope ON → ENABLED, execute delegates to the adapter
-    monkeypatch.setenv("KAI_SCOPE_DEMO_RUN", "1")
-    assert r.lifecycle("demo.run.v1") is Lifecycle.ENABLED
-    assert r.is_executable("demo.run.v1") is True
-    assert r.execute("demo.run.v1", who="test") == "ran"
-    assert calls == [{"who": "test"}]
-
-
-def test_summary_shape():
+def test_summary_catalog_shape():
     r = default_registry()
     s = r.summary()
     assert s["total"] == len(ANGULAR_CAPABILITIES)
-    assert s["adapters_bound"] == 0
-    assert s["by_status"] == {"INERT": sorted(m.capability_id for m in ANGULAR_CAPABILITIES)}
+    assert s["execution_supported"] is False
+    assert sum(s["by_risk"].values()) == len(ANGULAR_CAPABILITIES)
+    assert sum(s["by_mode"].values()) == len(ANGULAR_CAPABILITIES)
+
+
+# ─── load-bearing negative control: no execution surface exists ─────────────
+
+
+def test_no_execution_surface_exists():
+    """Catalog-only by construction: no method/type through which any caller
+    (in-process included) could bind or run a capability, and no scope/flag
+    evaluation. Fails the moment an execution path is reintroduced."""
+    r = CapabilityRegistry()
+    assert CapabilityRegistry.execution_supported is False
+    for forbidden in ("bind_adapter", "execute", "lifecycle", "is_executable", "_adapters"):
+        assert not hasattr(r, forbidden), f"{forbidden!r} must not exist on the catalog"
+    for forbidden in ("Adapter", "Lifecycle", "_exact_scope_enabled", "_is_env_truthy", "is_scope_enabled"):
+        assert not hasattr(cx_module, forbidden), f"{forbidden!r} must not be in the module"
+    # Allowlist teeth: the ONLY public methods are the catalog methods (catches a
+    # re-introduced execution path under ANY new name).
+    public_methods = {n for n in dir(r) if not n.startswith("_") and callable(getattr(r, n))}
+    assert public_methods == {"register", "get", "ids", "for_risk", "summary"}, public_methods
+    # default catalog is honest about it too
+    assert default_registry().summary()["execution_supported"] is False
