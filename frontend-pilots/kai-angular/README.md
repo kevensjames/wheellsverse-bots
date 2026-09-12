@@ -39,9 +39,9 @@ The build/serve/test targets use the modern `@angular/build` builder.
 - `src/app/capability-manifest.ts` — a typed mirror of the five
   `kai.frontend.*` capabilities, so the pilot's own UI cannot claim a capability
   is runnable when the backend registry says it is inert.
-- Standard Angular workspace config (`angular.json`, `tsconfig*.json`,
-  `karma.conf.js`) with a **bundle-size budget** — the spec names the bundle
-  budget as build evidence.
+- Standard Angular workspace config (`angular.json`, `tsconfig*.json`) with a
+  **bundle-size budget** — the spec names the bundle budget as build evidence.
+  (No `karma.conf.js`: the v22 `@angular/build:karma` builder is config-less.)
 
 ## When it is authorized to run (a later, separately-approved mission)
 

@@ -27,6 +27,7 @@ from enum import Enum
 from typing import Callable, Optional
 
 from app.services.governance import is_scope_enabled
+from app.services.governance.actions import _is_env_truthy
 
 
 class RiskClass(str, Enum):
@@ -56,6 +57,14 @@ def scope_env_var(scope: str) -> str:
     """The env var an operator sets to enable a scope: 'frontend.scaffold' →
     'KAI_SCOPE_FRONTEND_SCAFFOLD' (matches governance.is_scope_enabled)."""
     return "KAI_SCOPE_" + scope.replace(".", "_").replace("-", "_").upper()
+
+
+def _exact_scope_enabled(scope: str) -> bool:
+    """True only if the capability's EXACT scope env is set — never via the
+    wildcard parent that governance.is_scope_enabled also honors. A coarse
+    KAI_SCOPE_FRONTEND must not silently enable a consequential deploy alongside
+    the read-only capabilities. Reuses governance's truthy check (no drift)."""
+    return _is_env_truthy(scope_env_var(scope))
 
 
 @dataclass(frozen=True)
@@ -146,11 +155,15 @@ class CapabilityRegistry:
         manifest = self.get(capability_id)  # KeyError if unknown
         if capability_id not in self._adapters:
             return Lifecycle.INERT
-        return (
-            Lifecycle.ENABLED
-            if is_scope_enabled(manifest.scope)
-            else Lifecycle.DISABLED
+        # CONSEQUENTIAL capabilities require their EXACT scope env — a coarse
+        # wildcard parent (KAI_SCOPE_FRONTEND) must not silently enable a deploy.
+        # Lower-risk capabilities may use the convenient wildcard-inclusive check.
+        enabled = (
+            _exact_scope_enabled(manifest.scope)
+            if manifest.risk_class is RiskClass.CONSEQUENTIAL
+            else is_scope_enabled(manifest.scope)
         )
+        return Lifecycle.ENABLED if enabled else Lifecycle.DISABLED
 
     def is_executable(self, capability_id: str) -> bool:
         return self.lifecycle(capability_id) is Lifecycle.ENABLED

@@ -43,18 +43,27 @@ def test_manifest_accepts_versioned_dotted_id():
 
 
 def test_consequential_requires_full_governance():
-    # missing approval_policy + rollback_target
-    with pytest.raises(ValueError):
-        CapabilityManifest(
-            capability_id="x.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
-            execution_mode=ExecutionMode.APPROVE_EXECUTE, provider="p", scope="x.publish",
-        )
-    # wrong execution mode for a consequential capability
-    with pytest.raises(ValueError):
+    # wrong execution mode for a consequential capability (pin the branch with match)
+    with pytest.raises(ValueError, match="approve_execute"):
         CapabilityManifest(
             capability_id="x.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
             execution_mode=ExecutionMode.DRAFT, provider="p", scope="x.publish",
             approval_policy="named", rollback_target="prev",
+        )
+    # missing approval_policy (execution mode ok) — pinned to the approval branch
+    with pytest.raises(ValueError, match="approval_policy"):
+        CapabilityManifest(
+            capability_id="x.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
+            execution_mode=ExecutionMode.APPROVE_EXECUTE, provider="p", scope="x.publish",
+        )
+    # approval_policy present but rollback_target missing — the ONLY input that
+    # reaches the rollback guard; without this case, deleting that guard leaves
+    # the suite green (this is the negative control for the rollback requirement).
+    with pytest.raises(ValueError, match="rollback_target"):
+        CapabilityManifest(
+            capability_id="x.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
+            execution_mode=ExecutionMode.APPROVE_EXECUTE, provider="p", scope="x.publish",
+            approval_policy="named",
         )
     # fully-governed consequential capability is accepted
     ok = CapabilityManifest(
@@ -64,6 +73,41 @@ def test_consequential_requires_full_governance():
         rollback_target="prev build",
     )
     assert ok.rollback_target == "prev build"
+
+
+def test_consequential_scope_ignores_wildcard_parent(monkeypatch):
+    """A CONSEQUENTIAL capability must require its EXACT scope env — a coarse
+    wildcard parent (KAI_SCOPE_FRONTEND) must NOT enable it, even with an adapter
+    bound. A lower-risk capability sharing the parent still honors the wildcard.
+    Negative control for the scope-granularity fix."""
+    r = CapabilityRegistry()
+    r.register(CapabilityManifest(
+        capability_id="frontend.publish.v1", risk_class=RiskClass.CONSEQUENTIAL,
+        execution_mode=ExecutionMode.APPROVE_EXECUTE, provider="p", scope="frontend.publish",
+        approval_policy="named", rollback_target="prev",
+    ))
+    r.register(CapabilityManifest(
+        capability_id="frontend.scaffold.v1", risk_class=RiskClass.CREATE,
+        execution_mode=ExecutionMode.DRAFT, provider="p", scope="frontend.scaffold",
+    ))
+    r.bind_adapter("frontend.publish.v1", lambda **k: "deployed")
+    r.bind_adapter("frontend.scaffold.v1", lambda **k: "scaffolded")
+
+    monkeypatch.delenv("KAI_SCOPE_FRONTEND_PUBLISH", raising=False)
+    monkeypatch.delenv("KAI_SCOPE_FRONTEND_SCAFFOLD", raising=False)
+    monkeypatch.setenv("KAI_SCOPE_FRONTEND", "1")  # coarse wildcard only
+
+    # wildcard does NOT enable the consequential deploy...
+    assert r.lifecycle("frontend.publish.v1") is Lifecycle.DISABLED
+    with pytest.raises(CapabilityError, match="DISABLED"):
+        r.execute("frontend.publish.v1")
+    # ...but does enable the lower-risk sibling
+    assert r.lifecycle("frontend.scaffold.v1") is Lifecycle.ENABLED
+
+    # only the EXACT scope enables the consequential capability
+    monkeypatch.setenv("KAI_SCOPE_FRONTEND_PUBLISH", "1")
+    assert r.lifecycle("frontend.publish.v1") is Lifecycle.ENABLED
+    assert r.execute("frontend.publish.v1") == "deployed"
 
 
 def test_scope_env_var_matches_governance_normalization():
