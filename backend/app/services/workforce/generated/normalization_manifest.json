@@ -1,0 +1,21 @@
+{
+ "all_inert": true,
+ "counts": {
+  "flagged_sources": 45,
+  "native": 40,
+  "total": 319,
+  "upstream": 279
+ },
+ "native_carry_no_provenance": true,
+ "no_human_approval_claimed": true,
+ "reconciliation": {
+  "equation": "upstream (279) + native (40) == total (319)",
+  "holds": true
+ },
+ "schema_version": "1",
+ "source_commit": "6d29a9b08785a0e49ffc9818bbdd381164c2df5f",
+ "source_inventory_sha256": "6a70b00c512d1f5f3d93a10bd129ec497747a5738cbb4fcc35bb655280761c1d",
+ "unique_display_names": true,
+ "unique_ids": true,
+ "upstream_provenance_complete": true
+}
