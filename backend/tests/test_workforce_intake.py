@@ -56,6 +56,17 @@ def _validate(inv: dict) -> None:
         raise ValueError("license is not MIT")
     if not re.match(r"^[0-9a-f]{40}$", inv["source"]["pinned_commit"]):
         raise ValueError("pinned_commit is not a full SHA")
+    # file accounting: nothing disappeared — the reconciliation equation balances
+    acc = inv["accounting"]
+    if acc["included_agent_files"] != len(agents):
+        raise ValueError("accounting.included_agent_files != len(agents)")
+    if acc["total_files_inspected"] != (
+        acc["included_agent_files"] + acc["rejected_agent_candidates"]
+        + acc["excluded_non_agent_file_count"]
+    ):
+        raise ValueError("reconciliation equation does not balance (a file is unaccounted)")
+    if not acc["reconciliation_holds"]:
+        raise ValueError("reconciliation equation does not balance (reconciliation_holds is False)")
 
 
 def test_committed_inventory_passes_validation():
@@ -64,7 +75,27 @@ def test_committed_inventory_passes_validation():
 
 def test_count_is_derived_and_nonzero():
     inv = _load()
-    assert inv["counts"]["agent_files"] == len(inv["agents"]) >= 230  # README said 230+
+    assert inv["counts"]["agent_files"] == len(inv["agents"]) == 279  # recursive true count
+    assert inv["accounting"]["included_agent_files"] == 279
+
+
+def test_accounting_equation_holds():
+    acc = _load()["accounting"]
+    assert acc["reconciliation_holds"] is True
+    assert acc["total_files_inspected"] == (
+        acc["included_agent_files"] + acc["rejected_agent_candidates"]
+        + acc["excluded_non_agent_file_count"]
+    )
+
+
+def test_nc_unaccounted_division_file_breaks_reconciliation():
+    # An unclassified markdown introduced inside a declared division would raise
+    # total_files_inspected without being counted as included/rejected/excluded,
+    # so the equation no longer balances and validation fails closed.
+    inv = _load()
+    inv["accounting"]["total_files_inspected"] += 1
+    with pytest.raises(ValueError, match="reconciliation equation does not balance"):
+        _validate(inv)
 
 
 def test_no_duplicate_ids():

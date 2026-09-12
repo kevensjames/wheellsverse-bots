@@ -12,7 +12,20 @@ normalized/activated/imported-as-code. Phase 3 NOT started (awaits owner review)
 | Retrieved (UTC) | `2026-09-12T10:51:06Z` |
 | License | **MIT** — "Copyright (c) 2025 AgentLand Contributors" (preserved) |
 | Quarantine path | `/Users/jhonwheeler/kai-upstream-quarantine/agency-agents` (OUTSIDE the KAI repo and all agent config dirs) |
-| Machine-readable inventory | `backend/app/services/workforce/generated/upstream_inventory.json` (sha256 `a3873dfb6b76a67105ceba8bc9ae539e2e5b3b74d4b2863651a7fa6b5e61b15e`) |
+| Machine-readable inventory | `backend/app/services/workforce/generated/upstream_inventory.json` (sha256 `6a70b00c512d1f5f3d93a10bd129ec497747a5738cbb4fcc35bb655280761c1d`) |
+
+## Phase-2 correction (review Unit 1)
+
+The first intake used `glob("*.md")` (division top-level only) and **missed 15
+agent files nested in `game-development/` subdirectories** (`unreal-engine/`,
+`unity/`, `roblox-studio/`, `blender/`, `godot/`). The file-level accounting +
+reconciliation equation (added per this review) caught it. Corrected to a
+**recursive** `rglob("*.md")`:
+
+- **true agent count: 279** (was 264 + 15 missed).
+- the **264 original hashes are byte-identical** (0 changed — verified); the 15
+  are purely additive. **Pinned SHA unchanged** (`6d29a9b0…`).
+- accounting now reconciles (equation holds — see below).
 
 ## Method (read-only; no upstream code executed)
 
@@ -29,14 +42,25 @@ normalized/activated/imported-as-code. Phase 3 NOT started (awaits owner review)
 | Metric | Value |
 |---|---|
 | Declared divisions (divisions.json) | 18 |
-| **Agent files (frontmatter `.md` under the 18 divisions)** | **264** |
-| Excluded non-agent `.md` (no frontmatter) | 0 |
+| **Agent files (frontmatter `.md`, recursive, under the 18 divisions)** | **279** |
+| Excluded non-agent `.md` (no frontmatter) under divisions | 0 |
 | Duplicate stable-ids / collisions | **0** |
 | Symlinks found | 0 |
 | Flagged for review (reason-coded) | 45 |
 
 The upstream README advertises "230+"; the true count at this pinned commit is
-**264**, derived from the files (not hard-coded — the test re-derives it).
+**279**, derived from the files (not hard-coded — the test re-derives it).
+
+### File accounting + reconciliation equation
+
+`total_files_inspected (362) == included_agent_files (279) + rejected_agent_candidates (0) + excluded_non_agent_file_count (83)` — **holds**.
+
+Excluded categories (the 83): `non_division_files` (83 — everything outside the 18
+divisions: the non-division dirs `.github`/`examples`/`integrations`/`scripts`/
+`strategy`, plus top-level `README.md`/`LICENSE`/`divisions.json`/`tools.json`/
+`CONTRIBUTING*.md`/`SECURITY.md`/`.gitattributes`/`.gitignore`); `non_md_under_divisions` (0);
+`md_without_frontmatter_under_divisions` (0). `rejected_agent_candidates` = 0
+(no agent `.md` failed validation). Nothing disappeared.
 
 ## Filesystem ↔ divisions.json reconciliation
 
@@ -68,7 +92,8 @@ admits it in a later, separately-authorized phase.
 
 ## Required-evidence checklist
 
-- ✅ pinned SHA + retrieval timestamp · ✅ exact agent count derived from files (264)
+- ✅ pinned SHA + retrieval timestamp · ✅ exact agent count derived from files (279, recursive)
+- ✅ file-accounting: total inspected / included / rejected / excluded-by-category + reconciliation equation (holds)
 - ✅ filesystem↔divisions.json reconciliation (clean) · ✅ every included/excluded file accounted
 - ✅ source path + SHA-256 per candidate (inventory `agents[]`) · ✅ duplicate/collision report (0)
 - ✅ quarantine findings with reason codes (45) · ✅ license/provenance (MIT, preserved)

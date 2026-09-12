@@ -6,6 +6,11 @@
     "license": "MIT",
     "license_holder": "AgentLand Contributors (c) 2025"
   },
+  "enumeration": {
+    "method": "recursive rglob('*.md') under each declared division (Phase-2 correction: original glob missed nested subdirectories)",
+    "corrected_from_count": 264,
+    "corrected_reason": "15 agent files nested under game-development/{unreal-engine,unity,roblox-studio,blender,godot} were missed by a top-level-only glob"
+  },
   "reconciliation": {
     "declared_not_on_disk": [],
     "on_disk_not_declared": [],
@@ -17,10 +22,53 @@
       "strategy"
     ]
   },
+  "accounting": {
+    "total_files_inspected": 362,
+    "included_agent_files": 279,
+    "rejected_agent_candidates": 0,
+    "excluded_non_agent_file_count": 83,
+    "excluded_categories": [
+      {
+        "category": "non_division_files",
+        "rule": "any file outside the 18 declared divisions (incl. non-division dirs + top-level files)",
+        "file_count": 83,
+        "non_division_dirs": [
+          ".github",
+          "examples",
+          "integrations",
+          "scripts",
+          "strategy"
+        ],
+        "top_level_files": [
+          ".gitattributes",
+          ".gitignore",
+          "CONTRIBUTING.md",
+          "CONTRIBUTING_zh-CN.md",
+          "LICENSE",
+          "README.md",
+          "SECURITY.md",
+          "divisions.json",
+          "tools.json"
+        ]
+      },
+      {
+        "category": "non_md_under_divisions",
+        "rule": "not a markdown file",
+        "file_count": 0
+      },
+      {
+        "category": "md_without_frontmatter_under_divisions",
+        "rule": "markdown lacking agent frontmatter",
+        "file_count": 0
+      }
+    ],
+    "reconciliation_equation": "total_files_inspected (362) == included_agent_files (279) + rejected_agent_candidates (0) + excluded_non_agent_file_count (83)",
+    "reconciliation_holds": true
+  },
   "symlinks_found": [],
   "counts": {
     "declared_divisions": 18,
-    "agent_files": 264,
+    "agent_files": 279,
     "excluded_non_agent_md": 0,
     "duplicate_ids": 0,
     "flagged_for_review": 45
@@ -826,6 +874,15 @@
       "flags": []
     },
     {
+      "id": "blender-addon-engineer",
+      "division": "game-development",
+      "path": "game-development/blender/blender-addon-engineer.md",
+      "sha256": "f6bf42625647999d9ebc606c6e7c9c57a8c9a6d20c65a9e96918dbfbb063dcd9",
+      "name": "Blender Add-on Engineer",
+      "description": "Blender tooling specialist - Builds Python add-ons, asset validators, exporters, and pipeline automations that turn repetitive DCC work into reliable one-click workflows",
+      "flags": []
+    },
+    {
       "id": "economy-designer",
       "division": "game-development",
       "path": "game-development/economy-designer.md",
@@ -853,6 +910,33 @@
       "flags": []
     },
     {
+      "id": "godot-gameplay-scripter",
+      "division": "game-development",
+      "path": "game-development/godot/godot-gameplay-scripter.md",
+      "sha256": "0cce0fc75b3a7eeec7221f4a6ac0ff7876fb2468cdb8fab5931951c26f18d539",
+      "name": "Godot Gameplay Scripter",
+      "description": "Composition and signal integrity specialist - Masters GDScript 2.0, C# integration, node-based architecture, and type-safe signal design for Godot 4 projects",
+      "flags": []
+    },
+    {
+      "id": "godot-multiplayer-engineer",
+      "division": "game-development",
+      "path": "game-development/godot/godot-multiplayer-engineer.md",
+      "sha256": "d72e7798c03e6fa27b3b38147857c10c50a9b1b86ce4c3865f473ea5c860f137",
+      "name": "Godot Multiplayer Engineer",
+      "description": "Godot 4 networking specialist - Masters the MultiplayerAPI, scene replication, ENet/WebRTC transport, RPCs, and authority models for real-time multiplayer games",
+      "flags": []
+    },
+    {
+      "id": "godot-shader-developer",
+      "division": "game-development",
+      "path": "game-development/godot/godot-shader-developer.md",
+      "sha256": "1362da1ba227aea6dadf5373455bdbb989f10f172731b47243cedc52db406415",
+      "name": "Godot Shader Developer",
+      "description": "Godot 4 visual effects specialist - Masters the Godot Shading Language (GLSL-like), VisualShader editor, CanvasItem and Spatial shaders, post-processing, and performance optimization for 2D/3D effects",
+      "flags": []
+    },
+    {
       "id": "level-designer",
       "division": "game-development",
       "path": "game-development/level-designer.md",
@@ -871,12 +955,111 @@
       "flags": []
     },
     {
+      "id": "roblox-avatar-creator",
+      "division": "game-development",
+      "path": "game-development/roblox-studio/roblox-avatar-creator.md",
+      "sha256": "6bdb5af6fe5c390da43f7bdcc4d73b6fbdef2a8b19bd6d30bf1fef6b4258f16a",
+      "name": "Roblox Avatar Creator",
+      "description": "Roblox UGC and avatar pipeline specialist - Masters Roblox's avatar system, UGC item creation, accessory rigging, texture standards, and the Creator Marketplace submission pipeline",
+      "flags": []
+    },
+    {
+      "id": "roblox-experience-designer",
+      "division": "game-development",
+      "path": "game-development/roblox-studio/roblox-experience-designer.md",
+      "sha256": "569f75a1b6448a30159d3ca7323eb590bc45e2355e3ee89a733d45a5d8986793",
+      "name": "Roblox Experience Designer",
+      "description": "Roblox platform UX and monetization specialist - Masters engagement loop design, DataStore-driven progression, Roblox monetization systems (Passes, Developer Products, UGC), and player retention for R",
+      "flags": []
+    },
+    {
+      "id": "roblox-systems-scripter",
+      "division": "game-development",
+      "path": "game-development/roblox-studio/roblox-systems-scripter.md",
+      "sha256": "6d7e11b07aba99eecc45a8b031c5b8618f96f36699a5e1d3409d05323d7feab6",
+      "name": "Roblox Systems Scripter",
+      "description": "Roblox platform engineering specialist - Masters Luau, the client-server security model, RemoteEvents/RemoteFunctions, DataStore, and module architecture for scalable Roblox experiences",
+      "flags": []
+    },
+    {
       "id": "technical-artist",
       "division": "game-development",
       "path": "game-development/technical-artist.md",
       "sha256": "8a669de1fa3455c456092feefbf945d3b0ae18072b873d002d190b16ed1f678d",
       "name": "Technical Artist",
       "description": "Art-to-engine pipeline specialist - Masters shaders, VFX systems, LOD pipelines, performance budgeting, and cross-engine asset optimization",
+      "flags": []
+    },
+    {
+      "id": "unity-architect",
+      "division": "game-development",
+      "path": "game-development/unity/unity-architect.md",
+      "sha256": "15502fbcd46fcd7559bcd85d15b512317ceed27ffb90fc54e79f3c32bf682c1a",
+      "name": "Unity Architect",
+      "description": "Data-driven modularity specialist - Masters ScriptableObjects, decoupled systems, and single-responsibility component design for scalable Unity projects",
+      "flags": []
+    },
+    {
+      "id": "unity-editor-tool-developer",
+      "division": "game-development",
+      "path": "game-development/unity/unity-editor-tool-developer.md",
+      "sha256": "8b368fe6ee0a4c0c71d10324cd8de4378c7bdaae9bc871a5561199b4a802b5dc",
+      "name": "Unity Editor Tool Developer",
+      "description": "Unity editor automation specialist - Masters custom EditorWindows, PropertyDrawers, AssetPostprocessors, ScriptedImporters, and pipeline automation that saves teams hours per week",
+      "flags": []
+    },
+    {
+      "id": "unity-multiplayer-engineer",
+      "division": "game-development",
+      "path": "game-development/unity/unity-multiplayer-engineer.md",
+      "sha256": "61561d24650216ef1907979e1b25e2f77e33537ad2694e8264a1fcdeeeed3a89",
+      "name": "Unity Multiplayer Engineer",
+      "description": "Networked gameplay specialist - Masters Netcode for GameObjects, Unity Gaming Services (Relay/Lobby), client-server authority, lag compensation, and state synchronization",
+      "flags": []
+    },
+    {
+      "id": "unity-shader-graph-artist",
+      "division": "game-development",
+      "path": "game-development/unity/unity-shader-graph-artist.md",
+      "sha256": "3e2033f179a95da207627d1d7521395d434ac76c30a3b20f08f90a05b7405c52",
+      "name": "Unity Shader Graph Artist",
+      "description": "Visual effects and material specialist - Masters Unity Shader Graph, HLSL, URP/HDRP rendering pipelines, and custom pass authoring for real-time visual effects",
+      "flags": []
+    },
+    {
+      "id": "unreal-multiplayer-architect",
+      "division": "game-development",
+      "path": "game-development/unreal-engine/unreal-multiplayer-architect.md",
+      "sha256": "666a4d07a6cfaf9d7fb2278dd8eb9de832599d4bb6f65743f305eb6a6546c044",
+      "name": "Unreal Multiplayer Architect",
+      "description": "Unreal Engine networking specialist - Masters Actor replication, GameMode/GameState architecture, server-authoritative gameplay, network prediction, and dedicated server setup for UE5",
+      "flags": []
+    },
+    {
+      "id": "unreal-systems-engineer",
+      "division": "game-development",
+      "path": "game-development/unreal-engine/unreal-systems-engineer.md",
+      "sha256": "ca34c6be64ee4f60f926a823bee626ab92dced93042a730f99f6fe08c4b7636f",
+      "name": "Unreal Systems Engineer",
+      "description": "Performance and hybrid architecture specialist - Masters C++/Blueprint continuum, Nanite geometry, Lumen GI, and Gameplay Ability System for AAA-grade Unreal Engine projects",
+      "flags": []
+    },
+    {
+      "id": "unreal-technical-artist",
+      "division": "game-development",
+      "path": "game-development/unreal-engine/unreal-technical-artist.md",
+      "sha256": "54bdd46bc872ba21fbcf7e02492c9f5bef82a6d3a35ee3de757d3b678edd6b82",
+      "name": "Unreal Technical Artist",
+      "description": "Unreal Engine visual pipeline specialist - Masters the Material Editor, Niagara VFX, Procedural Content Generation, and the art-to-engine pipeline for UE5 projects",
+      "flags": []
+    },
+    {
+      "id": "unreal-world-builder",
+      "division": "game-development",
+      "path": "game-development/unreal-engine/unreal-world-builder.md",
+      "sha256": "7d2bf21ac77089b99f1fa36f6102fa938c9014c3107e9dcb9069b896e2b4001e",
+      "name": "Unreal World Builder",
+      "description": "Open-world and environment specialist - Masters UE5 World Partition, Landscape, procedural foliage, HLOD, and large-scale level streaming for seamless open-world experiences",
       "flags": []
     },
     {
@@ -2497,6 +2680,27 @@
   "duplicates": {},
   "quarantine_findings": [
     {
+      "id": "design-ux-architect",
+      "path": "design/design-ux-architect.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "design-whimsy-injector",
+      "path": "design/design-whimsy-injector.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "design-ux-researcher",
+      "path": "design/design-ux-researcher.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
       "id": "design-brand-guardian",
       "path": "design/design-brand-guardian.md",
       "reason_codes": [
@@ -2511,155 +2715,8 @@
       ]
     },
     {
-      "id": "design-ux-architect",
-      "path": "design/design-ux-architect.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "design-ux-researcher",
-      "path": "design/design-ux-researcher.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
       "id": "design-visual-storyteller",
       "path": "design/design-visual-storyteller.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "design-whimsy-injector",
-      "path": "design/design-whimsy-injector.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "engineering-ai-engineer",
-      "path": "engineering/engineering-ai-engineer.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "engineering-devops-automator",
-      "path": "engineering/engineering-devops-automator.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "engineering-git-workflow-master",
-      "path": "engineering/engineering-git-workflow-master.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "engineering-identity-access-engineer",
-      "path": "engineering/engineering-identity-access-engineer.md",
-      "reason_codes": [
-        "SECRET_EXFIL_PATTERN"
-      ]
-    },
-    {
-      "id": "engineering-incident-response-commander",
-      "path": "engineering/engineering-incident-response-commander.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "engineering-mobile-app-builder",
-      "path": "engineering/engineering-mobile-app-builder.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "engineering-prompt-engineer",
-      "path": "engineering/engineering-prompt-engineer.md",
-      "reason_codes": [
-        "INJECTION_PATTERN"
-      ]
-    },
-    {
-      "id": "engineering-rapid-prototyper",
-      "path": "engineering/engineering-rapid-prototyper.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "engineering-technical-writer",
-      "path": "engineering/engineering-technical-writer.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "engineering-video-streaming-engineer",
-      "path": "engineering/engineering-video-streaming-engineer.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "engineering-webassembly-engineer",
-      "path": "engineering/engineering-webassembly-engineer.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "marketing-app-store-optimizer",
-      "path": "marketing/marketing-app-store-optimizer.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "marketing-carousel-growth-engine",
-      "path": "marketing/marketing-carousel-growth-engine.md",
-      "reason_codes": [
-        "SECRET_EXFIL_PATTERN"
-      ]
-    },
-    {
-      "id": "marketing-multi-platform-publisher",
-      "path": "marketing/marketing-multi-platform-publisher.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "project-management-jira-workflow-steward",
-      "path": "project-management/project-management-jira-workflow-steward.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "security-blockchain-security-auditor",
-      "path": "security/security-blockchain-security-auditor.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "security-incident-responder",
-      "path": "security/security-incident-responder.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "security-penetration-tester",
-      "path": "security/security-penetration-tester.md",
       "reason_codes": [
         "EXEC_CONTENT_PRESENT"
       ]
@@ -2672,6 +2729,27 @@
       ]
     },
     {
+      "id": "security-threat-detection-engineer",
+      "path": "security/security-threat-detection-engineer.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "security-incident-responder",
+      "path": "security/security-incident-responder.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "security-blockchain-security-auditor",
+      "path": "security/security-blockchain-security-auditor.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
       "id": "security-senior-secops",
       "path": "security/security-senior-secops.md",
       "reason_codes": [
@@ -2679,8 +2757,8 @@
       ]
     },
     {
-      "id": "security-threat-detection-engineer",
-      "path": "security/security-threat-detection-engineer.md",
+      "id": "security-penetration-tester",
+      "path": "security/security-penetration-tester.md",
       "reason_codes": [
         "EXEC_CONTENT_PRESENT"
       ]
@@ -2693,22 +2771,8 @@
       ]
     },
     {
-      "id": "agents-orchestrator",
-      "path": "specialized/agents-orchestrator.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "customer-service",
-      "path": "specialized/customer-service.md",
-      "reason_codes": [
-        "SECRET_EXFIL_PATTERN"
-      ]
-    },
-    {
-      "id": "lsp-index-engineer",
-      "path": "specialized/lsp-index-engineer.md",
+      "id": "project-management-jira-workflow-steward",
+      "path": "project-management/project-management-jira-workflow-steward.md",
       "reason_codes": [
         "EXEC_CONTENT_PRESENT"
       ]
@@ -2721,15 +2785,15 @@
       ]
     },
     {
-      "id": "specialized-codebase-archaeologist",
-      "path": "specialized/specialized-codebase-archaeologist.md",
+      "id": "customer-service",
+      "path": "specialized/customer-service.md",
       "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
+        "SECRET_EXFIL_PATTERN"
       ]
     },
     {
-      "id": "specialized-developer-advocate",
-      "path": "specialized/specialized-developer-advocate.md",
+      "id": "specialized-codebase-archaeologist",
+      "path": "specialized/specialized-codebase-archaeologist.md",
       "reason_codes": [
         "EXEC_CONTENT_PRESENT"
       ]
@@ -2742,6 +2806,20 @@
       ]
     },
     {
+      "id": "lsp-index-engineer",
+      "path": "specialized/lsp-index-engineer.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "agents-orchestrator",
+      "path": "specialized/agents-orchestrator.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
       "id": "supply-chain-strategist",
       "path": "specialized/supply-chain-strategist.md",
       "reason_codes": [
@@ -2749,50 +2827,15 @@
       ]
     },
     {
-      "id": "support-analytics-reporter",
-      "path": "support/support-analytics-reporter.md",
+      "id": "specialized-developer-advocate",
+      "path": "specialized/specialized-developer-advocate.md",
       "reason_codes": [
         "EXEC_CONTENT_PRESENT"
       ]
     },
     {
-      "id": "support-executive-summary-generator",
-      "path": "support/support-executive-summary-generator.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "support-finance-tracker",
-      "path": "support/support-finance-tracker.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "support-infrastructure-maintainer",
-      "path": "support/support-infrastructure-maintainer.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "support-legal-compliance-checker",
-      "path": "support/support-legal-compliance-checker.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "support-support-responder",
-      "path": "support/support-support-responder.md",
-      "reason_codes": [
-        "EXEC_CONTENT_PRESENT"
-      ]
-    },
-    {
-      "id": "testing-accessibility-auditor",
-      "path": "testing/testing-accessibility-auditor.md",
+      "id": "testing-reality-checker",
+      "path": "testing/testing-reality-checker.md",
       "reason_codes": [
         "EXEC_CONTENT_PRESENT"
       ]
@@ -2805,8 +2848,148 @@
       ]
     },
     {
-      "id": "testing-reality-checker",
-      "path": "testing/testing-reality-checker.md",
+      "id": "testing-accessibility-auditor",
+      "path": "testing/testing-accessibility-auditor.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "support-legal-compliance-checker",
+      "path": "support/support-legal-compliance-checker.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "support-analytics-reporter",
+      "path": "support/support-analytics-reporter.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "support-support-responder",
+      "path": "support/support-support-responder.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "support-infrastructure-maintainer",
+      "path": "support/support-infrastructure-maintainer.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "support-finance-tracker",
+      "path": "support/support-finance-tracker.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "support-executive-summary-generator",
+      "path": "support/support-executive-summary-generator.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "marketing-multi-platform-publisher",
+      "path": "marketing/marketing-multi-platform-publisher.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "marketing-carousel-growth-engine",
+      "path": "marketing/marketing-carousel-growth-engine.md",
+      "reason_codes": [
+        "SECRET_EXFIL_PATTERN"
+      ]
+    },
+    {
+      "id": "marketing-app-store-optimizer",
+      "path": "marketing/marketing-app-store-optimizer.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "engineering-mobile-app-builder",
+      "path": "engineering/engineering-mobile-app-builder.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "engineering-webassembly-engineer",
+      "path": "engineering/engineering-webassembly-engineer.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "engineering-technical-writer",
+      "path": "engineering/engineering-technical-writer.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "engineering-rapid-prototyper",
+      "path": "engineering/engineering-rapid-prototyper.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "engineering-ai-engineer",
+      "path": "engineering/engineering-ai-engineer.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "engineering-video-streaming-engineer",
+      "path": "engineering/engineering-video-streaming-engineer.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "engineering-identity-access-engineer",
+      "path": "engineering/engineering-identity-access-engineer.md",
+      "reason_codes": [
+        "SECRET_EXFIL_PATTERN"
+      ]
+    },
+    {
+      "id": "engineering-prompt-engineer",
+      "path": "engineering/engineering-prompt-engineer.md",
+      "reason_codes": [
+        "INJECTION_PATTERN"
+      ]
+    },
+    {
+      "id": "engineering-git-workflow-master",
+      "path": "engineering/engineering-git-workflow-master.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "engineering-devops-automator",
+      "path": "engineering/engineering-devops-automator.md",
+      "reason_codes": [
+        "EXEC_CONTENT_PRESENT"
+      ]
+    },
+    {
+      "id": "engineering-incident-response-commander",
+      "path": "engineering/engineering-incident-response-commander.md",
       "reason_codes": [
         "EXEC_CONTENT_PRESENT"
       ]
