@@ -1,30 +1,27 @@
-"""Inert hook registry (Phase-1 unit #2).
+"""Hook CATALOG (Phase-1 unit #2) — a read-only inventory, not an executor.
 
-Holds ``HookDefinition``s, matches an incoming ``EventEnvelope`` to the hooks
-that declared its ``event_type``, and reports lifecycle — but it CANNOT fire a
-hook. A hook is "armed" (eligible to fire) only when ALL of these hold:
+This registry holds and looks up ``HookDefinition``s. It has NO surface that can
+make a hook run: no handler binding, no arming, no dispatch, and it evaluates no
+execution/enable flag. ``execution_supported`` is ``False``. Being a catalog is a
+property of its *construction* — there is simply no code path to execution, so
+no in-process caller (not just no HTTP caller) can activate a hook through it.
 
-  * a handler is bound for it (Stage 1 binds NONE), and
-  * its ``status`` is ``ACTIVE``, and
-  * its per-hook ``kill_switch`` env flag is truthy (off by default).
+Executing a hook is the job of a FUTURE, separately-built ``HookDispatcher`` that
+may be created ONLY after these are certified: L3 (credential/network test
+isolation), policy, approvals, the transactional outbox, worker isolation, and
+independent evidence verification. When that dispatcher is built:
 
-So in Stage 1 nothing is armed and ``dispatch`` fires nothing — inert by
-construction, the same posture as ``capability_exchange``. Binding a handler is
-a later, separately-gated stage (and is itself gated by L3: credential/network
-isolation for the worker must be closed first — see the requirements ledger).
+  * its kill switch MUST default to BLOCKING execution (a kill switch stops
+    things; its truthiness must never *enable* execution), and
+  * any activation control is a separately named ``enable_flag`` — never a flag
+    called "kill_switch" whose truthiness turns execution on.
 
-Mirrors the ``capability_exchange`` registry pattern and reuses governance's
-truthy check; it adds no second policy engine or mission authority.
+Mirrors the catalog half of ``capability_exchange``; adds no policy engine,
+mission authority, queue, worker, handler, or flag evaluation.
 """
 from __future__ import annotations
 
-from typing import Callable
-
-from app.services.governance.actions import _is_env_truthy
-from app.services.hooks.schemas import EventEnvelope, HookDefinition, HookStatus
-
-# A handler performs a hook's action. Stage 1 binds none.
-Handler = Callable[[EventEnvelope], object]
+from app.services.hooks.schemas import HookDefinition
 
 
 class HookError(Exception):
@@ -32,9 +29,13 @@ class HookError(Exception):
 
 
 class HookRegistry:
+    """Catalog only. Holds and looks up HookDefinitions; never executes one."""
+
+    #: There is no execution path in this class, by construction.
+    execution_supported: bool = False
+
     def __init__(self) -> None:
         self._hooks: dict[str, HookDefinition] = {}
-        self._handlers: dict[str, Handler] = {}
 
     def register(self, hook: HookDefinition) -> None:
         if hook.id in self._hooks:
@@ -50,42 +51,9 @@ class HookRegistry:
         return sorted(self._hooks)
 
     def for_event(self, event_type: str) -> list[HookDefinition]:
-        """Hooks that declared this exact event_type (registration order)."""
+        """Catalog lookup: which hooks *declared* this event_type. A read-only
+        query for inspection/planning — it neither arms nor fires anything."""
         return [h for h in self._hooks.values() if h.event_type == event_type]
-
-    def bind_handler(self, hook_id: str, handler: Handler) -> None:
-        """Bind a hook's executor. NOT called in Stage 1 — kept so a later,
-        separately-gated stage can wire a real handler. Refuses unknown hooks."""
-        if hook_id not in self._hooks:
-            raise KeyError(f"cannot bind handler to unknown hook {hook_id!r}")
-        self._handlers[hook_id] = handler
-
-    def is_armed(self, hook_id: str) -> bool:
-        """A hook can fire only if a handler is bound AND it is ACTIVE AND its
-        kill-switch env flag is on. False for every Stage-1 hook (no handlers)."""
-        hook = self.get(hook_id)
-        if hook_id not in self._handlers:
-            return False
-        if hook.status is not HookStatus.ACTIVE:
-            return False
-        if not hook.kill_switch:
-            return False
-        return _is_env_truthy(hook.kill_switch)
-
-    def matching_armed(self, event: EventEnvelope) -> list[HookDefinition]:
-        return [h for h in self.for_event(event.event_type) if self.is_armed(h.id)]
-
-    def dispatch(self, event: EventEnvelope) -> list:
-        """Fire the armed hooks matching the event and return their results. In
-        Stage 1 nothing is armed, so this is always ``[]`` — a matched-but-not-
-        armed hook never fires. (This is the in-process fan-out only; durable
-        delivery/outbox + the isolated worker are later, separately-gated units.)
-        """
-        results = []
-        for hook in self.for_event(event.event_type):
-            if self.is_armed(hook.id):
-                results.append(self._handlers[hook.id](event))
-        return results
 
     def summary(self) -> dict:
         by_status: dict[str, int] = {}
@@ -95,8 +63,7 @@ class HookRegistry:
             by_mode[hook.mode.value] = by_mode.get(hook.mode.value, 0) + 1
         return {
             "total": len(self._hooks),
-            "handlers_bound": len(self._handlers),
-            "armed": sum(1 for hid in self._hooks if self.is_armed(hid)),
+            "execution_supported": self.execution_supported,
             "by_status": by_status,
             "by_mode": by_mode,
         }
