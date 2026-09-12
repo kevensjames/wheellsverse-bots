@@ -120,9 +120,11 @@ def test_no_execution_surface_exists():
         assert not hasattr(r, forbidden), f"{forbidden!r} must not exist on the catalog"
     for forbidden in ("Adapter", "Lifecycle", "_exact_scope_enabled", "_is_env_truthy", "is_scope_enabled"):
         assert not hasattr(cx_module, forbidden), f"{forbidden!r} must not be in the module"
-    # Allowlist teeth: the ONLY public methods are the catalog methods (catches a
-    # re-introduced execution path under ANY new name).
-    public_methods = {n for n in dir(r) if not n.startswith("_") and callable(getattr(r, n))}
-    assert public_methods == {"register", "get", "ids", "for_risk", "summary"}, public_methods
+    # Allowlist teeth: the ONLY methods (public OR private, dunders excluded) are
+    # the catalog methods — catches a re-introduced execution method under ANY
+    # name, including a private one (e.g. _run / _dispatch / _secret_execute) that
+    # a public-only check would miss.
+    methods = {n for n in dir(r) if callable(getattr(r, n)) and not (n.startswith("__") and n.endswith("__"))}
+    assert methods == {"register", "get", "ids", "for_risk", "summary"}, methods
     # default catalog is honest about it too
     assert default_registry().summary()["execution_supported"] is False

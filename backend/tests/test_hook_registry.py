@@ -68,8 +68,9 @@ def test_no_execution_surface_exists():
     # no handler type and no env/flag evaluation leaked into the module
     for forbidden in ("Handler", "_is_env_truthy", "Callable"):
         assert not hasattr(registry_module, forbidden), f"{forbidden!r} must not be in the registry module"
-    # Allowlist teeth (independent-review hardening): the ONLY public methods are
-    # the five catalog methods. This catches a re-introduced execution path under
-    # ANY new name (e.g. invoke/run/fire/emit), not just the known denylist above.
-    public_methods = {n for n in dir(r) if not n.startswith("_") and callable(getattr(r, n))}
-    assert public_methods == {"register", "get", "ids", "for_event", "summary"}, public_methods
+    # Allowlist teeth (independent-review hardening): the ONLY methods (public OR
+    # private, dunders excluded) are the five catalog methods. This catches a
+    # re-introduced execution method under ANY name — public (invoke/run/fire) or
+    # private (_run/_dispatch) — that a public-only check would miss.
+    methods = {n for n in dir(r) if callable(getattr(r, n)) and not (n.startswith("__") and n.endswith("__"))}
+    assert methods == {"register", "get", "ids", "for_event", "summary"}, methods
