@@ -8,6 +8,22 @@ The deliverable is an **inert, reviewable, testable workforce catalog + control-
 
 ---
 
+## 0. Companion documents (versioned, hash-linked)
+
+The full durable requirements live in these repository-controlled companions
+(linked by path + SHA-256 so a chat prompt is never the controlling source):
+
+| Document | SHA-256 |
+|---|---|
+| [`AGENT_CHARACTER_CONTRACT.md`](./AGENT_CHARACTER_CONTRACT.md) — full manifest field contract | `916bf5eaa93ff9adcaba4d3060fd5bed13ef57f3dca18027ce6e0d29b6dd18df` |
+| [`KAI_NATIVE_CHARACTERS.md`](./KAI_NATIVE_CHARACTERS.md) — the 40 required characters | `a5585119c5de2d1383eb8777342942c7a123324e9b086e95317b16d976de0dd5` |
+| [`WORKFORCE_ORG_CHART.md`](./WORKFORCE_ORG_CHART.md) — divisions + workplaces + team rules | `e0ff14a35d0533b085d17ad77a1ef7a7d8b75245f01ff87edac75a7967d72adc` |
+| [`FRAMEWORK_CAPABILITY_MATRIX.md`](./FRAMEWORK_CAPABILITY_MATRIX.md) — framework matrix (Angular 22.1.x / TS 6.0.3) | `8073e1f381fd80a0a490abca4ca082d3af4ec77da516eb4fc6a3b848f26d854a` |
+| [`ADMISSION_AND_EVALUATION.md`](./ADMISSION_AND_EVALUATION.md) — intake/quarantine, lifecycle, tests, ≥270 acceptance, status labels | `fb2f7b0ac2621b12a6420fbbebad867b94709b9b407cd65b5f9c9e1e64a2061c` |
+
+No "see mission §…" references remain; all requirements are embedded above or in
+these companions.
+
 ## 1. Non-negotiable constitution
 
 KAI remains the sole: mission owner · policy authority · approval authority · orchestration authority · model-routing authority · memory authority · tenant authority · completion authority · evidence authority · operator-facing identity.
@@ -30,7 +46,7 @@ Before starting, and after every implementation unit: reread both `kai/plans` co
 
 ## 3. The Agent Character Contract
 
-Every character (imported or KAI-native) gets a complete, versioned `AgentCharacterManifest` with six mandatory parts — **identity, personality, mission, brain, soul, workplace** — plus **capabilities** and **governance**. Name-and-generic-prompt is invalid; generic duplicates fail validation. Field set (see mission §4): identity (id/schema_version/display_name/codename/…/source_kind/source_path/source_commit/source_hash/license/reviewed_by), personality (5–7 traits + anti-traits + prohibited behaviors), mission (one-sentence + responsibilities/non-responsibilities/success/failure/escalation), brain (profile_id/reasoning_class/model_router_requirements/tool_categories/budgets/eval_suite), soul (values/boundaries/refusal/immutable principles), workplace (tenant/project/mission scope, read/write roots, network/browser/device/external-write policy — all **deny by default**, budgets, evidence stream, cleanup), capabilities (declared/forbidden/approval_required/consequential + schemas + evidence), governance (status/risk_tier/effect_class/activation_requirements/approval_policy/separation_of_duties/kill_control/expiry/revocation/audit).
+Every character (imported or KAI-native) gets a complete, versioned `AgentCharacterManifest` with six mandatory parts — **identity, personality, mission, brain, soul, workplace** — plus **capabilities** and **governance**. Name-and-generic-prompt is invalid; generic duplicates fail validation. **Full field contract: [`AGENT_CHARACTER_CONTRACT.md`](./AGENT_CHARACTER_CONTRACT.md)** (see Companion documents below for the SHA-256). Field set: identity (id/schema_version/display_name/codename/…/source_kind/source_path/source_commit/source_hash/license/reviewed_by), personality (5–7 traits + anti-traits + prohibited behaviors), mission (one-sentence + responsibilities/non-responsibilities/success/failure/escalation), brain (profile_id/reasoning_class/model_router_requirements/tool_categories/budgets/eval_suite), soul (values/boundaries/refusal/immutable principles), workplace (tenant/project/mission scope, read/write roots, network/browser/device/external-write policy — all **deny by default**, budgets, evidence stream, cleanup), capabilities (declared/forbidden/approval_required/consequential + schemas + evidence), governance (status/risk_tier/effect_class/activation_requirements/approval_policy/separation_of_duties/kill_control/expiry/revocation/audit).
 
 Names: unique, readable, respectful, **deterministically derived from the manifest id** (no random renames across builds), collision-checked.
 
@@ -38,7 +54,7 @@ Names: unique, readable, respectful, **deterministically derived from the manife
 
 ## 4. Size, divisions, workplaces, team composition
 
-- **Size:** import every legitimate upstream agent at the pinned SHA (upstream README claims 230+; the "250" is a social-media claim — **derive the true count**), then add KAI-native characters to reach **≥270** validated manifests. The 40 required KAI-native characters (mission §6, incl. Vera Complete the *independent* completion verifier, Cipher Ward, Tessa Boundary, Mira Proof, …) are named and must not be silently renamed/omitted.
+- **Size:** import every legitimate upstream agent at the pinned SHA (upstream README claims 230+; the "250" is a social-media claim — **derive the true count**), then add KAI-native characters to reach **≥270** validated manifests. The 40 required KAI-native characters — named in full (incl. Vera Complete the *independent* completion verifier, Cipher Ward, Tessa Boundary, Mira Proof, …) in **[`KAI_NATIVE_CHARACTERS.md`](./KAI_NATIVE_CHARACTERS.md)** — must not be silently renamed/omitted.
 - **Divisions:** upstream divisions from `divisions.json` + KAI operational divisions (Executive Advisory, Governance & Approvals, Evidence & Reality, Tenant Security, Platform & Architecture, Data & Memory, Models & Evaluation, Browser & Device Safety, Nurtelle Healthcare Safety, SOL Governance, NarAI Commerce, Legal & Privacy, Release & Incident Ops). Any upstream "orchestrator/chief-of-staff" is **downgraded to advisory planning**.
 - **Workplaces:** each is an isolation + policy profile (not a UI label); defaults deny network/browser/device/external-writes/publishing/messaging/financial-execution/prod-credentials.
 - **Teams:** KAI selects the smallest sufficient team (usually 3–7): planner/lead + worker(s) + risk reviewer (when risk requires) + **independent** completion verifier. Planners can't silently execute; workers can't self-approve or self-complete; reviewers can't verify their own output; consequential actions need a fresh, bound, single-use approval; delegation tokens are mission/tenant/capability-scoped, expiring, non-forwardable; no recursive recruiting; hard fan-out/depth limits; typed-artifact handoffs with provenance.
