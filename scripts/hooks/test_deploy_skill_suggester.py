@@ -74,6 +74,17 @@ def test_prose_quotes_code_filenames_negations_do_not_trigger(text):
 
 
 @pytest.mark.parametrize("text", [
+    # Residual false positives found by the independent review (Unit-2 bypass
+    # lens) and fixed — each would have leaked before the hardening:
+    "Do not, under any circumstances whatsoever in this whole mission, astro deploy the dags",  # padded negation
+    "Use ``astro deploy`` to ship the project per the docs.",   # double-backtick inline code
+    "Here is an example:\n```bash\nastro deploy --dags ./dags",  # unterminated/odd fence
+])
+def test_nc_review_confirmed_false_positives_suppressed(text):
+    assert should_suggest_deploy(text) is False
+
+
+@pytest.mark.parametrize("text", [
     "Please deploy the dags to astro dev now.",
     "run: astro deploy --dag-only",
     "Deploy the airflow pipeline to production.",
@@ -84,10 +95,14 @@ def test_explicit_operator_commands_do_trigger(text):
 
 
 def test_detector_is_pure_no_side_effects(tmp_path, monkeypatch):
-    # No dangerous I/O primitives in the module source.
+    # No dangerous I/O primitives in the module source. Denylist widened per
+    # the independent review to cover filesystem writes/deletes and the pathlib
+    # surface, not just subprocess/socket/network.
     src = Path(mod.__file__).read_text()
-    for forbidden in ("subprocess", "os.system", "os.popen", "socket", "requests",
-                      "urllib", "open(", "eval(", "exec(", "__import__", "Popen"):
+    for forbidden in ("subprocess", "import os", "os.", "socket", "requests",
+                      "urllib", "open(", "eval(", "exec(", "__import__", "Popen",
+                      "pathlib", "Path(", "write_text", "write_bytes", "shutil",
+                      ".remove(", ".unlink(", "rmtree"):
         assert forbidden not in src, f"suggester must not reference {forbidden!r}"
     # Calling it creates no files and returns a bool.
     monkeypatch.chdir(tmp_path)
@@ -98,9 +113,20 @@ def test_detector_is_pure_no_side_effects(tmp_path, monkeypatch):
 
 
 def test_match_grants_no_authority():
-    # A positive match only yields an advisory string; the module exposes no
-    # deploy/execute entry point.
+    # A positive match only yields an advisory string.
     assert should_suggest_deploy("astro deploy --dag-only") is True
     assert "Advisory only" in mod._SUGGESTION
-    for forbidden in ("deploy_now", "execute", "run_deploy", "perform"):
-        assert not hasattr(mod, forbidden)
+
+
+def test_module_exposes_only_known_safe_callables():
+    # Allowlist (teeth) — per the independent review, replacing the earlier
+    # 4-name denylist. The module defines EXACTLY these two public callables;
+    # any new deploy/execute/upload entry point fails this test.
+    import types
+    public = {
+        n for n, v in vars(mod).items()
+        if not n.startswith("_") and callable(v)
+        and not isinstance(v, types.ModuleType)
+        and getattr(v, "__module__", None) == mod.__name__
+    }
+    assert public == {"should_suggest_deploy", "main"}

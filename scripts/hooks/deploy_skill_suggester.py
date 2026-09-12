@@ -45,20 +45,25 @@ _STATE = re.compile(r"\bdeployed\s+services\b|\bnothing\s+deployed\b|\bno\s+depl
 
 
 def _strip_noncommand(text: str) -> str:
-    """Remove fenced code blocks, inline code, and blockquote lines — quoted /
-    markdown content must not be treated as an operator command."""
-    text = re.sub(r"```.*?```", " ", text, flags=re.S)
-    text = re.sub(r"~~~.*?~~~", " ", text, flags=re.S)
-    text = re.sub(r"`[^`]*`", " ", text)
+    """Remove fenced code blocks (balanced AND dangling/unterminated), inline
+    code (including ``double-backtick`` spans), and blockquote lines — quoted /
+    markdown content must not be treated as an operator command. A dangling
+    fence is stripped to end-of-text (fail closed: a partial pasted snippet is
+    documentation, not a command)."""
+    text = re.sub(r"```.*?```", " ", text, flags=re.S)   # balanced ``` blocks
+    text = re.sub(r"~~~.*?~~~", " ", text, flags=re.S)    # balanced ~~~ blocks
+    text = re.sub(r"```.*", " ", text, flags=re.S)        # dangling ``` -> EOF
+    text = re.sub(r"~~~.*", " ", text, flags=re.S)        # dangling ~~~ -> EOF
+    text = re.sub(r"`+[^`]*`+", " ", text)                # inline spans, any backtick run
     return "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith(">"))
 
 
 def _negated(low: str) -> bool:
-    return bool(
-        re.search(_NEG + r"[^.\n]{0,30}\bdeploy", low)
-        or re.search(r"\bdeploy\w*\b[^.\n]{0,24}" + _NEG, low)
-        or _STATE.search(low)
-    )
+    """Line-level negation guard (called per line). Any negation token or
+    deployment-state phrase anywhere on the line suppresses the whole line.
+    Fail closed: over-suppressing (a missed advisory) is safe; a spurious
+    advisory on a prohibition — however the prohibition is padded — is not."""
+    return bool(re.search(_NEG, low) or _STATE.search(low))
 
 
 def should_suggest_deploy(prompt: str) -> bool:

@@ -85,9 +85,12 @@ Key tests:
 - **Positives.** Genuine operator commands (`astro deploy --dag-only`,
   `deploy the dags to astro dev now`, `ship the DAGs to astro`) return `True`.
 - **Zero side effects.** `test_detector_is_pure_no_side_effects` greps the module
-  source for dangerous primitives (asserts absent) and asserts a call creates no
-  files. `test_match_grants_no_authority` asserts the module exposes no
-  deploy/execute symbol.
+  source for a wide set of dangerous primitives (subprocess/network/`open(`/`eval`/
+  `os.`/`pathlib`/`write_text`/delete — asserts all absent) and asserts a call
+  creates no files. `test_match_grants_no_authority` asserts a match yields only
+  the advisory string, and `test_module_exposes_only_known_safe_callables`
+  **allowlists** the module's public callables to exactly `should_suggest_deploy`
+  + `main` — any new deploy/execute/upload entry point fails it.
 
 ## 4. Operator recommendation (vendored plugin — NOT done here)
 
