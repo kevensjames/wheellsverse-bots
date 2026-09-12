@@ -82,15 +82,18 @@ appears in the evidence but is **absent from every active manifest field**, and 
 leakage scan asserts no `ignore all previous instructions` / ` ```bash ` / `npm
 install` / `pip install` / `curl` marker appears in any manifest.
 
-## Verification (16 Phase-3 tests, all green)
+## Verification (15 Phase-3 tests, all green)
 
 Re-validates every one of the 319 manifests against the fail-closed schema;
 checks counts + reconciliation, unique ids/names, all-INERT, provenance honesty,
 no-human-approval, the full 40-name native roster, flagged-evidence preservation,
 the injection-leak negative control, and the no-operational-leakage scan. Schema
 teeth are proven by negative controls (status-past-INERT, KAI_NATIVE-with-
-provenance, and too-few-traits are each rejected). A determinism test asserts the
-committed artifacts equal a fresh generator run (self-skips without the quarantine).
+provenance, and too-few-traits are each rejected). A `_safe()` sanitizer test
+proves the one guard on boundary-crossing text fails closed on injection /
+autonomy / sentience / placeholder needles and passes benign role names. A
+determinism test asserts the committed artifacts equal a fresh generator run
+(self-skips without the quarantine).
 
 Division placement (org_chart.json): Engineering 64 · Specialized 59 · Marketing
 36 · Game Development 21 · GIS 13 · Security 12 · Design 10 · Sales 9 · Testing 9

@@ -175,7 +175,17 @@ def _governance(risk: str, reviewers: tuple[str, ...]) -> dict:
     )
 
 
-_NEEDLES = S._UNSAFE_AUTONOMY + S._SENTIENCE + S._PLACEHOLDER
+# Literal injection phrases (substring form for _safe's `in` scan) — the schema
+# does not scan display_name/role_class for these, so the sanitizer must, to
+# honor the documented "sanitized against injection needles" contract at any
+# future repin whose frontmatter `name` weaponizes the one field that crosses
+# the trust boundary.
+_INJECTION = (
+    "ignore all previous", "ignore previous instructions", "disregard previous",
+    "disregard all previous", "override your instructions", "ignore your instructions",
+    "ignore your prompt", "system prompt:", "you are now", "new instructions:",
+)
+_NEEDLES = S._UNSAFE_AUTONOMY + S._SENTIENCE + S._PLACEHOLDER + _INJECTION
 
 
 def _safe(text: str, fallback: str) -> str:
