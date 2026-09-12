@@ -1,7 +1,7 @@
 # KAI Governed Workforce — master plan (controlling document)
 
 **Branch:** `feat/kai-hook-foundation-phase1` · **base:** `c69c4dfd` (Stage-0 tip, off the `feat/kai-freellmapi` line at `9f78176b`)
-**Status:** `WORKFORCE_RESEARCHED` (plan only). Nothing built, imported, activated, merged, or deployed.
+**Status:** `WORKFORCE_CONTRACTS_IMPLEMENTED_LOCALLY` (Phase 1 pure contracts built + tested, inert). Phase 0 research + Phase 1 `AgentCharacterManifest` schemas done; nothing imported, activated, merged, or deployed. Upstream intake (Phase 2) not started.
 **Companion controlling docs:** `../kai/plans/KAI_HOOKS_MASTER_BUILD_PLAN.md`, `../kai/plans/KAI_CAPABILITY_EXCHANGE_RESEARCH_AND_CLAUDE_MISSION.md`, `../kai/plans/REQUIREMENTS_LEDGER.md`.
 
 The deliverable is an **inert, reviewable, testable workforce catalog + control-plane foundation** — a governed roster of ≥270 specialist AI *characters* that work **for** KAI. It is NOT permission to run 270 agents, install upstream scripts, bind handlers, deploy, browse, message, move money, or touch the soak.
