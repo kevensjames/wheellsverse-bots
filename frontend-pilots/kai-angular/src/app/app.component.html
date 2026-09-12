@@ -1,0 +1,57 @@
+<main class="shell">
+  <header class="shell__head">
+    <div class="brand">
+      <span class="brand__mark" aria-hidden="true">◆</span>
+      <h1 class="brand__title">KAI · Governed Frontend</h1>
+    </div>
+    <p class="brand__sub">Angular pilot — declarative capability view</p>
+  </header>
+
+  <section class="banner" role="status" [class.banner--ok]="allInert">
+    <strong>DARK · INERT</strong>
+    <span>
+      Every capability below is <em>declared</em>, not executable. No adapter is
+      bound, nothing is installed, nothing is deployed. Execution is a later,
+      separately-approved governed mission.
+    </span>
+  </section>
+
+  <section class="grid" aria-label="Frontend capabilities">
+    <article class="card" *ngFor="let cap of capabilities">
+      <div class="card__top">
+        <code class="card__id">{{ cap.capabilityId }}</code>
+        <span [class]="lifecycleClass(cap.lifecycle)">{{ cap.lifecycle }}</span>
+      </div>
+
+      <p class="card__desc">{{ cap.description }}</p>
+
+      <dl class="meta">
+        <div class="meta__row">
+          <dt>Risk</dt>
+          <dd><span [class]="riskClass(cap.riskClass)">{{ cap.riskClass }}</span></dd>
+        </div>
+        <div class="meta__row">
+          <dt>Mode</dt>
+          <dd>{{ cap.executionMode }}</dd>
+        </div>
+        <div class="meta__row">
+          <dt>Scope</dt>
+          <dd><code>{{ cap.scope }}</code></dd>
+        </div>
+        <div class="meta__row">
+          <dt>Approval</dt>
+          <dd>{{ cap.approvalPolicy }}</dd>
+        </div>
+      </dl>
+
+      <ul class="evidence" aria-label="Evidence types">
+        <li *ngFor="let e of cap.evidenceTypes">{{ e }}</li>
+      </ul>
+    </article>
+  </section>
+
+  <footer class="shell__foot">
+    Source of truth: <code>backend/app/services/capability_exchange.py</code> ·
+    spec: <code>docs/kai-frontend/ANGULAR_CAPABILITY_SPEC.md</code>
+  </footer>
+</main>

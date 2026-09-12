@@ -1,0 +1,46 @@
+/* Global theme. Dark by default (the pilot ships dark); light tokens exist so
+   the shell stays legible if the host forces a light theme. */
+:root {
+  --bg: #0d1117;
+  --fg: #e6edf3;
+  --muted: #8b949e;
+  --panel: #161b22;
+  --line: #30363d;
+  --accent: #7aa2f7;
+  --ok: #56d364;
+  --warn: #e3b341;
+}
+
+:root[data-theme='light'] {
+  --bg: #f6f8fa;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --panel: #ffffff;
+  --line: #d0d7de;
+  --accent: #3b5bdb;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}

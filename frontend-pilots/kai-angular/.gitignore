@@ -1,0 +1,11 @@
+# DARK pilot: nothing here should ever be installed/built into the repo.
+# Install + build is a deferred governed sandbox mission (see README).
+/node_modules
+/dist
+/.angular
+/coverage
+*.log
+package-lock.json
+npm-shrinkwrap.json
+yarn.lock
+pnpm-lock.yaml

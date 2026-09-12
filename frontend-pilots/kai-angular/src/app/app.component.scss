@@ -1,0 +1,153 @@
+:host {
+  display: block;
+}
+
+.shell {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+
+  &__head {
+    margin-bottom: 1.25rem;
+  }
+  &__foot {
+    margin-top: 2rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+
+  &__mark {
+    color: var(--accent);
+    font-size: 1.4rem;
+  }
+  &__title {
+    margin: 0;
+    font-size: 1.3rem;
+    letter-spacing: 0.02em;
+  }
+  &__sub {
+    margin: 0.25rem 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+}
+
+.banner {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+
+  strong {
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 1rem;
+
+  &__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  &__id {
+    color: var(--fg);
+    font-size: 0.82rem;
+  }
+  &__desc {
+    color: var(--muted);
+    font-size: 0.86rem;
+    margin: 0.6rem 0 0.8rem;
+  }
+}
+
+.meta {
+  margin: 0;
+  &__row {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.15rem 0;
+    font-size: 0.82rem;
+  }
+  dt {
+    color: var(--muted);
+    min-width: 4.5rem;
+  }
+  dd {
+    margin: 0;
+  }
+}
+
+.evidence {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.75rem 0 0;
+  margin: 0;
+
+  li {
+    font-size: 0.72rem;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+  }
+}
+
+.pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+
+  &--inert {
+    color: var(--muted);
+    background: transparent;
+  }
+  &--disabled {
+    color: var(--warn);
+  }
+  &--enabled {
+    color: var(--ok);
+  }
+}
+
+.tag {
+  font-size: 0.72rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+
+  &--consequential {
+    color: var(--warn);
+    border-color: var(--warn);
+  }
+}
