@@ -316,7 +316,8 @@ class WorkforceCatalog:
         }
 
     def quarantine_review(self, character_id: str) -> Optional[dict]:
-        return self._quarantine.get(character_id)
+        q = self._quarantine.get(character_id)
+        return copy.deepcopy(q) if q is not None else None
 
     # ── deterministic summaries / matrices / org chart ───────────────────────
 

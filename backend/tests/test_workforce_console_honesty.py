@@ -220,17 +220,18 @@ def test_no_router_guards_or_resolvers_doing_io():
         assert tok not in routes, f"app.routes.ts references {tok!r}"
 
 
-def test_forbidden_scan_has_teeth():
+def test_forbidden_scan_has_teeth(tmp_path):
     # The scan must catch a forbidden token planted inside a component inline
     # template (backtick), not just in plain code — proving the backtick-aware
-    # comment strip does not hide template content.
-    sample = 'const t = `<button (click)="run()">x</button> fetch("x")`;'
-    # emulate the ts branch of _strip_comments on this snippet
-    stripped = "`".join(
-        (re.sub(r"//[^\n]*", " ", part) if i % 2 == 0 else part)
-        for i, part in enumerate(re.sub(r"/\*.*?\*/", " ", sample, flags=re.S).split("`"))
-    )
-    assert "fetch(" in stripped  # template content survives stripping -> would be flagged
+    # comment strip does not hide template content. Exercise the SHIPPED
+    # _strip_comments on a real .ts file (not an inline re-implementation), and
+    # add a negative control: a token hidden in a genuine // line comment IS
+    # stripped, so the test proves the strip discriminates rather than passes all.
+    f = tmp_path / "sample.ts"
+    f.write_text('const t = `<button (click)="run()">x</button> fetch("a")`; // fetch("b")\n')
+    stripped = _strip_comments(f)
+    assert 'fetch("a")' in stripped      # template content survives -> would be flagged
+    assert 'fetch("b")' not in stripped  # real // line comment is stripped (negative control)
 
 
 def test_committed_sbom_licenses_complete_and_match_lockfile():

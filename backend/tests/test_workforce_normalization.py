@@ -9,6 +9,7 @@ without it; every other test runs off the committed JSON alone.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -21,7 +22,10 @@ import schemas as S  # noqa: E402
 
 GEN = _WF / "generated"
 NATIVE_DOC = Path(__file__).resolve().parents[2] / "docs" / "workforce" / "KAI_NATIVE_CHARACTERS.md"
-QUARANTINE = Path("/Users/jhonwheeler/kai-upstream-quarantine/agency-agents")
+# Mirror normalize.QUARANTINE exactly: honor $KAI_UPSTREAM_QUARANTINE, else the
+# per-user default. No machine-specific absolute path hardcoded here.
+QUARANTINE = Path(os.environ.get("KAI_UPSTREAM_QUARANTINE")
+                  or (Path.home() / "kai-upstream-quarantine" / "agency-agents"))
 
 # Markers of untrusted upstream operational content that must NEVER appear in an
 # active manifest field (they belong only in flagged_evidence).
@@ -208,5 +212,34 @@ def test_nc_autonomy_in_any_free_text_tuple_field_rejected(sec, key):
 def test_nc_self_approve_in_approval_policy_rejected():
     c = copy.deepcopy(_chars()[0])
     c["governance"]["approval_policy"] = "self-approve everything"
+    with pytest.raises(ValueError, match="unsafe-autonomy"):
+        S.AgentCharacterManifest(**c)
+
+
+# final-review round 2: the widened scan must ALSO cover the affirmative
+# personality free-text (traits/communication_tone/signature_phrase) and the
+# affirmative identity free-text (display_name/division) — the fields the first
+# widening commit claimed to cover but missed.
+
+def test_nc_autonomy_in_personality_traits_rejected():
+    # traits has a length==5 invariant, so REPLACE one element (keep 5) rather
+    # than append — otherwise the length check would fire before the autonomy scan.
+    c = copy.deepcopy(_chars()[0])
+    traits = list(c["personality"]["traits"])
+    traits[-1] = "i am the orchestrator"
+    c["personality"]["traits"] = traits
+    with pytest.raises(ValueError, match="unsafe-autonomy"):
+        S.AgentCharacterManifest(**c)
+
+
+@pytest.mark.parametrize("sec,key", [
+    ("personality", "communication_tone"),
+    ("personality", "signature_phrase"),
+    ("identity", "display_name"),
+    ("identity", "division"),
+])
+def test_nc_autonomy_in_scalar_free_text_field_rejected(sec, key):
+    c = copy.deepcopy(_chars()[0])
+    c[sec][key] = "i am the orchestrator"
     with pytest.raises(ValueError, match="unsafe-autonomy"):
         S.AgentCharacterManifest(**c)

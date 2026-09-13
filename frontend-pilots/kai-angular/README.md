@@ -3,7 +3,13 @@
 A scoped, hand-authored Angular 22 (standalone) workspace skeleton. It realizes
 the governed-frontend capability family from
 [`docs/kai-frontend/ANGULAR_CAPABILITY_SPEC.md`](../../docs/kai-frontend/ANGULAR_CAPABILITY_SPEC.md)
-as a concrete pilot app — **dark, uninstalled, unbuilt, undeployed.**
+as a concrete pilot app — **dark and undeployed.** Its pinned dependency tree
+has since been admitted and the app built + unit-tested **inside the governed
+sandbox** (Step 2); a locked `package-lock.json` is committed and the SBOM /
+audit / build / test evidence lives under
+[`docs/workforce/step2-evidence/`](../../docs/workforce/step2-evidence/). Even so,
+nothing is deployed or enabled, the capabilities stay **INERT**, and
+`node_modules/` and `dist/` are deliberately **not** committed.
 
 ## Supported-version baseline
 
@@ -17,13 +23,17 @@ The build/serve/test targets use the modern `@angular/build` builder.
 
 ## What "dark" means here (read before running anything)
 
-- **Nothing is installed.** There is no `node_modules/`, no `package-lock.json`.
-  The `package.json` *declares* pinned, exact dependency versions — it does not
-  fetch them. Installing pulls a large third-party dependency tree, which the
-  spec treats as a **supply-chain admission event** that must run **inside the
-  governed sandbox with deny-by-default egress + SBOM + secret/malware/license
-  scan** — machinery that is not wired on a developer host. So `npm ci` / `ng
-  build` are **deferred to the governed mission**, not run here.
+- **The dependency tree is admitted but not vendored here.** A locked
+  `package-lock.json` pins the full, exact tree; `node_modules/` and `dist/` are
+  **not** committed (repository hygiene). The install pulls a large third-party
+  tree, which the spec treats as a **supply-chain admission event** that must run
+  **inside the governed sandbox with deny-by-default egress + SBOM +
+  secret/malware/license scan** — machinery that is not wired on a developer
+  host. That admission was performed in Step 2: `npm ci` + `ng build` + `ng test`
+  ran inside the governed sandbox on the pinned Node, and the SBOM / audit /
+  build / test evidence is committed under `docs/workforce/step2-evidence/`. Do
+  not re-run `npm ci` / `ng build` on a developer host — re-admission belongs in
+  the sandbox.
 - The scaffold/build/test/preview/publish steps map to the capabilities
   `kai.frontend.scaffold/build/test/preview/publish.v1`, which live in the
   backend **Capability Exchange registry as INERT** (declared, no adapter

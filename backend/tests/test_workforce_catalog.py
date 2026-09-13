@@ -393,8 +393,16 @@ def test_forbidden_detection_has_teeth():
         def dispatch_now(self):  # pragma: no cover
             return "x"
     assert any(v in n.lower() for n in dir(R3) for v in _FORBIDDEN_VERBS)
-    # (d) module-level forbidden function name -> verb scan matches
-    assert any(v in "dispatch_mission" for v in _FORBIDDEN_VERBS)
+    # (d) module-level forbidden function name -> the verb scan used by
+    # test_no_module_level_execution_callables flags it. Exercise that exact
+    # predicate against REAL function objects and prove it DISCRIMINATES (not a
+    # tautology over a literal): a forbidden-named fn trips it; the sole allowed
+    # helper (_norm) does not.
+    def dispatch_mission():  # pragma: no cover
+        return "x"
+    scan = lambda fn: any(v in fn.__name__.lower() for v in _FORBIDDEN_VERBS)
+    assert scan(dispatch_mission) is True
+    assert scan(C._norm) is False
 
 
 def _code_without_strings_comments(src: str) -> str:
@@ -457,3 +465,16 @@ def test_get_returns_immutable_copy(cat):
     got["governance"]["status"] = "RUNNING"
     assert cat.get(cid)["governance"]["status"] == "INERT"  # internal state untouched
     assert cat.summary()["all_inert"] is True
+
+
+def test_quarantine_review_returns_immutable_copy(cat):
+    # final-review round 2: quarantine_review() must ALSO return a deep copy (it
+    # previously returned the live internal _quarantine entry by reference) — same
+    # class of leak as get(), so the same guard must hold.
+    flagged = next(cid for cid in cat.ids() if cat.quarantine_review(cid) is not None)
+    got = cat.quarantine_review(flagged)
+    got["reason_codes"] = ["MUTATED"]
+    got["evidence_class"] = "MUTATED"
+    fresh = cat.quarantine_review(flagged)
+    assert fresh["reason_codes"] != ["MUTATED"]     # internal state untouched
+    assert fresh["evidence_class"] != "MUTATED"
