@@ -267,7 +267,8 @@ def test_team_is_minimal_and_order_independent(cat):
     b = cat.propose_team(C.MissionSpec(mission_id="tm", required_frameworks=("go", "rust")))
     sa = sorted(m.character_id for m in a.members if m.role == "SPECIALIST")
     sb = sorted(m.character_id for m in b.members if m.role == "SPECIALIST")
-    assert sa == sb                      # order-independent
+    assert sa == sb                      # order-independent team
+    assert a.model_dump() == b.model_dump()  # whole proposal is canonical (order-invariant)
     # minimal: no chosen specialist is redundant (its covered reqs ⊆ union of others')
     reqs = {("framework", "rust"), ("framework", "go")}
     chosen = [m.character_id for m in a.members if m.role == "SPECIALIST"]

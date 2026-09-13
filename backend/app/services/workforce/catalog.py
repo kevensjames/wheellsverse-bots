@@ -481,11 +481,11 @@ class WorkforceCatalog:
             raise TeamSizeError(f"team of {len(members)} exceeds max_team_size {mission.max_team_size}")
         if gap.has_gap:
             notes.append("coverage gap — see coverage_gap; proposal not feasible until KAI admits/creates the missing expertise")
-        # Requirements left uncovered whose expertise exists only in a reserved role
-        # (planner/verifier/reviewer) are unstaffable without double-duty — distinct
-        # from a true catalog gap.
+        # Requirements whose expertise exists in the catalog but could not be staffed
+        # by a free, tenant-eligible specialist (its only match is a reserved role or
+        # is outside the owner tenant) — distinct from a true catalog gap.
         if uncovered and not gap.has_gap:
-            notes.append("unstaffed requirements (only match is a reserved role): "
+            notes.append("unstaffed requirements (no free tenant-eligible specialist): "
                          + ", ".join(f"{k}={v}" for k, v in sorted(uncovered)))
 
         return TeamProposal(
@@ -540,11 +540,16 @@ class WorkforceCatalog:
                    if not any(self._matches_requirement(c, framework=v) for c in self._by_id))
         mc = tuple(v for v in mission.required_capabilities
                    if not any(self._matches_requirement(c, capability=v) for c in self._by_id))
+        # Sort every echoed/derived tuple so the proposal is fully canonical: two
+        # missions with the same requirement SET but different tuple order produce
+        # byte-identical proposals (team composition is already order-independent).
         return CoverageGap(
-            requested_divisions=mission.required_divisions,
-            requested_frameworks=mission.required_frameworks,
-            requested_capabilities=mission.required_capabilities,
-            missing_divisions=md, missing_frameworks=mf, missing_capabilities=mc,
+            requested_divisions=tuple(sorted(mission.required_divisions)),
+            requested_frameworks=tuple(sorted(mission.required_frameworks)),
+            requested_capabilities=tuple(sorted(mission.required_capabilities)),
+            missing_divisions=tuple(sorted(md)),
+            missing_frameworks=tuple(sorted(mf)),
+            missing_capabilities=tuple(sorted(mc)),
         )
 
     def coverage_gap(self, mission: MissionSpec) -> CoverageGap:
