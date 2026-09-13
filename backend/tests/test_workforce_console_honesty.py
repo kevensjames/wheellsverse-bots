@@ -58,6 +58,9 @@ _FORBIDDEN_CODE = (
     "navigator.", "window.open", ".postMessage(", "new Image(",
     "location.href", "location.assign", "location.replace", "window.location",
     'src="http', "src='http", 'href="http', "href='http",
+    # CSS network egress reachable from inline component `styles: [...]` blocks
+    # (the .scss scan only covers separate .scss files):
+    "url(", "http://", "https://",
 )
 # execution/lifecycle verbs that must not be invoked by a (click)/action handler.
 _ACTION_VERBS = (
@@ -83,10 +86,10 @@ def test_scss_has_no_network_egress(path):
 
 def test_no_click_handler_invokes_an_action_verb():
     for path in _CODE:
-        for m in re.finditer(r"\(click\)=\"([^\"]*)\"", path.read_text()):
-            body = m.group(1).lower()
+        for m in re.finditer(r"\(click\)=([\"'])(.*?)\1", path.read_text()):  # both quote styles
+            body = m.group(2).lower()
             assert not any(v in body for v in _ACTION_VERBS), \
-                f"{path.name}: (click) handler {m.group(1)!r} invokes an action verb"
+                f"{path.name}: (click) handler {m.group(2)!r} invokes an action verb"
 
 
 def test_canonical_label_present_in_action_control_and_shell():
@@ -96,12 +99,28 @@ def test_canonical_label_present_in_action_control_and_shell():
     assert LABEL in shell
 
 
+_BARE_DISABLED = r"(?<![-\w])disabled(?![-\w=])"  # a bare `disabled`, not `aria-disabled`/`disabled=`
+
+
 def test_governed_action_is_always_disabled_with_no_output():
     ga = (_APP / "workforce" / "governed-action.component.ts").read_text()
-    # a REAL bare `disabled` attribute (not merely `aria-disabled`, which is advisory)
-    assert re.search(r"(?<![-\w])disabled(?![-\w=])", ga), "governed action button must carry a bare disabled attribute"
+    # The <button> ELEMENT itself must carry a real bare `disabled` attribute — not
+    # merely advisory `aria-disabled`, and not just the word "disabled" appearing in
+    # a doc comment (which a raw file scan would wrongly accept).
+    btn = re.search(r"<button\b[^>]*>", ga, re.S)
+    assert btn, "governed-action must render a <button>"
+    assert re.search(_BARE_DISABLED, btn.group(0)), "the <button> must carry a bare disabled attribute"
     assert "(click)" not in ga                    # no click handler at all
     assert "@Output" not in ga and "EventEmitter" not in ga  # cannot emit an action
+
+
+def test_disabled_check_rejects_comment_only_mention():
+    # Teeth: a button with ONLY aria-disabled must fail the guard even if a comment
+    # says "disabled" — proving the check anchors to the element, not file prose.
+    fake = ('/** always a disabled control. Rendered disabled. */ '
+            '@Component({ template: `<button type="button" aria-disabled="true">x</button>` })')
+    btn = re.search(r"<button\b[^>]*>", fake, re.S)
+    assert btn and not re.search(_BARE_DISABLED, btn.group(0))
 
 
 def test_app_config_provides_no_http_client():
