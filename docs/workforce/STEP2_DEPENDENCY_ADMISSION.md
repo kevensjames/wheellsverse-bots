@@ -46,14 +46,21 @@ access limited to `registry.npmjs.org`; karma test server bound to `localhost` o
   them: esbuild ships its prebuilt `@esbuild/darwin-arm64` binary as an optional dep
   (no script needed), and `@parcel/watcher`/`lmdb` are dev-server/disk-cache optionals.
   **No STOP was needed for a lifecycle script.**
-- **Licenses**: all permissive — MIT ×396, ISC ×37, BSD-3 ×12, BSD-2 ×11, Apache-2.0
-  ×9, MPL-2.0 ×2, CC-BY-4.0 ×1, BlueOak-1.0.0 ×1, 0BSD ×1. No GPL/AGPL/unknown.
+- **Licenses** (per the lockfile, all 612 components): MIT ×525, ISC ×39, BSD-3 ×13,
+  MPL-2.0 ×12, BSD-2 ×11, Apache-2.0 ×9, CC-BY-4.0 ×1, BlueOak-1.0.0 ×1, 0BSD ×1.
+  **No GPL/AGPL/unknown/proprietary.** Mostly permissive; the **12 MPL-2.0**
+  (weak file-level copyleft — lightningcss + its platform binaries), the **1
+  CC-BY-4.0** (attribution — caniuse-lite), and the **1 BlueOak-1.0.0** are all
+  **dev/build tooling and NOT in the shipped browser bundle** (whose prod deps are
+  MIT/Apache-2.0/0BSD only), so no copyleft/attribution obligation reaches the
+  shipped artifact.
 - **Deprecated (informational)**: `inflight@1.0.6`, `rimraf@3.0.2`, `glob@7.2.3`
   (transitive build-tool deps), `@angular/animations@22.1.6` (Angular recommends
   `animate.enter/leave`; the console imports no animations).
-- **SBOM**: CycloneDX 1.5, 612 components, with license fields populated (490/612;
-  remainder are nested dedupe entries), `docs/workforce/step2-evidence/sbom.cyclonedx.json`
-  (sha256 `d4a056849a24e5a54c5c41ae6f83d25be1aecd7b07099edd433d8dadd546afbb`). Lockfile-
+- **SBOM**: CycloneDX 1.5, 612 components, **license fields populated for all 612**
+  (from the lockfile; distribution matches the Licenses line above),
+  `docs/workforce/step2-evidence/sbom.cyclonedx.json`
+  (sha256 `008a54328cbf64611e1cbe1267b6a882e026b2ca9a4ac6179a2ea29ff8890926`). Lockfile-
   derived because `npm sbom` refuses the **legitimate** dual-istanbul nesting (below).
 - **Audit**: `npm audit` = **0 vulnerabilities** (info/low/moderate/high/critical all 0).
   `docs/workforce/step2-evidence/audit-report.json`. No `npm audit fix`, no `--force`,
@@ -154,7 +161,8 @@ URL in `.scss` and in inline component CSS, any `workforce-data.ts` byte change 
   redacted to `<disposable-sandbox>`.
 - **LOW (lens 4):** `ng-build.summary.txt` was truncated → regenerated with the full
   chunk table (shows the 319-char data in a lazy chunk, not the initial bundle).
-- **LOW (lens 2):** the SBOM had no license fields → populated (490/612).
+- **LOW (lens 2):** the SBOM had no license fields → populated for all 612 from the
+  lockfile (final-review follow-up corrected an earlier partial 490/612).
 - **NIT (lens 6):** dangling `npm-audit.json` reference → corrected to `audit-report.json`.
 
 ## Ceiling

@@ -426,13 +426,17 @@ def test_no_runtime_execution_imports_or_flag_eval():
         "asyncio", "threading", "fastapi", "starlette", "sqlalchemy", "app", "os",
     }
     assert imported.isdisjoint(forbidden_imports), f"forbidden imports: {imported & forbidden_imports}"
-    assert imported <= {"json", "re", "sys", "pathlib", "typing", "pydantic", "schemas", "__future__"}, \
+    assert imported <= {"copy", "json", "re", "sys", "pathlib", "typing", "pydantic", "schemas", "__future__"}, \
         f"unexpected imports: {imported}"
-    # (b) code-only scan (strings + comments removed) for dangerous call / flag patterns
+    # (b) code-only scan for dangerous SINGLE-TOKEN patterns only. (The tokenizer
+    #     space-joins, so dotted/paren forms like os.environ / eval( / .dispatch( are
+    #     NOT substring-matchable here — those call/attr forms are covered LIVE by the
+    #     import allowlist above (which forbids `os`/`subprocess`) and by
+    #     test_no_dangerous_calls_ast, so they are intentionally omitted here rather
+    #     than kept as dead assertions.)
     code = _code_without_strings_comments(src)
-    for tok in ("os.environ", "getenv", "APIRouter", "include_router", "ModelRouter",
-                "create_engine", ".dispatch(", ".execute(", "eval(", "exec(", "Popen",
-                "__import__", "os.system", "os.popen"):
+    for tok in ("getenv", "APIRouter", "include_router", "ModelRouter",
+                "create_engine", "Popen", "__import__"):
         assert tok not in code, f"catalog.py code references {tok!r}"
 
 
@@ -443,3 +447,13 @@ def test_no_workforce_router_worker_or_background_task():
         for tok in ("APIRouter", "include_router", "@app.", "BackgroundTasks",
                     "Celery", "create_task", "@router."):
             assert tok not in src, f"{py.name} must not reference {tok!r}"
+
+
+def test_get_returns_immutable_copy(cat):
+    # final-review fix: get() must return a deep copy so a caller cannot mutate the
+    # catalog's internal record (e.g. flip a status off INERT) through the reference.
+    cid = cat.ids()[0]
+    got = cat.get(cid)
+    got["governance"]["status"] = "RUNNING"
+    assert cat.get(cid)["governance"]["status"] == "INERT"  # internal state untouched
+    assert cat.summary()["all_inert"] is True

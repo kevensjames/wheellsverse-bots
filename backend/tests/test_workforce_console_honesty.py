@@ -84,12 +84,15 @@ def test_scss_has_no_network_egress(path):
         assert tok not in css, f"{path.name} references {tok!r} (CSS network egress forbidden)"
 
 
-def test_no_click_handler_invokes_an_action_verb():
+def test_no_event_handler_invokes_an_action_verb():
+    # Scan EVERY Angular event binding (click)/(change)/(submit)/(ngSubmit)/(keyup)/…
+    # not just (click), and both quote styles. `[(ngModel)]` two-way bindings are not
+    # matched (their ')' is followed by ']' not '=').
     for path in _CODE:
-        for m in re.finditer(r"\(click\)=([\"'])(.*?)\1", path.read_text()):  # both quote styles
-            body = m.group(2).lower()
+        for m in re.finditer(r"\(([a-zA-Z][\w.]*)\)=([\"'])(.*?)\2", path.read_text()):
+            body = m.group(3).lower()
             assert not any(v in body for v in _ACTION_VERBS), \
-                f"{path.name}: (click) handler {m.group(2)!r} invokes an action verb"
+                f"{path.name}: ({m.group(1)}) handler {m.group(3)!r} invokes an action verb"
 
 
 def test_canonical_label_present_in_action_control_and_shell():
@@ -228,3 +231,30 @@ def test_forbidden_scan_has_teeth():
         for i, part in enumerate(re.sub(r"/\*.*?\*/", " ", sample, flags=re.S).split("`"))
     )
     assert "fetch(" in stripped  # template content survives stripping -> would be flagged
+
+
+def test_committed_sbom_licenses_complete_and_match_lockfile():
+    # final-review fix: the committed CycloneDX SBOM must carry a license for EVERY
+    # component, and each must match the lockfile — guards the earlier under-reporting
+    # (122 blanks; MPL-2.0 shown as 2 vs the true 12).
+    import collections
+    import json
+    root = Path(__file__).resolve().parents[2]
+    lock = json.loads((root / "frontend-pilots" / "kai-angular" / "package-lock.json").read_text())
+    sbom = json.loads((root / "docs" / "workforce" / "step2-evidence" / "sbom.cyclonedx.json").read_text())
+    lock_lic = {}
+    for k, v in lock["packages"].items():
+        if not k or not v.get("version"):
+            continue
+        lic = v.get("license")
+        if isinstance(lic, list):
+            lic = "/".join(str(x) for x in lic)
+        lock_lic[(k.split("node_modules/")[-1], v["version"])] = lic
+    comps = sbom["components"]
+    assert comps and all(c.get("licenses") for c in comps), "SBOM must carry a license for every component"
+    dist = collections.Counter()
+    for c in comps:
+        lid = c["licenses"][0]["license"]["id"]
+        dist[lid] += 1
+        assert lock_lic.get((c["name"], c["version"])) == lid, f"SBOM license for {c['name']} != lockfile"
+    assert dist["MPL-2.0"] == 12  # copyleft count reported truthfully, not under-counted

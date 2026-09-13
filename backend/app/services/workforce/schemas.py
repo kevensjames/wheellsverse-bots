@@ -285,10 +285,34 @@ class AgentCharacterManifest(BaseModel):
         hit = _scan(soul_text + " " + persona_text, _SENTIENCE)
         if hit:
             raise ValueError(f"soul/personality claims sentience/personhood: {hit!r}")
+        # Scan the AFFIRMATIVE free-text fields (what the character IS / claims / will
+        # do) for unsafe-autonomy / second-orchestrator claims — far wider than the
+        # original three, so a manifest hand-authored outside the normalizer cannot
+        # smuggle an autonomy claim into soul/governance/mission/personality. The
+        # NEGATION/prohibition fields (capabilities.forbidden, personality.anti_traits,
+        # personality.prohibited_persona_behaviors) are deliberately EXCLUDED: they
+        # exist to NAME forbidden behaviors (e.g. "claiming independent authority"),
+        # so scanning them would false-positive on the very prohibition that protects us.
         autonomy_text = " ".join(
             (self.mission.one_sentence_mission,)
-            + self.mission.responsibilities
+            + self.mission.responsibilities + self.mission.expected_deliverables
+            + self.mission.non_responsibilities + self.mission.success_metrics
+            + self.mission.failure_modes + self.mission.escalation_conditions
             + self.capabilities.declared
+            + self.capabilities.approval_required + self.capabilities.consequential
+            + self.capabilities.reversible_internal + self.capabilities.evidence_requirements
+            + self.soul.values + self.soul.ethical_commitments + self.soul.truthfulness_rules
+            + self.soul.safety_boundaries + self.soul.privacy_commitments
+            + self.soul.user_respect_rules + self.soul.refusal_conditions
+            + self.soul.immutable_principles
+            + self.governance.activation_requirements + self.governance.separation_of_duties
+            + self.governance.independent_reviewer_classes
+            + (self.soul.uncertainty_behavior, self.personality.working_style,
+               self.personality.collaboration_style, self.personality.disagreement_style,
+               self.personality.ambiguity_response, self.personality.pressure_response,
+               self.governance.approval_policy, self.governance.kill_control,
+               self.governance.revocation, self.governance.audit_policy,
+               self.identity.role_class, self.identity.seniority)
         )
         hit = _scan(autonomy_text, _UNSAFE_AUTONOMY)
         if hit:

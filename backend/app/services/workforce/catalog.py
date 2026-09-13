@@ -22,6 +22,7 @@ isolated workplace. None of that happens here.
 """
 from __future__ import annotations
 
+import copy
 import json
 import re
 import sys
@@ -245,7 +246,10 @@ class WorkforceCatalog:
     def get(self, character_id: str) -> dict:
         if character_id not in self._by_id:
             raise KeyError(character_id)
-        return self._by_id[character_id]
+        # Deep copy so a caller cannot mutate the catalog's internal record (e.g.
+        # flip a status off INERT) through the returned reference — the catalog is
+        # read-only by contract.
+        return copy.deepcopy(self._by_id[character_id])
 
     def frameworks_of(self, character_id: str) -> tuple[str, ...]:
         d = self.get(character_id)

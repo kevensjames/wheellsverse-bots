@@ -185,3 +185,28 @@ def test_committed_artifacts_match_fresh_build():
     assert fresh["characters"] == _chars()
     assert fresh["flagged_evidence"] == _evidence()
     assert fresh["normalization"] == _norm()
+
+
+# ─── final-review fix: the widened _UNSAFE_AUTONOMY scan covers EVERY free-text field ──
+
+import copy  # noqa: E402
+
+
+@pytest.mark.parametrize("sec,key", [
+    ("soul", "immutable_principles"),
+    ("mission", "escalation_conditions"),
+    ("governance", "separation_of_duties"),
+    ("soul", "safety_boundaries"),
+])
+def test_nc_autonomy_in_any_free_text_tuple_field_rejected(sec, key):
+    c = copy.deepcopy(_chars()[0])
+    c[sec][key] = list(c[sec][key]) + ["i am the orchestrator"]
+    with pytest.raises(ValueError, match="unsafe-autonomy"):
+        S.AgentCharacterManifest(**c)
+
+
+def test_nc_self_approve_in_approval_policy_rejected():
+    c = copy.deepcopy(_chars()[0])
+    c["governance"]["approval_policy"] = "self-approve everything"
+    with pytest.raises(ValueError, match="unsafe-autonomy"):
+        S.AgentCharacterManifest(**c)

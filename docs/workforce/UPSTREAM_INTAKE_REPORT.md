@@ -11,7 +11,7 @@ normalized/activated/imported-as-code. Phase 3 NOT started (awaits owner review)
 | Pinned commit | `6d29a9b08785a0e49ffc9818bbdd381164c2df5f` |
 | Retrieved (UTC) | `2026-09-12T10:51:06Z` |
 | License | **MIT** — "Copyright (c) 2025 AgentLand Contributors" (preserved) |
-| Quarantine path | `/Users/jhonwheeler/kai-upstream-quarantine/agency-agents` (OUTSIDE the KAI repo and all agent config dirs) |
+| Quarantine path | `$KAI_UPSTREAM_QUARANTINE` (default `~/kai-upstream-quarantine/agency-agents`) — OUTSIDE the KAI repo and all agent config dirs |
 | Machine-readable inventory | `backend/app/services/workforce/generated/upstream_inventory.json` (sha256 `6a70b00c512d1f5f3d93a10bd129ec497747a5738cbb4fcc35bb655280761c1d`) |
 
 ## Phase-2 correction (review Unit 1)

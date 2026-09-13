@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -39,7 +40,11 @@ sys.path.insert(0, str(_HERE))  # schemas.py imports only stdlib + pydantic
 import schemas as S  # noqa: E402
 
 _REPO = _HERE.parents[3]  # .../wheellsverse-kai-hooks
-QUARANTINE = Path("/Users/jhonwheeler/kai-upstream-quarantine/agency-agents")
+# Quarantine lives OUTSIDE the repo (supply-chain). Machine-agnostic: honor
+# $KAI_UPSTREAM_QUARANTINE, else default under the running user's home. Only needed
+# to RE-GENERATE from source; the committed artifacts are static and do not read it.
+QUARANTINE = Path(os.environ.get("KAI_UPSTREAM_QUARANTINE")
+                  or (Path.home() / "kai-upstream-quarantine" / "agency-agents"))
 INVENTORY = _HERE / "generated" / "upstream_inventory.json"
 NATIVE_DOC = _REPO / "docs" / "workforce" / "KAI_NATIVE_CHARACTERS.md"
 GEN = _HERE / "generated"
