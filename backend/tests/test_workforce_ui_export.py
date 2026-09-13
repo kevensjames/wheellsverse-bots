@@ -83,3 +83,15 @@ def test_committed_ts_matches_fresh_export():
     m = _mod()
     fresh = m._HEADER + json.dumps(m.build_ui_data(), indent=2, sort_keys=True, ensure_ascii=False) + ";\n"
     assert _DATA_TS.read_text() == fresh, "workforce-data.ts is stale — re-run ui_export.main()"
+
+
+def test_committed_meta_matches_fresh_export():
+    import json
+    m = _mod()
+    meta = m.build_meta(m.build_ui_data())
+    assert meta["characterCount"] == 319 and meta["allInert"] is True
+    assert meta["actionsAdmitted"] is False
+    assert meta["notAvailableLabel"] == "NOT AVAILABLE — GOVERNED EXECUTION NOT ADMITTED"
+    meta_ts = m._NG / "workforce-meta.ts"
+    fresh = m._META_HEADER + json.dumps(meta, indent=2, sort_keys=True, ensure_ascii=False) + ";\n"
+    assert meta_ts.read_text() == fresh, "workforce-meta.ts is stale — re-run ui_export.main()"

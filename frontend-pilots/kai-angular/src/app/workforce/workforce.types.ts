@@ -89,6 +89,15 @@ export interface CapabilityGroup {
   readonly characterIds: readonly string[];
 }
 
+/** Tiny shell metadata — lets the eager shell avoid importing the full dataset. */
+export interface WorkforceMeta {
+  readonly characterCount: number;
+  readonly allInert: boolean;
+  readonly actionsAdmitted: boolean;
+  readonly notAvailableLabel: string;
+  readonly banner: string;
+}
+
 export interface WorkforceData {
   readonly generatedFrom: {
     readonly characterCount: number;

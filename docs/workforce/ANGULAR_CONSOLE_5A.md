@@ -9,8 +9,8 @@ independent review and a separate governed dependency-install authorization.
 
 A dark operator console over the 319 INERT workforce characters, under the existing
 pinned Angular pilot (`frontend-pilots/kai-angular`, Angular **22.1.x** / TypeScript
-**6.0.3**). It renders **static, generated catalog data** and can activate, assign,
-execute, deploy, or call a model/tool/network — **none of these**.
+**6.0.3**). It renders **static, generated catalog data** and **cannot** activate,
+assign, execute, deploy, or call a model/tool/network — none of these.
 
 Views (lazy routes under a shell with a DARK/INERT banner + nav):
 
@@ -45,9 +45,11 @@ Views (lazy routes under a shell with a DARK/INERT banner + nav):
 ## Data pipeline (read-only)
 
 `catalog.py` (inert) → `ui_export.py` (read-only consumer; `ensure_ascii=False`
-UTF-8) → `src/app/workforce/workforce-data.ts` (generated; **do not edit by hand**).
-Regenerate with `ui_export.main()`. Deterministic: re-export is byte-identical and a
-test asserts the committed module matches a fresh export.
+UTF-8) → `src/app/workforce/workforce-data.ts` (full view-model) + `workforce-meta.ts`
+(a tiny counts+governance module the eager shell imports, so the 319-character
+dataset stays in the lazy route chunks). Both generated; **do not edit by hand**.
+Regenerate with `ui_export.main()`. Deterministic: re-export is byte-identical and
+tests assert the committed modules match a fresh export.
 
 ## Verification runnable now (no Angular toolchain)
 
