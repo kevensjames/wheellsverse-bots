@@ -222,16 +222,20 @@ def test_no_router_guards_or_resolvers_doing_io():
 
 def test_forbidden_scan_has_teeth(tmp_path):
     # The scan must catch a forbidden token planted inside a component inline
-    # template (backtick), not just in plain code — proving the backtick-aware
-    # comment strip does not hide template content. Exercise the SHIPPED
-    # _strip_comments on a real .ts file (not an inline re-implementation), and
-    # add a negative control: a token hidden in a genuine // line comment IS
-    # stripped, so the test proves the strip discriminates rather than passes all.
+    # template (backtick) EVEN WHEN it sits after a `//` inside that template —
+    # the backtick-aware strip must preserve template content so the token is still
+    # scanned. The token therefore sits after a `//` INSIDE the backtick: a correct
+    # backtick-aware strip leaves it intact (flagged), but the natural neuter (drop
+    # the backtick split, strip `//` over the whole string) eats it to end-of-line,
+    # so `fetch("a")` then vanishes and THIS assertion fails — locking the
+    # preservation logic that the earlier (weaker) sample did not catch. The second
+    # token, after a `//` OUTSIDE the template, is the negative control: stripped by
+    # both, proving the strip still removes genuine line comments.
     f = tmp_path / "sample.ts"
-    f.write_text('const t = `<button (click)="run()">x</button> fetch("a")`; // fetch("b")\n')
+    f.write_text('const t = `<div> // keep fetch("a")`; // drop fetch("b")\n')
     stripped = _strip_comments(f)
-    assert 'fetch("a")' in stripped      # template content survives -> would be flagged
-    assert 'fetch("b")' not in stripped  # real // line comment is stripped (negative control)
+    assert 'fetch("a")' in stripped      # inside template, after // -> MUST survive (flagged)
+    assert 'fetch("b")' not in stripped  # outside template -> genuine // comment stripped
 
 
 def test_committed_sbom_licenses_complete_and_match_lockfile():

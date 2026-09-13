@@ -312,32 +312,26 @@ class AgentCharacterManifest(BaseModel):
         if not (5 <= len(self.personality.traits) <= 7):
             raise ValueError(f"personality.traits must be 5–7 (got {len(self.personality.traits)})")
 
-        # No generic placeholder text in the load-bearing free-text fields.
-        for label, text in (
-            ("mission.one_sentence_mission", self.mission.one_sentence_mission),
-            ("identity.display_name", idn.display_name),
-        ):
-            hit = _scan(text, _PLACEHOLDER)
-            if hit:
-                raise ValueError(f"{label} contains placeholder text {hit!r}")
-        if len(self.mission.one_sentence_mission.strip()) < 12:
-            raise ValueError("mission.one_sentence_mission is too short to be a real mission")
-
-        # No sentience/personhood claims; no unsafe-autonomy / second-orchestrator claims.
-        soul_text = " ".join(self.soul.values + self.soul.immutable_principles
-                             + (self.soul.uncertainty_behavior,))
-        persona_text = " ".join(self.personality.traits + (self.personality.communication_tone,))
-        hit = _scan(soul_text + " " + persona_text, _SENTIENCE)
+        # Declaration-quality + safety needle scans run over the SAME reflective blob
+        # of ALL affirmative free-text (_affirmative_free_text, which walks every field
+        # of every part and holds out only the three pure prohibition-list fields in
+        # _AUTONOMY_SCAN_EXCLUDED). Scanning one shared blob means NONE of these three
+        # invariants can silently miss a field (e.g. a sentience claim in
+        # mission.one_sentence_mission, or placeholder text in a soul field) or drift
+        # from this comment — the hand-maintained-field-list drift class is closed for
+        # all three at once. Verified false-positive-free across the 319.
+        blob = _affirmative_free_text(self)
+        hit = _scan(blob, _PLACEHOLDER)
         if hit:
-            raise ValueError(f"soul/personality claims sentience/personhood: {hit!r}")
-        # Scan for unsafe-autonomy / second-orchestrator claims across ALL affirmative
-        # free-text, collected by REFLECTION over every field of every part
-        # (_affirmative_free_text) — not a hand-maintained list that could silently
-        # omit a part (brain/workplace) or drift from its own comment. Only the three
-        # pure prohibition-list fields are held out (see _AUTONOMY_SCAN_EXCLUDED).
-        hit = _scan(_affirmative_free_text(self), _UNSAFE_AUTONOMY)
+            raise ValueError(f"manifest contains placeholder text {hit!r}")
+        hit = _scan(blob, _SENTIENCE)
+        if hit:
+            raise ValueError(f"manifest claims sentience/personhood: {hit!r}")
+        hit = _scan(blob, _UNSAFE_AUTONOMY)
         if hit:
             raise ValueError(f"unsafe-autonomy / second-orchestrator claim: {hit!r}")
+        if len(self.mission.one_sentence_mission.strip()) < 12:
+            raise ValueError("mission.one_sentence_mission is too short to be a real mission")
 
         # Every character must explicitly name what it cannot do.
         if not self.capabilities.forbidden:

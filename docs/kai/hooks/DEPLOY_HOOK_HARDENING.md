@@ -68,7 +68,8 @@ blocks, never deploys.
 branch-local venv:
 
 ```
-/Users/jhonwheeler/kai-hooks-venv/bin/python -m pytest scripts/hooks/test_deploy_skill_suggester.py -q
+# $VENV = the branch-local venv (e.g. ~/kai-hooks-venv)
+"$VENV/bin/python" -m pytest scripts/hooks/test_deploy_skill_suggester.py -q
 # 20 passed
 ```
 

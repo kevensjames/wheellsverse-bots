@@ -40,6 +40,18 @@ def test_register_get_list_and_duplicate():
         r.get("nope.hook")
 
 
+@pytest.mark.parametrize("status", [
+    HookStatus.ACTIVE, HookStatus.QUARANTINED, HookStatus.EXPIRED, HookStatus.REVOKED,
+])
+def test_register_rejects_any_non_inert_hook(status):
+    # Phase-1 catalog holds ONLY inert hooks (mirrors WorkforceCatalog's "status past
+    # INERT" rejection), so a future HookDispatcher cannot find a pre-armed ACTIVE hook.
+    r = HookRegistry()
+    with pytest.raises(HookError, match="past INERT"):
+        r.register(_hook(status=status))
+    assert r.ids() == []  # nothing held
+
+
 def test_for_event_matches_event_type():
     r = HookRegistry()
     r.register(_hook(hid="a.b", event_type="deployment.failed.v1"))

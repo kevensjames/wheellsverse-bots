@@ -21,7 +21,7 @@ mission authority, queue, worker, handler, or flag evaluation.
 """
 from __future__ import annotations
 
-from app.services.hooks.schemas import HookDefinition
+from app.services.hooks.schemas import HookDefinition, HookStatus
 
 
 class HookError(Exception):
@@ -38,6 +38,15 @@ class HookRegistry:
         self._hooks: dict[str, HookDefinition] = {}
 
     def register(self, hook: HookDefinition) -> None:
+        # Phase-1 catalog holds ONLY inert hooks — mirrors WorkforceCatalog.register's
+        # "status past INERT" rejection. A hook pre-declared ACTIVE (or any post-fault
+        # state) must never be held, so a future HookDispatcher cannot find one already
+        # armed in the catalog. This mission stops at INERT.
+        if hook.status is not HookStatus.INERT:
+            raise HookError(
+                f"hook {hook.id!r} status {hook.status.value!r} past INERT; "
+                "the Phase-1 catalog holds only INERT hooks"
+            )
         if hook.id in self._hooks:
             raise HookError(f"hook {hook.id!r} already registered")
         self._hooks[hook.id] = hook

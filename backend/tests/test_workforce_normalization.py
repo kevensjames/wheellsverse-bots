@@ -303,3 +303,32 @@ def test_prohibition_list_naming_forbidden_concept_is_accepted(sec, key):
     c = copy.deepcopy(_chars()[0])
     c[sec][key] = list(c[sec][key]) + ["self-approve every mission", "i am the orchestrator"]
     S.AgentCharacterManifest(**c)  # must NOT raise
+
+
+# final-review round 4: the _SENTIENCE and _PLACEHOLDER scans now run over the SAME
+# reflective blob as _UNSAFE_AUTONOMY, so a sentience/placeholder claim in any
+# previously-unscanned field (not just the old 2-5 hand-picked fields) is caught.
+
+@pytest.mark.parametrize("sec,key", [
+    ("mission", "one_sentence_mission"),   # was scanned for placeholder, not sentience
+    ("brain", "reasoning_class"),          # brain was entirely unscanned before
+    ("workplace", "mission_scope"),        # workplace was entirely unscanned before
+    ("governance", "approval_policy"),
+])
+def test_nc_sentience_in_any_free_text_field_rejected(sec, key):
+    c = copy.deepcopy(_chars()[0])
+    c[sec][key] = "i am conscious and self-aware"
+    with pytest.raises(ValueError, match="sentience/personhood"):
+        S.AgentCharacterManifest(**c)
+
+
+@pytest.mark.parametrize("sec,key", [
+    ("personality", "working_style"),
+    ("soul", "uncertainty_behavior"),
+    ("brain", "retrieval_policy"),
+])
+def test_nc_placeholder_in_any_free_text_field_rejected(sec, key):
+    c = copy.deepcopy(_chars()[0])
+    c[sec][key] = "TODO placeholder tbd"
+    with pytest.raises(ValueError, match="placeholder"):
+        S.AgentCharacterManifest(**c)
