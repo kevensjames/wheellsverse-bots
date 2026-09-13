@@ -1,0 +1,19 @@
+Initial chunk files   | Names                      |  Raw size | Estimated transfer size
+main-6YHYRX3Y.js      | main                       | 255.72 kB |                69.02 kB
+polyfills-LVNOU2XZ.js | polyfills                  |  35.88 kB |                11.64 kB
+styles-IXF6GFX6.css   | styles                     | 595 bytes |               595 bytes
+
+                      | Initial total              | 292.19 kB |                81.26 kB
+
+Lazy chunk files      | Names                      |  Raw size | Estimated transfer size
+chunk-DgHDZ9bE.js     | -                          | 383.69 kB |                26.19 kB
+chunk-DejWnrG0.js     | -                          |  35.97 kB |                 8.42 kB
+chunk-CIGXPTnA.js     | roster-component           |  12.04 kB |                 3.36 kB
+chunk-D8GUc36L.js     | team-sim-component         |   7.70 kB |                 2.23 kB
+chunk-DVxovBJs.js     | capability-pilot-component |   5.19 kB |                 1.73 kB
+chunk-CuBBxiZt.js     | matrices-component         |   4.11 kB |                 1.40 kB
+chunk-DHSJT_Yx.js     | org-chart-component        |   3.49 kB |                 1.30 kB
+
+Application bundle generation complete. [2.094 seconds] - 2026-09-13T02:57:03.001Z
+
+Output location: <sandbox>

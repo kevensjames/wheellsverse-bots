@@ -196,6 +196,6 @@ export class RosterComponent {
   }
 
   shortHash(v: string | null): string {
-    return v ? (v.length > 12 ? v.slice(0, 12) + '…' : v) : '—';
+    return v ? (v.length > 12 ? v.substring(0, 12) + '…' : v) : '—';
   }
 }

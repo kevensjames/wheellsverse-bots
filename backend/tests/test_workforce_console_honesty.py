@@ -139,6 +139,78 @@ def test_data_and_meta_modules_declare_actions_not_admitted():
     assert "export const WORKFORCE_META: WorkforceMeta =" in meta_ts
 
 
+# The console renders backend data; its public surface is tiny and FIXED. Enforce a
+# COMPLETE per-file member allowlist over every workforce class — the robust, name-
+# independent guard against a client-side "second brain" (team planner/selector).
+_WF_MEMBERS = {
+    "workforce.service.ts": {"actionsAdmitted", "characterById", "characters", "data",
+                             "divisions", "filterRoster", "frameworks", "notAvailableLabel", "proposals"},
+    "roster.component.ts": {"apply", "constructor", "division", "flaggedOnly", "framework",
+                            "riskClass", "riskTier", "rows", "search", "selectedId", "shortHash",
+                            "sourceKind", "toggle", "total"},
+    "team-sim.component.ts": {"constructor", "current", "idx", "proposals", "roleLabel"},
+    "matrices.component.ts": {"constructor", "count", "flaggedCount", "frameworkCount"},
+    "org-chart.component.ts": {"constructor", "name"},
+    "governed-action.component.ts": {"label", "verb"},
+}
+# Capture a class member after any leading decorators + access/modifier keywords, so a
+# planner cannot hide behind `public`/`private`/`static`/`@Input()`/arrow-property syntax.
+_MEMBER_RE = re.compile(
+    r"^\s{2}(?:@\w+\([^)]*\)\s*)*"
+    r"(?:public\s+|private\s+|protected\s+|static\s+|readonly\s+|async\s+|get\s+|set\s+)*"
+    r"([A-Za-z_]\w*)\s*[(=:]", re.M)
+
+
+def _class_members(src: str):
+    i = src.find("export class ")
+    if i < 0:
+        return None  # no class (generated data / meta / types)
+    return {m for m in _MEMBER_RE.findall(src[i:]) if not m.startswith("_")}
+
+
+def test_console_carries_no_team_planning_logic():
+    # Contract: "the console carries no planning logic and re-computes nothing" — team
+    # proposals come from the backend catalog (static exampleProposals). Structural,
+    # name-independent guard:
+    #  (1) COMPLETE per-file member allowlist over EVERY workforce class — any new
+    #      member (any name/modifier/decorator/arrow-property) in any file fails;
+    #  (2) the set of workforce CLASS files is itself fixed (a new class file must be
+    #      added to the allowlist deliberately);
+    #  (3) `.sort(`/`.slice(` forbidden (client-side ranking / top-N selection) and a
+    #      team-construction identifier scan — defense-in-depth.
+    wf = _APP / "workforce"
+    for name, allowed in _WF_MEMBERS.items():
+        members = _class_members((wf / name).read_text())
+        assert members is not None, f"{name}: expected a class"
+        extra = members - allowed
+        assert not extra, f"{name}: unexpected public member(s) (possible client-side logic): {extra}"
+    class_files = {p.name for p in wf.glob("*.ts")
+                   if not p.name.endswith(".spec.ts") and _class_members(p.read_text()) is not None}
+    assert class_files == set(_WF_MEMBERS), \
+        f"workforce class file set changed (new/removed class must update the allowlist): {class_files ^ set(_WF_MEMBERS)}"
+
+    planning = re.compile(
+        r"(?:plan|assemble|recruit|staff|compose|rank|score|pick|select|form|draft|propose|build|make|choose)\w*[Tt]eam",
+        re.I)
+    for path in wf.glob("*.ts"):
+        if path.name.endswith(".spec.ts"):
+            continue
+        code = _strip_comments(path)
+        assert ".sort(" not in code, f"{path.name}: client-side .sort( (ranking) — the UI must render backend-ordered data, not rank"
+        assert ".slice(" not in code, f"{path.name}: client-side .slice( (top-N selection) — the UI must not select a subset/team"
+        # A read-only render console accumulates no state — it maps/filters/renders.
+        # Banning the accumulation/mutation primitives closes planner logic hidden INSIDE
+        # an allowlisted method body (or a free function) that builds a selection without
+        # sort/slice or a "*Team" name. Clean source uses none (reads are .filter/.find/
+        # .includes/.join). NOTE: this is a regression net, not a proof — the DEFINITIVE
+        # inertness evidence is the runtime ng-test specs + the compiled-bundle inspection
+        # (proposals() returns static backend data; no planning algorithm is compiled in).
+        for tok in (".push(", ".reduce(", ".splice(", ".concat(", "new Set", "new Map", "new Array"):
+            assert tok not in code, f"{path.name}: {tok!r} — a render console accumulates no state (possible client-side planner)"
+        m = planning.search(code)
+        assert not m, f"{path.name}: team-construction identifier {m.group(0)!r} — the UI must not compute teams"
+
+
 def test_no_router_guards_or_resolvers_doing_io():
     routes = (_APP / "app.routes.ts").read_text()
     for tok in ("canActivate", "resolve:", "canMatch", "HttpClient", "fetch("):

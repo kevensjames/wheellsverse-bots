@@ -1,0 +1,10 @@
+Node runtime provisioned for the Phase-5A governed Angular sandbox (disposable, sandbox-only).
+source_url: https://nodejs.org/dist/v22.22.3/node-v22.22.3-darwin-arm64.tar.gz
+shasums_url: https://nodejs.org/dist/v22.22.3/SHASUMS256.txt
+archive: node-v22.22.3-darwin-arm64.tar.gz
+sha256_official: 0da7ff74ef8611328c8212f17943368713a2ad953fb7d89a8c8a0eae87c23207
+sha256_local:    0da7ff74ef8611328c8212f17943368713a2ad953fb7d89a8c8a0eae87c23207
+verified: YES (sha256 match + shasum -c OK)
+node_version: v22.22.3
+npm_version: 10.9.8
+install_path: <disposable-sandbox>/node/node-v22.22.3-darwin-arm64 (NOT ~/.local/share/mise; NOT global; no sudo)

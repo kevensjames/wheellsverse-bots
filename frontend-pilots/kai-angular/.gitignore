@@ -1,11 +1,13 @@
-# DARK pilot: nothing here should ever be installed/built into the repo.
-# Install + build is a deferred governed sandbox mission (see README).
+# DARK pilot: installed/built artifacts must NEVER enter the repo. Install + build
+# runs only in the disposable governed sandbox (see README + docs/workforce/ANGULAR_CONSOLE_5A.md).
+# EXCEPTION (Phase-5A Step 2): the REVIEWED package-lock.json IS committed — the
+# admitted, deterministic, npm ci-reproducible dependency lockfile (see the Step-2
+# dependency-admission evidence). node_modules/dist/caches stay out.
 /node_modules
 /dist
 /.angular
 /coverage
 *.log
-package-lock.json
 npm-shrinkwrap.json
 yarn.lock
 pnpm-lock.yaml
