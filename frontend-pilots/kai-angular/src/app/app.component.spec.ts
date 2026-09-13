@@ -1,38 +1,36 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { AppComponent } from './app.component';
-import { FRONTEND_CAPABILITIES } from './capability-manifest';
 
 /**
- * Unit-test wiring for the pilot. The load-bearing assertion mirrors the
- * backend honesty invariant: the pilot must never render a frontend capability
- * as anything but INERT in Stage 1.
+ * Shell wiring. Load-bearing honesty assertion: the shell reports the console as
+ * INERT with no admitted action, and surfaces the governance label.
  */
-describe('AppComponent', () => {
+describe('AppComponent (shell)', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent],
+      providers: [provideRouter([])],
     }).compileComponents();
   });
 
-  it('creates the app', () => {
+  it('creates the shell', () => {
     const fixture = TestBed.createComponent(AppComponent);
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('reports every capability as inert (nothing runnable in Stage 1)', () => {
-    const fixture = TestBed.createComponent(AppComponent);
-    const app = fixture.componentInstance;
+  it('reports DARK/INERT with no admitted action', () => {
+    const app = TestBed.createComponent(AppComponent).componentInstance;
     expect(app.allInert).toBe(true);
-    expect(app.capabilities.length).toBe(FRONTEND_CAPABILITIES.length);
-    expect(app.capabilities.every((c) => c.lifecycle === 'INERT')).toBe(true);
+    expect(app.characterCount).toBe(319);
+    expect(app.notAvailableLabel).toContain('NOT AVAILABLE');
   });
 
-  it('renders each capability id in the DOM', () => {
+  it('renders the governance label and DARK banner', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const text: string = fixture.nativeElement.textContent ?? '';
-    for (const cap of FRONTEND_CAPABILITIES) {
-      expect(text).toContain(cap.capabilityId);
-    }
+    expect(text).toContain('DARK · INERT');
+    expect(text).toContain('NOT AVAILABLE — GOVERNED EXECUTION NOT ADMITTED');
   });
 });

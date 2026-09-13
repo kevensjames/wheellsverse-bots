@@ -1,25 +1,29 @@
 import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { CapabilityManifest, FRONTEND_CAPABILITIES, Lifecycle } from './capability-manifest';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { WorkforceService } from './workforce/workforce.service';
 
+/**
+ * Shell for the DARK workforce console: brand, the DARK/INERT governance banner,
+ * navigation, and the routed views. The shell itself makes no network call and
+ * exposes no action — governed execution is not admitted anywhere in this console.
+ */
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
 export class AppComponent {
-  readonly capabilities: readonly CapabilityManifest[] = FRONTEND_CAPABILITIES;
+  readonly banner: string;
+  readonly characterCount: number;
+  readonly allInert: boolean;
+  readonly notAvailableLabel: string;
 
-  /** Every capability is inert in Stage 1; nothing in this pilot may run one. */
-  readonly allInert: boolean = FRONTEND_CAPABILITIES.every((c) => c.lifecycle === 'INERT');
-
-  lifecycleClass(lifecycle: Lifecycle): string {
-    return `pill pill--${lifecycle.toLowerCase()}`;
-  }
-
-  riskClass(risk: string): string {
-    return `tag tag--${risk.toLowerCase()}`;
+  constructor(readonly svc: WorkforceService) {
+    this.banner = svc.data.governance.banner;
+    this.characterCount = svc.data.generatedFrom.characterCount;
+    this.allInert = svc.data.generatedFrom.allInert && !svc.actionsAdmitted;
+    this.notAvailableLabel = svc.notAvailableLabel;
   }
 }
