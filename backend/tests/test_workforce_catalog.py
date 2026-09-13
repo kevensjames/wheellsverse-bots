@@ -250,6 +250,49 @@ def test_high_risk_requires_reviewer(cat):
     assert any(m.role == "RISK_REVIEWER" for m in p.members)
 
 
+def test_verifier_is_also_tenant_gated():
+    # (Lens 2) The verifier is drawn from the tenant-gated pool like every other
+    # role: a verifier whose workplace is not owner-scoped is NOT staffed.
+    fresh = C.WorkforceCatalog.load_generated()
+    fresh._by_id[C._VERIFIER_ID]["workplace"]["tenant_scope"] = "tenant_evil"
+    p = fresh.propose_team(C.MissionSpec(mission_id="tv", required_divisions=("Engineering",)))
+    assert not any(m.role == "VERIFIER" for m in p.members)  # foreign-tenant verifier excluded
+    assert p.feasible is False                                # can't staff an independent verifier
+
+
+def test_team_is_minimal_and_order_independent(cat):
+    # (Lens 3) One specialist covering both frameworks must be chosen alone, and the
+    # result must not depend on the order of the required_frameworks tuple.
+    a = cat.propose_team(C.MissionSpec(mission_id="tm", required_frameworks=("rust", "go")))
+    b = cat.propose_team(C.MissionSpec(mission_id="tm", required_frameworks=("go", "rust")))
+    sa = sorted(m.character_id for m in a.members if m.role == "SPECIALIST")
+    sb = sorted(m.character_id for m in b.members if m.role == "SPECIALIST")
+    assert sa == sb                      # order-independent
+    # minimal: no chosen specialist is redundant (its covered reqs ⊆ union of others')
+    reqs = {("framework", "rust"), ("framework", "go")}
+    chosen = [m.character_id for m in a.members if m.role == "SPECIALIST"]
+    for sid in chosen:
+        others_cover = set()
+        for o in chosen:
+            if o == sid:
+                continue
+            others_cover |= {r for r in reqs if cat._matches_requirement(o, **{r[0]: r[1]})}
+        mine = {r for r in reqs if cat._matches_requirement(sid, **{r[0]: r[1]})}
+        assert not mine <= others_cover, f"{sid} is redundant"
+
+
+def test_whitespace_provenance_rejected(cat):
+    # (Lens 4) A whitespace-only source_hash must NOT pose as real provenance.
+    fresh = C.WorkforceCatalog.load_generated()
+    m = _base_manifest(cat, "UPSTREAM")
+    m["identity"]["id"] = "up.zz_ws_prov"
+    m["identity"]["codename"] = "up.zz_ws_prov"
+    m["identity"]["display_name"] = "Whitespace Provenance Probe"
+    m["identity"]["source_hash"] = "   "
+    with pytest.raises(ValueError):
+        fresh.register(m)
+
+
 def test_simulated_team_causes_no_execution_or_mutation(cat):
     fresh = C.WorkforceCatalog.load_generated()
     snapshot = json.dumps({c: fresh.get(c) for c in fresh.ids()}, sort_keys=True)
@@ -271,37 +314,86 @@ _FORBIDDEN_VERBS = (
 )
 
 
-def _all_method_names(cls):
-    return [n for n in dir(cls) if not (n.startswith("__") and n.endswith("__"))]
+def test_instance_is_not_callable(cat):
+    # No __call__ execution alias — the one alias the governance contract names.
+    assert not callable(cat)
 
 
-def test_no_forbidden_execution_callables_public_or_private():
-    for name in _all_method_names(C.WorkforceCatalog):
-        attr = getattr(C.WorkforceCatalog, name, None)
-        if callable(attr):
-            low = name.lower()
-            assert not any(v in low for v in _FORBIDDEN_VERBS), f"forbidden execution-style callable: {name}"
+def test_no_forbidden_verb_in_any_attribute_name(cat):
+    # Scan EVERY attribute name (public + private + dunder + instance attrs, callable
+    # OR not — so a forbidden-named @property/descriptor is also caught), per the
+    # contract's 'no method/alias'. __call__ carries no verb and is covered above.
+    for name in sorted(set(dir(cat))):
+        low = name.lower()
+        assert not any(v in low for v in _FORBIDDEN_VERBS), f"forbidden-verb attribute: {name}"
 
 
 def test_public_api_is_exact_allowlist():
-    public = {n for n in _all_method_names(C.WorkforceCatalog)
-              if not n.startswith("_") and callable(getattr(C.WorkforceCatalog, n))}
+    cls = C.WorkforceCatalog
+    object_names = set(dir(object))
+    public = {n for n in dir(cls) if not n.startswith("_") and n not in object_names}
     assert public == {
         "load_generated", "register", "get", "ids", "filter", "frameworks_of",
         "provenance", "quarantine_review", "summary", "org_chart",
         "capability_matrix", "workplace_matrix", "propose_team",
         "validate_separation_of_duties", "coverage_gap",
     }
+    # No attribute is a @property (the code-on-attribute-access risk; classmethod/
+    # staticmethod like load_generated are legitimate).
+    assert not any(isinstance(v, property) for v in vars(cls).values())
 
 
-def test_forbidden_callable_detector_has_teeth():
-    # A subclass that adds an execution method MUST be caught by the same scan.
-    class Rogue(C.WorkforceCatalog):
-        def execute_mission(self):  # pragma: no cover - only its name is inspected
-            return "boom"
-    caught = any(v in n.lower() for n in _all_method_names(Rogue)
-                 for v in _FORBIDDEN_VERBS)
-    assert caught is True
+def test_no_module_level_execution_callables():
+    import types
+    # functions DEFINED in catalog.py (exclude imported names like pydantic Field)
+    funcs = {n for n, v in vars(C).items()
+             if isinstance(v, types.FunctionType) and v.__module__ == C.__name__}
+    for n in funcs:
+        assert not any(v in n.lower() for v in _FORBIDDEN_VERBS), f"module-level exec fn: {n}"
+    assert funcs <= {"_norm"}  # only the one helper; no module-level executor
+
+
+def test_no_dangerous_calls_ast():
+    # AST call-node scan — immune to f-string tokenization (unlike a text scan): no
+    # call to a dangerous attribute/name appears anywhere in catalog.py.
+    import ast
+    tree = ast.parse(_CATALOG_PY.read_text())
+    bad_attr = {"system", "popen", "execute", "dispatch", "communicate", "check_output",
+                "check_call", "Popen", "spawn", "fork", "connect", "sendall", "recv",
+                "urlopen", "request", "run_in_executor", "create_subprocess_exec",
+                "create_subprocess_shell"}
+    bad_name = {"eval", "exec", "__import__", "open", "compile"}
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Attribute) and f.attr in bad_attr:
+                hits.append(f.attr)
+            if isinstance(f, ast.Name) and f.id in bad_name:
+                hits.append(f.id)
+    assert hits == [], f"dangerous calls in catalog.py: {hits}"
+
+
+def test_forbidden_detection_has_teeth():
+    # Prove each detection vector actually catches its construct.
+    # (a) plain execution method name -> name scan
+    class R1(C.WorkforceCatalog):
+        def execute_mission(self):  # pragma: no cover
+            return "x"
+    assert any(v in n.lower() for n in dir(R1) for v in _FORBIDDEN_VERBS)
+    # (b) __call__ alias -> the not-callable check would fail
+    class R2(C.WorkforceCatalog):
+        def __call__(self, m):  # pragma: no cover
+            return "x"
+    assert callable(R2.__new__(R2)) is True
+    # (c) forbidden-named @property -> name scan (scans all names, not just callables)
+    class R3(C.WorkforceCatalog):
+        @property
+        def dispatch_now(self):  # pragma: no cover
+            return "x"
+    assert any(v in n.lower() for n in dir(R3) for v in _FORBIDDEN_VERBS)
+    # (d) module-level forbidden function name -> verb scan matches
+    assert any(v in "dispatch_mission" for v in _FORBIDDEN_VERBS)
 
 
 def _code_without_strings_comments(src: str) -> str:

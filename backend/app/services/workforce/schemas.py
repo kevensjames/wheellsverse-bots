@@ -252,14 +252,16 @@ class AgentCharacterManifest(BaseModel):
         if idn.display_name.strip().lower() == idn.codename.strip().lower():
             raise ValueError("display_name and codename must differ")
 
-        # Provenance honesty: KAI_NATIVE claims no upstream source; UPSTREAM must carry it.
-        up = (idn.source_path, idn.source_commit, idn.source_hash)
+        # Provenance honesty: KAI_NATIVE claims no upstream source; UPSTREAM must carry
+        # it. Test non-blank content, not mere truthiness, so a whitespace-only
+        # source_path/commit/hash cannot pose as real provenance (fail closed).
+        up = tuple((x or "").strip() for x in (idn.source_path, idn.source_commit, idn.source_hash))
         if idn.source_kind is SourceKind.KAI_NATIVE:
             if any(up):
                 raise ValueError("KAI_NATIVE must not claim upstream provenance (source_path/commit/hash)")
         else:  # UPSTREAM
             if not all(up):
-                raise ValueError("UPSTREAM requires source_path + source_commit + source_hash")
+                raise ValueError("UPSTREAM requires non-blank source_path + source_commit + source_hash")
 
         # 5–7 personality traits.
         if not (5 <= len(self.personality.traits) <= 7):

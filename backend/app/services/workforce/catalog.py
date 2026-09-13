@@ -400,10 +400,13 @@ class WorkforceCatalog:
         """Propose the smallest sufficient SIMULATED team. Deterministic for
         identical inputs. Returns a typed proposal; assigns/executes nothing."""
         pool = self._eligible(mission)  # raises TenantScopeViolation on a foreign tenant
+        pool_set = set(pool)
         notes: list[str] = []
 
         # Verifier: the independent completion verifier, pinned and never a worker.
-        verifier = _VERIFIER_ID if _VERIFIER_ID in self._by_id else None
+        # Drawn from the tenant-gated pool so the per-member tenant gate covers ALL
+        # four roles (not just planner/specialist/reviewer).
+        verifier = _VERIFIER_ID if _VERIFIER_ID in pool_set else None
         reserved = {verifier} if verifier else set()
 
         # Planner/lead (advisory; cannot silently execute — all chars are DRAFT_ONLY).
@@ -411,31 +414,38 @@ class WorkforceCatalog:
         if planner:
             reserved.add(planner)
 
-        # Coverage: smallest set of specialists covering each required dimension.
+        # Coverage: smallest sufficient set of specialists via deterministic greedy
+        # set-cover — repeatedly pick the candidate covering the MOST still-uncovered
+        # requirements (ties break on lowest id; the order of the required_* tuples is
+        # irrelevant). This is minimal (no redundant specialist) and order-stable.
         gap = self._coverage(mission)
-        specialists: list[tuple[str, str]] = []  # (id, rationale)
-        covered_reqs: list[str] = []
-        for kind, values in (("division", mission.required_divisions),
-                             ("framework", mission.required_frameworks),
-                             ("capability", mission.required_capabilities)):
-            for val in values:
-                if any(self._matches_requirement(sid, **{kind: val}) for sid, _ in specialists):
-                    continue  # already covered by a chosen specialist
-                pick = next((c for c in pool if c not in reserved
-                             and self._matches_requirement(c, **{kind: val})), None)
-                if pick is None:
-                    continue  # recorded as a gap below
-                specialists.append((pick, f"covers required {kind}={val!r}"))
-                reserved.add(pick)
-                covered_reqs.append(f"{kind}={val}")
-                if len(specialists) > _SPECIALIST_FANOUT_MAX:
-                    raise TeamSizeError(
-                        f"smallest sufficient team needs >{_SPECIALIST_FANOUT_MAX} specialists "
-                        f"(> hard cap {_TEAM_MAX}); refuse to over-recruit")
+        reqs = sorted(set(
+            [("division", v) for v in mission.required_divisions]
+            + [("framework", v) for v in mission.required_frameworks]
+            + [("capability", v) for v in mission.required_capabilities]))
+        uncovered = set(reqs)
+        specialists: list[tuple[str, str]] = []
+        while uncovered:
+            best, best_cov = None, set()
+            for c in pool:  # pool is sorted by id -> lowest id wins ties (strict >)
+                if c in reserved:
+                    continue
+                cov = {r for r in uncovered if self._matches_requirement(c, **{r[0]: r[1]})}
+                if len(cov) > len(best_cov):
+                    best, best_cov = c, cov
+            if best is None:
+                break  # remaining requirements are unstaffable (true gap or reserved-only)
+            specialists.append((best, "covers " + ", ".join(f"{k}={v}" for k, v in sorted(best_cov))))
+            reserved.add(best)
+            uncovered -= best_cov
+            if len(specialists) > _SPECIALIST_FANOUT_MAX:
+                raise TeamSizeError(
+                    f"smallest sufficient team needs >{_SPECIALIST_FANOUT_MAX} specialists "
+                    f"(> hard cap {_TEAM_MAX}); refuse to over-recruit")
 
         # If no requirements were given, staff exactly one general specialist so the
         # team is a real (>=3) team, never the whole catalog.
-        if not specialists and not gap.has_gap:
+        if not reqs and not specialists:
             pick = next((c for c in pool if c not in reserved
                          and self._by_id[c]["identity"]["source_kind"] == "UPSTREAM"), None)
             if pick:
@@ -460,7 +470,7 @@ class WorkforceCatalog:
 
         feasible = (
             planner is not None and verifier is not None and bool(specialists)
-            and not gap.has_gap and sod.ok
+            and not gap.has_gap and not uncovered and sod.ok
             and (reviewer is not None or not needs_reviewer)
             and _TEAM_MIN <= len(members) <= mission.max_team_size
         )
@@ -471,6 +481,12 @@ class WorkforceCatalog:
             raise TeamSizeError(f"team of {len(members)} exceeds max_team_size {mission.max_team_size}")
         if gap.has_gap:
             notes.append("coverage gap — see coverage_gap; proposal not feasible until KAI admits/creates the missing expertise")
+        # Requirements left uncovered whose expertise exists only in a reserved role
+        # (planner/verifier/reviewer) are unstaffable without double-duty — distinct
+        # from a true catalog gap.
+        if uncovered and not gap.has_gap:
+            notes.append("unstaffed requirements (only match is a reserved role): "
+                         + ", ".join(f"{k}={v}" for k, v in sorted(uncovered)))
 
         return TeamProposal(
             mission_id=mission.mission_id, feasible=feasible, members=members,
