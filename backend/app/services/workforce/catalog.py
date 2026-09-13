@@ -216,11 +216,12 @@ class WorkforceCatalog:
                 c._expertise_text[_mid(a["id"])] = _norm(a.get("name", "") + " " + a.get("description", ""))
         return c
 
-    def register(self, manifest) -> str:
-        """Validate a manifest against the fail-closed schema and hold it. Rejects
-        duplicate id / display_name and anything past INERT. NEVER changes status,
-        activates, or binds — registration is inert by construction."""
-        data = manifest if isinstance(manifest, dict) else manifest
+    def register(self, manifest: dict) -> str:
+        """Validate a manifest (a plain dict, as produced by the generator) against
+        the fail-closed schema and hold it. Rejects duplicate id / display_name and
+        anything past INERT. NEVER changes status, activates, or binds — registration
+        is inert by construction. A non-dict fails closed at ``**data`` below."""
+        data = manifest
         model = S.AgentCharacterManifest(**data)  # raises on malformed / post-INERT / bad provenance
         d = model.model_dump(mode="json")
         cid = d["identity"]["id"]

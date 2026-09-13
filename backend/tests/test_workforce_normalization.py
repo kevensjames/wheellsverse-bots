@@ -243,3 +243,63 @@ def test_nc_autonomy_in_scalar_free_text_field_rejected(sec, key):
     c[sec][key] = "i am the orchestrator"
     with pytest.raises(ValueError, match="unsafe-autonomy"):
         S.AgentCharacterManifest(**c)
+
+
+# final-review round 3: the scan is now REFLECTIVE over every field of every part
+# (schemas._affirmative_free_text), closing the brain.* / workplace.* / identity-extra
+# / capabilities-schema hole that incremental hand-listing kept missing.
+
+def test_affirmative_free_text_scans_all_parts_but_not_prohibition_lists():
+    # Direct coverage guard on the reflective helper: sentinels planted in the
+    # previously-UNSCANNED parts must appear in the scanned blob; sentinels planted
+    # in the three PURE prohibition-list fields must NOT. Locks the reflection
+    # against a future field being silently dropped AND against a prohibition list
+    # being wrongly scanned.
+    c = copy.deepcopy(_chars()[0])
+    c["brain"]["model_router_requirements"] = "SENTINEL_BRAIN_STR"
+    c["brain"]["tool_categories"] = list(c["brain"]["tool_categories"]) + ["SENTINEL_BRAIN_TUP"]
+    c["workplace"]["mission_scope"] = "SENTINEL_WORKPLACE"
+    c["identity"]["department"] = "SENTINEL_IDENTITY"
+    c["capabilities"]["forbidden"] = list(c["capabilities"]["forbidden"]) + ["SENTINEL_FORBIDDEN"]
+    c["personality"]["anti_traits"] = list(c["personality"]["anti_traits"]) + ["SENTINEL_ANTI"]
+    c["personality"]["prohibited_persona_behaviors"] = \
+        list(c["personality"]["prohibited_persona_behaviors"]) + ["SENTINEL_PROHIB"]
+    m = S.AgentCharacterManifest(**c)
+    blob = S._affirmative_free_text(m)
+    for present in ("SENTINEL_BRAIN_STR", "SENTINEL_BRAIN_TUP", "SENTINEL_WORKPLACE", "SENTINEL_IDENTITY"):
+        assert present in blob, f"reflective scan silently omitted {present}"
+    for absent in ("SENTINEL_FORBIDDEN", "SENTINEL_ANTI", "SENTINEL_PROHIB"):
+        assert absent not in blob, f"pure-prohibition field wrongly scanned: {absent}"
+
+
+@pytest.mark.parametrize("sec,key,kind", [
+    ("brain", "model_router_requirements", "str"),
+    ("brain", "reasoning_class", "str"),
+    ("brain", "tool_categories", "tuple"),
+    ("workplace", "mission_scope", "str"),
+    ("workplace", "worktree_policy", "str"),
+    ("capabilities", "input_schemas", "str"),
+    ("identity", "department", "str"),
+])
+def test_nc_autonomy_in_newly_scanned_parts_rejected(sec, key, kind):
+    c = copy.deepcopy(_chars()[0])
+    if kind == "tuple":
+        c[sec][key] = list(c[sec][key]) + ["i am the orchestrator"]
+    else:
+        c[sec][key] = "i am the orchestrator"
+    with pytest.raises(ValueError, match="unsafe-autonomy"):
+        S.AgentCharacterManifest(**c)
+
+
+@pytest.mark.parametrize("sec,key", [
+    ("capabilities", "forbidden"),
+    ("personality", "anti_traits"),
+    ("personality", "prohibited_persona_behaviors"),
+])
+def test_prohibition_list_naming_forbidden_concept_is_accepted(sec, key):
+    # A PURE prohibition list legitimately NAMES forbidden concepts; naming one must
+    # NOT trip the affirmative-autonomy scan (no false positive on the prohibition
+    # that protects us). Locks the exclusion set: scanning these would fail this test.
+    c = copy.deepcopy(_chars()[0])
+    c[sec][key] = list(c[sec][key]) + ["self-approve every mission", "i am the orchestrator"]
+    S.AgentCharacterManifest(**c)  # must NOT raise

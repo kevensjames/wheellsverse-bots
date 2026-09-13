@@ -60,8 +60,12 @@ access limited to `registry.npmjs.org`; karma test server bound to `localhost` o
 - **SBOM**: CycloneDX 1.5, 612 components, **license fields populated for all 612**
   (from the lockfile; distribution matches the Licenses line above),
   `docs/workforce/step2-evidence/sbom.cyclonedx.json`
-  (sha256 `008a54328cbf64611e1cbe1267b6a882e026b2ca9a4ac6179a2ea29ff8890926`). Lockfile-
+  (sha256 `c182ddf8530ff918ea5f0f6f951d2b73863a3b94dcaef46dfc233eb7bee401bc`). Lockfile-
   derived because `npm sbom` refuses the **legitimate** dual-istanbul nesting (below).
+  Honesty caveat (recorded in the SBOM's `metadata.properties.hashContentFormat`):
+  each component `hash.content` mirrors the lockfile integrity string verbatim
+  (`sha512-`+base64), **not** the hex digest CycloneDX 1.5 specifies — so this is a
+  faithful lockfile-integrity mirror, not a `cyclonedx validate`-conformant document.
 - **Audit**: `npm audit` = **0 vulnerabilities** (info/low/moderate/high/critical all 0).
   `docs/workforce/step2-evidence/audit-report.json`. No `npm audit fix`, no `--force`,
   no `--legacy-peer-deps` used.

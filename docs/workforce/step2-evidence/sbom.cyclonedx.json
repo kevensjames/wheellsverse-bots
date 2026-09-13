@@ -16,6 +16,10 @@
    {
     "name": "licensesPopulated",
     "value": "612/612"
+   },
+   {
+    "name": "hashContentFormat",
+    "value": "component hash.content mirrors the package-lock.json integrity string verbatim (\"sha512-\"+base64), NOT the hex-encoded digest CycloneDX 1.5 hash.content specifies; this SBOM is a faithful lockfile-integrity mirror, not a `cyclonedx validate`-conformant document."
    }
   ]
  },

@@ -226,6 +226,51 @@ def _scan(text: str, needles: tuple[str, ...]) -> Optional[str]:
     return None
 
 
+# (part, field) pairs held out of the affirmative-autonomy scan. These three, and
+# ONLY these three, are PURE prohibition lists: every element is by construction a
+# forbidden concept the character must NOT be or do, so scanning them for affirmative
+# autonomy claims would false-positive on the very prohibition that protects us
+# (e.g. personality.prohibited_persona_behaviors legitimately contains "claiming
+# independent authority"). Mixed boundary/trigger fields (mission.non_responsibilities
+# / failure_modes / escalation_conditions, soul.safety_boundaries / refusal_conditions,
+# governance.separation_of_duties, …) are NOT excluded: they are scanned as a deliberate
+# FAIL-CLOSED choice — the scan may reject an over-explicit honest manifest that spells
+# a forbidden phrase inside a boundary, but it can never ADMIT an unsafe affirmative
+# claim hidden in one. Rejecting a safe manifest is recoverable; admitting an unsafe one
+# is not.
+_AUTONOMY_SCAN_EXCLUDED: frozenset[tuple[str, str]] = frozenset({
+    ("capabilities", "forbidden"),
+    ("personality", "anti_traits"),
+    ("personality", "prohibited_persona_behaviors"),
+})
+
+
+def _affirmative_free_text(manifest: "AgentCharacterManifest") -> str:
+    """Every affirmative free-text string in the manifest, across all eight parts,
+    collected by REFLECTION over the model fields so no field can be silently omitted
+    and the scanned set cannot drift from any hand-maintained list. str and
+    tuple/list-of-str values are included; None / int / bool are skipped (str-Enum
+    values like "INERT"/"UPSTREAM" are harmless controlled vocab). Only the pure
+    prohibition-list fields in _AUTONOMY_SCAN_EXCLUDED are held out."""
+    chunks: list[str] = []
+    parts = (
+        ("identity", manifest.identity), ("personality", manifest.personality),
+        ("mission", manifest.mission), ("brain", manifest.brain),
+        ("soul", manifest.soul), ("workplace", manifest.workplace),
+        ("capabilities", manifest.capabilities), ("governance", manifest.governance),
+    )
+    for pname, part in parts:
+        for fname in type(part).model_fields:
+            if (pname, fname) in _AUTONOMY_SCAN_EXCLUDED:
+                continue
+            val = getattr(part, fname)
+            if isinstance(val, str):
+                chunks.append(val)
+            elif isinstance(val, (tuple, list)):
+                chunks.extend(x for x in val if isinstance(x, str))
+    return " ".join(chunks)
+
+
 class AgentCharacterManifest(BaseModel):
     """One complete, frozen, fail-closed character declaration — all eight parts."""
 
@@ -285,40 +330,12 @@ class AgentCharacterManifest(BaseModel):
         hit = _scan(soul_text + " " + persona_text, _SENTIENCE)
         if hit:
             raise ValueError(f"soul/personality claims sentience/personhood: {hit!r}")
-        # Scan EVERY affirmative free-text field (what the character IS / claims / will
-        # do) for unsafe-autonomy / second-orchestrator claims, across all parts —
-        # identity / mission / capabilities / soul / personality / governance — so a
-        # manifest hand-authored outside the normalizer cannot smuggle an autonomy
-        # claim into any of them. The NEGATION/prohibition fields
-        # (capabilities.forbidden, personality.anti_traits,
-        # personality.prohibited_persona_behaviors) are deliberately EXCLUDED: they
-        # exist to NAME forbidden behaviors (e.g. "claiming independent authority"),
-        # so scanning them would false-positive on the very prohibition that protects us.
-        autonomy_text = " ".join(
-            (self.mission.one_sentence_mission,)
-            + self.mission.responsibilities + self.mission.expected_deliverables
-            + self.mission.non_responsibilities + self.mission.success_metrics
-            + self.mission.failure_modes + self.mission.escalation_conditions
-            + self.capabilities.declared
-            + self.capabilities.approval_required + self.capabilities.consequential
-            + self.capabilities.reversible_internal + self.capabilities.evidence_requirements
-            + self.soul.values + self.soul.ethical_commitments + self.soul.truthfulness_rules
-            + self.soul.safety_boundaries + self.soul.privacy_commitments
-            + self.soul.user_respect_rules + self.soul.refusal_conditions
-            + self.soul.immutable_principles
-            + self.governance.activation_requirements + self.governance.separation_of_duties
-            + self.governance.independent_reviewer_classes
-            + self.personality.traits
-            + (self.soul.uncertainty_behavior, self.personality.working_style,
-               self.personality.collaboration_style, self.personality.disagreement_style,
-               self.personality.ambiguity_response, self.personality.pressure_response,
-               self.personality.communication_tone, self.personality.signature_phrase or "",
-               self.governance.approval_policy, self.governance.kill_control,
-               self.governance.revocation, self.governance.audit_policy,
-               self.identity.role_class, self.identity.seniority,
-               self.identity.display_name, self.identity.division)
-        )
-        hit = _scan(autonomy_text, _UNSAFE_AUTONOMY)
+        # Scan for unsafe-autonomy / second-orchestrator claims across ALL affirmative
+        # free-text, collected by REFLECTION over every field of every part
+        # (_affirmative_free_text) — not a hand-maintained list that could silently
+        # omit a part (brain/workplace) or drift from its own comment. Only the three
+        # pure prohibition-list fields are held out (see _AUTONOMY_SCAN_EXCLUDED).
+        hit = _scan(_affirmative_free_text(self), _UNSAFE_AUTONOMY)
         if hit:
             raise ValueError(f"unsafe-autonomy / second-orchestrator claim: {hit!r}")
 
