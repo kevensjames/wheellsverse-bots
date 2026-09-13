@@ -478,3 +478,35 @@ def test_quarantine_review_returns_immutable_copy(cat):
     fresh = cat.quarantine_review(flagged)
     assert fresh["reason_codes"] != ["MUTATED"]     # internal state untouched
     assert fresh["evidence_class"] != "MUTATED"
+
+
+def test_cap_pool_unions_declared_approval_and_consequential():
+    # final-review round 5: _cap_pool is the SINGLE pool both filter() and
+    # propose_team._matches_requirement use. No committed manifest declares an
+    # approval_required or consequential capability, so this direct unit test is the
+    # only exercise of those two union terms — the surviving mutant (reduce to
+    # set(caps["declared"])) fails here.
+    caps = {"declared": ("cap.declared",),
+            "approval_required": ("cap.approval",),
+            "consequential": ("cap.conseq",)}
+    assert C._cap_pool(caps) == {"cap.declared", "cap.approval", "cap.conseq"}
+
+
+def test_filter_finds_capability_declared_only_in_approval_or_consequential(cat):
+    # End-to-end: a capability present ONLY in approval_required (resp. consequential)
+    # must be locatable via filter() — proving both _cap_pool union terms are LIVE in
+    # the real lookup, not just in the helper. Dropping a union term would make filter()
+    # miss the probe here.
+    fresh = C.WorkforceCatalog.load_generated()
+    for probe_id, field, capname in (
+        ("up.zz_appr_probe", "approval_required", "cap.zz.approval_only"),
+        ("up.zz_conseq_probe", "consequential", "cap.zz.consequential_only"),
+    ):
+        m = _base_manifest(cat)
+        m["identity"]["id"] = probe_id
+        m["identity"]["codename"] = probe_id
+        m["identity"]["display_name"] = probe_id + " probe"
+        m["capabilities"][field] = tuple(m["capabilities"].get(field, ())) + (capname,)
+        fresh.register(m)
+        assert probe_id in fresh.filter(capability=capname), \
+            f"filter() missed a capability declared only in {field}"

@@ -342,13 +342,23 @@ class AgentCharacterManifest(BaseModel):
             raise ValueError("workplace.network_policy must be 'deny' or 'allowlist'")
         if self.workplace.network_policy == "allowlist" and not self.workplace.allowed_domains:
             raise ValueError("network_policy 'allowlist' requires allowed_domains")
-        # device/browser/external-write default False; enabling one must be declared
-        # as an approval_required capability (never silently on).
-        for flag, name in ((self.workplace.device_access, "device"),
-                           (self.workplace.browser_access, "browser"),
-                           (self.workplace.external_write_access, "external_write")):
-            if flag and not self.capabilities.approval_required:
-                raise ValueError(f"workplace.{name}_access enabled but no approval_required capability declared")
+        # network egress, device, browser, and external-write are ALL denied by default
+        # (AGENT_CHARACTER_CONTRACT §2). Un-denying any of them — network via an
+        # 'allowlist' policy, or a device/browser/external-write flag — must be declared
+        # as an approval_required capability (never silently on). network is gated the
+        # same as the three flags, so the four cannot drift apart.
+        undenied = (
+            ("network", self.workplace.network_policy == "allowlist"),
+            ("device", self.workplace.device_access),
+            ("browser", self.workplace.browser_access),
+            ("external_write", self.workplace.external_write_access),
+        )
+        for name, enabled in undenied:
+            if enabled and not self.capabilities.approval_required:
+                raise ValueError(
+                    f"workplace {name} egress/access un-denied but no approval_required "
+                    "capability declared"
+                )
 
         # This mission stops at INERT.
         if self.governance.status not in PHASE1_MAX_STATES:

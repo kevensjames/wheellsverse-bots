@@ -213,7 +213,7 @@ def test_network_policy_deny_by_default_and_allowlist_needs_domains():
 
 def test_enabling_browser_requires_approval_capability():
     # deny-by-default: browser_access on without an approval_required capability fails
-    with pytest.raises(ValidationError, match="browser_access enabled"):
+    with pytest.raises(ValidationError, match="browser egress/access un-denied"):
         _manifest(
             workplace=_workplace(browser_access=True),
             capabilities=_caps(approval_required=()),
@@ -224,6 +224,26 @@ def test_enabling_browser_requires_approval_capability():
         capabilities=_caps(approval_required=("browser_session",)),
     )
     assert ok.workplace.browser_access is True
+
+
+def test_undenying_network_requires_approval_capability():
+    # network egress is deny-by-default, gated the SAME as device/browser/external-write:
+    # un-denying it via network_policy='allowlist' (even with allowed_domains) requires a
+    # declared approval_required capability. Closes the fail-closed asymmetry where
+    # network could be opened with an empty approval_required list.
+    with pytest.raises(ValidationError, match="network egress/access un-denied"):
+        _manifest(
+            workplace=_workplace(network_policy="allowlist",
+                                 allowed_domains=("api.example.com",)),
+            capabilities=_caps(approval_required=()),
+        )
+    # declaring the approval-gated capability makes it valid
+    ok = _manifest(
+        workplace=_workplace(network_policy="allowlist",
+                             allowed_domains=("api.example.com",)),
+        capabilities=_caps(approval_required=("network_egress",)),
+    )
+    assert ok.workplace.network_policy == "allowlist"
 
 
 def test_status_past_inert_rejected():

@@ -6,9 +6,12 @@ schemas that fail closed. No event bus, no worker, no registry wiring, nothing
 executes. KAI remains the sole authority; a hook definition existing here can
 never mean a hook runs.
 
-Reuses the existing `app.services.governance` authority (scope/approval/audit)
-and `app.services.capability_exchange` registry rather than introducing a second
-policy engine, mission state machine, or registry.
+By design, when a FUTURE runtime is built it will reuse the existing
+`app.services.governance` authority (scope/approval/audit) and the
+`app.services.capability_exchange` catalog pattern rather than spinning up a
+second policy engine or mission state machine. Phase 1 itself imports neither: it
+adds only the inert `HookRegistry` catalog (a read-only inventory that mirrors the
+capability_exchange catalog shape — it is not a policy engine or executor).
 """
 from app.services.hooks.registry import HookError, HookRegistry
 from app.services.hooks.schemas import (
