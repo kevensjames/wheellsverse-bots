@@ -332,3 +332,37 @@ def test_nc_placeholder_in_any_free_text_field_rejected(sec, key):
     c[sec][key] = "TODO placeholder tbd"
     with pytest.raises(ValueError, match="placeholder"):
         S.AgentCharacterManifest(**c)
+
+
+def test_reflective_scan_stays_structurally_complete():
+    """The reflective walker (_affirmative_free_text) descends only into str and
+    tuple/list-of-str values, so 'no field silently omitted' holds ONLY while every
+    part field is a flat scalar / str / tuple-of-str. Lock that precondition: if a
+    future schema change adds a nested BaseModel or dict/Mapping field to any part,
+    this fails — forcing the walker (and this test) to be updated rather than silently
+    skipping the new free text through ALL THREE needle scans (placeholder/sentience/
+    autonomy). This makes the reflective-completeness guarantee structural, not merely
+    true-at-this-HEAD."""
+    import typing
+    from enum import Enum
+    parts = [S.Identity, S.Personality, S.Mission, S.BrainProfile, S.SoulContract,
+             S.WorkplaceProfile, S.CapabilityDeclaration, S.Governance]
+
+    def _strip_optional(ann):
+        args = typing.get_args(ann)
+        non_none = [a for a in args if a is not type(None)]
+        return non_none[0] if (type(None) in args and len(non_none) == 1) else ann
+
+    SCALARS = (str, int, bool, float)
+    for model in parts:
+        for fname, field in model.model_fields.items():
+            ann = _strip_optional(field.annotation)
+            origin = typing.get_origin(ann)
+            if origin in (tuple, list):
+                assert typing.get_args(ann)[0] is str, (
+                    f"{model.__name__}.{fname}: {ann!r} is a container of non-str; "
+                    "_affirmative_free_text only collects str/tuple-of-str — update the walker")
+            else:
+                assert ann in SCALARS or (isinstance(ann, type) and issubclass(ann, Enum)), (
+                    f"{model.__name__}.{fname}: type {ann!r} is neither a flat scalar/enum nor "
+                    "tuple-of-str; _affirmative_free_text would silently skip it — update the walker")

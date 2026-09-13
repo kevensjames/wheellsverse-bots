@@ -99,17 +99,26 @@ def test_hook_approval_required_needs_policy():
     assert ok.mode is HookMode.APPROVAL_REQUIRED
 
 
-@pytest.mark.parametrize("drop", ["allowed_effects", "rollback", "expires_at"])
-def test_hook_safe_automatic_requires_each_safeguard(drop):
-    """Negative control: dropping ANY required safeguard refuses the hook, so the
-    SAFE_AUTOMATIC obligation can't be silently weakened by a future edit."""
+@pytest.mark.parametrize("safeguard",
+                         ["allowed_effects", "rollback", "expires_at", "owner", "kill_switch"])
+def test_hook_safe_automatic_requires_each_safeguard(safeguard):
+    """Negative control: dropping/emptying ANY of the five required SAFE_AUTOMATIC
+    safeguards refuses the hook, so the obligation can't be silently weakened by a
+    future edit. owner and kill_switch are REQUIRED fields (not optional), so they are
+    emptied to whitespace/"" rather than key-omitted — key omission would raise a
+    different (missing-field) error instead of exercising the safeguard branch."""
     full = dict(
-        mode=HookMode.SAFE_AUTOMATIC, kill_switch="KAI_HOOK_X",
+        mode=HookMode.SAFE_AUTOMATIC, kill_switch="KAI_HOOK_X", owner="ops",
         allowed_effects=("quarantine_download",), rollback="restore_prev",
         expires_at=_NOW,
     )
-    full.pop(drop)
-    with pytest.raises(ValidationError, match=drop):
+    if safeguard == "owner":
+        full["owner"] = "   "        # whitespace-only -> bool(owner.strip()) is False
+    elif safeguard == "kill_switch":
+        full["kill_switch"] = ""     # empty -> refused (non-OBSERVE + SAFE_AUTOMATIC both require it)
+    else:
+        full.pop(safeguard)
+    with pytest.raises(ValidationError, match=safeguard):
         _hook(**full)
 
 

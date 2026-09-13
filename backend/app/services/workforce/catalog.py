@@ -183,6 +183,16 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "")).strip().lower()
 
 
+def _cap_pool(caps: dict) -> set:
+    """The set of capabilities a character can be matched on: everything it DECLARES,
+    whether reversible-internal, approval-gated, or consequential. filter() and
+    propose_team's coverage check MUST use this same pool — a single definition so the
+    two can never drift (an approval-gated capability must not read as a coverage gap
+    in a simulated team while being locatable via filter())."""
+    return (set(caps["declared"]) | set(caps.get("approval_required", ()))
+            | set(caps.get("consequential", ())))
+
+
 class WorkforceCatalog:
     """In-memory, read-only catalog of AgentCharacterManifests."""
 
@@ -290,8 +300,7 @@ class WorkforceCatalog:
             if workplace is not None and _norm(wp["workplace_profile"]) != _norm(workplace):
                 continue
             if capability is not None:
-                pool = set(cap["declared"]) | set(cap.get("approval_required", ())) | set(cap.get("consequential", ()))
-                if capability not in pool:
+                if capability not in _cap_pool(cap):
                     continue
             if framework is not None and _norm(framework) not in self.frameworks_of(cid):
                 continue
@@ -377,8 +386,7 @@ class WorkforceCatalog:
         if framework is not None and _norm(framework) not in self.frameworks_of(cid):
             return False
         if capability is not None:
-            pool = set(d["capabilities"]["declared"]) | set(d["capabilities"].get("consequential", ()))
-            if capability not in pool:
+            if capability not in _cap_pool(d["capabilities"]):
                 return False
         return True
 

@@ -257,6 +257,23 @@ def test_committed_sbom_licenses_complete_and_match_lockfile():
         lock_lic[(k.split("node_modules/")[-1], v["version"])] = lic
     comps = sbom["components"]
     assert comps and all(c.get("licenses") for c in comps), "SBOM must carry a license for every component"
+    # COMPLETE (not just 'match'): the SBOM must cover the WHOLE lockfile — every
+    # lockfile package entry present, with the SAME multiplicity, and no phantom
+    # extras. Compared against the RAW lockfile entries (not the collapsed lock_lic
+    # dict) so the 30 legitimately-nested duplicate name+version pairs must appear in
+    # the SBOM too. Guards the under-reporting failure mode the test is named for: a
+    # future regenerated SBOM that drops components fails here.
+    lock_raw = collections.Counter(
+        (k.split("node_modules/")[-1], v["version"])
+        for k, v in lock["packages"].items() if k and v.get("version")
+    )
+    sbom_keys = collections.Counter((c["name"], c["version"]) for c in comps)
+    assert sbom_keys == lock_raw, (
+        "SBOM does not bijectively cover the lockfile: "
+        f"missing_from_sbom={sorted(set(lock_raw) - set(sbom_keys))[:5]}, "
+        f"extra_in_sbom={sorted(set(sbom_keys) - set(lock_raw))[:5]}, "
+        f"count sbom={sum(sbom_keys.values())} lock={sum(lock_raw.values())}"
+    )
     dist = collections.Counter()
     for c in comps:
         lid = c["licenses"][0]["license"]["id"]

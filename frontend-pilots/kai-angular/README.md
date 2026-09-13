@@ -43,12 +43,20 @@ The build/serve/test targets use the modern `@angular/build` builder.
 
 ## What it is
 
-- `src/app/app.component.ts` — a single standalone root component: a dark shell
-  that renders the frontend capability manifest and each capability's lifecycle
-  (all `INERT` in Stage 1) — an honest UI that shows *declared, not executable*.
-- `src/app/capability-manifest.ts` — a typed mirror of the five
-  `kai.frontend.*` capabilities, so the pilot's own UI cannot claim a capability
-  is runnable when the backend registry says it is inert.
+- `src/app/app.component.ts` — the standalone root **shell**: a dark banner + nav
+  + `<router-outlet>`. It renders no data itself; each view is a routed component.
+- Five routed views under `src/app/` (`app.routes.ts`): `roster` (`/characters`),
+  `org-chart` (`/org`), `matrices` (`/matrices`), `team-sim` (`/teams`) — the
+  workforce console over the 319 INERT characters — and `capability-pilot`
+  (`/capabilities`), which surfaces `capability-manifest.ts`. All read-only.
+- `src/app/workforce/` — `workforce.service.ts` (read-only accessor over the
+  generated `workforce-data.ts` / `workforce-meta.ts`, which mirror the backend
+  catalog) and `governed-action.component.ts`, the shared control that renders
+  every governed action **disabled** and labelled *NOT AVAILABLE — GOVERNED
+  EXECUTION NOT ADMITTED*, so the UI cannot claim a capability is runnable.
+- `src/app/capability-manifest.ts` — a typed mirror of the five `kai.frontend.*`
+  capabilities, so the pilot cannot claim one is runnable when the backend
+  registry says it is inert.
 - Standard Angular workspace config (`angular.json`, `tsconfig*.json`) with a
   **bundle-size budget** — the spec names the bundle budget as build evidence.
   (No `karma.conf.js`: the v22 `@angular/build:karma` builder is config-less.)

@@ -351,7 +351,7 @@ def test_no_module_level_execution_callables():
              if isinstance(v, types.FunctionType) and v.__module__ == C.__name__}
     for n in funcs:
         assert not any(v in n.lower() for v in _FORBIDDEN_VERBS), f"module-level exec fn: {n}"
-    assert funcs <= {"_norm"}  # only the one helper; no module-level executor
+    assert funcs <= {"_norm", "_cap_pool"}  # pure helpers only; no module-level executor
 
 
 def test_no_dangerous_calls_ast():
