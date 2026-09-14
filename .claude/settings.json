@@ -1,4 +1,9 @@
 {
+  "sandbox": {
+    "network": {
+      "allowedDomains": ["app.wheellsverse.com"]
+    }
+  },
   "permissions": {
     "allow": [
       "Bash(python marketing_autopilot.py *)",
