@@ -381,8 +381,11 @@ class BudgetManager:
                     data = resp.json().get("data", [{}])[0]
                     record.impressions = int(data.get("impressions", 0))
                     record.clicks = int(data.get("clicks", 0))
-        except Exception:
-            pass
+                else:
+                    logger.warning("[Budget] Stats pull for %s returned HTTP %s: %s",
+                                   record.campaign_id, resp.status_code, resp.text[:200])
+        except Exception as e:
+            logger.warning("[Budget] Stats pull failed for %s: %s", record.campaign_id, e)
 
     def _pause_campaign(self, record: SpendRecord):
         """Pause a running ad campaign."""
@@ -390,14 +393,22 @@ class BudgetManager:
             if record.platform == "facebook" and not record.campaign_id.startswith("sim_"):
                 token = os.getenv("FACEBOOK_PAGE_TOKEN")
                 if token:
-                    requests.post(
+                    resp = requests.post(
                         f"https://graph.facebook.com/v19.0/{record.campaign_id}",
                         params={"access_token": token},
                         json={"status": "PAUSED"},
                         timeout=10,
                     )
-        except Exception:
-            pass
+                    # A silently-failed pause keeps burning ad spend — the exact
+                    # thing this method exists to stop. Surface a non-200 loudly.
+                    if resp.status_code != 200:
+                        logger.error("[Budget] Failed to pause campaign %s: HTTP %s — %s",
+                                     record.campaign_id, resp.status_code, resp.text[:200])
+                else:
+                    logger.warning("[Budget] Cannot pause %s — FACEBOOK_PAGE_TOKEN not set",
+                                   record.campaign_id)
+        except Exception as e:
+            logger.error("[Budget] Error pausing campaign %s: %s", record.campaign_id, e)
 
     # ── Reporting ─────────────────────────────────────────────────────────────
 
@@ -441,5 +452,5 @@ class BudgetManager:
                     json={"chat_id": chat_id, "text": f"💰 Budget Manager\n\n{message}"},
                     timeout=8,
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("[Budget] Telegram notify failed: %s", e)

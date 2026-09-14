@@ -4,6 +4,7 @@ Integrated into WheellsVerse core API.
 import os
 import re
 import json
+import logging
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -12,6 +13,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 import aiosqlite
 import openai
+
+logger = logging.getLogger("inbox")
 
 router = APIRouter()
 
@@ -116,8 +119,8 @@ Rules:
                     try:
                         due = datetime.fromisoformat(p["due_date"].replace("Z", "+00:00"))
                         due_date = due.isoformat()
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.debug("Unparseable due_date %r — leaving unset: %s", p.get("due_date"), e)
                 
                 item = Item(
                     content=p["content"],

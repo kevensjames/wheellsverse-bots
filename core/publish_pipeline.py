@@ -297,8 +297,8 @@ class PublishPipeline:
                     ids = [t.get("id") for t in result.get("tweet_list", []) if t.get("id")]
                     if ids:
                         register_tweet_ids(ids)
-                except Exception:
-                    pass
+                except Exception as reg_err:
+                    logger.debug("register_tweet_ids failed (non-fatal): %s", reg_err)
                 return {"platform": "twitter", "status": "posted",
                         "tweets": result.get("tweets", 0),
                         "screenshot": result.get("screenshot", "")}
@@ -376,9 +376,14 @@ class PublishPipeline:
                     ck.send_broadcast(broadcast_id)
                     return {"platform": "email", "status": "sent",
                             "broadcast_id": broadcast_id}
-                except Exception:
+                except Exception as send_err:
+                    # The broadcast was created but the send call failed — surface
+                    # WHY instead of silently reporting a bare "draft_created", so
+                    # callers/logs can tell a deliberate draft from a failed send.
+                    logger.warning("ConvertKit send_broadcast(%s) failed: %s", broadcast_id, send_err)
                     return {"platform": "email", "status": "draft_created",
                             "broadcast_id": broadcast_id,
+                            "error": str(send_err),
                             "send_url": f"https://app.convertkit.com/broadcasts/{broadcast_id}"}
             return {"platform": "email", "status": "draft_created",
                     "broadcast_id": broadcast_id}
