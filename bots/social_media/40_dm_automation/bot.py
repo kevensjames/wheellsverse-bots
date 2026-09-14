@@ -140,7 +140,7 @@ Variables to insert for higher response rates:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_type = "".join(c if c.isalnum() else "_" for c in sequence_type[:25])
+        safe_type = self.slugify(sequence_type, 25)
 
         output = f"""# DM Automation Sequence: {sequence_type}
 **Platform:** {platform}

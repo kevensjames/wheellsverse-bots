@@ -118,7 +118,7 @@ Expected benchmarks for a well-optimized sequence like this:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_prospect = "".join(c if c.isalnum() else "_" for c in prospect_type[:25])
+        safe_prospect = self.slugify(prospect_type, 25)
 
         output = f"""# Cold Email Sequence: {prospect_type}
 **Offer:** {your_offer}

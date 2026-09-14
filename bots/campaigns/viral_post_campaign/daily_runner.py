@@ -408,7 +408,7 @@ def run_daily_campaign(publish: bool = True) -> dict:
 
     bot = ViralPostCampaignBot("Viral Post Campaign", "campaigns")
     ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-    safe_niche = "".join(c if c.isalnum() else "_" for c in niche_name[:25])
+    safe_niche = bot.slugify(niche_name, 25)
 
     all_output = f"""# Viral Post Campaign — {niche_name}
 **Platforms:** FACEBOOK, INSTAGRAM, TWITTER

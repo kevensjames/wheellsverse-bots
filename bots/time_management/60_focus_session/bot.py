@@ -199,7 +199,7 @@ Weekly focus metrics to improve your sessions:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_task = "".join(c if c.isalnum() else "_" for c in task[:25])
+        safe_task = self.slugify(task, 25)
 
         output = f"""# Focus Session Plan: {task[:60]}
 **Type:** {session_type}

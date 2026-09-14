@@ -717,3 +717,27 @@ Series plan:
             pass
 
         return {"file": str(path), "action": "series"}
+
+
+# ── Shared CLI entrypoint for genre bots ───────────────────────────────────────
+
+BOOK_CLI_ACTIONS = ["write", "outline", "chapter", "cover", "listing", "promote", "series"]
+
+
+def run_book_cli(bot_cls: type[BaseBookBot], label: str) -> dict:
+    """Shared ``__main__`` runner for every genre book bot.
+
+    Parses ``--action/--title/--chapter``, executes the bot, prints the output
+    path, and returns the result dict.
+    """
+    import argparse
+
+    p = argparse.ArgumentParser()
+    p.add_argument("--action", default="write", choices=BOOK_CLI_ACTIONS)
+    p.add_argument("--title")
+    p.add_argument("--chapter", type=int, default=1)
+    args = p.parse_args()
+    bot = bot_cls()
+    r = bot.execute(action=args.action, title=args.title, chapter=args.chapter)
+    print(f"\n✅ {label}: {r.get('file', '')}")
+    return r

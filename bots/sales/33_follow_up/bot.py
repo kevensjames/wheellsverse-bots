@@ -95,7 +95,7 @@ When and how to add these channels:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_stage = "".join(c if c.isalnum() else "_" for c in relationship_stage[:20])
+        safe_stage = self.slugify(relationship_stage, 20)
 
         output = f"""# Follow-Up Sequence: {relationship_stage}
 **Context:** {context}

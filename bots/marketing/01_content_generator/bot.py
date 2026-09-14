@@ -12,29 +12,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
+from core.affiliate import make_utm, AMAZON_TAG, BLOG_URL  # noqa: E402
 
-# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
-# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
-# OLD routes to the owned digital product / blog with UTM tagging.
-_BOT = "01_content_generator"
-_CAMP = "affiliate_swap_pass2_2026_06_02"
-_DIGITAL = "https://stan.store/Wheellsverse"
-_BLOG = "https://wheellsverse.com/blog/"
-
-
-def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
-    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+_utm = make_utm("01_content_generator")
 
 
 # OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
 COINBASE_URL = _utm("coinbase")
 # OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
 WEBULL_URL = _utm("webull")
-AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 # OLD: CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
 CLICKBANK_URL = _utm("click_bank")
 # OLD: CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
-CTA_URL = _utm("cta", medium="blog", base=_BLOG)
+CTA_URL = _utm("cta", medium="blog", base=BLOG_URL)
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 
@@ -136,7 +126,7 @@ Format as clean Markdown. Make it so good it gets shared."""
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
-        safe_topic = "".join(c if c.isalnum() else "_" for c in topic[:50])
+        safe_topic = self.slugify(topic, 50)
 
         output = f"""---
 title: "{topic}"

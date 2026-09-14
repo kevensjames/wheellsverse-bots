@@ -103,7 +103,7 @@ Top 5 errors that kill reach and how to avoid them
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_topic = "".join(c if c.isalnum() else "_" for c in topic[:30])
+        safe_topic = self.slugify(topic, 30)
 
         output = f"""# Hashtag Strategy: {topic}
 **Platforms:** {platforms}

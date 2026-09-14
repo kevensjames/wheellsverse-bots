@@ -147,7 +147,7 @@ Issues that go beyond this edit and should be addressed in future writing:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_type = "".join(c if c.isalnum() else "_" for c in content_type[:20])
+        safe_type = self.slugify(content_type, 20)
 
         output = f"""# Proofreading Report: {content_type}
 **Edit Mode:** {edit_mode}

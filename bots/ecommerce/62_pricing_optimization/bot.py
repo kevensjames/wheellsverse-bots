@@ -213,7 +213,7 @@ Subject: Important: WheellsVerse pricing update
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_product = "".join(c if c.isalnum() else "_" for c in product[:25])
+        safe_product = self.slugify(product, 25)
 
         output = f"""# Pricing Optimization: {product[:50]}
 **Business Model:** {business_model}

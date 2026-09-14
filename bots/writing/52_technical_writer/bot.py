@@ -174,7 +174,7 @@ Common issues and solutions for {specific_topic}:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_topic = "".join(c if c.isalnum() else "_" for c in specific_topic[:25])
+        safe_topic = self.slugify(specific_topic, 25)
 
         output = f"""# Technical Documentation: {specific_topic}
 **Product:** {product}

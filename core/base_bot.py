@@ -448,6 +448,21 @@ class BaseBot(ABC):
 
     # ─── Output Helpers ────────────────────────────────────────────────────────
 
+    @staticmethod
+    def slugify(text: str, max_len: int = 40) -> str:
+        """Filesystem-safe slug: keep alphanumerics, replace everything else with '_'.
+
+        Truncates to ``max_len`` chars first (matching the historical
+        ``"".join(c if c.isalnum() else "_" for c in text[:N])`` idiom that was
+        copy-pasted across bots).
+        """
+        return "".join(c if c.isalnum() else "_" for c in (text or "")[:max_len])
+
+    @staticmethod
+    def timestamp() -> str:
+        """Compact timestamp (``YYYYmmdd_HHMMSS``) used in output filenames."""
+        return datetime.now().strftime("%Y%m%d_%H%M%S")
+
     # ─── Topic Deduplication ──────────────────────────────────────────────────
 
     _USED_TOPICS_FILE = Path(__file__).parent.parent / "data" / "used_topics.json"

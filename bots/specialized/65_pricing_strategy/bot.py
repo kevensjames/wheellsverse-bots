@@ -198,7 +198,7 @@ What are customers really paying for (not what the product is, but what it does 
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_product = "".join(c if c.isalnum() else "_" for c in product_name[:25])
+        safe_product = self.slugify(product_name, 25)
 
         output = f"""# Pricing Strategy: {product_name}
 **Business Type:** {business_type}

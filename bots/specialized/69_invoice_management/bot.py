@@ -246,7 +246,7 @@ Add these to contracts/invoices to protect against non-payment:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_client = "".join(c if c.isalnum() else "_" for c in client_name[:20])
+        safe_client = self.slugify(client_name, 20)
 
         output = f"""# Invoice Package: {client_name}
 **Amount:** {amount}

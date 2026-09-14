@@ -126,7 +126,7 @@ Weekly automation health check process (5 minutes)"""
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_process = "".join(c if c.isalnum() else "_" for c in process[:30])
+        safe_process = self.slugify(process, 30)
 
         output = f"""# Workflow Automation: {process}
 **Business:** {business_type}

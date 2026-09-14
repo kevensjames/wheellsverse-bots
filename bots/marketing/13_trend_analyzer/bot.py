@@ -97,7 +97,7 @@ Prioritized steps to capitalize on the top trend identified."""
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_niche = "".join(c if c.isalnum() else "_" for c in niche[:30])
+        safe_niche = self.slugify(niche, 30)
 
         output = f"""# Market Trend Analysis: {niche}
 **Timeframe:** {timeframe}

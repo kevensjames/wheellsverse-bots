@@ -120,7 +120,7 @@ Annual value: $[Z]/year"""
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_dept = "".join(c if c.isalnum() else "_" for c in department[:25])
+        safe_dept = self.slugify(department, 25)
 
         output = f"""# Operations Optimizer: {department}
 **Team Size:** {team_size}

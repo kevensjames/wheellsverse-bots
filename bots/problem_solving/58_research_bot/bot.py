@@ -183,7 +183,7 @@ Based on this research, the recommended actions for WheellsVerse:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_topic = "".join(c if c.isalnum() else "_" for c in research_topic[:25])
+        safe_topic = self.slugify(research_topic, 25)
 
         output = f"""# Research Report: {research_topic[:60]}
 **Type:** {research_type}

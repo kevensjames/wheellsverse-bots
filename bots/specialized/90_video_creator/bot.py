@@ -268,7 +268,7 @@ Output ONLY the spoken script, no stage directions.""",
 
         # Save output
         ts = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe = "".join(c if c.isalnum() else "_" for c in topic[:30])
+        safe = self.slugify(topic, 30)
         path = self.save_output(
             f"# Video: {topic}\n\n**Script:**\n{script}\n\n"
             f"**Video URL:** {video_url}\n\n"

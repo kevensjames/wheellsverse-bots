@@ -177,7 +177,7 @@ Rules for this system to stay useful:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_project = "".join(c if c.isalnum() else "_" for c in project[:25])
+        safe_project = self.slugify(project, 25)
 
         output = f"""# Reminder System: {project}
 **Deadline:** {deadline}
