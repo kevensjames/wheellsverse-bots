@@ -308,6 +308,28 @@
     <div id="coBody"><div class="loading">Loading…</div></div>
   </section>
 
+  <section class="panel" id="p-apps" aria-labelledby="h-apps">
+    <h2 id="h-apps">WheellsVerse Apps <span class="hint">AppDeploy hosted</span></h2>
+    <p class="desc">Open your workspace in a new tab. Sign in separately in each app to access private work.</p>
+    <div class="cols3">
+      <article class="card">
+        <div class="brand">SignalProof</div>
+        <p class="meta">Turn projects, claims and evidence into a portfolio you can publish and export.</p>
+        <div class="acts"><a class="btn ghost" href="https://signalproof-5utpqh.v2.appdeploy.ai/" target="_blank" rel="noopener noreferrer" aria-label="Open SignalProof (opens in a new tab)">Open app <span aria-hidden="true">↗</span></a></div>
+      </article>
+      <article class="card">
+        <div class="brand">KAI Review Desk</div>
+        <p class="meta">Review reports, record evidence and fixes, and follow findings through resolution.</p>
+        <div class="acts"><a class="btn ghost" href="https://kai-review-desk-ssmof1.v2.appdeploy.ai/" target="_blank" rel="noopener noreferrer" aria-label="Open KAI Review Desk (opens in a new tab)">Open app <span aria-hidden="true">↗</span></a></div>
+      </article>
+      <article class="card">
+        <div class="brand">WheellsVerse Creator Studio</div>
+        <p class="meta">Plan brand campaigns, organize assets and export drafts for your publishing workflow.</p>
+        <div class="acts"><a class="btn ghost" href="https://wheellsverse-creator-studio-vcspjf.v2.appdeploy.ai/" target="_blank" rel="noopener noreferrer" aria-label="Open WheellsVerse Creator Studio (opens in a new tab)">Open app <span aria-hidden="true">↗</span></a></div>
+      </article>
+    </div>
+  </section>
+
   <section class="panel" id="p-missions" aria-labelledby="h-mis">
     <h2 id="h-mis">Missions <span class="hint">§27 · wraps plan/proposals/worker-jobs</span></h2>
     <p class="desc">A mission is COMPLETE only with real verified evidence — code-only "done" derives to READY_FOR_REVIEW.</p>
@@ -1139,6 +1161,7 @@ const PAL_COMMANDS=[
   {label:'Show system health', kind:'nav', run:()=>jump('p-health')},
   {label:'Show missions', kind:'nav', run:()=>jump('p-missions')},
   {label:'Open company…', kind:'nav', run:()=>jump('p-companies')},
+  {label:'Open WheellsVerse Apps', kind:'nav', run:()=>jump('p-apps')},
 ];
 function askKai(q){
   // Wire to the existing presence drawer (§8 NL front-end). No /admin/holding/command endpoint exists
