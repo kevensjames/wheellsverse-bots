@@ -160,6 +160,21 @@ _CATALOG: list[Node] = [
        lost_from_current=True, evidence="core/printify_client.py"),
 
     # ── Platform / infrastructure ────────────────────────────────────────────
+    _n("signalproof", "SignalProof", TIER_PLATFORM, Status.EXTERNAL, DeployState.EXTERNAL_SERVICE,
+       "Evidence-backed project portfolio with publishing and exports. Private work requires "
+       "separate app sign-in; hosted by AppDeploy.",
+       url="https://signalproof-5utpqh.v2.appdeploy.ai/", repo="AppDeploy managed source",
+       evidence="frontend/admin/holding.html#p-apps; AppDeploy app signalproof-5utpqh"),
+    _n("kai-review-desk", "KAI Review Desk", TIER_PLATFORM, Status.EXTERNAL, DeployState.EXTERNAL_SERVICE,
+       "Report review, evidence and finding resolution. Private work requires separate app "
+       "sign-in; hosted by AppDeploy.",
+       url="https://kai-review-desk-ssmof1.v2.appdeploy.ai/", repo="AppDeploy managed source",
+       evidence="frontend/admin/holding.html#p-apps; AppDeploy app kai-review-desk-ssmof1"),
+    _n("creator-studio", "WheellsVerse Creator Studio", TIER_PLATFORM, Status.EXTERNAL, DeployState.EXTERNAL_SERVICE,
+       "Brand campaign planning, asset organization and draft exports. Private work requires "
+       "separate app sign-in; hosted by AppDeploy.",
+       url="https://wheellsverse-creator-studio-vcspjf.v2.appdeploy.ai/", repo="AppDeploy managed source",
+       evidence="frontend/admin/holding.html#p-apps; AppDeploy app wheellsverse-creator-studio-vcspjf"),
     _n("app-a", "App A — Production API (core.api)", TIER_PLATFORM, Status.HEALTHY, DeployState.LIVE_PROD,
        "The deployed FastAPI monolith. Railway grateful-flexibility/wheellsverse-v2.",
        url="https://app.wheellsverse.com", evidence="railway.json:6; core/api.py:779",
@@ -176,8 +191,8 @@ _CATALOG: list[Node] = [
     _n("ci-phase0-gate", "Phase-0 Deploy Gate CI", TIER_PLATFORM, Status.HEALTHY, DeployState.CI_PIPELINE,
        "Secret scan (gitleaks) + security tests + dep audit on PRs.",
        evidence=".github/workflows/phase0-gate.yml:20"),
-    _n("hub", "Command Center Hub (12-card)", TIER_PLATFORM, Status.HEALTHY, DeployState.LIVE_PROD,
-       "The company holding hub — 12 internal + 8 external cards.", route="/admin/hub",
+    _n("hub", "Command Center Hub", TIER_PLATFORM, Status.HEALTHY, DeployState.LIVE_PROD,
+       "The company holding hub — internal admin surfaces, WheellsVerse apps and external services.", route="/admin/hub",
        lost_from_current=True, evidence="frontend/admin/index.html:63"),
     _n("legacy-dashboard", "Legacy 76-nav Master Dashboard", TIER_PLATFORM, Status.HISTORICAL, DeployState.LIVE_PROD,
        "The original company-rich operator dashboard (~60 extra surfaces).",
