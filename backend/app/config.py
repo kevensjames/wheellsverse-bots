@@ -52,6 +52,31 @@ class Settings(BaseSettings):
     #    authenticates both apps. Legacy X-Admin-Token stays valid regardless.
     OPERATOR_SESSION_ENABLED: bool = False
     SESSION_SIGNING_SECRET: str = ""
+
+    # -- Declared because Settings uses extra="ignore": an env var matching NO declared field is
+    #    SILENTLY DROPPED -- no error, no log -- and every reader sees the default. All three below
+    #    were set in production with real values and read back as "", so each path they guard
+    #    failed closed while the deployment looked correctly configured. Found 2026-09-13: a valid
+    #    164-character OPENAI_API_KEY was present in os.environ and read as empty from Settings.
+    #
+    #    API_KEY -- the owner key. routers/admin_chat.py passes it to
+    #    core.operator_session.resolve_principal as owner_key; undeclared it passed None, so
+    #    owner-key auth to App B could never match -- even though OPERATOR_SESSION_ENABLED and
+    #    SESSION_SIGNING_SECRET were both set, which is exactly what made it invisible.
+    API_KEY: str = ""
+    #    OPENAI_API_KEY -- guards routers/transcribe.py (already auth- and paid-tier-gated) and is
+    #    the sole input to self_model._model(), which therefore reported provider UNAVAILABLE and
+    #    left the KAI chat answering "[model unavailable]" with a working key installed.
+    OPENAI_API_KEY: str = ""
+    #    RELEASE_VERIFIER_SIGNING_SECRET -- the secret for verifier_role.mint_verifier_token. While
+    #    undeclared the read-only release-verifier path could mint nothing and failed closed.
+    RELEASE_VERIFIER_SIGNING_SECRET: str = ""
+    #
+    #    NOT declared here: GH_TOKEN. Nothing reads it through Settings -- services/tools/
+    #    github_scout.py and holding/worker_health.py read os.environ directly, which extra="ignore"
+    #    does not affect. Declaring it would add a field no code consults and imply a coverage that
+    #    does not exist. tests/test_settings_declaration_coverage.py enforces the real rule: every
+    #    UPPERCASE name read off settings must be declared.
     # Holding Operations OS — governed READ-ONLY holding endpoints. Default off:
     # when False the router is not mounted at all (zero new surface).
     KAI_HOLDING_ENABLED: bool = False
