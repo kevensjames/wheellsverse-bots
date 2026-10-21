@@ -240,3 +240,16 @@ data/launches/portfolio/leadgen/
 
 # KAI holding runtime sqlite stores (goals.db, memory, last_visit, notifications) — never commit
 data/holding/
+
+# KAI governance hook markers — LOCAL toggles a human flips deliberately (scripts/hooks/README-kai-hooks.md).
+# These must never be committed: a committed .kai-soak-active would make the soak permanent and
+# repo-wide, blocking deploys for everyone until someone noticed it was tracked rather than local.
+.kai-status
+.kai-soak-active
+.kai-allow-enable
+.kai-allow-shadow
+.kai-allow-egress
+.kai-allow-device-enroll
+.kai-allow-inert-set
+.kai-allow-blind-up
+.remember/kai-precompact.md
