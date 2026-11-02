@@ -1825,7 +1825,7 @@ async def siteboost_preview(slug: str):
 
 
 @app.get("/u/{token}", response_class=HTMLResponse)
-async def siteboost_unsubscribe(token: str):
+def siteboost_unsubscribe(token: str):
     """Public CAN-SPAM unsubscribe endpoint. Every cold email's footer points here.
 
     Token format and verification live in core/cold_outreach.py. On a valid token,
@@ -1835,6 +1835,9 @@ async def siteboost_unsubscribe(token: str):
 
     NO auth — CAN-SPAM § 7704(a)(3) requires the opt-out URL to work for any
     recipient who clicks it, without requiring them to sign in.
+
+    Plain `def`, not async: recording the opt-out makes blocking Supabase calls,
+    so FastAPI runs this in its threadpool instead of stalling the event loop.
     """
     try:
         from core.cold_outreach import verify_unsubscribe_token, add_suppression, is_suppressed
@@ -1860,23 +1863,25 @@ async def siteboost_unsubscribe(token: str):
         )
 
     already = is_suppressed(email)
-    if not already:
-        try:
-            add_suppression(email, via="click")
-            # Activity log — soft-fail if events module missing
-            try:
-                from core.siteboost_events import log_event
-                log_event("unsubscribe.click", email=email, was_already=False)
-            except Exception:
-                pass
-        except Exception as e:
-            logging.getLogger("api").warning(f"unsubscribe add failed for {email}: {e}")
-    else:
-        try:
-            from core.siteboost_events import log_event
-            log_event("unsubscribe.click", email=email, was_already=True)
-        except Exception:
-            pass
+    try:
+        # Repeat clicks too: idempotent (the first opt-out is kept), and it retries a
+        # Supabase write that an earlier click could only put in the container file.
+        add_suppression(email, via="click")
+    except Exception as e:
+        logging.getLogger("api").error(f"unsubscribe add failed for {email}: {e}")
+        if not already:  # recorded nowhere: don't tell them they're removed
+            return HTMLResponse(
+                "<h1>Unsubscribe temporarily unavailable</h1>"
+                "<p>We couldn't record your request just now. Please try this link again "
+                "in a minute, or reply STOP to the original email.</p>",
+                status_code=503,
+            )
+    # Activity log — soft-fail if events module missing
+    try:
+        from core.siteboost_events import log_event
+        log_event("unsubscribe.click", email=email, was_already=already)
+    except Exception:
+        pass
 
     msg = ("You were already on the do-not-contact list. No further emails will be sent."
            if already else "You've been removed. No further emails will be sent.")
@@ -1889,6 +1894,14 @@ async def siteboost_unsubscribe(token: str):
         f"<p style='color:#666;font-size:14px'>If this was a mistake, you can re-subscribe by replying to the original email.</p>"
         f"</body></html>"
     )
+
+
+@_register_startup
+def _siteboost_suppression_sync():
+    """Boot: copy opt-outs that only reached the (volume) file into Supabase, retrying
+    in a background thread until they land. Non-blocking; no-op without Supabase."""
+    from core.cold_outreach import schedule_suppression_sync
+    schedule_suppression_sync()
 
 
 async def _serve_old_dashboard():

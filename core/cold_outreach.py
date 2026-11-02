@@ -15,6 +15,7 @@ Stage 5 (send):
         - SITEBOOST_OUTBOUND_DOMAIN is set AND != wheellsverse.com
         - Daily send cap (50/domain) not exceeded
         - All emails pass CAN-SPAM lint
+        - The opt-out list can be trusted here (see suppression_store_status)
 
 All emails get CAN-SPAM footer baked in. No way to disable.
 """
@@ -26,7 +27,9 @@ import hmac
 import json
 import logging
 import os
+import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -56,6 +59,30 @@ UNSUBSCRIBE_SECRET_ENV = "SITEBOOST_UNSUBSCRIBE_SECRET"
 #     once the Railway volume is attached at /var/data
 _DEFAULT_SUPPRESSIONS = ROOT / "data" / "launches" / "siteboost" / "suppressions.json"
 SUPPRESSIONS_PATH = Path(os.getenv("SITEBOOST_SUPPRESSIONS_PATH", str(_DEFAULT_SUPPRESSIONS)))
+
+# Durable copy in Supabase (DDL: narai/migrations/0001_siteboost_suppressions.sql).
+# The file above lives in the web container (wiped on every deploy unless the
+# volume is attached), and sends run via `railway run` read the operator's own
+# disk, never that file. So writes go to BOTH stores, reads return the UNION, a
+# write Supabase misses is retried until it lands, and send_sequences() refuses
+# to send when it can't trust the list (see suppression_store_status).
+SUPPRESSIONS_TABLE = "siteboost_suppressions"
+_PROBE_EMAIL = "__probe__@siteboost.invalid"  # row the migration seeds; see suppression_store_status
+_RAILWAY_ENV_VARS = ("RAILWAY_ENVIRONMENT", "RAILWAY_ENVIRONMENT_NAME", "RAILWAY_PROJECT_ID")
+_DB_TIMEOUT_S = 10               # per Supabase request (supabase-py's default is 120 s)
+_DB_RETRY_DELAYS_S = (0.5, 2.0)  # add_suppression: 3 tries, then the background retry takes over
+_SYNC_BACKOFF_S = (30, 900)      # background retry: first wait, doubling up to this cap
+_BACKFILL_CHUNK = 200            # rows per upsert request
+_lock = threading.RLock()        # the file's read-modify-write + the state below (clicks run in threads)
+_db = None                       # Supabase client, see _table()
+_pending: dict = {}              # {email: row} this process hasn't got into Supabase yet
+_last_db_error = ""              # last failed Supabase write; cleared once nothing is pending
+_backfilled = False              # has this process pushed the whole file to Supabase once?
+_sync_timer = None               # the background retry, see schedule_suppression_sync()
+
+
+class SuppressionStoreError(RuntimeError):
+    """The opt-out list can't be read reliably. The send path stops on this."""
 
 
 def _unsub_secret() -> bytes:
@@ -110,41 +137,166 @@ def verify_unsubscribe_token(token: str) -> Optional[str]:
         return None
 
 
-def _load_suppressions() -> dict:
-    """Read the suppression list. Returns {email: {"unsubscribed_at": str, "via": str}}."""
-    if not SUPPRESSIONS_PATH.exists():
-        return {}
+def _norm_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def _read_file() -> dict:
+    """The file copy, keys normalized. Raises SuppressionStoreError if it can't be read."""
     try:
-        return json.loads(SUPPRESSIONS_PATH.read_text())
+        if not SUPPRESSIONS_PATH.exists():
+            return {}
+        data = json.loads(SUPPRESSIONS_PATH.read_text())
+        return {_norm_email(k): (v if isinstance(v, dict) else {})
+                for k, v in data.items() if _norm_email(k)}
     except Exception as e:
-        logger.warning(f"suppression list parse failed: {e} (treating as empty)")
+        raise SuppressionStoreError(f"suppression file {SUPPRESSIONS_PATH} unreadable: {e}") from e
+
+
+def _load_suppressions() -> dict:
+    """Read the file copy. Returns {email: {"unsubscribed_at": str, "via": str}}."""
+    try:
+        return _read_file()
+    except SuppressionStoreError as e:
+        logger.warning(f"{e} (treating as empty)")
         return {}
 
 
-def is_suppressed(email: str) -> bool:
-    """Has this email opted out previously? Case-insensitive."""
-    if not email:
-        return False
-    return email.strip().lower() in {k.lower() for k in _load_suppressions().keys()}
-
-
-def add_suppression(email: str, via: str = "click") -> None:
-    """Add email to the suppression list. Atomic write (tmp + rename)."""
+def _write_suppressions(current: dict) -> None:
+    """Atomic write (tmp + rename)."""
     SUPPRESSIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    current = _load_suppressions()
-    current[email.strip().lower()] = {
-        "unsubscribed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "via": via,
-    }
     tmp = SUPPRESSIONS_PATH.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(current, indent=2, sort_keys=True))
     tmp.replace(SUPPRESSIONS_PATH)
-    logger.info(f"[suppressions] added {email} via {via} ({len(current)} total)")
+
+
+def _db_configured() -> bool:
+    return bool(os.getenv("SUPABASE_URL", "").strip()
+                and os.getenv("SUPABASE_SERVICE_KEY", "").strip())
+
+
+def _table():
+    """The Supabase table. Same SUPABASE_URL + SUPABASE_SERVICE_KEY and library as
+    core/narai_user.py, but its own client so a request gives up after
+    _DB_TIMEOUT_S instead of 120 s (an unsubscribe click waits on it)."""
+    global _db
+    if _db is None:
+        from supabase import ClientOptions, create_client
+        _db = create_client(os.environ["SUPABASE_URL"].strip(), os.environ["SUPABASE_SERVICE_KEY"].strip(),
+                            options=ClientOptions(postgrest_client_timeout=_DB_TIMEOUT_S))
+    return _db.table(SUPPRESSIONS_TABLE)
+
+
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _row(email: str, meta: dict) -> dict:
+    """The table row for an entry. A missing or unparseable timestamp becomes now:
+    Postgres would reject the row, and the opt-out matters more than its date."""
+    at = str(meta.get("unsubscribed_at") or "")
+    try:
+        datetime.fromisoformat(at.replace("Z", "+00:00"))
+    except ValueError:
+        at = _now()
+    return {"email": email, "unsubscribed_at": at, "via": str(meta.get("via") or "?")}
+
+
+def _upsert(rows: list[dict]) -> None:
+    """INSERT ... ON CONFLICT DO NOTHING: an address keeps its first opt-out record."""
+    _table().upsert(rows, on_conflict="email", ignore_duplicates=True).execute()
+
+
+def is_suppressed(email: str, strict: bool = False) -> bool:
+    """Has this email opted out previously? Case- and whitespace-insensitive.
+
+    Checks the file AND Supabase (when configured). If Supabase can't be read the
+    file's answer is used and a warning logged. strict=True (the send path)
+    instead raises SuppressionStoreError when either store can't be read, so the
+    batch stops rather than risk emailing someone who opted out.
+    """
+    key = _norm_email(email)
+    if not key:
+        return False
+    if key in (_read_file() if strict else _load_suppressions()):
+        return True
+    if not _db_configured():
+        return False
+    try:
+        return bool(_table().select("email").eq("email", key).limit(1).execute().data)
+    except Exception as e:
+        if strict:
+            raise SuppressionStoreError(f"Supabase suppression read failed: {e}") from e
+        logger.warning(f"[suppressions] Supabase read failed ({e}); answering from the file only")
+        return False
+
+
+def add_suppression(email: str, via: str = "click") -> dict:
+    """Add email to the file AND Supabase (when configured). Atomic file write.
+
+    Idempotent: an address keeps its first opt-out record, so calling it again
+    just retries Supabase. Never silent: a failed Supabase write is tried 3 times,
+    then the file entry is kept, an error logged, the failure returned (db=False)
+    and counted as pending by suppression_store_status(), and a background retry
+    runs until Supabase has it. Raises only if NO store recorded the opt-out.
+    """
+    global _last_db_error
+    key = _norm_email(email)
+    if not key:
+        raise ValueError("email required")
+    row = _row(key, {"unsubscribed_at": _now(), "via": via})
+    result = {"email": key, "file": False, "db": None, "db_error": ""}  # db None = not configured
+    file_error = ""
+    with _lock:
+        try:
+            current = _load_suppressions()
+            if key in current:
+                row = _row(key, current[key])  # keep the first opt-out record
+            else:
+                current[key] = {"unsubscribed_at": row["unsubscribed_at"], "via": row["via"]}
+                _write_suppressions(current)
+                logger.info(f"[suppressions] added {key} via {via} ({len(current)} in file)")
+            result["file"] = True
+        except Exception as e:
+            file_error = str(e)
+            logger.error(f"[suppressions] file write FAILED for {key}: {e}")
+    if _db_configured():
+        error = ""
+        for delay in (0, *_DB_RETRY_DELAYS_S):
+            time.sleep(delay)
+            try:
+                _upsert([row])
+                error = ""
+                break
+            except Exception as e:
+                error = str(e)
+        with _lock:
+            if error:
+                _pending[key] = row
+                result["db_error"] = _last_db_error = f"add {key}: {error}"[:300]
+            else:
+                _pending.pop(key, None)
+            sync = bool(_pending) or not _backfilled
+        result["db"] = not error
+        if error:
+            logger.error(f"[suppressions] Supabase write FAILED for {key} ({1 + len(_DB_RETRY_DELAYS_S)} "
+                         f"tries); only in the file until the background retry lands it: {error}")
+        if sync:
+            schedule_suppression_sync(_SYNC_BACKOFF_S[0] if error else 0)
+    if not result["file"] and not result["db"]:
+        raise RuntimeError(f"opt-out for {key} NOT recorded (file: {file_error}; "
+                           f"supabase: {result['db_error'] or 'not configured'})")
+    return result
 
 
 def list_suppressions() -> list[dict]:
-    """Return suppression list as a sorted-newest-first array of dicts."""
+    """Return the union of file + Supabase entries, sorted newest first."""
     current = _load_suppressions()
+    if _db_configured():
+        try:
+            current.update(_db_rows())
+        except Exception as e:
+            logger.warning(f"[suppressions] Supabase list failed ({e}); showing the file copy only")
     out = []
     for email, meta in current.items():
         out.append({
@@ -156,24 +308,215 @@ def list_suppressions() -> list[dict]:
     return out
 
 
+def _db_rows() -> dict:
+    """Every Supabase row as {email: meta}. Reads until an empty page: the server
+    caps rows per request, so a short page doesn't mean the end."""
+    rows: dict = {}
+    start = 0
+    while True:
+        page = (_table().select("email,unsubscribed_at,via").order("email")
+                .range(start, start + 999).execute().data) or []
+        if not page:
+            return rows
+        start += len(page)
+        for r in page:
+            email = _norm_email(r.get("email"))
+            if email != _PROBE_EMAIL:
+                rows[email] = {"unsubscribed_at": r.get("unsubscribed_at") or "", "via": r.get("via") or "?"}
+
+
 def remove_suppression(email: str) -> bool:
-    """Re-include an email by removing it from the suppression list.
+    """Re-include an email by removing it from the file AND Supabase.
 
     Used when an operator pre-suppressed someone (e.g. a friend's email used
     for testing) and now wants them back. Returns True if removed, False if
-    not present.
+    not present. Supabase goes first: if that delete fails we raise and leave
+    the file alone, so the address stays suppressed rather than half-removed.
     """
-    SUPPRESSIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    current = _load_suppressions()
-    key = email.strip().lower()
-    if key not in current:
+    key = _norm_email(email)
+    if key == _PROBE_EMAIL:
+        raise ValueError(f"{key} is the store's probe row (see the migration), not an opt-out")
+    in_db = False
+    if _db_configured():
+        try:
+            in_db = bool(_table().delete().eq("email", key).execute().data)
+        except Exception as e:
+            raise SuppressionStoreError(f"Supabase delete failed for {key}; nothing removed: {e}") from e
+    with _lock:
+        _pending.pop(key, None)
+        current = _load_suppressions()
+        in_file = key in current
+        if in_file:
+            del current[key]
+            _write_suppressions(current)
+    if not (in_file or in_db):
         return False
-    del current[key]
-    tmp = SUPPRESSIONS_PATH.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(current, indent=2, sort_keys=True))
-    tmp.replace(SUPPRESSIONS_PATH)
-    logger.info(f"[suppressions] removed {email} ({len(current)} total)")
+    logger.info(f"[suppressions] removed {key} (file={in_file}, supabase={in_db})")
     return True
+
+
+def _write_rows(rows: list[dict]) -> tuple[list[str], str]:
+    """Upsert rows in chunks. A chunk Supabase rejects is retried row by row, so one
+    bad row can't hold back the rest; 3 failures in a row means Supabase itself is
+    failing, so stop. Returns (emails now in Supabase, last error)."""
+    done, error = [], ""
+    for i in range(0, len(rows), _BACKFILL_CHUNK):
+        chunk = rows[i:i + _BACKFILL_CHUNK]
+        try:
+            _upsert(chunk)
+            done += [r["email"] for r in chunk]
+            continue
+        except Exception as e:
+            error = str(e)
+        misses = 0
+        for r in chunk:
+            try:
+                _upsert([r])
+                done.append(r["email"])
+                misses = 0
+            except Exception as e:
+                error, misses = str(e), misses + 1
+                if misses == 3:
+                    return done, error
+    return done, error
+
+
+def backfill_suppressions() -> dict:
+    """Copy every file entry, and every write Supabase missed, into Supabase.
+    Idempotent: rows already there keep their first opt-out record.
+
+    Runs on the first good Supabase contact per process, at web-app startup and in
+    the background retry (schedule_suppression_sync), so opt-outs that only reached
+    the file become durable before a deploy can wipe it. Only rows actually written
+    leave the pending set; the rest are retried. Reloading the admin
+    launch-readiness card also retries while anything is pending.
+    """
+    global _backfilled, _last_db_error
+    if not _db_configured():
+        return {"ok": False, "n": 0, "error": "Supabase not configured", "pending": 0}
+    with _lock:
+        first_pass = not _backfilled
+        rows = dict(_pending)
+        rows.update({e: _row(e, m) for e, m in _load_suppressions().items()})
+    done, error = _write_rows(list(rows.values()))
+    written = set(done)
+    with _lock:
+        for e, r in rows.items():
+            if e in written:
+                _pending.pop(e, None)
+            elif first_pass:  # before one full pass, no file row is known to be in Supabase
+                _pending[e] = r
+        _backfilled = True
+        if len(written) < len(rows):
+            _last_db_error = f"backfill: {len(rows) - len(written)} of {len(rows)} not written: {error}"[:300]
+        elif not _pending:
+            _last_db_error = ""
+        pending = len(_pending)
+    if len(written) < len(rows):
+        logger.error(f"[suppressions] Supabase backfill: {len(rows) - len(written)} of {len(rows)} "
+                     f"rows FAILED, will retry: {error}")
+        return {"ok": False, "n": len(rows), "error": error[:300], "pending": pending}
+    return {"ok": True, "n": len(rows), "error": "", "pending": pending}
+
+
+def _ensure_backfilled() -> None:
+    if not _backfilled or _pending:
+        backfill_suppressions()
+
+
+def schedule_suppression_sync(delay: float = 0) -> None:
+    """Keep retrying in the background until every opt-out is in Supabase.
+
+    One daemon timer per process runs backfill_suppressions(), then re-arms itself
+    (30 s, doubling, capped at 15 min) while anything is still pending. Started by
+    add_suppression() and at web-app startup (core/api.py). No-op without Supabase.
+    """
+    if not _db_configured():
+        return
+    with _lock:
+        if _sync_timer is None:
+            _arm_sync(delay)
+
+
+def _arm_sync(delay: float) -> None:
+    """Start the retry timer. Caller holds _lock."""
+    global _sync_timer
+    _sync_timer = threading.Timer(delay, _sync_step, args=(delay,))
+    _sync_timer.daemon = True
+    _sync_timer.start()
+
+
+def _sync_step(delay: float) -> None:
+    global _sync_timer
+    try:
+        ok = backfill_suppressions()["ok"]
+    except Exception as e:  # never let the retry loop die quietly
+        ok = False
+        logger.error(f"[suppressions] background sync failed: {e}")
+    with _lock:
+        _sync_timer = None
+        if (not ok or _pending) and _db_configured():
+            first, cap = _SYNC_BACKOFF_S
+            _arm_sync(min(cap, max(first, 2 * delay)))
+
+
+def _durable_required() -> bool:
+    """Production (Railway sets these in the container and under `railway run`),
+    or forced with SITEBOOST_REQUIRE_DURABLE_SUPPRESSIONS=1."""
+    if os.getenv("SITEBOOST_REQUIRE_DURABLE_SUPPRESSIONS", "").strip().lower() in {"1", "true", "yes"}:
+        return True
+    return any(os.getenv(v, "").strip() for v in _RAILWAY_ENV_VARS)
+
+
+def _file_on_web_volume() -> bool:
+    """SITEBOOST_SUPPRESSIONS_PATH is set and sits on the Railway volume mounted in
+    THIS process, i.e. we are the web container /u/{token} writes to. `railway run`
+    on the operator's machine gets the same env vars but not the mount."""
+    mount = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "").strip()
+    if not mount or not os.getenv("SITEBOOST_SUPPRESSIONS_PATH", "").strip():
+        return False
+    return Path(mount) in SUPPRESSIONS_PATH.parents and os.path.ismount(mount)
+
+
+def suppression_store_status() -> dict:
+    """Which opt-out store is active, whether it survives a redeploy, and whether it
+    is safe to send ("ok"). send_sequences() checks this before every batch.
+
+    Fail closed: if Supabase is configured, this client must read back the probe
+    row the migration seeds. A key without service_role gets an empty answer from
+    RLS rather than an error, so "the select didn't fail" alone proves nothing.
+    Otherwise, in production (or with SITEBOOST_REQUIRE_DURABLE_SUPPRESSIONS=1)
+    only the web container's volume-backed file is accepted. Local dev keeps the
+    plain file. "pending" counts opt-outs this process hasn't got into Supabase.
+    """
+    st = {"store": "file", "durable": False, "ok": True, "reason": "",
+          "required": _durable_required(), "path": str(SUPPRESSIONS_PATH)}
+    if _db_configured():
+        st["store"] = "supabase+file"
+        try:
+            seen = _table().select("email").eq("email", _PROBE_EMAIL).limit(1).execute().data
+        except Exception as e:
+            st["ok"] = False
+            st["reason"] = f"Supabase is configured but {SUPPRESSIONS_TABLE} can't be read: {e}"
+        else:
+            if seen:
+                st["durable"] = True
+                _ensure_backfilled()
+            else:
+                st["ok"] = False
+                st["reason"] = (f"{SUPPRESSIONS_TABLE} doesn't show its probe row {_PROBE_EMAIL}: "
+                                "SUPABASE_SERVICE_KEY isn't the service_role key (RLS then hides every "
+                                "row), or the row is gone (re-run the migration)")
+    elif _file_on_web_volume():
+        st["durable"] = True
+    elif st["required"]:
+        st["ok"] = False
+        st["reason"] = ("no durable opt-out store: set SUPABASE_URL + SUPABASE_SERVICE_KEY "
+                        "(or send from the web container with SITEBOOST_SUPPRESSIONS_PATH on its volume)")
+    with _lock:
+        st["pending"] = len(_pending)
+        st["db_error"] = _last_db_error
+    return st
 
 # CAN-SPAM required footer — hardcoded, cannot be disabled.
 # The unsubscribe URL is hosted on app.wheellsverse.com (not the sending domain) because
@@ -650,6 +993,18 @@ def send_sequences(sequences_path: Path, confirm: bool = False,
     if not key or not campaign_id:
         return {"status": "blocked", "reason": "INSTANTLY_API_KEY + INSTANTLY_CAMPAIGN_ID required"}
 
+    # CAN-SPAM § 7704(a)(3)-(4): refuse the whole batch unless the opt-out list here
+    # can be trusted, then re-check every recipient (opt-outs arrive after compose).
+    store = suppression_store_status()
+    if not store["ok"]:
+        logger.error(f"[send] REFUSING to send: {store['reason']}")
+        return {"status": "blocked", "reason": store["reason"]}
+    warning = ""
+    if not store["durable"]:  # local run: allowed, but it can't see opt-outs clicked on the web app
+        warning = (f"opt-outs checked against {store['path']} only, NOT the web app's list. Send with "
+                   "`railway run` or set SUPABASE_URL + SUPABASE_SERVICE_KEY to include them.")
+        logger.warning(f"[send] {warning}")
+
     # Honor per-prospect skip flag set via /api/narai/siteboost/sequences/skip.
     # Operators use this to remove low-quality prospects after composing without
     # re-running the whole pipeline.
@@ -659,16 +1014,31 @@ def send_sequences(sequences_path: Path, confirm: bool = False,
         logger.info(f"[send] skipping {skipped_count} sequences marked skipped=true")
 
     results = []
+    n_suppressed = 0
+    stopped = ""
     for i, seq in enumerate(not_skipped[:max_per_day]):
+        try:
+            if is_suppressed(seq["to_email"], strict=True):
+                n_suppressed += 1
+                logger.info(f"[send] skipping {seq['to_email']} (opted out)")
+                continue
+        except SuppressionStoreError as e:
+            stopped = f"stopped before {seq['to_email']}: opt-out list unreadable ({e})"
+            logger.error(f"[send] STOPPING batch, {stopped}")
+            break
         res = _instantly_send_sequence(seq, campaign_id, key)
         results.append({"email": seq["to_email"], "result": res})
         time.sleep(0.5)  # 2 req/sec ceiling
 
     sent = sum(1 for r in results if r["result"].get("status") == 200)
     return {
-        "status": "ok",
+        "status": "stopped" if stopped else "ok",
+        "reason": stopped,
         "n_attempted": len(results),
         "n_sent_to_instantly": sent,
+        "n_suppressed": n_suppressed,
+        "suppression_store": store["store"],
+        "warning": warning,
         "results": results,
     }
 

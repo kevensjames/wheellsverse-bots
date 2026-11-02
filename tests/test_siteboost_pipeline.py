@@ -23,6 +23,14 @@ from core import places_scanner, email_enricher, site_generator, cold_outreach
 from core import siteboost_state, siteboost_onboarding
 
 
+@pytest.fixture(autouse=True)
+def _no_supabase(monkeypatch):
+    """No network: compose's opt-out check would query the live Supabase table if
+    SUPABASE_* leaked in (core.api loads .env when other test modules import it)."""
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_SERVICE_KEY", raising=False)
+
+
 # ── Stage 1: Places Scanner ────────────────────────────────────────────────
 
 class TestPlacesScanner:
