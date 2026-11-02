@@ -40,8 +40,10 @@ except Exception:
     def log_event(*args, **kwargs): pass  # type: ignore
     def get_recent_events(limit: int = 100): return []  # type: ignore
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+
+from core.board.auth import owner_session_allows
 
 logger = logging.getLogger("siteboost_admin")
 router = APIRouter(prefix="/api/narai/siteboost", tags=["siteboost-admin"])
@@ -66,14 +68,17 @@ _TASKS_LOCK = threading.Lock()
 
 # ── Auth (same pattern as shopify_admin) ────────────────────────────────────
 
-def verify_admin_api_key(x_api_key: str = Header(None)) -> bool:
-    """FastAPI dep: require X-API-Key matching the platform API_KEY env."""
+def verify_admin_api_key(request: Request, x_api_key: str = Header(None)) -> bool:
+    """FastAPI dep: require X-API-Key matching the platform API_KEY env, or the
+    signed-in owner's session from the admin pages (core/board/auth.py)."""
     expected = os.getenv("API_KEY")
     if not expected:
         raise HTTPException(503, "Admin API not configured (API_KEY env missing)")
-    if not x_api_key or not hmac.compare_digest(x_api_key, expected):
-        raise HTTPException(401, "Invalid or missing X-API-Key")
-    return True
+    if x_api_key and hmac.compare_digest(x_api_key, expected):
+        return True
+    if owner_session_allows(request):
+        return True
+    raise HTTPException(401, "Invalid or missing X-API-Key")
 
 
 # ── Models ──────────────────────────────────────────────────────────────────

@@ -338,8 +338,6 @@
     status.textContent = 'thinking…';
 
     const headers = {'Content-Type': 'application/json'};
-    const key = sessionStorage.getItem('admin_api_key');
-    if (key) headers['X-API-Key'] = key;
 
     let kaiBody = appendMsg('kai', '', 'streaming');
     let full = '';
@@ -353,7 +351,7 @@
 
       if (!resp.ok) {
         const errText = resp.status === 401
-          ? 'Not authenticated. Open /login to sign in, or paste an admin key on this page first.'
+          ? 'Not authenticated. Open /login to sign in.'
           : `HTTP ${resp.status}: ${(await resp.text()).slice(0,200)}`;
         kaiBody.parentElement.classList.remove('streaming');
         kaiBody.parentElement.classList.add('err');
@@ -416,22 +414,9 @@ function el(tag, opts) {
   return e;
 }
 
-async function adminAuth() {
-  const url = new URL(location.href);
-  const fromUrl = url.searchParams.get('key');
-  if (fromUrl) {
-    sessionStorage.setItem('admin_api_key', fromUrl);
-    url.searchParams.delete('key');
-    history.replaceState({}, '', url.toString());
-  }
-  let key = sessionStorage.getItem('admin_api_key');
-  if (!key) {
-    key = prompt('Admin API key (X-API-Key):');
-    if (!key) return null;
-    sessionStorage.setItem('admin_api_key', key.trim());
-    key = key.trim();
-  }
-  return {'X-API-Key': key};
+// Same-origin calls; the owner session cookie is the only credential.
+function signIn() {
+  location.href = '/board/login?next=' + encodeURIComponent(location.pathname + location.search);
 }
 
 function setHealth(state, msg) {
@@ -443,14 +428,11 @@ function setHealth(state, msg) {
 }
 
 async function loadStats() {
-  const h = await adminAuth(); if (!h) return;
-
-  // Shopify merchants stats — API_KEY-gated
+  // Shopify merchants stats — owner session
   try {
-    const r = await fetch('/api/narai/shopify/merchants', {headers: h});
+    const r = await fetch('/api/narai/shopify/merchants', {credentials: 'same-origin'});
     if (r.status === 401) {
-      sessionStorage.removeItem('admin_api_key');
-      setHealth('err', 'Unauthorized — refresh to re-enter the admin key');
+      signIn();
       return;
     }
     const data = await r.json();

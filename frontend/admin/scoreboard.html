@@ -40,7 +40,10 @@ h2{letter-spacing:-.01em}td a{text-decoration:none}td a:hover{text-decoration:un
 <body>
 <div class="top">
   <div class="brand">📊 Portfolio Scoreboard</div>
-  <button class="btn" onclick="load()">Refresh</button>
+  <div style="display:flex;gap:8px">
+    <button class="btn" onclick="load()">Refresh</button>
+    <form method="post" action="/board/auth/logout" style="margin:0"><button class="btn" type="submit">Sign out</button></form>
+  </div>
 </div>
 <div id="err"></div>
 <div class="headline" id="headline">Loading…</div>
@@ -56,14 +59,9 @@ h2{letter-spacing:-.01em}td a{text-decoration:none}td a:hover{text-decoration:un
 
 </div>
 <script>
-const API='/api/narai/scoreboard';
-const INJECTED='%%API_KEY%%';
-function key(){
-  if(INJECTED && INJECTED!=='%%API_KEY%%') return INJECTED.replace(/[^ -~]/g,'').trim();
-  let k=sessionStorage.getItem('wv_key');
-  if(!k){k=prompt('Paste platform admin API_KEY:');if(k)sessionStorage.setItem('wv_key',k.trim());}
-  return (k||'').replace(/[^ -~]/g,'').trim();
-}
+// Same-origin calls; the owner session cookie is the only credential.
+const API='/api/board/scoreboard';
+function signIn(){location.href='/board/login?next='+encodeURIComponent(location.pathname+location.search);}
 function err(m){const e=document.getElementById('err');e.textContent='⚠ '+m;e.style.display='block';setTimeout(()=>e.style.display='none',8000);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const MONEY=new Set(['revenue_month','revenue_all_time','mrr']);
@@ -71,8 +69,8 @@ const ORDER=['mrr','revenue_month','revenue_all_time','users','trials','leads','
 async function load(){
   let snap;
   try{
-    const res=await fetch(API,{headers:{'X-API-Key':key()}});
-    if(res.status===401){sessionStorage.removeItem('wv_key');err('API key rejected (401) — refresh');return;}
+    const res=await fetch(API,{credentials:'same-origin'});
+    if(res.status===401){signIn();return;}
     if(!res.ok){err('HTTP '+res.status);return;}
     snap=await res.json();
   }catch(e){err(e.message);return;}
@@ -95,7 +93,7 @@ async function load(){
   loadOpps();
 }
 async function loadOpps(){
-  let d; try{ const r=await fetch('/api/narai/opportunities?limit=8',{headers:{'X-API-Key':key()}}); if(!r.ok)return; d=await r.json(); }catch(e){return;}
+  let d; try{ const r=await fetch('/api/board/opportunities?limit=8',{credentials:'same-origin'}); if(!r.ok)return; d=await r.json(); }catch(e){return;}
   document.getElementById('opp-meta').textContent=(d.connected_feeds||0)+'/5 feeds · scanned '+(d.scanned||0);
   const rows=d.opportunities||[];
   document.getElementById('opp-body').innerHTML = rows.length ? rows.map(o=>

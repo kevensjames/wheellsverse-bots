@@ -10,21 +10,25 @@ import hmac
 import logging
 import os
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
+from core.board.auth import owner_session_allows
 from core.narai_user import get_supabase
 from narai.core.shopify_mt.billing import PLAN_LIMITS, TIER_ORDER, PRICE_IDS
 
 
-def verify_admin_api_key(x_api_key: str = Header(None)) -> bool:
-    """FastAPI dep: require the X-API-Key header to match the platform API_KEY env."""
+def verify_admin_api_key(request: Request, x_api_key: str = Header(None)) -> bool:
+    """FastAPI dep: require the X-API-Key header to match the platform API_KEY env,
+    or the signed-in owner's session from the admin pages (core/board/auth.py)."""
     expected = os.getenv("API_KEY")
     if not expected:
         # Fail closed — never accept admin requests if the env is missing
         raise HTTPException(503, "Admin API not configured (API_KEY env missing)")
-    if not x_api_key or not hmac.compare_digest(x_api_key, expected):
-        raise HTTPException(401, "Invalid or missing X-API-Key")
-    return True
+    if x_api_key and hmac.compare_digest(x_api_key, expected):
+        return True
+    if owner_session_allows(request):
+        return True
+    raise HTTPException(401, "Invalid or missing X-API-Key")
 
 log = logging.getLogger("shopify_admin")
 router = APIRouter(prefix="/api/narai/shopify", tags=["shopify-admin"])

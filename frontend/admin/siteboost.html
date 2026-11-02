@@ -472,32 +472,9 @@ textarea{min-height:120px;font-family:'SF Mono',Monaco,monospace;font-size:.85re
 
 <script>
 const API = '/api/narai/siteboost';
-const API_KEY_STORAGE_KEY = 'siteboost_api_key';
-// Server-injected at /admin/siteboost — if the literal string remains, fall back to prompt
-const INJECTED_API_KEY = '%%API_KEY%%';
-
-function sanitizeKey(k){
-  // fetch() headers require ISO-8859-1 (≤ U+00FF). Strip any non-printable / non-ASCII
-  // chars in case a smart quote / em-dash etc snuck in via env var paste.
-  if(!k) return '';
-  let out = '';
-  for(let i=0; i<k.length; i++){
-    const c = k.charCodeAt(i);
-    if(c >= 32 && c <= 126) out += k.charAt(i);
-  }
-  return out.trim();
-}
-
-function getApiKey(){
-  // Prefer server-injected (no prompt needed)
-  if(INJECTED_API_KEY && INJECTED_API_KEY !== '%%API_KEY%%') return sanitizeKey(INJECTED_API_KEY);
-  // Fall back to sessionStorage / prompt
-  let key = sessionStorage.getItem(API_KEY_STORAGE_KEY);
-  if(!key){
-    key = prompt('Paste platform admin API_KEY (saved in this tab only):');
-    if(key) sessionStorage.setItem(API_KEY_STORAGE_KEY, key.trim());
-  }
-  return sanitizeKey(key);
+// Same-origin calls; the owner session cookie is the only credential.
+function signIn(){
+  location.href = '/board/login?next=' + encodeURIComponent(location.pathname + location.search);
 }
 
 // Surface errors to the user instead of swallowing into console
@@ -512,20 +489,15 @@ function showError(area, msg){
 }
 
 async function api(path, opts={}){
-  const key = getApiKey();
-  if(!key){
-    showError('Auth', 'No API key — refresh the page and provide one when prompted');
-    throw new Error('No API key');
-  }
   const url = path.startsWith('http') ? path : API + path;
   const res = await fetch(url, {
     ...opts,
-    headers:{'X-API-Key': key, 'Content-Type':'application/json', ...(opts.headers || {})},
+    credentials: 'same-origin',
+    headers:{'Content-Type':'application/json', ...(opts.headers || {})},
   });
   if(res.status === 401){
-    sessionStorage.removeItem(API_KEY_STORAGE_KEY);
-    showError('Auth', 'API key rejected (401). Refresh the page to re-enter.');
-    throw new Error('Invalid API key');
+    signIn();
+    throw new Error('Not signed in');
   }
   if(!res.ok){
     const txt = await res.text();
@@ -1137,12 +1109,9 @@ async function downloadCSV(tabPrefix){
   const selId = tabPrefix === 'prospect' ? 'prospect-run-select' : 'seq-run-select';
   const runId = document.getElementById(selId).value;
   if(!runId){ alert('Select a run first'); return; }
-  // Can't use anchor href with custom X-API-Key header. Use fetch + Blob + download.
+  // fetch + Blob + download, so a lapsed session shows an error instead of a page.
   try {
-    const key = getApiKey();
-    const res = await fetch(`${API}/runs/${runId}/export.csv`, {
-      headers:{'X-API-Key': key},
-    });
+    const res = await fetch(`${API}/runs/${runId}/export.csv`, {credentials: 'same-origin'});
     if(!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);

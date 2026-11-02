@@ -6,20 +6,25 @@ from __future__ import annotations
 import hmac
 import os
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
+from core.board.auth import owner_session_allows
 from core.portfolio import adapters, loops, preconditions, registry, rollup, seed, state, paths
 
 router = APIRouter(prefix="/api/narai/portfolio/biz", tags=["portfolio-cockpit"])
 
 
-def verify_admin_api_key(x_api_key: str = Header(None)) -> bool:
+def verify_admin_api_key(request: Request, x_api_key: str = Header(None)) -> bool:
+    """X-API-Key matching the platform API_KEY env, or the signed-in owner's
+    session from the admin pages (core/board/auth.py)."""
     expected = os.getenv("API_KEY")
     if not expected:
         raise HTTPException(503, "Admin API not configured (API_KEY env missing)")
-    if not x_api_key or not hmac.compare_digest(x_api_key, expected):
-        raise HTTPException(401, "Invalid or missing X-API-Key")
-    return True
+    if x_api_key and hmac.compare_digest(x_api_key, expected):
+        return True
+    if owner_session_allows(request):
+        return True
+    raise HTTPException(401, "Invalid or missing X-API-Key")
 
 
 def _require(slug: str):

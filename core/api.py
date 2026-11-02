@@ -187,7 +187,7 @@ async def verify_api_key(request: Request):
     """
     Optional API key guard.
     Set API_KEY in .env to enable. If not set, all requests pass through.
-    Dashboard always passes (it's served from the same origin with the key embedded).
+    Admin pages carry the owner session cookie instead (see api_key_middleware).
     """
     if not _API_KEY:
         return  # Auth disabled
@@ -767,6 +767,11 @@ app.add_middleware(
                     "Content-Length", "Content-Type"],
 )
 
+# ─── Owner session gate: every /admin path (core/board/auth.py) ─────────────
+# Added here so its redirects still pass through the security-headers middleware.
+from core.board import auth as _board_auth
+app.add_middleware(_board_auth.AdminPageGate)
+
 
 # ─── Static mount: composed social images ──────────────────────────────────
 # Meta Graph API needs a public HTTPS URL it can fetch when posting photos to
@@ -853,7 +858,8 @@ async def security_headers_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
-    """Apply optional API key guard to all /api/ routes except public ones."""
+    """Apply optional API key guard to all /api/ routes except public ones.
+    A signed-in owner's admin pages send the board session cookie instead of a key."""
     if _API_KEY:
         path = request.url.path
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
@@ -865,7 +871,8 @@ async def api_key_middleware(request: Request, call_next):
                  "/api/narai/shopify/",  # multi-tenant Shopify — own Bearer auth
                              "/api/google/",   # OAuth flow: protected by state-based CSRF
                              "/api/store/download/",  # uses its own signed-token auth
-                             "/api/store/redeliver")  # customer self-serve re-send (rate-limited internally via order lookup)
+                             "/api/store/redeliver",  # customer self-serve re-send (rate-limited internally via order lookup)
+                             "/api/board/")           # owner session, checked by core/board/routes.py
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
@@ -873,10 +880,9 @@ async def api_key_middleware(request: Request, call_next):
                 or request.query_params.get("api_key")
             )
             if not key or not hmac.compare_digest(key, _API_KEY):
-                return JSONResponse(
-                    {"error": "Unauthorized", "hint": "Set X-API-Key header"},
-                    status_code=401,
-                )
+                denied = await _board_auth.api_cookie_denial(request)
+                if denied is not None:
+                    return denied
     return await call_next(request)
 
 
@@ -1666,21 +1672,15 @@ async def serve_theme_picker():
 async def serve_siteboost_admin():
     """SiteBoost control panel — operator surface for the local-prospect outbound
     product. Drives scans, sequences, selftest, blocklist from the browser.
-    API at /api/narai/siteboost/*. Auth via X-API-Key (same as the rest of /admin).
+    API at /api/narai/siteboost/*.
 
-    Injects the admin API_KEY into the page so the operator doesn't need to paste
-    it every session. Same pattern as the legacy /admin dashboard.
+    Like every /admin page: served behind the owner session (core/board/auth.py)
+    as a static file; its API calls carry the session cookie.
     """
     path = ROOT / "frontend" / "admin" / "siteboost.html"
     if not path.exists():
         return HTMLResponse("<h1>siteboost.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        # Sanitize before injection — fetch() headers must be ISO-8859-1 (≤ U+00FF).
-        # If the env var was ever pasted with a smart-quote / fancy unicode char
-        # via copy-paste, strip it out so the JS fetch doesn't crash.
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1688,28 +1688,23 @@ async def serve_siteboost_admin():
 async def serve_portfolio_admin():
     """Portfolio HQ — W-MOS Master Supervisor control panel. Shows the 10-business
     rollup, the AMBER approval queue, the orchestrator arm/kill controls, and the
-    audit log. API at /api/narai/portfolio/*. Auth via X-API-Key.
+    audit log. API at /api/narai/portfolio/*. Static file behind the owner session.
     """
     path = ROOT / "frontend" / "admin" / "portfolio.html"
     if not path.exists():
         return HTMLResponse("<h1>portfolio.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
 @app.get("/admin/portfolio/{slug}", response_class=HTMLResponse)
 async def serve_portfolio_cockpit(slug: str):
-    """Per-business Build Cockpit. API at /api/narai/portfolio/biz/{slug}/*."""
+    """Per-business Build Cockpit. API at /api/narai/portfolio/biz/{slug}/*.
+    Static file behind the owner session."""
     path = ROOT / "frontend" / "admin" / "portfolio_cockpit.html"
     if not path.exists():
         return HTMLResponse("<h1>portfolio_cockpit.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1738,15 +1733,20 @@ async def api_killswitch():
 
 @app.get("/admin/scoreboard", response_class=HTMLResponse)
 async def serve_scoreboard():
-    """Portfolio Scoreboard — the standing accountability mirror over real surfaces."""
+    """Portfolio Scoreboard — the standing accountability mirror over real surfaces.
+    Static file behind the owner session; its data comes from /api/board/*."""
     path = ROOT / "frontend" / "admin" / "scoreboard.html"
     if not path.exists():
         return HTMLResponse("<h1>scoreboard.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
+# Daily numbers board: owner sign-in (/board/login, /board/auth/*) and its API
+# (/api/board/*, every route behind the owner session). See core/board/.
+from core.board import routes as _board_routes
+app.include_router(_board_routes.pages)
+app.include_router(_board_routes.router)
 
 
 @app.get("/api/narai/leadgen/campaigns")
@@ -1765,14 +1765,12 @@ async def api_leadgen_run(slug: str):
 
 @app.get("/admin/leadgen", response_class=HTMLResponse)
 async def serve_leadgen():
-    """Lead-Gen Campaigns toodle — scan→enrich→draft→CRM per niche, honest about creds."""
+    """Lead-Gen Campaigns toodle — scan→enrich→draft→CRM per niche, honest about creds.
+    Static file behind the owner session."""
     path = ROOT / "frontend" / "admin" / "leadgen.html"
     if not path.exists():
         return HTMLResponse("<h1>leadgen.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1908,13 +1906,9 @@ async def _serve_old_dashboard():
     html_path = ROOT / "dashboard" / "index.html"
     if not html_path.exists():
         return HTMLResponse("<h1>Dashboard not found. Expected: dashboard/index.html</h1>", status_code=500)
+    # Served as is, behind the owner session like every /admin page: its API
+    # calls carry the session cookie (core/board/auth.py).
     html = html_path.read_text(encoding="utf-8")
-    # Inject API key for authenticated dashboard access
-    if _API_KEY:
-        html = html.replace(
-            "const API_KEY = '';",
-            f"const API_KEY = '{_API_KEY}';",
-        )
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "Pragma": "no-cache",

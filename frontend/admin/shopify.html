@@ -119,26 +119,10 @@ function el(tag, opts) {
   return e;
 }
 
-async function auth() {
-  // Admin API_KEY auth (operator surface — not per-merchant).
-  // Stored in sessionStorage so it dies with the tab. URL ?key=... is also accepted
-  // for one-shot bookmarks/links but is immediately moved into sessionStorage and
-  // stripped from the address bar so it doesn't end up in browser history.
-  const url = new URL(location.href);
-  const fromUrl = url.searchParams.get('key');
-  if (fromUrl) {
-    sessionStorage.setItem('admin_api_key', fromUrl);
-    url.searchParams.delete('key');
-    history.replaceState({}, '', url.toString());
-  }
-  let key = sessionStorage.getItem('admin_api_key');
-  if (!key) {
-    key = prompt('Admin API key (X-API-Key):');
-    if (!key) return null;
-    sessionStorage.setItem('admin_api_key', key.trim());
-    key = key.trim();
-  }
-  return {'X-API-Key': key};
+// Operator surface (not per-merchant). Same-origin calls; the owner session
+// cookie is the only credential.
+function signIn() {
+  location.href = '/board/login?next=' + encodeURIComponent(location.pathname + location.search);
 }
 
 function install() {
@@ -151,12 +135,11 @@ function install() {
 }
 
 async function load() {
-  const h = await auth(); if (!h) return;
   try {
-    const r = await fetch('/api/narai/shopify/merchants', {headers: h});
+    const r = await fetch('/api/narai/shopify/merchants', {credentials: 'same-origin'});
     if (r.status === 401) {
-      sessionStorage.removeItem('admin_api_key');  // wrong key — force re-prompt
-      throw new Error('Unauthorized — refresh the page to re-enter the admin key');
+      signIn();
+      throw new Error('Not signed in');
     }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     render(await r.json());
@@ -167,14 +150,13 @@ async function load() {
 }
 
 async function testProduct(merchantId, shop, btn) {
-  const h = await auth(); if (!h) return;
   if (!confirm(`Push a real test product to ${shop}?\n\nThis generates 4 DALL-E images (~30-60s) and creates an active listing on the merchant's store. Costs ~$0.18 in API credits.`)) return;
   const orig = btn.textContent;
   btn.textContent = 'Generating…';
   btn.disabled = true;
   try {
     const r = await fetch(`/api/narai/shopify/merchants/${encodeURIComponent(merchantId)}/test-product`,
-                         {method: 'POST', headers: h});
+                         {method: 'POST', credentials: 'same-origin'});
     const data = await r.json();
     if (data.success) {
       const url = `https://${shop}/products/${data.handle}`;

@@ -1687,7 +1687,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         try {
           const key = sessionStorage.getItem('API_KEY') || '';
           const r = await fetch('/api/admin/operator-tasks', { headers: key ? { 'X-API-Key': key } : {} });
-          if (!r.ok) throw new Error('HTTP ' + r.status);
+          if (!r.ok) { await boardSignIn(r, key); throw new Error('HTTP ' + r.status); }
           const data = await r.json();
           const tasks = Array.isArray(data.tasks) ? data.tasks : [];
           // stats
@@ -1737,7 +1737,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         setTimeout(() => {
           const key = sessionStorage.getItem('API_KEY') || '';
           fetch('/api/admin/operator-tasks', { headers: key ? { 'X-API-Key': key } : {} })
-            .then(r => r.ok ? r.json() : null)
+            .then(r => r.ok ? r.json() : boardSignIn(r, key).then(() => null))
             .then(data => {
               if (!data || !Array.isArray(data.tasks)) return;
               const pend = data.tasks.filter(t => t.status === 'TODO' || t.status === 'IN-PROGRESS').length;
@@ -6933,7 +6933,7 @@ const API=window.location.origin;
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
 const TITLES={hub:'🛰️ Command Hub — Operator surfaces & external services',aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',kai:'🤖 KAI — Operator Dashboard (Stats · Chat · Scanner · Brief)',suprema:'🛡️ SUPREMA — Workspace Autorepair · 19 patterns · daily cron',ops:'📋 Operator Tasks — Pending operator-only actions (rotations, env-vars, decisions)',siteboost:'🚀 SiteBoost — Local-Business Outbound (Scan · Sequences · Selftest)',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System',sol:'💰 Sol — ROSCA Savings Admin'};
-const API_KEY = '';  // injected by server when API_KEY env is set
+const API_KEY = '';  // served as is, behind the owner session; same-origin calls carry its cookie
 
 function nav(p){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
@@ -7020,8 +7020,18 @@ async function api(path,method='GET',body=null){
   if(body)o.body=JSON.stringify(body);
   const url=API+path;
   const r=await fetch(url,o);
-  if(!r.ok)throw new Error(`${r.status} @ ${url}`);
+  if(!r.ok){await boardSignIn(r,_k);throw new Error(`${r.status} @ ${url}`);}
   return r.json();
+}
+// The owner session lapsed (expired, or signed out in another tab): when the API
+// answers its own 401 to a call that sent no key, go to sign-in and come back here.
+async function boardSignIn(r,sentKey){
+  if(r.status!==401||sentKey||window._boardSignInGone)return;
+  let b=null;try{b=await r.clone().json();}catch(_){}
+  if(!b||b.error!=='Unauthorized')return;
+  window._boardSignInGone=true;
+  let t=window;try{if(window.top!==window&&window.top.location.pathname)t=window.top;}catch(_){}
+  t.location.href='/board/login?next='+encodeURIComponent(t.location.pathname+t.location.search);
 }
 function authH(){
   const h={'Content-Type':'application/json'};

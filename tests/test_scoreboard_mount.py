@@ -1,15 +1,30 @@
+from tests import board_fakes as bf
+
+
 def _client(monkeypatch):
-    monkeypatch.setenv("API_KEY", "test-key-123")
-    from fastapi.testclient import TestClient
-    from core.api import app
-    return TestClient(app, raise_server_exceptions=False)
+    return bf.client(monkeypatch)   # API_KEY "test-key-123", also on the imported module
 
 
 def test_scoreboard_page_served(monkeypatch):
+    fake = bf.install(monkeypatch)
     c = _client(monkeypatch)
-    r = c.get("/admin/scoreboard")
+    r = c.get("/admin/scoreboard", follow_redirects=False)
+    assert r.status_code == 302                       # owner session required
+    assert r.headers["location"] == "/board/login?next=%2Fadmin%2Fscoreboard"
+    r = c.get("/admin/scoreboard", headers=bf.cookie(fake.add_session()))
     assert r.status_code == 200
     assert "Portfolio Scoreboard" in r.text
+    assert "/api/board/scoreboard" in r.text and "X-API-Key" not in r.text
+
+
+def test_board_scoreboard_api_needs_the_owner_session(monkeypatch):
+    fake = bf.install(monkeypatch)
+    c = _client(monkeypatch)
+    assert c.get("/api/board/scoreboard").status_code == 401
+    r = c.get("/api/board/scoreboard", headers=bf.cookie(fake.add_session()))
+    assert r.status_code == 200
+    j = r.json()
+    assert "metrics" in j and "surfaces" in j
 
 
 def test_scoreboard_api_real_and_authed(monkeypatch):

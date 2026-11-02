@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Board sign-in · Wheellsverse</title>
+<style>
+:root{--bg:#0a0a0a;--panel:#111;--border:#262626;--text:#fafafa;--muted:#94a3b8;
+  --red:#ef4444;--accent:#6366f1;--radius:10px;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,Inter,sans-serif;font-size:14px;min-height:100vh;
+  display:flex;align-items:center;justify-content:center;padding:16px}
+.card{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);padding:24px}
+h1{margin:0 0 4px;font-size:1.2rem;font-weight:800}
+.sub{color:var(--muted);margin:0 0 18px}
+label{display:block;color:var(--muted);font-size:.8rem;margin:12px 0 6px}
+input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;
+  background:#1a1a1a;color:var(--text);font-size:14px}
+input:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{margin-top:18px;width:100%;padding:10px 14px;border:0;border-radius:8px;
+  background:var(--accent);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+#msg{margin-top:14px;padding:8px 10px;border-radius:8px;background:rgba(239,68,68,.12);color:#fca5a5}
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>📊 Owner sign-in</h1>
+  <p class="sub">The board and the admin pages are for the owner only.</p>
+  <form id="signin" method="post" action="/board/auth/login">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="username" required maxlength="320">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="1024">
+    <input name="next" type="hidden" value="">
+    <button id="go" type="submit">Sign in</button>
+    <div id="msg" role="alert" hidden></div>
+  </form>
+</main>
+<script>
+(function(){
+  const DEFAULT_NEXT='/admin/scoreboard';
+  // Only a relative path on this site: never another origin.
+  function safeNext(v){
+    if(typeof v!=='string'||!v.startsWith('/')||v.startsWith('//')||/[\\\u0000-\u001f\u007f]/.test(v)) return DEFAULT_NEXT;
+    return v;
+  }
+  const form=document.getElementById('signin');
+  const btn=document.getElementById('go');
+  const msg=document.getElementById('msg');
+  form.elements.next.value=safeNext(new URLSearchParams(location.search).get('next'));
+  const FALLBACK={401:'Wrong email or password.',403:'This account cannot open the board.',
+    429:'Too many failed attempts. Wait a little, then try again.',
+    502:'The sign-in service is not answering. Try again shortly.',
+    503:'Sign-in is not configured on the server.'};
+  function show(t){msg.textContent=t;msg.hidden=!t;}
+  form.addEventListener('submit',async function(e){
+    e.preventDefault();
+    show('');btn.disabled=true;
+    try{
+      const r=await fetch(form.action,{method:'POST',credentials:'same-origin',
+        body:new URLSearchParams(new FormData(form))});
+      if(r.redirected){
+        const to=new URL(r.url);
+        if(to.origin===location.origin&&to.pathname!=='/board/login'){location.assign(to.pathname+to.search);return;}
+        show('Signed in, but this browser did not keep the session cookie. Open the board over HTTPS.');
+        return;
+      }
+      let detail='';try{detail=(await r.json()).error||'';}catch(_){}
+      show(detail||FALLBACK[r.status]||('Sign-in failed (HTTP '+r.status+').'));
+    }catch(err){show('Network error: '+err.message);}
+    finally{btn.disabled=false;}
+  });
+})();
+</script>
+</body>
+</html>
