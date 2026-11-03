@@ -5,6 +5,10 @@ Registered on FastAPI startup. Reads NARAI_BRIEFING_CRON (default 7am ET on
 weekdays). Skips firing if Telegram isn't configured — assemble + Telegram
 delivery is one atomic unit; no point computing if nobody is listening.
 
+The daily numbers board's jobs (start_board_scheduler, core/board/jobs.py) run
+on New York time, the zone of the board's SQL, and start without Telegram too:
+the hourly Stripe sync has work to do either way.
+
 Use APScheduler's AsyncIOScheduler so the cron runs inside the same event
 loop as the FastAPI app — no thread juggling, no async/sync gluework.
 """
@@ -25,6 +29,18 @@ from narai.integrations.briefing import (
 logger = logging.getLogger("narai.scheduler")
 
 _scheduler: AsyncIOScheduler | None = None
+_board_scheduler: AsyncIOScheduler | None = None
+
+BOARD_TZ = "America/New_York"   # the owner's day in the board's SQL
+
+
+def _safe_trigger(expr: str, fallback: str, timezone: str):
+    """A cron trigger for `expr`, or for `fallback` when `expr` is invalid."""
+    try:
+        return CronTrigger.from_crontab(expr, timezone=timezone)
+    except Exception as e:
+        logger.warning(f"cron '{expr}' invalid ({e}) — using fallback '{fallback}'")
+        return CronTrigger.from_crontab(fallback, timezone=timezone)
 
 
 async def _fire_briefing() -> None:
@@ -60,23 +76,16 @@ def start_briefing_scheduler() -> None:
     evening_expr = os.environ.get("NARAI_RECAP_CRON", "0 18 * * 1-5")
     timezone = os.environ.get("NARAI_BRIEFING_TZ", "America/New_York")
 
-    def _safe_trigger(expr: str, fallback: str):
-        try:
-            return CronTrigger.from_crontab(expr, timezone=timezone)
-        except Exception as e:
-            logger.warning(f"cron '{expr}' invalid ({e}) — using fallback '{fallback}'")
-            return CronTrigger.from_crontab(fallback, timezone=timezone)
-
     _scheduler = AsyncIOScheduler()
     _scheduler.add_job(
         _fire_briefing,
-        trigger=_safe_trigger(morning_expr, "0 7 * * 1-5"),
+        trigger=_safe_trigger(morning_expr, "0 7 * * 1-5", timezone),
         id="daily_briefing_morning",
     )
     if evening_expr and evening_expr.lower() != "off":
         _scheduler.add_job(
             _fire_briefing,
-            trigger=_safe_trigger(evening_expr, "0 18 * * 1-5"),
+            trigger=_safe_trigger(evening_expr, "0 18 * * 1-5", timezone),
             id="daily_briefing_evening",
         )
     _scheduler.start()
@@ -92,3 +101,35 @@ def stop_briefing_scheduler() -> None:
     if _scheduler is not None:
         _scheduler.shutdown(wait=False)
         _scheduler = None
+
+
+def start_board_scheduler() -> None:
+    """The daily numbers board's jobs, on New York time whatever
+    NARAI_BRIEFING_TZ says: the Stripe sync every hour at :07, the morning
+    report at BOARD_REPORT_CRON (default 07:00), and once now the report's
+    catch-up, for a container that started after the report time. Idempotent;
+    must be called on the running event loop (FastAPI startup)."""
+    global _board_scheduler
+    if _board_scheduler is not None:
+        return
+    from core.board import jobs
+
+    report_expr = os.environ.get("BOARD_REPORT_CRON", "").strip() or "0 7 * * *"
+    report_trigger = _safe_trigger(report_expr, "0 7 * * *", BOARD_TZ)
+    scheduler = AsyncIOScheduler(timezone=BOARD_TZ, job_defaults={
+        "coalesce": True, "max_instances": 1, "misfire_grace_time": 900})
+    scheduler.add_job(jobs.sync_stripe, trigger=CronTrigger.from_crontab("7 * * * *", timezone=BOARD_TZ),
+                      id="board_sync_hourly")
+    scheduler.add_job(jobs.morning_report, trigger=report_trigger, id="board_morning_report")
+    scheduler.add_job(jobs.catch_up, args=[report_trigger], id="board_report_catch_up")
+    scheduler.start()
+    _board_scheduler = scheduler
+    logger.info(f"board scheduler started: report='{report_expr}' sync='7 * * * *' tz={BOARD_TZ}")
+
+
+def stop_board_scheduler() -> None:
+    """For tests and graceful shutdown."""
+    global _board_scheduler
+    if _board_scheduler is not None:
+        _board_scheduler.shutdown(wait=False)
+        _board_scheduler = None

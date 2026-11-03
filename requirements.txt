@@ -21,7 +21,7 @@ lxml>=5.2.0
 
 # Scheduling
 schedule>=1.2.0
-APScheduler>=3.10.4
+APScheduler>=3.10.4,<4   # 4.x drops AsyncIOScheduler (narai/integrations/scheduler.py: briefing and board jobs)
 
 # Data processing
 pandas>=2.2.0

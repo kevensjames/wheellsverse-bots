@@ -268,6 +268,7 @@ import inspect as _inspect
 # promo scheduler, Discord bot). Each handler runs inside the lifespan
 # context, wrapped in its own try/except so one failure cannot block boot.
 # Documented startup order (CRITICAL):
+#   0. start_board_scheduler — the board's jobs; registered first, depends on nothing below
 #   1. _v2_init_db  — initialises chromadb-backed state used by schedulers
 #   2. start_briefing_scheduler  — depends on (1)
 #   3. start_promo_scheduler     — depends on (1)
@@ -1747,6 +1748,18 @@ async def serve_scoreboard():
 from core.board import routes as _board_routes
 app.include_router(_board_routes.pages)
 app.include_router(_board_routes.router)
+
+# The board's jobs on New York time: the hourly Stripe sync, the 07:00 report
+# and its startup catch-up (core/board/jobs.py). Needs nothing from NarAI v2.
+try:
+    from narai.integrations.scheduler import start_board_scheduler, stop_board_scheduler
+    _register_startup(start_board_scheduler)
+    _register_shutdown(stop_board_scheduler)
+except Exception as _e:
+    logger.error(f"board scheduler not registered: {_e}")
+# The Stripe receiver refuses every event without its signing secret: say so at boot.
+from core.board.stripe_webhook import check_secret as _check_stripe_webhook_secret
+_register_startup(_check_stripe_webhook_secret)
 
 
 @app.get("/api/narai/leadgen/campaigns")
@@ -10133,26 +10146,50 @@ def _save_stripe_payment(event: dict):
 
 
 @app.post("/api/stripe/webhook")
-async def stripe_webhook(request: Request):
-    """Stripe webhook — records payment events (checkout.session.completed, invoice.paid, etc.)"""
+async def stripe_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Stripe webhook. Every delivery must carry a valid Stripe-Signature for
+    STRIPE_WEBHOOK_SECRET (503 while the secret is unset, 400 when it does not
+    verify). Each event id is claimed once in webhook_events
+    (core/board/stripe_webhook.py), so the side effects in
+    _stripe_event_side_effects run once per event: a replay answers 200 and
+    runs nothing; the same event arriving while it runs answers 409, and Stripe
+    retries later; an event that failed runs again on Stripe's retry. Money is
+    not recorded here: a verified event starts the Stripe balance-transaction
+    sync (core/board/connectors/stripe_sync.py) in the background."""
+    from core.board import stripe_webhook as _board_webhook
     payload = await request.body()
-    sig     = request.headers.get("stripe-signature", "")
-    secret  = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    try:
+        event = _board_webhook.verify(payload, request.headers.get("stripe-signature"))
+    except _board_webhook.Refused as e:
+        return JSONResponse({"error": e.message}, status_code=e.status)
+    try:
+        claim = await _board_webhook.claim(event)
+    except Exception as e:
+        logger.warning(f"Stripe webhook: event store unavailable ({e})")
+        return JSONResponse({"error": "Event store unavailable; retry later"}, status_code=503)
+    if claim == "busy":
+        return JSONResponse({"received": True, "status": "in progress"}, status_code=409)
+    if claim != "run":           # processed already, or a test-mode event (stored as ignored)
+        return {"received": True, "status": "done"}
+    background_tasks.add_task(_board_webhook.start_sync)
+    try:
+        await _stripe_event_side_effects(event)
+    except Exception as e:
+        logger.exception(f"Stripe webhook {event.get('id')}: side effects failed")
+        await _board_webhook.finish(event, False, f"side effects failed: {type(e).__name__}")
+        return JSONResponse({"error": "Processing failed"}, status_code=500)
+    await _board_webhook.finish(event, True)
+    return {"received": True}
 
-    # Verify signature if secret is set
-    if secret:
-        try:
-            import stripe as _stripe_lib
-            _stripe_lib.api_key = os.getenv("STRIPE_SECRET_KEY", "")
-            event = _stripe_lib.Webhook.construct_event(payload, sig, secret)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Webhook signature invalid: {e}")
-    else:
-        try:
-            event = json.loads(payload)
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid JSON")
 
+async def _stripe_event_side_effects(event: dict) -> None:
+    """What the receiver does for one verified Stripe event, once per event id:
+    the payment log, the Telegram and Discord subscription bridges, the
+    conversion log, the drip enrollment, the NarAI tier upgrade and the store
+    delivery. The bridges, the conversion log, the drip, the tier upgrade's
+    write and the store delivery catch their own errors, so one failure cannot
+    stop the others; anything else that raises fails the event, and Stripe's
+    retry runs it again."""
     etype  = event.get("type", "")
     data   = event.get("data", {}).get("object", {})
     amount = data.get("amount_total") or data.get("amount_paid") or data.get("amount", 0)
@@ -10283,8 +10320,6 @@ async def stripe_webhook(request: Request):
                 _add_log(f"Store delivery [{store_key}] → {buyer_email}: {result.get('status')}", "INFO")
         except Exception as _e:
             _add_log(f"Store delivery failed: {_e}", "WARNING")
-
-    return {"received": True}
 
 
 @app.get("/api/money/summary")

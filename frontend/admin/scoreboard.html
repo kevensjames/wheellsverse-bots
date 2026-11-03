@@ -35,17 +35,51 @@ h2{letter-spacing:-.01em}td a{text-decoration:none}td a:hover{text-decoration:un
 #err{background:rgba(239,68,68,.12);color:#fca5a5;padding:8px 24px;display:none}
 .note{color:var(--amber);font-size:.72rem;margin-top:4px}
 .truth{margin:6px 24px 0;color:var(--muted);font-size:.85rem}
+.board{padding:16px 24px 4px;max-width:1000px;border-bottom:1px solid var(--border)}
+.dayhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.daytitle{font-size:1.5rem;font-weight:800;letter-spacing:-.01em;margin-top:4px}
+.dayctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dayctl input{background:#1a1a1a;color:var(--text);border:1px solid var(--border);border-radius:8px;
+  padding:7px 10px;font:inherit;color-scheme:dark}
+.pill.part{background:rgba(245,158,11,.15);color:var(--amber)}
+.surf.part{color:var(--amber);border-color:rgba(245,158,11,.4)}
+.tablewrap{overflow-x:auto}
+table.sales{width:100%;border-collapse:collapse;margin-top:8px}
+table.sales th{text-align:left;color:var(--muted);font-size:.72rem;font-weight:600;text-transform:uppercase;
+  letter-spacing:.04em;padding:6px;border-bottom:1px solid var(--border)}
+table.sales td{padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+table.sales .num{text-align:right;white-space:nowrap}
 </style>
 </head>
 <body>
 <div class="top">
   <div class="brand">📊 Portfolio Scoreboard</div>
   <div style="display:flex;gap:8px">
-    <button class="btn" onclick="load()">Refresh</button>
+    <button class="btn" onclick="loadDay();load()">Refresh</button>
     <form method="post" action="/board/auth/logout" style="margin:0"><button class="btn" type="submit">Sign out</button></form>
   </div>
 </div>
 <div id="err"></div>
+<section class="board" aria-labelledby="day-title">
+  <div class="dayhead">
+    <div>
+      <div class="label">Morning board · one New York day</div>
+      <div class="daytitle" id="day-title">Loading…</div>
+      <div class="src" id="day-sub"></div>
+    </div>
+    <div class="dayctl">
+      <input type="date" id="day-pick" aria-label="Day (New York)">
+      <button class="btn" id="sync-stripe" type="button">Sync Stripe now</button>
+    </div>
+  </div>
+  <div class="grid"><div class="card" id="rev-card"><div class="label">Revenue · net, USD</div><div class="val off">Loading…</div></div></div>
+  <div class="surfaces" id="day-sources"></div>
+  <h2 style="margin:22px 0 0;font-size:1.05rem">Sales <span class="src" id="sales-meta"></span></h2>
+  <div class="tablewrap"><table class="sales">
+    <thead><tr><th>Time (NY)</th><th>Kind</th><th>Product</th><th>Buyer</th><th class="num">USD</th><th>Channel</th></tr></thead>
+    <tbody id="sales-body"><tr><td colspan="6" class="src">Loading…</td></tr></tbody>
+  </table></div>
+</section>
 <div class="headline" id="headline">Loading…</div>
 <div class="sub" id="meta"></div>
 <div class="truth">Honest view: a metric reads <strong>“not connected”</strong> when its surface has no live integration — never a fake zero. A real <strong>0</strong> means measured-and-empty.</div>
@@ -102,6 +136,67 @@ async function loadOpps(){
       <div class="src">${esc(o.source)} · ${esc(o.popularity)} · signal ${esc(o.score)}</div></td></tr>`).join('')
     : '<tr><td class="src" style="padding:6px">No live opportunities (feeds unreachable).</td></tr>';
 }
+// The morning board: one New York day from /api/board/day (amounts are USD cents;
+// a source that is not connected reads null, shown as "not connected", never $0).
+const DAY_API='/api/board/day';
+const KIND={sale:'sale',refund:'refund',dispute:'dispute',dispute_reversal:'dispute won',adjustment:'adjustment'};
+function usd(c){if(c==null)return '—';const a=Math.abs(c);
+  return (c<0?'-':'')+'$'+Math.floor(a/100).toLocaleString('en-US')+'.'+String(a%100).padStart(2,'0');}
+function minor(m,cur){try{const f=new Intl.NumberFormat('en-US',{style:'currency',currency:cur});
+  return f.format(m/Math.pow(10,f.resolvedOptions().maximumFractionDigits));}catch(e){return m+' '+cur;}}
+function nyTime(iso){try{return new Date(iso).toLocaleTimeString('en-US',{timeZone:'America/New_York',
+  hour:'2-digit',minute:'2-digit',hourCycle:'h23'});}catch(e){return iso;}}
+function stateWord(s){return String(s||'not_connected').replace(/_/g,' ');}
+function wantedDay(){const d=new URLSearchParams(location.search).get('date')||'';return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:'';}
+async function loadDay(){
+  const d=wantedDay(); let v;
+  try{
+    const r=await fetch(DAY_API+(d?'?date='+encodeURIComponent(d):''),{credentials:'same-origin'});
+    if(r.status===401){signIn();return;}
+    if(!r.ok){err('Board: HTTP '+r.status);return;}
+    v=await r.json();
+  }catch(e){err(e.message);return;}
+  const hrs=v.hours_in_day===25?' · a 25-hour day: clocks went back':v.hours_in_day===23?' · a 23-hour day: clocks went forward':'';
+  document.getElementById('day-title').textContent=v.label||v.day;
+  document.getElementById('day-sub').textContent=v.day+' · New York'+hrs;
+  document.getElementById('day-pick').value=v.day;
+  const n=(v.numbers||{}).revenue||{};
+  const body=!n.connected
+    ? `<div class="val off">not connected</div><span class="pill off">${esc(stateWord(n.state))}</span>`
+    : `<div class="val">${esc(usd(n.value))}</div><span class="pill ${n.state==='final'?'on':'part'}">${esc(stateWord(n.state))}</span>
+       <div class="src">gross ${esc(usd(n.gross_usd_cents))} · refunds ${esc(usd(n.refunds_usd_cents))} · disputes ${esc(usd(n.disputes_usd_cents))}</div>
+       <div class="src">fees ${esc(usd(n.fees_usd_cents))}, not taken out of net</div>`;
+  document.getElementById('rev-card').innerHTML=`<div class="label">Revenue · net, USD</div>${body}
+    <div class="src">source: ${esc(n.source)}</div>${n.note?`<div class="note">${esc(n.note)}</div>`:''}`;
+  document.getElementById('day-sources').innerHTML=(v.sources||[]).map(s=>{
+    const cls=s.connected?(s.state==='final'?'on':'part'):'off';
+    return `<span class="surf ${cls}" title="${esc(s.note)}">${s.connected?'● ':'○ '}${esc(s.name)} · ${esc(stateWord(s.state))}</span>`;
+  }).join('');
+  const rows=v.sales||[];
+  document.getElementById('sales-meta').textContent=n.connected?'· '+rows.length+(rows.length===1?' row':' rows'):'';
+  document.getElementById('sales-body').innerHTML=rows.length?rows.map(s=>`<tr>
+      <td>${esc(s.at?nyTime(s.at):s.on)}</td><td>${esc(KIND[s.kind]||s.kind)}</td>
+      <td>${esc(s.product)}</td><td>${esc(s.buyer)}</td>
+      <td class="num">${esc(usd(s.amount_usd_cents))}${s.currency&&s.currency!=='USD'?`<div class="src">${esc(minor(s.amount_minor,s.currency))}</div>`:''}</td>
+      <td>${esc(s.channel)}</td></tr>`).join('')
+    :`<tr><td colspan="6" class="src">${n.connected?'No sales this day.':'Not connected: nothing to list.'}</td></tr>`;
+}
+document.getElementById('day-pick').addEventListener('change',e=>{
+  const d=e.target.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;
+  history.replaceState(null,'',location.pathname+'?date='+d); loadDay();
+});
+document.getElementById('sync-stripe').addEventListener('click',async e=>{
+  const b=e.target; b.disabled=true;
+  try{
+    const r=await fetch('/api/board/sync/stripe',{method:'POST',credentials:'same-origin'});
+    if(r.status===401){signIn();return;}
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||j.error){err('Stripe sync: '+(j.error||('HTTP '+r.status)));}   // an ok run can carry a warning
+  }catch(x){err(x.message);}
+  finally{b.disabled=false;}
+  loadDay();
+});
+loadDay();
 load();
 </script>
 </body>

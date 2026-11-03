@@ -3,20 +3,26 @@
   * pages:  GET /board/login, POST /board/auth/login, POST /board/auth/logout
   * router: /api/board/*, every route behind require_owner at router level,
             so a route added here later cannot skip it. The board API does its
-            own auth, so api_key_middleware leaves /api/board/ to it.
+            own auth, so api_key_middleware leaves /api/board/ to it. A write
+            (POST) also needs the board's own Origin (require_owner checks it).
 
 Handlers are plain def: FastAPI runs the blocking Supabase calls in its
 threadpool, off the event loop.
 """
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Path as PathParam, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from core.board import auth
+from core.board import day as board_day
 from core.board.auth import require_owner
+from core.board.connectors import stripe_sync
 
 ROOT = Path(__file__).resolve().parents[2]
 LOGIN_PAGE = ROOT / "frontend" / "admin" / "board_login.html"
@@ -103,3 +109,51 @@ def board_opportunities(limit: int = Query(8, ge=1, le=50)) -> dict:
     """The opportunity scan (core/opportunities.py), for the signed-in owner."""
     from core.opportunities import scan
     return scan(limit=limit)
+
+
+@router.get("/day")
+def board_day_view(
+    day: Optional[str] = Query(None, alias="date", max_length=10, description="YYYY-MM-DD"),
+    d: Optional[str] = Query(None, max_length=10, description="the same as date"),
+) -> JSONResponse:
+    """F02, the morning view of one New York calendar day: revenue with every
+    sale, and the Stripe source's state. Default: yesterday in New York. A
+    source that is not connected reads null, never $0."""
+    if day and d and day != d:
+        raise HTTPException(422, "date and d disagree")
+    raw = day or d
+    try:
+        wanted = board_day.parse_day(raw) if raw else None
+    except ValueError:
+        raise HTTPException(422, "date must be YYYY-MM-DD") from None
+    return JSONResponse(board_day.day_view(wanted), headers={"Cache-Control": "no-store"})
+
+
+# Runs one sync now (the page's Sync button). One a minute per source, here.
+SYNCS = {"stripe": stripe_sync}       # source -> connector module with run(trigger, days)
+SYNC_EVERY = 60.0     # seconds
+_sync_lock = threading.Lock()
+_last_sync: dict[str, float] = {}
+_SYNC_STATUS = {"ok": 200, "busy": 409, "skipped": 503, "failed": 502}
+
+
+@router.post("/sync/{source}")
+def board_sync(
+    source: str = PathParam(..., max_length=32),
+    days: Optional[int] = Query(None, ge=1, le=31, description="read at least the last N days"),
+) -> JSONResponse:
+    """F01: one sync run of `source` now, claimed like any other run. Answers
+    the run: 200 ok, 409 another run is in progress, 429 asked less than a
+    minute ago, 502 failed, 503 the source's key is not set."""
+    connector = SYNCS.get(source)
+    if connector is None:
+        raise HTTPException(404, "Unknown source")
+    with _sync_lock:
+        wait = _last_sync.get(source, -SYNC_EVERY) + SYNC_EVERY - time.monotonic()
+        if wait > 0:
+            return JSONResponse({"error": "One sync a minute per source"}, status_code=429,
+                                headers={"Retry-After": str(int(wait) + 1), "Cache-Control": "no-store"})
+        _last_sync[source] = time.monotonic()
+    result = connector.run(trigger="owner", days=days)
+    return JSONResponse(result, status_code=_SYNC_STATUS.get(result.get("status"), 500),
+                        headers={"Cache-Control": "no-store"})
