@@ -1,0 +1,11 @@
+#!/bin/bash
+# Git pre-commit stage of the Semgrep gate. Runs inside `git commit`, after
+# git has built the commit's index, so it scans exactly what is about to be
+# committed, including files the command stages itself (`git commit -a`,
+# `git commit <paths>`, `git add x && git commit`).
+#
+# Armed per clone by scripts/hooks/pre-commit-scan.sh on the first Claude
+# Code commit (core.hooksPath=scripts/hooks/git), or by hand with:
+#   git config core.hooksPath scripts/hooks/git
+# See docs/precommit-hooks.md.
+exec "$(dirname "$0")/../pre-commit-scan.sh" --git-hook

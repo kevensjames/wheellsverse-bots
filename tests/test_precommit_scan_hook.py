@@ -222,6 +222,135 @@ def test_unexpected_hook_error_blocks_instead_of_passing(repo, stubs, tmp_path):
     assert not (stubs / "semgrep.args").exists()
 
 
+# ── Git pre-commit stage ────────────────────────────────────────────────────
+
+GIT_HOOKS_DIR = "scripts/hooks/git"
+# Keep the developer's own git config (a global core.hooksPath, say) out.
+ISOLATED_GIT = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+FINDING = json.dumps({"results": [{"check_id": "demo"}], "errors": []})
+
+
+def git(repo: Path, *args: str, env: dict | None = None, check: bool = True):
+    return subprocess.run(["git", *args], cwd=repo, env=env, check=check,
+                          capture_output=True, text=True, timeout=120)
+
+
+def stub_env(stubs: Path, **overrides: str) -> dict:
+    env = {**os.environ, **ISOLATED_GIT, "STUB_DIR": str(stubs),
+           "PATH": f"{stubs}{os.pathsep}{os.environ['PATH']}"}
+    env.pop("BRAIN_PRECOMMIT_OFFLINE", None)
+    env.update(overrides)
+    return env
+
+
+@pytest.fixture
+def gated_repo(tmp_path):
+    """A repo with the gate's files at their real paths and one commit."""
+    path = tmp_path / "gated"
+    (path / GIT_HOOKS_DIR).mkdir(parents=True)
+    (path / ".semgrep").mkdir()
+    shutil.copy(HOOK, path / "scripts" / "hooks" / HOOK.name)
+    shutil.copy(ROOT / GIT_HOOKS_DIR / "pre-commit", path / GIT_HOOKS_DIR / "pre-commit")
+    shutil.copy(LOCAL_RULES, path / ".semgrep" / "rules.yml")
+    (path / "app.py").write_text("x = 1\n")
+    env = {**os.environ, **ISOLATED_GIT}
+    git(path, "init", "-q", env=env)
+    git(path, "config", "user.email", "test@example.com", env=env)
+    git(path, "config", "user.name", "test", env=env)
+    git(path, "add", "-A", env=env)
+    git(path, "commit", "-qm", "init", env=env)
+    return path
+
+
+def run_gated_hook(repo: Path, stubs: Path, payload=COMMIT, **env: str):
+    return run_hook(repo, payload, stubs, hook=repo / "scripts" / "hooks" / HOOK.name,
+                    **ISOLATED_GIT, **env)
+
+
+def hooks_path(repo: Path) -> str:
+    return git(repo, "config", "--get", "core.hooksPath", env={**os.environ, **ISOLATED_GIT},
+               check=False).stdout.strip()
+
+
+def test_pretooluse_arms_git_stage_and_hands_off(gated_repo, stubs):
+    for _ in range(2):  # arming, then already armed
+        result = run_gated_hook(gated_repo, stubs)
+        assert result.returncode == 0, result.stderr
+        assert "Semgrep runs inside git commit" in result.stderr
+    assert hooks_path(gated_repo) == GIT_HOOKS_DIR
+    assert not (stubs / "semgrep.args").exists()
+
+
+@pytest.mark.parametrize("existing", ["git-hooks-file", "hooks-path"])
+def test_arming_leaves_existing_hook_setups_alone(gated_repo, stubs, existing):
+    stage(gated_repo, "app.py", "x = 2\n")
+    if existing == "git-hooks-file":
+        own_hook = gated_repo / ".git" / "hooks" / "pre-commit"
+        own_hook.write_text("#!/bin/sh\nexit 0\n")
+        own_hook.chmod(0o755)
+        expected = ""
+    else:
+        git(gated_repo, "config", "core.hooksPath", "other/hooks")
+        expected = "other/hooks"
+    result = run_gated_hook(gated_repo, stubs)
+    assert result.returncode == 0, result.stderr
+    assert "not arming" in result.stderr
+    assert hooks_path(gated_repo) == expected
+    assert (stubs / "semgrep.args").exists()  # scanned in PreToolUse instead
+
+
+def test_command_that_skips_git_hooks_is_scanned_in_pretooluse(gated_repo, stubs):
+    git(gated_repo, "config", "core.hooksPath", GIT_HOOKS_DIR)
+    stage(gated_repo, "app.py", "x = 2\n")
+    payload = {"tool_input": {"command": "git commit --no-verify -m test"}}
+    result = run_gated_hook(gated_repo, stubs, payload)
+    assert result.returncode == 0, result.stderr
+    assert "command skips git hooks" in result.stderr
+    assert semgrep_args(stubs)[-1] == "app.py"
+
+
+@pytest.mark.parametrize("how", ["commit -a", "commit <path>", "add && commit"])
+def test_git_stage_blocks_findings_the_commit_command_stages(gated_repo, stubs, how):
+    # Nothing is staged up front: exactly what the PreToolUse stage can't see.
+    git(gated_repo, "config", "core.hooksPath", GIT_HOOKS_DIR)
+    env = stub_env(stubs, STUB_SEMGREP_RC="1", STUB_SEMGREP_JSON=FINDING)
+    head = git(gated_repo, "rev-parse", "HEAD").stdout
+    if how == "add && commit":
+        target = "new.py"
+        (gated_repo / target).write_text("y = 1\n")
+        git(gated_repo, "add", target, env=env)
+        result = git(gated_repo, "commit", "-m", "test", env=env, check=False)
+    else:
+        target = "app.py"
+        (gated_repo / target).write_text("x = 2\n")
+        args = ["-am", "test"] if how == "commit -a" else ["-m", "test", "--", target]
+        result = git(gated_repo, "commit", *args, env=env, check=False)
+    assert result.returncode != 0
+    assert "Semgrep found policy violations" in result.stderr
+    assert semgrep_args(stubs)[-1] == target
+    assert git(gated_repo, "rev-parse", "HEAD").stdout == head
+
+
+def test_git_stage_lets_a_clean_commit_through(gated_repo, stubs):
+    git(gated_repo, "config", "core.hooksPath", GIT_HOOKS_DIR)
+    (gated_repo / "app.py").write_text("x = 2\n")
+    result = git(gated_repo, "commit", "-am", "test", env=stub_env(stubs), check=False)
+    assert result.returncode == 0, result.stderr
+    assert "Semgrep clean (1 file(s) scanned" in result.stderr
+    assert git(gated_repo, "show", "HEAD:app.py").stdout == "x = 2\n"
+
+
+@real_semgrep
+def test_real_semgrep_git_stage_blocks_commit_a(gated_repo):
+    git(gated_repo, "config", "core.hooksPath", GIT_HOOKS_DIR)
+    (gated_repo / "app.py").write_text(
+        "import subprocess\n\n\ndef run(cmd):\n    subprocess.call(cmd, shell=True)\n")
+    env = {**os.environ, **ISOLATED_GIT, "BRAIN_PRECOMMIT_OFFLINE": "1"}
+    result = git(gated_repo, "commit", "-am", "test", env=env, check=False)
+    assert result.returncode != 0
+    assert "python-shell-injection" in result.stderr
+
+
 # ── Real Semgrep, local rules, no network ───────────────────────────────────
 
 # One snippet each rule must flag, and one it must leave alone. Credential-

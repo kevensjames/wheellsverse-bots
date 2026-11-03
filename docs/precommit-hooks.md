@@ -29,8 +29,9 @@ bash call.
 The legacy Opsera flag (`/tmp/.opsera-pre-commit-scan-passed`) and the
 new repo flag (`/tmp/.brain-precommit-passed`) both:
 
-- get `rm -f`'d the moment the hook sees them (so each `touch` covers
-  exactly one commit attempt),
+- get `rm -f`'d by the stage that runs the scan (so each `touch` covers
+  exactly one commit attempt; once the git stage is armed, that's the git
+  stage, see [Two stages](#two-stages-claude-code-then-git)),
 - only count if their mtime is < 300 seconds old,
 - must be created in a **separate** Bash invocation that does *not*
   contain `git commit` in the command string — otherwise the hook fires
@@ -59,16 +60,19 @@ bash context.
 
 ### Primary gate (REQUIRED): Semgrep
 
-1. Reads tool input from stdin (Claude `PreToolUse` contract).
-2. If the command doesn't match `git\s+commit`, exit 0 (no-op).
+1. PreToolUse stage: reads tool input from stdin (Claude `PreToolUse`
+   contract). If the command doesn't match `git\s+commit`, exit 0 (no-op).
+2. `cd` to the repo root. PreToolUse stage: arm the git stage if it can,
+   and once it's armed, hand the scan to git (see
+   [Two stages](#two-stages-claude-code-then-git)).
 3. Honor the bypass flag if present and ≤ 5 min old (also accepts the
    legacy Opsera flag for muscle-memory back-compat).
 4. Look up `semgrep` on `PATH`. **Missing Semgrep is fatal.** The
    primary gate intentionally does *not* graceful-degrade — if your
    developer environment can't run Semgrep, your commits should block
    until you fix that.
-5. `cd` to the repo root, collect staged files via `git diff --cached
-   --name-only --diff-filter=ACMR`, filter to file extensions Semgrep's
+5. Collect staged files via `git diff --cached --name-only
+   --diff-filter=ACMR`, filter to file extensions Semgrep's
    default rules cover (Python, JS/TS, Go, Ruby, Java/Kotlin, C/C++, C#,
    PHP, Rust, Swift, Scala, shell).
 6. Pick rules (see [Rules](#rules-local-first-registry-when-reachable)):
@@ -89,6 +93,30 @@ After the `git commit` match, any unexpected error inside the script also
 exits 2 ("hook error … commit blocked"). Claude Code only blocks on exit
 2, so without this an internal failure would let the commit through
 unscanned.
+
+### Two stages: Claude Code, then git
+
+The same script runs at two points:
+
+| Stage | Runs | Sees |
+| ----- | ---- | ---- |
+| PreToolUse (Claude Code hook) | before the Bash command | only files already staged when the call starts |
+| Git pre-commit (`scripts/hooks/git/pre-commit`, which runs the script with `--git-hook`) | inside `git commit`, after git builds the commit's index | exactly what gets committed, including `git commit -a`, `git commit <paths>` and `git add x && git commit` |
+
+On the first commit in a clone, the PreToolUse stage arms the git stage
+with `git config --local core.hooksPath scripts/hooks/git`. It only does
+this when nothing else claims git hooks in that clone: `core.hooksPath`
+unset, and no hooks of its own in `.git/hooks` (setting it would silently
+switch those off). Otherwise it says so and keeps scanning itself.
+
+Once armed, the PreToolUse stage hands off: it exits 0 and git runs the
+scan. It still scans itself when the command skips git hooks
+(`--no-verify`, a `-n` in a short-flag cluster, or a `core.hooksPath`
+override), so those commits get at least the files staged in advance.
+
+Arming covers every commit in that clone, including ones you make in your
+own terminal. Skip the gate for one commit with `git commit --no-verify`.
+Disarm it with `git config --unset core.hooksPath`.
 
 ### Rules: local first, registry when reachable
 
@@ -178,6 +206,9 @@ remains available for ad-hoc scans (`aikido scan` skill). No change.
 | `git commit ...`, unexpected error inside the hook | exit 2, "hook error", blocks |
 | `git commit ...`, fresh bypass flag | exit 0 with `bypass flag honored`        |
 | `git commit ...`, no semgrep on PATH | exit 2 with install instructions       |
+| `git commit ...`, git stage armed (PreToolUse stage) | exit 0, "Semgrep runs inside git commit"; the git stage scans |
+| `git commit --no-verify ...`, git stage armed | PreToolUse stage scans what is staged now |
+| Git stage: findings, or Semgrep could not run | git aborts the commit with the same messages |
 
 ---
 
@@ -203,6 +234,10 @@ remains available for ad-hoc scans (`aikido scan` skill). No change.
 }
 ```
 
+The git stage needs no settings file. The PreToolUse stage arms it per
+clone with `core.hooksPath=scripts/hooks/git` (see
+[Two stages](#two-stages-claude-code-then-git)).
+
 `.claude/settings.local.json` (per-developer, gitignored on most
 projects but tracked here so the plugin disable is reproducible):
 
@@ -224,6 +259,8 @@ projects but tracked here so the plugin disable is reproducible):
 | Find what's about to fail                     | `semgrep scan --config .semgrep/rules.yml --config p/default --error --metrics off --disable-version-check $(git diff --cached --name-only --diff-filter=ACMR)` (drop `--config p/default` offline) |
 | Suppress a false-positive finding             | Add `# nosemgrep: <rule-id>` on the offending line (short ID works, e.g. `python-shell-injection`); say why in the commit body |
 | Scan with local rules only                    | `export BRAIN_PRECOMMIT_OFFLINE=1` before starting `claude`                         |
+| Arm the git stage by hand                     | `git config core.hooksPath scripts/hooks/git`                                       |
+| Disarm the git stage                          | `git config --unset core.hooksPath`                                                 |
 | Re-enable the Opsera plugin globally          | Remove the `enabledPlugins` entry — the plugin's own hook will take over again      |
 | Add or tune a local rule                      | Edit `.semgrep/rules.yml` (don't edit the script), then run `python -m pytest tests/test_precommit_scan_hook.py` |
 
@@ -243,10 +280,13 @@ projects but tracked here so the plugin disable is reproducible):
 - It scans the **working-tree** copy of each staged file, not the staged
   blob. With partial staging (`git add -p`), unstaged edits get scanned
   too.
-- It does **not** see files the commit command stages itself. The hook
-  runs *before* the Bash command, so in `git add x && git commit ...` or
-  `git commit -a`, those changes are not staged yet and are not scanned.
-  Stage in a separate Bash call, then commit.
+- Where the git stage can't be armed (a clone with its own hooks setup),
+  the PreToolUse stage alone does **not** see files the commit command
+  stages itself: in `git add x && git commit ...` or `git commit -a`,
+  those changes aren't staged yet when it runs. Stage in a separate Bash
+  call there, then commit.
+- `--no-verify` skips the git stage. The PreToolUse stage then only sees
+  what was staged before the call.
 - It does **not** run the wider Brain test suite. `brain-tests.yml`
   handles that on push/PR.
 
@@ -260,8 +300,10 @@ projects but tracked here so the plugin disable is reproducible):
 - `~/.claude/projects/.../memory/project_brain_test_venv.md` — the
   parallel chromadb-venv blocker that prevents running the wider Brain
   suite locally.
-- `scripts/hooks/pre-commit-scan.sh` — the script itself, ~300 lines,
+- `scripts/hooks/pre-commit-scan.sh` — the script itself, ~390 lines,
   read it before making changes here.
+- `scripts/hooks/git/pre-commit` — the git stage's entry point.
 - `.semgrep/rules.yml` — the local ruleset.
 - `tests/test_precommit_scan_hook.py` — hook tests: stubbed decisions
-  (no network, no Semgrep) plus real-Semgrep checks of every local rule.
+  (no network, no Semgrep), real `git commit` runs through the git stage,
+  and real-Semgrep checks of every local rule.

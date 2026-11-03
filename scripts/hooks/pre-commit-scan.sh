@@ -26,10 +26,24 @@
 #                            case in MCP-light sessions), the hook logs
 #                            `scan-skipped: opsera-unavailable` and proceeds.
 #
+# Two stages, one script:
+#
+#   PreToolUse (default): runs before the Bash command, so it only sees what
+#     is already staged. On the first commit in a clone it arms the git
+#     stage below (core.hooksPath=scripts/hooks/git), unless the clone has a
+#     hooks setup of its own. Once armed, it leaves the scan to git, except
+#     for commands that skip git hooks (--no-verify, -n, core.hooksPath).
+#   Git pre-commit (--git-hook, via scripts/hooks/git/pre-commit): runs
+#     inside `git commit`, after git has built the commit's index, so it
+#     scans exactly what gets committed, including files the command stages
+#     itself (`git commit -a`, `git commit <paths>`, `git add x && git
+#     commit`). Any non-zero exit blocks the commit.
+#
 # Emergency bypass: `touch /tmp/.brain-precommit-passed` in a SEPARATE bash
 # call (not the same one that contains "git commit" — the hook regex would
-# fire first). Single-use, ≤ 5-minute mtime. Use only when the dev is
-# certain Semgrep is wrong; document the reason in the commit body.
+# fire first). Single-use, ≤ 5-minute mtime: the stage that scans consumes
+# it. Use only when the dev is certain Semgrep is wrong; document the reason
+# in the commit body.
 #
 # See docs/precommit-hooks.md for full mechanics + the three quirks that
 # bit the Phase A/B work (regex matches command substring; flag file is
@@ -37,10 +51,19 @@
 
 set -euo pipefail
 
-# ── 1. Read tool input from stdin (Claude PreToolUse contract) ─────────────
+GIT_HOOK=0
+if [ "${1:-}" = "--git-hook" ]; then
+  GIT_HOOK=1
+fi
 
-INPUT="$(cat || true)"
-COMMAND="$(printf '%s' "$INPUT" | python3 -c "
+if [ "$GIT_HOOK" -eq 0 ]; then
+  # ── 1. Read tool input from stdin (Claude PreToolUse contract) ───────────
+  #
+  # Git-hook mode skips this: git gives the hook no payload, and from a
+  # terminal `cat` would sit waiting for input.
+
+  INPUT="$(cat || true)"
+  COMMAND="$(printf '%s' "$INPUT" | python3 -c "
 import json, sys
 try:
     d = json.load(sys.stdin)
@@ -50,17 +73,82 @@ except Exception:
 print(d.get('tool_input', {}).get('command', '') or d.get('command', ''))
 " 2>/dev/null)"
 
-# ── 2. Filter: only act on git commit invocations ──────────────────────────
+  # ── 2. Filter: only act on git commit invocations ────────────────────────
 
-if ! printf '%s' "$COMMAND" | grep -qE 'git[[:space:]]+commit'; then
-  exit 0
+  # Here-string, not `printf | grep -q`: under pipefail, grep -q exiting
+  # early can SIGPIPE a long printf and turn a match into exit 141.
+  if ! grep -qE 'git[[:space:]]+commit' <<<"$COMMAND"; then
+    exit 0
+  fi
 fi
 
 # From here on the gate is ruling on a commit. An unexpected failure in
 # this script must block it: under `set -e` it would otherwise exit with
 # the failing command's status, and Claude Code lets the tool call through
-# on any exit code other than 2.
+# on any exit code other than 2. (Git blocks on any non-zero exit.)
 trap 'echo "[brain-precommit] FATAL: hook error near line $LINENO; commit blocked (the gate did not finish)." >&2; exit 2' ERR
+
+# Work from the repo root. `git diff --cached --name-only` prints
+# root-relative paths; from a subdirectory the [ -f ] check below would
+# drop every file and the gate would pass without scanning anything.
+# (Git already runs hooks from the root.)
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -n "$REPO_ROOT" ]; then
+  cd "$REPO_ROOT"
+fi
+
+# ── 2b. PreToolUse: arm the git stage, then let it do the scan ─────────────
+#
+# This stage runs before the Bash command, so it can't see files the command
+# stages itself. The git stage can. Arming sets core.hooksPath for this clone
+# only, and only when nothing else claims git hooks here: core.hooksPath
+# unset, and no hooks of its own in .git/hooks (setting it would silently
+# switch those off). Undo with `git config --unset core.hooksPath`.
+
+GIT_HOOKS_DIR="scripts/hooks/git"
+
+git_stage_armed() {
+  [ -x "$GIT_HOOKS_DIR/pre-commit" ] &&
+    [ "$(git config --get core.hooksPath 2>/dev/null || true)" = "$GIT_HOOKS_DIR" ]
+}
+
+arm_git_stage() {
+  local current hooks_dir f
+  [ -x "$GIT_HOOKS_DIR/pre-commit" ] || return 1
+  current="$(git config --get core.hooksPath 2>/dev/null || true)"
+  if [ -n "$current" ]; then
+    echo "[brain-precommit] note: core.hooksPath is '$current'; not arming $GIT_HOOKS_DIR. Scanning here instead." >&2
+    return 1
+  fi
+  hooks_dir="$(git rev-parse --git-path hooks 2>/dev/null || true)"
+  [ -n "$hooks_dir" ] || return 1
+  for f in "$hooks_dir"/*; do
+    case "$f" in *.sample) continue ;; esac
+    if [ -f "$f" ]; then
+      echo "[brain-precommit] note: $hooks_dir has hooks of its own; not arming $GIT_HOOKS_DIR. Scanning here instead." >&2
+      return 1
+    fi
+  done
+  git config --local core.hooksPath "$GIT_HOOKS_DIR" || return 1
+  echo "[brain-precommit] armed the git pre-commit stage for this clone (core.hooksPath=$GIT_HOOKS_DIR)." >&2
+}
+
+# Commands that skip git hooks: --no-verify (git accepts --no-v...), a -n
+# in a short-flag cluster, or a core.hooksPath override. Over-matching is
+# harmless (it only means this stage scans too).
+skips_git_hooks() {
+  grep -qE -- '--no-v|(^|[[:space:]])-[a-zA-Z]*n[a-zA-Z]*([[:space:]]|$)|hooksPath' <<<"$COMMAND"
+}
+
+if [ "$GIT_HOOK" -eq 0 ]; then
+  if git_stage_armed || arm_git_stage; then
+    if ! skips_git_hooks; then
+      echo "[brain-precommit] git pre-commit stage armed; Semgrep runs inside git commit." >&2
+      exit 0
+    fi
+    echo "[brain-precommit] command skips git hooks; scanning what is staged now." >&2
+  fi
+fi
 
 # ── 3. Emergency bypass via flag file ──────────────────────────────────────
 #
@@ -115,15 +203,9 @@ EOF
   exit 2
 fi
 
-# Work from the repo root. `git diff --cached --name-only` prints
-# root-relative paths; from a subdirectory the [ -f ] check below would
-# drop every file and the gate would pass without scanning anything.
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [ -n "$REPO_ROOT" ]; then
-  cd "$REPO_ROOT"
-fi
-
-# Collect staged files. --diff-filter=ACMR catches Adds, Copies, Modifies,
+# Collect staged files. Inside a git hook, git points GIT_INDEX_FILE at the
+# commit's own index, so `git commit -a` and `git commit <paths>` show up
+# here too. --diff-filter=ACMR catches Adds, Copies, Modifies,
 # and Renames; deleted files (D) and unmerged (U) are excluded — Semgrep
 # can't scan a path that no longer exists, and unmerged is a different
 # error class.
