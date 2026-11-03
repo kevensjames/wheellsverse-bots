@@ -11,6 +11,7 @@ threadpool, off the event loop.
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from pathlib import Path
@@ -22,7 +23,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from core.board import auth
 from core.board import day as board_day
 from core.board.auth import require_owner
-from core.board.connectors import stripe_sync
+from core.board.connectors import instantly_sync, kit_sync, meta_sync, stripe_sync
+
+log = logging.getLogger("board.routes")
 
 ROOT = Path(__file__).resolve().parents[2]
 LOGIN_PAGE = ROOT / "frontend" / "admin" / "board_login.html"
@@ -116,9 +119,10 @@ def board_day_view(
     day: Optional[str] = Query(None, alias="date", max_length=10, description="YYYY-MM-DD"),
     d: Optional[str] = Query(None, max_length=10, description="the same as date"),
 ) -> JSONResponse:
-    """F02, the morning view of one New York calendar day: revenue with every
-    sale, and the Stripe source's state. Default: yesterday in New York. A
-    source that is not connected reads null, never $0."""
+    """F02, the morning view of one New York calendar day: Toodle opt-ins,
+    SiteBoost replies, revenue with every sale, Meta spend, the stop rule's
+    verdict, and each source's state (Stripe, Kit, Instantly, Meta). Default:
+    yesterday in New York. A source that is not connected reads null, never 0."""
     if day and d and day != d:
         raise HTTPException(422, "date and d disagree")
     raw = day or d
@@ -129,12 +133,26 @@ def board_day_view(
     return JSONResponse(board_day.day_view(wanted), headers={"Cache-Control": "no-store"})
 
 
-# Runs one sync now (the page's Sync button). One a minute per source, here.
-SYNCS = {"stripe": stripe_sync}       # source -> connector module with run(trigger, days)
+# Runs one sync now (the page's "Sync now" buttons). One a minute per source, here.
+# source -> connector module with run(trigger, days)
+SYNCS = {"stripe": stripe_sync, "kit": kit_sync, "instantly": instantly_sync, "meta_ads": meta_sync}
 SYNC_EVERY = 60.0     # seconds
+SYNC_WAIT = 50.0      # seconds the route waits for its run: Cloudflare cuts a request at about 100
+SYNC_RUNNING = "Still running. The board updates when it finishes."
 _sync_lock = threading.Lock()
 _last_sync: dict[str, float] = {}
 _SYNC_STATUS = {"ok": 200, "busy": 409, "skipped": 503, "failed": 502}
+
+
+def _owner_run(source: str, connector, days: Optional[int], done: dict) -> None:
+    """One owner-triggered run, in a worker thread of its own. run() records
+    its own failures and never raises; what escapes it anyway is a failed
+    run here, logged by its type only (its text can carry a URL or a key)."""
+    try:
+        done["result"] = connector.run(trigger="owner", days=days)
+    except Exception as e:  # noqa: BLE001 — the last guard of a worker thread
+        log.error("%s sync stopped unexpectedly (%s)", source, type(e).__name__)
+        done["result"] = {"source_id": source, "status": "failed", "error": "the sync stopped unexpectedly"}
 
 
 @router.post("/sync/{source}")
@@ -142,9 +160,15 @@ def board_sync(
     source: str = PathParam(..., max_length=32),
     days: Optional[int] = Query(None, ge=1, le=31, description="read at least the last N days"),
 ) -> JSONResponse:
-    """F01: one sync run of `source` now, claimed like any other run. Answers
-    the run: 200 ok, 409 another run is in progress, 429 asked less than a
-    minute ago, 502 failed, 503 the source's key is not set."""
+    """F01: one sync run of `source` (stripe, kit, instantly or meta_ads) now,
+    claimed like any other run. The run goes in a worker thread of its own and
+    the route waits SYNC_WAIT seconds at most, so the owner always has an
+    answer well before Cloudflare cuts the request. A run that ends in time is
+    answered: 200 ok, 409 another run is in progress, 502 failed, 503 the
+    source is not configured here (its key or settings; the error says which)
+    or is disabled. One that does not is 202 {"source", "status": "running",
+    "note"}: it carries on, holding its claim, and the board shows it when it
+    ends. 404 no such source, 429 asked less than a minute ago."""
     connector = SYNCS.get(source)
     if connector is None:
         raise HTTPException(404, "Unknown source")
@@ -154,6 +178,14 @@ def board_sync(
             return JSONResponse({"error": "One sync a minute per source"}, status_code=429,
                                 headers={"Retry-After": str(int(wait) + 1), "Cache-Control": "no-store"})
         _last_sync[source] = time.monotonic()
-    result = connector.run(trigger="owner", days=days)
+    done: dict = {}
+    worker = threading.Thread(target=_owner_run, args=(source, connector, days, done),
+                              name=f"board-owner-sync-{source}", daemon=True)
+    worker.start()
+    worker.join(SYNC_WAIT)
+    result = done.get("result")
+    if result is None:
+        return JSONResponse({"source": source, "status": "running", "note": SYNC_RUNNING}, status_code=202,
+                            headers={"Cache-Control": "no-store"})
     return JSONResponse(result, status_code=_SYNC_STATUS.get(result.get("status"), 500),
                         headers={"Cache-Control": "no-store"})

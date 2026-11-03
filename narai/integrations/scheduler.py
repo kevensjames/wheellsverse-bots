@@ -7,7 +7,8 @@ delivery is one atomic unit; no point computing if nobody is listening.
 
 The daily numbers board's jobs (start_board_scheduler, core/board/jobs.py) run
 on New York time, the zone of the board's SQL, and start without Telegram too:
-the hourly Stripe sync has work to do either way.
+the hourly syncs (Stripe, Kit, Instantly) and the Meta sync have work to do
+either way.
 
 Use APScheduler's AsyncIOScheduler so the cron runs inside the same event
 loop as the FastAPI app — no thread juggling, no async/sync gluework.
@@ -32,6 +33,8 @@ _scheduler: AsyncIOScheduler | None = None
 _board_scheduler: AsyncIOScheduler | None = None
 
 BOARD_TZ = "America/New_York"   # the owner's day in the board's SQL
+BOARD_HOURLY_CRON = "7 * * * *"       # board_sync_hourly: Stripe, Kit and Instantly
+BOARD_META_CRON = "30 6,12 * * *"     # board_meta: Meta spend at 06:30 and 12:30
 
 
 def _safe_trigger(expr: str, fallback: str, timezone: str):
@@ -105,10 +108,13 @@ def stop_briefing_scheduler() -> None:
 
 def start_board_scheduler() -> None:
     """The daily numbers board's jobs, on New York time whatever
-    NARAI_BRIEFING_TZ says: the Stripe sync every hour at :07, the morning
-    report at BOARD_REPORT_CRON (default 07:00), and once now the report's
-    catch-up, for a container that started after the report time. Idempotent;
-    must be called on the running event loop (FastAPI startup)."""
+    NARAI_BRIEFING_TZ says: the Stripe, Kit and Instantly syncs every hour at
+    :07 (board_sync_hourly), the Meta sync at 06:30 and 12:30 (board_meta),
+    the morning report at BOARD_REPORT_CRON (default 07:00), and once now the
+    report's catch-up, for a container that started after the report time.
+    Job bodies are plain def, so they run in worker threads, never on the
+    event loop. Idempotent; must be called on the running event loop (FastAPI
+    startup)."""
     global _board_scheduler
     if _board_scheduler is not None:
         return
@@ -118,13 +124,16 @@ def start_board_scheduler() -> None:
     report_trigger = _safe_trigger(report_expr, "0 7 * * *", BOARD_TZ)
     scheduler = AsyncIOScheduler(timezone=BOARD_TZ, job_defaults={
         "coalesce": True, "max_instances": 1, "misfire_grace_time": 900})
-    scheduler.add_job(jobs.sync_stripe, trigger=CronTrigger.from_crontab("7 * * * *", timezone=BOARD_TZ),
+    scheduler.add_job(jobs.sync_hourly, trigger=CronTrigger.from_crontab(BOARD_HOURLY_CRON, timezone=BOARD_TZ),
                       id="board_sync_hourly")
+    scheduler.add_job(jobs.sync_meta, trigger=CronTrigger.from_crontab(BOARD_META_CRON, timezone=BOARD_TZ),
+                      id="board_meta")
     scheduler.add_job(jobs.morning_report, trigger=report_trigger, id="board_morning_report")
     scheduler.add_job(jobs.catch_up, args=[report_trigger], id="board_report_catch_up")
     scheduler.start()
     _board_scheduler = scheduler
-    logger.info(f"board scheduler started: report='{report_expr}' sync='7 * * * *' tz={BOARD_TZ}")
+    logger.info(f"board scheduler started: report='{report_expr}' hourly='{BOARD_HOURLY_CRON}' "
+                f"meta='{BOARD_META_CRON}' tz={BOARD_TZ}")
 
 
 def stop_board_scheduler() -> None:

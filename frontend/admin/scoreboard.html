@@ -32,7 +32,10 @@ h2{letter-spacing:-.01em}td a{text-decoration:none}td a:hover{text-decoration:un
 .surf.off{color:var(--muted)}
 .btn{padding:8px 14px;border:1px solid var(--border);background:#1a1a1a;color:var(--text);
   border-radius:8px;cursor:pointer;font-weight:600}
+.btn.sm{padding:3px 10px;font-size:.75rem}
+.btn:disabled{opacity:.6;cursor:default}
 #err{background:rgba(239,68,68,.12);color:#fca5a5;padding:8px 24px;display:none}
+#msg{background:rgba(99,102,241,.12);color:#c7d2fe;padding:8px 24px;display:none}
 .note{color:var(--amber);font-size:.72rem;margin-top:4px}
 .truth{margin:6px 24px 0;color:var(--muted);font-size:.85rem}
 .board{padding:16px 24px 4px;max-width:1000px;border-bottom:1px solid var(--border)}
@@ -43,12 +46,20 @@ h2{letter-spacing:-.01em}td a{text-decoration:none}td a:hover{text-decoration:un
   padding:7px 10px;font:inherit;color-scheme:dark}
 .pill.part{background:rgba(245,158,11,.15);color:var(--amber)}
 .surf.part{color:var(--amber);border-color:rgba(245,158,11,.4)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.verdict{font-size:.85rem;line-height:1.4;margin-top:8px}
+.srclist{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.srcrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.srcrow .src{flex-basis:100%;margin-top:0;overflow-wrap:anywhere}
+h2.minor{margin:20px 0 0;font-size:1.05rem}
 .tablewrap{overflow-x:auto}
 table.sales{width:100%;border-collapse:collapse;margin-top:8px}
 table.sales th{text-align:left;color:var(--muted);font-size:.72rem;font-weight:600;text-transform:uppercase;
   letter-spacing:.04em;padding:6px;border-bottom:1px solid var(--border)}
 table.sales td{padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:top}
 table.sales .num{text-align:right;white-space:nowrap}
+@media (max-width:520px){.top,.board,.wrap{padding-left:16px;padding-right:16px}
+  .headline,.sub{padding-left:16px;padding-right:16px}.truth{margin-left:16px;margin-right:16px}}
 </style>
 </head>
 <body>
@@ -60,6 +71,7 @@ table.sales .num{text-align:right;white-space:nowrap}
   </div>
 </div>
 <div id="err"></div>
+<div id="msg" role="status"></div>
 <section class="board" aria-labelledby="day-title">
   <div class="dayhead">
     <div>
@@ -69,11 +81,17 @@ table.sales .num{text-align:right;white-space:nowrap}
     </div>
     <div class="dayctl">
       <input type="date" id="day-pick" aria-label="Day (New York)">
-      <button class="btn" id="sync-stripe" type="button">Sync Stripe now</button>
     </div>
   </div>
-  <div class="grid"><div class="card" id="rev-card"><div class="label">Revenue · net, USD</div><div class="val off">Loading…</div></div></div>
-  <div class="surfaces" id="day-sources"></div>
+  <div class="grid">
+    <div class="card" id="optins-card"><div class="label">Toodle opt-ins</div><div class="val off">Loading…</div></div>
+    <div class="card" id="replies-card"><div class="label">SiteBoost replies</div><div class="val off">Loading…</div></div>
+    <div class="card" id="rev-card"><div class="label">Revenue · net, USD</div><div class="val off">Loading…</div></div>
+    <div class="card" id="spend-card"><div class="label">Meta · Toodle spend, USD</div><div class="val off">Loading…</div></div>
+    <div class="card" id="cpl-card"><div class="label">Stop rule · cost per Meta opt-in</div><div class="val off">Loading…</div></div>
+  </div>
+  <h2 class="minor">Sources</h2>
+  <div class="srclist" id="day-sources"></div>
   <h2 style="margin:22px 0 0;font-size:1.05rem">Sales <span class="src" id="sales-meta"></span></h2>
   <div class="tablewrap"><table class="sales">
     <thead><tr><th>Time (NY)</th><th>Kind</th><th>Product</th><th>Buyer</th><th class="num">USD</th><th>Channel</th></tr></thead>
@@ -97,6 +115,7 @@ table.sales .num{text-align:right;white-space:nowrap}
 const API='/api/board/scoreboard';
 function signIn(){location.href='/board/login?next='+encodeURIComponent(location.pathname+location.search);}
 function err(m){const e=document.getElementById('err');e.textContent='⚠ '+m;e.style.display='block';setTimeout(()=>e.style.display='none',8000);}
+function say(m,ms){const e=document.getElementById('msg');e.textContent=m;e.style.display='block';setTimeout(()=>e.style.display='none',ms||8000);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const MONEY=new Set(['revenue_month','revenue_all_time','mrr']);
 const ORDER=['mrr','revenue_month','revenue_all_time','users','trials','leads','emails_sent','conversion','churn','open_bugs','deployments'];
@@ -116,7 +135,7 @@ async function load(){
     const x=m[k]; const lbl=k.replace(/_/g,' ');
     let body;
     if(!x.connected){ body=`<div class="val off">not connected</div><span class="pill off">no live source</span>`; }
-    else { const v = MONEY.has(k) ? ('$'+(x.value??0)) : (x.value??0);
+    else { const v = x.value==null ? '—' : MONEY.has(k) ? ('$'+x.value) : x.value;   // null is unknown, not 0
            body=`<div class="val">${esc(v)}</div><span class="pill on">live</span>`; }
     return `<div class="card"><div class="label">${esc(lbl)}</div>${body}
       <div class="src">${esc(x.source)}</div>${x.note?`<div class="note">${esc(x.note)}</div>`:''}</div>`;
@@ -137,9 +156,15 @@ async function loadOpps(){
     : '<tr><td class="src" style="padding:6px">No live opportunities (feeds unreachable).</td></tr>';
 }
 // The morning board: one New York day from /api/board/day (amounts are USD cents;
-// a source that is not connected reads null, shown as "not connected", never $0).
+// a number whose source is not connected is null, shown as "not connected", never 0;
+// any other null on a card reads "—").
 const DAY_API='/api/board/day';
+const SYNC_SOURCES={stripe:'Stripe',kit:'Kit',instantly:'Instantly',meta_ads:'Meta'};   // POST /api/board/sync/<id>
+const SYNC_IDS=Object.keys(SYNC_SOURCES);
+const SYNC_RELOAD_MS=60000;     // a sync still running after the route's wait (202): the day again a minute later
 const KIND={sale:'sale',refund:'refund',dispute:'dispute',dispute_reversal:'dispute won',adjustment:'adjustment'};
+const VERDICT={stop:['STOP','kill'],ok:['OK','on'],collecting:['collecting','off'],no_spend:['no spend','off'],
+  check_tags:['check the tags','part'],check_currency:['check the currency','part']};
 function usd(c){if(c==null)return '—';const a=Math.abs(c);
   return (c<0?'-':'')+'$'+Math.floor(a/100).toLocaleString('en-US')+'.'+String(a%100).padStart(2,'0');}
 function minor(m,cur){try{const f=new Intl.NumberFormat('en-US',{style:'currency',currency:cur});
@@ -147,7 +172,68 @@ function minor(m,cur){try{const f=new Intl.NumberFormat('en-US',{style:'currency
 function nyTime(iso){try{return new Date(iso).toLocaleTimeString('en-US',{timeZone:'America/New_York',
   hour:'2-digit',minute:'2-digit',hourCycle:'h23'});}catch(e){return iso;}}
 function stateWord(s){return String(s||'not_connected').replace(/_/g,' ');}
+function plural(n,one,many){return n+' '+(n===1?one:many);}
+function dash(v){return v==null?'—':v;}                                  // null is unknown, never 0
+function count(n,one,many){return n==null?'— '+many:plural(n,one,many);}
 function wantedDay(){const d=new URLSearchParams(location.search).get('date')||'';return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:'';}
+function tone(x){return x.state==='final'?'on':x.connected?'part':'off';}
+function statePill(x){return `<span class="pill ${tone(x)}">${esc(stateWord(x.state))}</span>`;}
+function foot(x){return `<div class="src">source: ${esc(x.source)}</div>${x.note?`<div class="note">${esc(x.note)}</div>`:''}`;}
+// One card: a number with no value reads "not connected" (or "no number yet" when its
+// source is connected but has not measured this day), never 0. `body` holds escaped HTML.
+function card(id,label,x,body){
+  const shown=x.value!=null;
+  document.getElementById(id).innerHTML=`<div class="label">${esc(label)}</div>`+
+    (shown?body:`<div class="val off">${esc(x.connected?'no number yet':'not connected')}</div>`)+
+    `<div class="pills">${statePill(x)}</div>${foot(x)}`;
+}
+function optinsCard(o){
+  const split=Object.entries(o.by_channel||{}).map(([k,c])=>k+' '+c).join(' · ');
+  card('optins-card','Toodle opt-ins',o,`<div class="val">${esc(o.value)}</div>
+    <div class="src">target ${esc(o.target)} a day${o.value>=o.target?' · met':''}</div>
+    ${split?`<div class="src">by channel: ${esc(split)}</div>`:''}`);
+}
+function repliesCard(r){
+  const auto=r.auto_replies_ignored||0;
+  card('replies-card','SiteBoost replies',r,`<div class="val">${esc(r.value)}</div>
+    <div class="src">last 7 days: ${esc(dash(r.value_7d))} · target ${esc(r.target_per_week)} a week</div>
+    ${auto?`<div class="src">${esc(plural(auto,'automatic reply or bounce','automatic replies or bounces'))} ignored</div>`:''}`);
+}
+function revenueCard(n){
+  card('rev-card','Revenue · net, USD',n,`<div class="val">${esc(usd(n.value))}</div>
+    <div class="src">gross ${esc(usd(n.gross_usd_cents))} · refunds ${esc(usd(n.refunds_usd_cents))} · disputes ${esc(usd(n.disputes_usd_cents))}</div>
+    <div class="src">fees ${esc(usd(n.fees_usd_cents))}, not taken out of net</div>`);
+}
+function spendCard(s,o){
+  const leads=o.value!=null?plural(o.value,'opt-in','opt-ins'):(o.connected?'opt-ins not counted yet':'opt-ins not connected');
+  card('spend-card','Meta · Toodle spend, USD',s,`<div class="val">${esc(usd(s.value))}</div>
+    <div class="src">${esc(count(s.toodle_link_clicks,'link click','link clicks'))} → ${esc(leads)}</div>
+    <div class="src">all campaigns ${esc(usd(s.all_usd_cents))} · ${esc(dash(s.impressions))} impressions</div>`);
+}
+// The stop rule: a verdict, or none yet while Kit reads the last spend day (connected,
+// the note says what it waits for), or not connected. Its cost per opt-in may be null
+// with a verdict (check the currency, or no Meta opt-in): "—", never $0.00.
+function cplCard(c){
+  const v=c.connected?VERDICT[c.verdict]:null, waiting=c.connected&&!v;
+  const body=v?`<div class="val">${esc(usd(c.cpl_meta_usd_cents))}</div>`:
+    `<div class="val off">${esc(waiting?'no verdict yet':'not connected')}</div>`;
+  const pill=v?`<span class="pill ${v[1]}">${esc(v[0])}</span>`:waiting?'':'<span class="pill off">not connected</span>';
+  const facts=v&&c.spend_days?`
+    <div class="src">${esc(usd(c.spend_usd_cents))} over ${esc(c.spend_days)} of ${esc(dash(c.spend_days_needed))} spend days, ${esc(dash(c.first_day))} to ${esc(dash(c.last_day))}</div>
+    <div class="src">${esc(count(c.meta_optins,'Meta opt-in','Meta opt-ins'))} of ${esc(dash(c.toodle_optins))} · ${esc(usd(c.cpl_all_usd_cents))} per Toodle opt-in</div>`:'';
+  document.getElementById('cpl-card').innerHTML=`<div class="label">Stop rule · cost per Meta opt-in</div>${body}
+    <div class="pills">${pill}${c.connected?statePill(c):''}</div>
+    <div class="verdict">${esc(c.verdict_text)}</div>${facts}
+    <div class="src">stop above ${esc(usd(c.stop_above_cents))} per Meta opt-in, after ${esc(dash(c.spend_days_needed))} spend days</div>
+    ${c.note?`<div class="note">${esc(c.note)}</div>`:''}`;
+}
+function sourcesList(list){
+  document.getElementById('day-sources').innerHTML=list.map(s=>{
+    const button=SYNC_IDS.includes(s.id)?`<button class="btn sm" type="button" data-sync="${esc(s.id)}" aria-label="Sync ${esc(SYNC_SOURCES[s.id])} now">Sync now</button>`:'';
+    return `<div class="srcrow"><span class="surf ${tone(s)}">${s.connected?'● ':'○ '}${esc(s.name)} · ${esc(stateWord(s.state))}</span>${button}
+      ${s.note?`<div class="src">${esc(s.note)}</div>`:''}</div>`;
+  }).join('');
+}
 async function loadDay(){
   const d=wantedDay(); let v;
   try{
@@ -160,41 +246,44 @@ async function loadDay(){
   document.getElementById('day-title').textContent=v.label||v.day;
   document.getElementById('day-sub').textContent=v.day+' · New York'+hrs;
   document.getElementById('day-pick').value=v.day;
-  const n=(v.numbers||{}).revenue||{};
-  const body=!n.connected
-    ? `<div class="val off">not connected</div><span class="pill off">${esc(stateWord(n.state))}</span>`
-    : `<div class="val">${esc(usd(n.value))}</div><span class="pill ${n.state==='final'?'on':'part'}">${esc(stateWord(n.state))}</span>
-       <div class="src">gross ${esc(usd(n.gross_usd_cents))} · refunds ${esc(usd(n.refunds_usd_cents))} · disputes ${esc(usd(n.disputes_usd_cents))}</div>
-       <div class="src">fees ${esc(usd(n.fees_usd_cents))}, not taken out of net</div>`;
-  document.getElementById('rev-card').innerHTML=`<div class="label">Revenue · net, USD</div>${body}
-    <div class="src">source: ${esc(n.source)}</div>${n.note?`<div class="note">${esc(n.note)}</div>`:''}`;
-  document.getElementById('day-sources').innerHTML=(v.sources||[]).map(s=>{
-    const cls=s.connected?(s.state==='final'?'on':'part'):'off';
-    return `<span class="surf ${cls}" title="${esc(s.note)}">${s.connected?'● ':'○ '}${esc(s.name)} · ${esc(stateWord(s.state))}</span>`;
-  }).join('');
+  const nums=v.numbers||{};
+  const o=nums.optins||{},n=nums.revenue||{};
+  optinsCard(o); repliesCard(nums.replies||{}); revenueCard(n); spendCard(nums.spend||{},o); cplCard(nums.cpl||{});
+  sourcesList(v.sources||[]);
   const rows=v.sales||[];
-  document.getElementById('sales-meta').textContent=n.connected?'· '+rows.length+(rows.length===1?' row':' rows'):'';
+  document.getElementById('sales-meta').textContent=n.value!=null?'· '+rows.length+(rows.length===1?' row':' rows'):'';
   document.getElementById('sales-body').innerHTML=rows.length?rows.map(s=>`<tr>
       <td>${esc(s.at?nyTime(s.at):s.on)}</td><td>${esc(KIND[s.kind]||s.kind)}</td>
       <td>${esc(s.product)}</td><td>${esc(s.buyer)}</td>
       <td class="num">${esc(usd(s.amount_usd_cents))}${s.currency&&s.currency!=='USD'?`<div class="src">${esc(minor(s.amount_minor,s.currency))}</div>`:''}</td>
       <td>${esc(s.channel)}</td></tr>`).join('')
-    :`<tr><td colspan="6" class="src">${n.connected?'No sales this day.':'Not connected: nothing to list.'}</td></tr>`;
+    :`<tr><td colspan="6" class="src">${esc(n.value!=null?'No sales this day.':n.connected?'No sales to list yet.':'Not connected: nothing to list.')}</td></tr>`;
 }
 document.getElementById('day-pick').addEventListener('change',e=>{
   const d=e.target.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;
   history.replaceState(null,'',location.pathname+'?date='+d); loadDay();
 });
-document.getElementById('sync-stripe').addEventListener('click',async e=>{
-  const b=e.target; b.disabled=true;
+// "Sync now": one sync of that source (once a minute each), then the day again. The
+// route waits up to 50 s for the run; a run still going answers 202 with a note and
+// carries on, so the note is shown and the day is read again a minute later.
+document.getElementById('day-sources').addEventListener('click',async e=>{
+  const b=e.target.closest('button[data-sync]'); if(!b)return;
+  const id=b.dataset.sync; if(!SYNC_IDS.includes(id))return;
+  b.disabled=true; b.textContent='Syncing…';
+  let later=false;
   try{
-    const r=await fetch('/api/board/sync/stripe',{method:'POST',credentials:'same-origin'});
+    const r=await fetch('/api/board/sync/'+encodeURIComponent(id),{method:'POST',credentials:'same-origin'});
     if(r.status===401){signIn();return;}
     const j=await r.json().catch(()=>({}));
-    if(!r.ok||j.error){err('Stripe sync: '+(j.error||('HTTP '+r.status)));}   // an ok run can carry a warning
+    if(r.status===202){
+      later=true;
+      say(SYNC_SOURCES[id]+' sync: '+(j.note||'Still running. The board updates when it finishes.'),SYNC_RELOAD_MS);
+      setTimeout(loadDay,SYNC_RELOAD_MS);
+    }
+    else if(!r.ok||j.error){err(SYNC_SOURCES[id]+' sync: '+(j.error||('HTTP '+r.status)));}   // an ok run can carry a warning
   }catch(x){err(x.message);}
-  finally{b.disabled=false;}
-  loadDay();
+  finally{b.disabled=false;b.textContent='Sync now';}
+  if(!later)loadDay();
 });
 loadDay();
 load();

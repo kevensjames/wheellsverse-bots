@@ -1,15 +1,17 @@
 """The morning message (core/board/day.py render_report, core/board/jobs.py) and
 the board's scheduler (narai/integrations/scheduler.py start_board_scheduler):
-each channel is claimed once per day, so the message goes out exactly once,
-also when a deploy lands around 07:00. No network: Stripe, Supabase and
-Telegram are faked."""
+the four numbers, the stop rule and the sources in the plan's format, every
+value escaped; each channel is claimed once per day, so the message goes out
+exactly once, also when a deploy lands around 07:00. No network: Stripe,
+Supabase and Telegram are faked; Kit, Instantly and Meta are only configured
+(their rows go in through core.board.ledger)."""
 import asyncio
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
 from core.board import day as board_day
-from core.board import jobs
+from core.board import jobs, ledger
 from core.board.connectors import stripe_sync
 from tests import board_fakes as bf
 
@@ -20,6 +22,12 @@ NY = board_day.NY
 def ny(hour, minute=0, second=0, day=2):
     """An instant on `day` Nov 2026 at hour:minute in New York."""
     return datetime(2026, 11, day, hour, minute, second, tzinfo=NY)
+
+
+@pytest.fixture(autouse=True)
+def no_connector_settings(monkeypatch):
+    """Kit, Instantly and Meta start unconfigured, whatever this machine has set."""
+    bf.clear_connectors(monkeypatch)
 
 
 @pytest.fixture
@@ -67,12 +75,32 @@ def _report(**kw):
 
 # ─── the message ────────────────────────────────────────────────────────────
 
-def test_the_message_for_the_fixture_day(synced):
+def test_the_message_for_the_plans_fixture_day(synced, monkeypatch):
+    bf.configure_connectors(monkeypatch)
+    bf.load_fixture_leads(synced)
     text = board_day.render_report(board_day.day_view(date(2026, 11, 1)))
     assert text == ("<b>Sun 1 Nov</b> (New York; a 25-hour day: clocks went back)\n"
+                    "Toodle opt-ins: 2 · target 3 · meta 1, organic 1\n"
+                    "SiteBoost replies: 1 · last 7 days: 2 (target 1 a week) · 1 automatic reply or bounce "
+                    "ignored\n"
                     "Revenue: $10.00 net · fees $3.17\n"
                     "  Stripe $10.00: 1 sale, 1 refund, 1 dispute, 1 dispute won\n"
-                    "Sources: Stripe final")
+                    "Meta: Toodle spend $5.02 · 9 link clicks → 2 opt-ins\n"
+                    "Stop rule: CPL $6.28 over the last 5 spend days (4 Meta opt-ins) → STOP (above $5.00)\n"
+                    "Sources: Stripe final · Kit final · Instantly final · Meta final")
+
+
+def test_the_message_with_stripe_alone_says_what_each_other_source_needs(synced):
+    text = board_day.render_report(board_day.day_view(date(2026, 11, 1)))
+    assert text == ("<b>Sun 1 Nov</b> (New York; a 25-hour day: clocks went back)\n"
+                    "Toodle opt-ins: not connected (Kit key not set: KIT_API_KEY)\n"
+                    "SiteBoost replies: not connected (no Instantly key: set INSTANTLY_API_KEY "
+                    "(a key with the emails:read scope))\n"
+                    "Revenue: $10.00 net · fees $3.17\n"
+                    "  Stripe $10.00: 1 sale, 1 refund, 1 dispute, 1 dispute won\n"
+                    "Meta: not connected (Meta token not set: META_INSIGHTS_TOKEN (or META_ACCESS_TOKEN))\n"
+                    "Stop rule: not connected (needs Meta and Kit)\n"
+                    "Sources: Stripe final · Kit not connected · Instantly not connected · Meta not connected")
 
 
 def test_a_source_that_is_not_connected_never_reads_zero(db, monkeypatch):
@@ -80,10 +108,17 @@ def test_a_source_that_is_not_connected_never_reads_zero(db, monkeypatch):
     monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
     text = board_day.render_report(board_day.day_view(date(2026, 11, 1)))
     assert "Revenue: not connected (Stripe key not set" in text and "$0" not in text
-    assert text.endswith("Sources: Stripe not connected")
+    assert text.endswith("Sources: Stripe not connected · Kit not connected · Instantly not connected · "
+                         "Meta not connected")
     db.down = True
     text = board_day.render_report(board_day.day_view(date(2026, 11, 1)))
-    assert "Revenue: not connected (database not connected)" in text and "$0" not in text
+    assert text.split("\n")[1:] == ["Toodle opt-ins: not connected (database not connected)",
+                                    "SiteBoost replies: not connected (database not connected)",
+                                    "Revenue: not connected (database not connected)",
+                                    "Meta: not connected (database not connected)",
+                                    "Stop rule: not connected (database not connected)",
+                                    "Sources: Stripe not connected · Kit not connected · Instantly not connected · "
+                                    "Meta not connected"]
 
 
 def test_a_real_zero_reads_zero(db, stripe):
@@ -107,6 +142,121 @@ def test_every_value_in_the_message_is_escaped(synced):
     assert "<a href" not in text and text.count("<b>") == 1
 
 
+def _lines(day="2026-11-01"):
+    return board_day.render_report(board_day.day_view(date.fromisoformat(day))).split("\n")
+
+
+def test_a_partial_day_says_so_on_every_line(db, stripe, monkeypatch):
+    bf.configure_connectors(monkeypatch)
+    stripe.add(*bf.fixture_day())
+    stripe_sync.run(now=datetime(2026, 11, 1, 22, 5, tzinfo=timezone.utc))         # covered to 17:00 EST
+    bf.load_fixture_leads(db, synced_through="2026-11-01T22:00:00Z")
+    assert _lines()[1:] == [
+        "Toodle opt-ins: 2 so far · target 3 · meta 1, organic 1",
+        "  synced to 17:00 on Sun 1 Nov (New York)",
+        "SiteBoost replies: 1 so far · last 7 days: 2 (target 1 a week) · 1 automatic reply or bounce ignored",
+        "  synced to 17:00 on Sun 1 Nov (New York)",
+        "Revenue: -$19.99 net so far · fees $2.00 (partial)",
+        "  Stripe -$19.99: 1 refund, 1 dispute, 1 dispute won",
+        "  synced to 17:00 on Sun 1 Nov (New York)",
+        "Meta: Toodle spend $5.02 so far · 9 link clicks → 2 opt-ins",
+        "  synced to 17:00 on Sun 1 Nov (New York)",
+        "Stop rule: no verdict yet (waiting for Kit to finish Sun 1 Nov)",          # its evening is not read
+        "Sources: Stripe partial · Kit partial · Instantly partial · Meta partial"]
+
+
+def test_a_source_no_sync_has_reached_has_no_number_and_no_zero(db, monkeypatch):
+    bf.configure_connectors(monkeypatch, "kit", "meta_ads")
+    bf.load_fixture_leads(db)
+    db.set_source("kit", synced_through="2026-10-31T12:00:00Z")                 # Kit stopped on Saturday
+    ledger.mark_source_error("kit", "Kit refused the API key (HTTP 401): check KIT_API_KEY")
+    lines = _lines()
+    assert lines[1] == ("Toodle opt-ins: no number yet (not synced into this day yet: synced to 08:00 on "
+                        "Sat 31 Oct (New York) · last sync failed: Kit refused the API key (HTTP 401): "
+                        "check KIT_API_KEY)")
+    assert lines[2].startswith("SiteBoost replies: not connected (no Instantly key")
+    assert lines[4] == "Meta: Toodle spend $5.02 · 9 link clicks → opt-ins not counted yet"
+    assert lines[5] == "Stop rule: no verdict yet (waiting for Kit to finish Sun 1 Nov)"
+    assert lines[6] == "Sources: Stripe not connected · Kit partial · Instantly not connected · Meta final"
+
+
+def test_the_meta_line_names_the_ad_accounts_days_and_waits_for_dollars(db, monkeypatch):
+    bf.configure_connectors(monkeypatch, "meta_ads")
+    for source_id in ("kit", "instantly", "meta_ads"):
+        db.set_source(source_id, measured_from="2026-01-01", synced_through="2026-11-02T11:55:00Z")
+    bf.record_meta_run(db)                                    # the Meta run, with the Toodle campaign listed
+    ledger.update_source("meta_ads", day_tz="Europe/Berlin", currency="EUR", account_ref="act_1234567890")
+    ledger.upsert_ad_spend("meta_ads", None, [bf.spend("2026-11-01", 450, currency="EUR", link_clicks=1)])
+    assert _lines()[4:6] == [
+        "Meta: no number yet (Meta counts days in the ad account's time zone (Europe/Berlin), not New York time "
+        "· 1 spend row has no US dollar amount yet (no exchange rate), so the spend is not shown)",
+        "Stop rule: not connected (needs Kit)"]
+    db.add_fx_rate("EUR", "2026-10-30", "1.1")
+    ledger.fill_fx()
+    assert _lines()[4:6] == [
+        "Meta: Toodle spend $4.95 · 1 link click → opt-ins not connected",
+        "  Meta counts days in the ad account's time zone (Europe/Berlin), not New York time"]
+
+
+def test_counts_of_one_read_in_the_singular(db, monkeypatch):
+    bf.configure_connectors(monkeypatch)
+    for source_id in ("kit", "instantly", "meta_ads"):
+        db.set_source(source_id, measured_from="2026-01-01", synced_through="2026-11-02T11:55:00Z")
+    bf.record_meta_run(db)                                    # the Meta run, with the Toodle campaign listed
+    ledger.ingest_leads("kit", None, [bf.optin(7, "2026-11-01T16:00:00Z")])          # no channel tag yet
+    ledger.ingest_leads("instantly", None, [bf.reply("e1", "2026-11-01T13:00:00Z", "p@shop.example", auto=True),
+                                            bf.reply("e2", "2026-11-01T14:00:00Z", "q@shop.example", auto=True)])
+    ledger.upsert_ad_spend("meta_ads", None, [bf.spend("2026-11-01", 100, link_clicks=1)])
+    assert _lines()[1:3] == ["Toodle opt-ins: 1 · target 3 · unknown 1",
+                             "SiteBoost replies: 0 · last 7 days: 0 (target 1 a week) · 2 automatic replies or "
+                             "bounces ignored"]
+    assert _lines()[4:6] == ["Meta: Toodle spend $1.00 · 1 link click → 1 opt-in",
+                             "Stop rule: collecting, 1 of 5 spend days so far"]
+
+
+def test_without_toodle_campaigns_the_message_shows_no_toodle_spend_and_no_verdict(db, monkeypatch):
+    bf.configure_connectors(monkeypatch)
+    monkeypatch.delenv("BOARD_TOODLE_META_CAMPAIGN_IDS")
+    bf.load_fixture_leads(db)
+    _, _, spend_rows = bf.fixture_leads()           # as the Meta sync writes them with no Toodle campaign listed
+    ledger.upsert_ad_spend("meta_ads", None, [r for r in spend_rows if r.funnel is None] +
+                           [bf.spend(r.day.isoformat(), r.spend_minor, funnel=None) for r in spend_rows if r.funnel])
+    ledger.mark_source_ok("meta_ads", datetime(2026, 11, 2, 11, 55, tzinfo=timezone.utc),
+                          warning="BOARD_TOODLE_META_CAMPAIGN_IDS is not set, so no Meta spend counts as Toodle spend")
+    lines = _lines()
+    assert lines[4:7] == [
+        "Meta: not connected (Toodle campaigns not set: BOARD_TOODLE_META_CAMPAIGN_IDS names no campaign · "
+        "last sync: BOARD_TOODLE_META_CAMPAIGN_IDS is not set, so no Meta spend counts as Toodle spend)",
+        "Stop rule: not connected (Toodle campaigns not set: BOARD_TOODLE_META_CAMPAIGN_IDS names no campaign)",
+        "Sources: Stripe not connected · Kit final · Instantly final · Meta final"]
+    assert "$0.00" not in "\n".join(lines) and "no Toodle ad spend" not in "\n".join(lines)
+
+
+def test_a_7_day_reply_count_with_unmeasured_days_is_left_out_and_says_why(db, monkeypatch):
+    bf.configure_connectors(monkeypatch)
+    bf.load_fixture_leads(db)
+    db.set_source("instantly", measured_from="2026-10-28")
+    assert _lines()[2:4] == ["SiteBoost replies: 1 · 1 automatic reply or bounce ignored",
+                             "  no 7-day count: replies are counted only from 2026-10-28"]
+    db.set_source("instantly", synced_through="2026-11-04T11:55:00Z")
+    assert _lines("2026-11-03")[2] == "SiteBoost replies: 0 · last 7 days: 2 (target 1 a week)"   # 28 Oct to 3 Nov
+
+
+def test_hostile_names_and_errors_are_escaped_in_the_message(synced, monkeypatch):
+    bf.configure_connectors(monkeypatch)
+    monkeypatch.setenv("BOARD_TOODLE_KIT_TAGS", "toodle:,<b>vip</b>:meta")
+    bf.load_fixture_leads(synced)
+    synced.leads[("kit", "toodle:sub:2")]["channel"] = "<i>meta</i>&co"   # a channel the SQL would never store
+    ledger.mark_source_ok("kit", datetime(2026, 11, 2, 11, 55, tzinfo=timezone.utc),
+                          warning='tag "<b>vip</b>" is not in Kit')
+    ledger.mark_source_error("meta_ads", "Meta refused the read <script>alert(1)</script>")
+    text = board_day.render_report(board_day.day_view(date(2026, 11, 1)))
+    assert "Toodle opt-ins: 2 · target 3 · &lt;i&gt;meta&lt;/i&gt;&amp;co 1, organic 1" in text
+    assert '  last sync: tag "&lt;b&gt;vip&lt;/b&gt;" is not in Kit' in text
+    assert "last sync failed: Meta refused the read &lt;script&gt;alert(1)&lt;/script&gt;" in text
+    assert "<i>" not in text and "<script" not in text and text.count("<b>") == 1 and text.count("</b>") == 1
+
+
 # ─── sent once per day and channel ──────────────────────────────────────────
 
 def test_the_report_is_sent_once_for_yesterday(synced, telegram):
@@ -118,7 +268,8 @@ def test_the_report_is_sent_once_for_yesterday(synced, telegram):
     (run,) = synced.runs("morning_report")
     assert (run["run_key"], run["status"], run["attempts"]) == ("2026-11-01:telegram", "ok", 1)
     assert run["detail"]["channel"] == "telegram" and run["finished_at"] is not None
-    assert synced.rpc_calls("board_day")[-1] == {"p_day": None}     # yesterday, decided in SQL
+    # yesterday, decided in SQL; the stop rule's settings go with every call
+    assert synced.rpc_calls("board_day")[-1] == {"p_day": None, "p_cpl_days": 5, "p_cpl_stop_cents": 500}
 
 
 def test_a_failed_send_is_marked_failed_then_claimed_again_and_never_sent_twice(synced, telegram):
@@ -149,19 +300,23 @@ def test_without_a_claim_nothing_is_sent(synced, telegram):
     assert telegram.sent == []
 
 
-def test_the_report_syncs_stripe_first_within_its_budget(synced, telegram, monkeypatch):
+def test_the_report_runs_the_hourly_syncs_first_within_one_budget(synced, telegram, monkeypatch):
     order = []
-    monkeypatch.setattr(jobs, "sync_stripe", lambda trigger: order.append(("sync", trigger)))
+    for name in ("sync_stripe", "sync_kit", "sync_instantly", "sync_meta"):
+        monkeypatch.setattr(jobs, name, lambda trigger, n=name: order.append((n, trigger)))
     real_claim = jobs.ledger.claim_run
     monkeypatch.setattr(jobs.ledger, "claim_run",
                         lambda *a, **k: order.append(("claim", a[1])) or real_claim(*a, **k))
     jobs.morning_report(sync_budget=5)
-    assert order == [("sync", "schedule"), ("claim", "2026-11-01:telegram")]
+    assert sorted(order[:3]) == [("sync_instantly", "schedule"), ("sync_kit", "schedule"),
+                                 ("sync_stripe", "schedule")]
+    assert order[3:] == [("claim", "2026-11-01:telegram")]          # Meta is not configured: not synced
     order.clear()
-    monkeypatch.setattr(jobs, "sync_stripe", lambda trigger: __import__("time").sleep(2))
+    for name in ("sync_stripe", "sync_kit", "sync_instantly"):
+        monkeypatch.setattr(jobs, name, lambda trigger: __import__("time").sleep(2))
     started = datetime.now()
-    jobs.morning_report(sync_budget=0.1, trigger="startup")          # a slow sync does not hold the report
-    assert (datetime.now() - started).total_seconds() < 1.5
+    jobs.morning_report(sync_budget=0.6, trigger="startup")          # slow syncs do not hold the report:
+    assert (datetime.now() - started).total_seconds() < 1.5        # one budget for all, not 1.8 s for 3
 
 
 # ─── the first message after the first deploy ───────────────────────────────
@@ -184,7 +339,7 @@ def test_the_first_message_waits_for_the_first_backfill(db, stripe, telegram, sl
     out = jobs.morning_report(trigger="startup", sync_budget=0.05)     # the budget runs out first
     assert out["channels"] == {"telegram": "sent"}
     (text,) = telegram.sent
-    assert "Revenue: $10.00 net" in text and "not connected" not in text
+    assert "Revenue: $10.00 net" in text and "Revenue: not connected" not in text and "Stripe final" in text
     assert db.sources["stripe"]["measured_from"] == date(2026, 1, 1)
 
 
@@ -297,15 +452,19 @@ def test_the_board_scheduler_runs_on_new_york_time_without_telegram(scheduler, m
         return found
 
     found = asyncio.run(main())
-    assert set(found) == {"board_sync_hourly", "board_morning_report", "board_report_catch_up"}
-    hourly, report = found["board_sync_hourly"], found["board_morning_report"]
-    assert hourly.func is jobs.sync_stripe and report.func is jobs.morning_report
-    assert str(hourly.trigger.timezone) == "America/New_York" == str(report.trigger.timezone)
+    assert set(found) == {"board_sync_hourly", "board_meta", "board_morning_report", "board_report_catch_up"}
+    hourly, meta, report = found["board_sync_hourly"], found["board_meta"], found["board_morning_report"]
+    assert hourly.func is jobs.sync_hourly and meta.func is jobs.sync_meta and report.func is jobs.morning_report
+    for job in (hourly, meta, report):
+        assert str(job.trigger.timezone) == "America/New_York"
+        assert (job.coalesce, job.max_instances, job.misfire_grace_time) == (True, 1, 900)
+        assert job.args == () and job.kwargs == {}                   # each body's own defaults: trigger "schedule"
     fields = {f.name: str(f) for f in hourly.trigger.fields}
-    assert (fields["minute"], fields["hour"]) == ("7", "*")
+    assert (fields["minute"], fields["hour"], fields["day_of_week"]) == ("7", "*", "*")
+    fields = {f.name: str(f) for f in meta.trigger.fields}
+    assert (fields["minute"], fields["hour"], fields["day_of_week"]) == ("30", "6,12", "*")
     fields = {f.name: str(f) for f in report.trigger.fields}
     assert (fields["minute"], fields["hour"], fields["day_of_week"]) == ("0", "7", "*")
-    assert (report.coalesce, report.max_instances, report.misfire_grace_time) == (True, 1, 900)
     assert caught == [found["board_report_catch_up"].args[0]] and caught[0] is report.trigger
     assert scheduler._board_scheduler is None
 

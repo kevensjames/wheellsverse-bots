@@ -2,20 +2,29 @@
 start_board_scheduler() in narai/integrations/scheduler.py on New York time.
 Plain def: APScheduler runs them in a worker thread, off the event loop.
 
-  sync_stripe      every hour at :07, and after each verified Stripe event
-  morning_report   07:00 (BOARD_REPORT_CRON): a Stripe sync (60 s at most; while
-                   Stripe has no completed sync yet, up to 15 minutes for that
-                   first backfill, in this run or another, unless a sync fails),
-                   then yesterday's message to each configured channel. Each channel is
-                   claimed once per day, board_claim_run('morning_report',
-                   'YYYY-MM-DD:channel'), so it is sent once, even when two
-                   containers run the job during a deploy. A failed send is
-                   marked failed, and only a failed or unclaimed channel can be
-                   claimed again.
+  sync_hourly      every hour at :07: the Stripe, Kit and Instantly syncs, each
+                   in a thread of its own, so one that fails, raises or hangs
+                   never stops the others or the scheduler
+  sync_stripe      also after each verified Stripe event (the webhook)
+  sync_meta        06:30 and 12:30: Meta spend and the account's day zone
+  morning_report   07:00 (BOARD_REPORT_CRON): the three hourly syncs, and the
+                   Meta sync when Meta has no ok run since 06:00 New York time
+                   today, all at once, waiting 60 s at most (while Stripe has
+                   no completed sync yet, up to 15 minutes for that first
+                   backfill, in this run or another, unless a sync fails),
+                   then yesterday's message to each configured channel. Each
+                   channel is claimed once per day, board_claim_run(
+                   'morning_report', 'YYYY-MM-DD:channel'), so it is sent once,
+                   even when two containers run the job during a deploy. A
+                   failed send is marked failed, and only a failed or unclaimed
+                   channel can be claimed again.
   catch_up         once at startup: if today's report time has passed and it is
                    before noon in New York, the same job. The claim makes it a
                    no-op when the day was sent already, so a deploy around 07:00
                    still yields exactly one message.
+
+Every sync is claimed in job_runs by its connector, so a sync that is still
+running when the next one starts answers "busy" and nothing runs twice.
 
 Telegram is the one channel so far (core/telegram.py notify, HTML).
 """
@@ -25,18 +34,21 @@ import logging
 import threading
 import time as clock
 from datetime import datetime, time, timezone
-from typing import Callable, Optional
+from typing import Callable, Iterable, Optional
 
 from core.board import day as board_day
 from core.board import ledger
-from core.board.connectors import stripe_sync
+from core.board.connectors import instantly_sync, kit_sync, meta_sync, stripe_sync
 from core.board.ledger import BoardDBError
 
 log = logging.getLogger("board.jobs")
 
 REPORT_JOB = "morning_report"
-SYNC_BUDGET = 60.0          # seconds the report waits for its sync
+HOURLY = ("stripe", "kit", "instantly")     # the hourly job's syncs
+SYNC_BUDGET = 60.0          # seconds the report waits for its syncs (they run at once)
+HOURLY_BUDGET = 3000.0      # seconds the hourly job waits for its syncs: it ends before the next one
 FIRST_SYNC_WAIT = 900.0     # seconds it waits for Stripe's first sync, a backfill
+META_FRESH_FROM = time(6, 0)  # the report syncs Meta unless Meta has an ok run since then, New York time
 NOON = time(12, 0)          # the catch-up gives up at noon, New York time
 _POLL = 10.0                # seconds between two looks at the source while it waits
 _sleep = clock.sleep        # tests replace it
@@ -58,28 +70,103 @@ CHANNELS: dict[str, tuple[Callable[[], bool], Callable[[str], bool]]] = {
 }
 
 
-def sync_stripe(trigger: str = "schedule") -> dict:
-    """One Stripe sync run (it records its own failures); never raises."""
+# ─── the syncs ──────────────────────────────────────────────────────────────
+
+def _run(source: str, connector, trigger: str) -> dict:
+    """One connector run. A run records its own failures; this catches what
+    escapes it, so a scheduled job never dies. Never raises."""
     try:
-        return stripe_sync.run(trigger=trigger)
+        return connector.run(trigger=trigger)
     except Exception:  # noqa: BLE001 — a scheduled job must not die
-        log.exception("stripe sync job failed")
+        log.exception("%s sync job failed", source)
         return {"status": "failed"}
 
 
-def _sync_within(budget: float, trigger: str) -> None:
-    """Run a Stripe sync and wait for it at most `budget` seconds. A slow sync
-    carries on in its thread; the report says how far the data got."""
-    worker = threading.Thread(target=sync_stripe, kwargs={"trigger": trigger},
-                              name="board-report-sync", daemon=True)
-    worker.start()
-    worker.join(budget)
+def sync_stripe(trigger: str = "schedule") -> dict:
+    """One Stripe sync run (it records its own failures); never raises."""
+    return _run("stripe", stripe_sync, trigger)
 
+
+def sync_kit(trigger: str = "schedule") -> dict:
+    """One Kit sync run (Toodle opt-ins); never raises."""
+    return _run("kit", kit_sync, trigger)
+
+
+def sync_instantly(trigger: str = "schedule") -> dict:
+    """One Instantly sync run (SiteBoost replies); never raises."""
+    return _run("instantly", instantly_sync, trigger)
+
+
+def sync_meta(trigger: str = "schedule") -> dict:
+    """One Meta sync run (ad spend); never raises. The board_meta job."""
+    return _run("meta_ads", meta_sync, trigger)
+
+
+def _job(source: str) -> Callable[..., dict]:
+    """The job body that syncs `source`, looked up when it runs (tests replace them)."""
+    return {"stripe": sync_stripe, "kit": sync_kit, "instantly": sync_instantly, "meta_ads": sync_meta}[source]
+
+
+def _run_syncs(sources: Iterable[str], trigger: str, budget: float) -> dict[str, str]:
+    """Run each source's sync in a thread of its own, all at once, and wait
+    for them `budget` seconds at most in all. One that fails, raises or hangs
+    never holds up the others; one still running after the budget carries on
+    in its thread (its claim keeps a second run of it out). Returns each
+    sync's status, 'running' for one that has not ended."""
+    results: dict[str, str] = {}
+
+    def work(source: str) -> None:
+        try:
+            out = _job(source)(trigger=trigger)
+        except Exception:  # noqa: BLE001 — one sync's failure never stops the others
+            log.exception("%s sync job failed", source)
+            out = {"status": "failed"}
+        results[source] = str((out.get("status") if isinstance(out, dict) else None) or "unknown")
+
+    sources = list(sources)
+    workers = [threading.Thread(target=work, args=(s,), name=f"board-sync-{s}", daemon=True) for s in sources]
+    deadline = clock.monotonic() + budget
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(max(0.0, deadline - clock.monotonic()))
+    return {s: results.get(s, "running") for s in sources}
+
+
+def sync_hourly(trigger: str = "schedule") -> dict[str, str]:
+    """The board_sync_hourly job: the Stripe, Kit and Instantly syncs at once,
+    each isolated. Returns each one's status."""
+    results = _run_syncs(HOURLY, trigger, HOURLY_BUDGET)
+    log.info("board hourly sync: %s", ", ".join(f"{k} {v}" for k, v in results.items()))
+    return results
+
+
+def _meta_due(now: Optional[datetime] = None) -> bool:
+    """Whether the report should sync Meta first: Meta is configured and has
+    no ok run since 06:00 New York time today (the 06:30 job normally has
+    one). When the database cannot say, it is due: the run finds out itself,
+    and fails before it reads Meta."""
+    if meta_sync.configured() is not None:
+        return False
+    local = (now or datetime.now(timezone.utc)).astimezone(board_day.NY)
+    since = datetime.combine(local.date(), META_FRESH_FROM, tzinfo=board_day.NY)
+    try:
+        src = ledger.source_row(meta_sync.SOURCE_ID)
+    except BoardDBError:
+        return True
+    last_ok = ledger.parse_ts((src or {}).get("last_ok_at"))
+    return last_ok is None or last_ok < since
+
+
+# ─── the morning report ─────────────────────────────────────────────────────
 
 def _first_sync_pending(since: Optional[datetime] = None) -> bool:
     """Whether Stripe has a live key but no completed sync yet (so its first
     sync, a backfill from BOARD_BACKFILL_FROM with one Checkout lookup per
-    sale, is still to finish) and no sync has failed since `since`."""
+    sale, is still to finish) and no sync has failed since `since`. A sync is
+    complete once the source has both measured_from and its watermark:
+    mark_source_ok writes measured_from first, so measured_from alone can be
+    a sync half-way through recording itself."""
     found = stripe_sync.read_key()
     if found is None or stripe_sync.is_test_key(found[0]):
         return False
@@ -87,7 +174,7 @@ def _first_sync_pending(since: Optional[datetime] = None) -> bool:
         src = ledger.source_row(stripe_sync.SOURCE_ID)
     except BoardDBError:
         return False
-    if not src or src.get("enabled") is False or src.get("measured_from"):
+    if not src or src.get("enabled") is False or (src.get("measured_from") and src.get("synced_through")):
         return False
     failed_at = ledger.parse_ts(src.get("last_error_at"))
     return not (since is not None and failed_at is not None and failed_at >= since)
@@ -123,7 +210,9 @@ def morning_report(trigger: str = "schedule", sync_budget: float = SYNC_BUDGET) 
     if sync_budget > 0:
         started = datetime.now(timezone.utc)
         first = _first_sync_pending()
-        _sync_within(sync_budget, trigger)
+        sources = HOURLY + (("meta_ads",) if _meta_due(started) else ())
+        synced = _run_syncs(sources, trigger, sync_budget)
+        log.info("morning report syncs: %s", ", ".join(f"{k} {v}" for k, v in synced.items()))
         if first:
             _wait_for_first_sync(started)
     view = board_day.day_view(None)          # yesterday in New York, decided in SQL
