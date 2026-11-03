@@ -1,8 +1,9 @@
 """POST /api/stripe/webhook (core/api.py, core/board/stripe_webhook.py): every
 delivery is verified with STRIPE_WEBHOOK_SECRET, each event id is claimed once,
 so each side effect runs once per event, and the receiver writes no money (it
-starts the Stripe sync). No network: Supabase is faked in tests/board_fakes.py
-and every side effect is replaced by a recorder."""
+starts the Stripe sync) and keeps no payment log (data/stripe_payments.json is
+gone). No network: Supabase is faked in tests/board_fakes.py and every side
+effect is replaced by a recorder."""
 import hashlib
 import hmac
 import json
@@ -84,7 +85,6 @@ def setup(monkeypatch, tmp_path):
     client = bf.client(monkeypatch)
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", SECRET)
     monkeypatch.setenv("DISCORD_PAID_ROLE_ID", "role-1")
-    monkeypatch.setattr(api, "_stripe_payments_file", tmp_path / "stripe_payments.json")
     fx = Effects()
     member = {"telegram_user_id": 42, "channel_id": "-100", "discord_guild_id": "g1", "discord_user_id": "u1"}
     monkeypatch.setattr(ts, "handle_checkout_completed", fx.record("tg_checkout", "tg-token"))
@@ -96,7 +96,12 @@ def setup(monkeypatch, tmp_path):
     monkeypatch.setattr(ds, "revoke_for_subscription", fx.record("dc_revoke", member))
     monkeypatch.setattr(ds, "grant_role", fx.record_async("dc_grant"))
     monkeypatch.setattr(ds, "revoke_role", fx.record_async("dc_revoke_role"))
-    monkeypatch.setattr("core.click_tracker.record_conversion", fx.record("conversion", {"status": "recorded"}))
+    # The conversion log is gone: attribution lives in the ledger. Any call into the
+    # click tracker from the receiver would show up as a "click_tracker" effect.
+    import core.click_tracker as click_tracker
+    for name in ("record_click", "new_click", "save_click", "get_stats", "_load_clicks", "clicks_between",
+                 "clicks_on", "total_clicks"):
+        monkeypatch.setattr(click_tracker, name, fx.record("click_tracker"))
     monkeypatch.setattr("core.drip.enroll_in_drip", fx.record("drip", {"status": "skipped"}))
     monkeypatch.setattr("core.store_delivery.deliver", fx.record("delivery", {"status": "sent"}))
 
@@ -130,12 +135,14 @@ def post(client, event, *, signature=None, secret=SECRET, raw=None):
     return client.post(PATH, content=payload, headers=headers)
 
 
-ALL_CHECKOUT_EFFECTS = {"tg_checkout": 1, "dc_checkout": 1, "dc_grant": 1, "conversion": 1, "drip": 1,
+ALL_CHECKOUT_EFFECTS = {"tg_checkout": 1, "dc_checkout": 1, "dc_grant": 1, "drip": 1,
                         "table:profiles": 1, "tier_upgrade": 1, "delivery": 1, "stripe_sync": 1}
 
 
-def _payments(api):
-    return json.loads(api._stripe_payments_file.read_text()) if api._stripe_payments_file.exists() else []
+def _no_payment_log(api) -> bool:
+    """The old payment log is gone: no code in core.api keeps one."""
+    return not any(hasattr(api, name) for name in ("_stripe_payments_file", "_save_stripe_payment",
+                                                   "_load_stripe_payments"))
 
 
 # ─── refused before anything runs ───────────────────────────────────────────
@@ -151,7 +158,7 @@ def test_without_the_signing_secret_every_post_is_refused_with_503(setup, monkey
         assert r.status_code == 503 and "signing secret" in r.json()["error"]
     unsigned = client.post(PATH, content=json.dumps(checkout_event()).encode())
     assert unsigned.status_code == 503
-    assert db.calls == [] and not fx.calls and _payments(api) == []
+    assert db.calls == [] and not fx.calls and _no_payment_log(api)
     refusals = [r for r in caplog.records if r.name == "board.stripe_webhook" and "refused" in r.getMessage()]
     assert len(refusals) == 1 and refusals[0].levelname == "ERROR"      # said once, not once per event
     assert "STRIPE_WEBHOOK_SECRET is not set" in refusals[0].getMessage()
@@ -187,7 +194,7 @@ def test_a_bad_missing_or_stale_signature_is_refused_with_400(setup):
     signed_junk = b"not json"
     assert post(client, None, raw=signed_junk).status_code == 400
     assert post(client, None, raw=b'{"object": "event"}').status_code == 400      # no id, no type
-    assert db.calls == [] and not fx.calls and _payments(api) == []
+    assert db.calls == [] and not fx.calls and _no_payment_log(api)
 
 
 # ─── once per event ─────────────────────────────────────────────────────────
@@ -200,11 +207,12 @@ def test_a_new_event_runs_every_side_effect_once_and_starts_the_sync(setup):
     assert fx.args["tier"] == {"tier": "pro"} and fx.args["tier_where"] == ("email", "buyer@example.com")
     assert fx.args["delivery"][1] == {"store_key": "blueprint_kit", "buyer_email": "buyer@example.com",
                                       "buyer_name": "Bea Buyer", "event_id": "evt_1", "amount_usd": 29.99}
-    assert fx.args["conversion"][1]["external_id"] == "evt_1"
+    assert fx.calls["click_tracker"] == 0                          # no conversion log, no click guess
     assert fx.args["dc_grant"][0] == ("g1", "u1", "role-1")
     assert fx.args["stripe_sync"][1] == {"trigger": "webhook"}
-    (payment,) = _payments(api)                                   # the payment log, kept for now
-    assert payment["event_id"] == "evt_1" and payment["amount"] == 29.99
+    assert _no_payment_log(api)                                   # no payment log: the sync reads the money
+    line = [e["message"] for e in api._log_buffer if e["message"].startswith("Stripe checkout.session.completed")][-1]
+    assert line == "Stripe checkout.session.completed: $29.99 from b***@example.com"   # the buyer masked
     row = db.webhook_events[("stripe", "evt_1")]
     assert (row["status"], row["attempts"], row["event_type"]) == ("processed", 1, "checkout.session.completed")
     assert row["processed_at"] is not None
@@ -217,7 +225,6 @@ def test_a_replayed_event_changes_nothing(setup):
         r = post(client, checkout_event())
         assert r.status_code == 200 and r.json()["status"] == "done"
     assert dict(fx.calls) == ALL_CHECKOUT_EFFECTS                 # no second delivery, upgrade or bridge
-    assert len(_payments(api)) == 1                               # no second payment row
     assert db.webhook_events[("stripe", "evt_1")]["attempts"] == 1
 
 
@@ -226,7 +233,7 @@ def test_the_same_event_arriving_mid_run_answers_409_and_runs_nothing(setup):
     db._rpc_board_claim_webhook("stripe", "evt_1", "checkout.session.completed", True)   # running now
     r = post(client, checkout_event())
     assert r.status_code == 409
-    assert not fx.calls and _payments(api) == []
+    assert not fx.calls
 
 
 def test_a_failed_or_abandoned_event_runs_again(setup):
@@ -246,20 +253,22 @@ def test_a_failed_or_abandoned_event_runs_again(setup):
 
 def test_a_failing_receiver_answers_500_and_stripes_retry_runs_it_once(setup, monkeypatch):
     client, db, fx, api = setup
+    real, failures = api._add_log, []
 
-    def disk_full(record):
-        raise OSError("No space left on device")
+    def log_full_once(msg, level="INFO"):          # the first step that guards nothing of its own
+        if not failures:
+            failures.append(msg)
+            raise OSError("No space left on device")
+        return real(msg, level)
 
-    real = api._save_stripe_payment
-    monkeypatch.setattr(api, "_save_stripe_payment", disk_full)
+    monkeypatch.setattr(api, "_add_log", log_full_once)
     r = post(client, checkout_event())
     assert r.status_code == 500 and "No space" not in r.text
     row = db.webhook_events[("stripe", "evt_1")]
     assert row["status"] == "failed" and row["error"] == "side effects failed: OSError"
-    assert fx.calls["delivery"] == 0
-    monkeypatch.setattr(api, "_save_stripe_payment", real)
-    assert post(client, checkout_event()).status_code == 200
-    assert fx.calls["delivery"] == 1 and len(_payments(api)) == 1
+    assert fx.calls["delivery"] == 0 and fx.calls["tier_upgrade"] == 0
+    assert post(client, checkout_event()).status_code == 200      # Stripe's retry
+    assert fx.calls["delivery"] == 1 and fx.calls["tier_upgrade"] == 1
     assert db.webhook_events[("stripe", "evt_1")]["status"] == "processed"
 
 
@@ -284,14 +293,14 @@ def test_a_subscription_deletion_kicks_and_revokes_once(setup):
     assert fx.calls["tg_revoke"] == 1 and fx.calls["tg_kick"] == 1
     assert fx.calls["dc_revoke"] == 1 and fx.calls["dc_revoke_role"] == 1
     assert fx.args["tg_kick"][0] == ("-100", 42)
-    assert fx.calls["delivery"] == 0 and fx.calls["conversion"] == 0
+    assert fx.calls["delivery"] == 0 and fx.calls["click_tracker"] == 0
 
 
 def test_a_test_mode_event_is_stored_as_ignored_and_runs_nothing(setup):
     client, db, fx, api = setup
     r = post(client, checkout_event(livemode=False))
     assert r.status_code == 200 and r.json()["status"] == "done"
-    assert not fx.calls and _payments(api) == []
+    assert not fx.calls
     assert db.webhook_events[("stripe", "evt_1")]["status"] == "ignored"
 
 
@@ -302,7 +311,7 @@ def test_the_event_store_down_answers_503_and_runs_nothing(setup):
     db.down = False
     db.fail["rpc/board_claim_webhook"] = 404                   # the migration was never applied
     assert post(client, checkout_event()).status_code == 503
-    assert not fx.calls and _payments(api) == []
+    assert not fx.calls
 
 
 def test_the_receiver_writes_no_money(setup, monkeypatch):
@@ -322,3 +331,20 @@ def test_the_webhook_needs_no_api_key(setup, monkeypatch):
     import core.api as api_module
     monkeypatch.setattr(api_module, "_API_KEY", "a-key-the-webhook-never-sends")
     assert post(client, checkout_event("evt_key")).status_code == 200
+
+
+def test_the_conversion_log_is_gone(setup):
+    """Decision G: no 72-hour "last click by anyone" guess and no conversions
+    file. A sale is credited to its click in the ledger, by the Stripe sync."""
+    client, db, fx, api = setup
+    import inspect
+
+    import core.click_tracker as click_tracker
+    for name in ("record_conversion", "_load_conversions", "_save_conversions", "CONVERSIONS_FILE",
+                 "CLICKS_FILE", "_save_clicks"):
+        assert not hasattr(click_tracker, name), name
+    source = inspect.getsource(api._stripe_event_side_effects)
+    assert "click_tracker" not in source and "record_conversion" not in source
+    assert "conversion log" not in source
+    assert post(client, checkout_event("evt_g")).status_code == 200
+    assert fx.calls["click_tracker"] == 0

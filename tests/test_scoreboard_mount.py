@@ -18,7 +18,9 @@ def test_scoreboard_page_served(monkeypatch):
 
 
 def test_board_scoreboard_api_needs_the_owner_session(monkeypatch):
+    bf.clear_connectors(monkeypatch)
     fake = bf.install(monkeypatch)
+    bf.install_board(monkeypatch)                     # the ledger's reads go to the fake, never the network
     c = _client(monkeypatch)
     assert c.get("/api/board/scoreboard").status_code == 401
     r = c.get("/api/board/scoreboard", headers=bf.cookie(fake.add_session()))
@@ -28,6 +30,8 @@ def test_board_scoreboard_api_needs_the_owner_session(monkeypatch):
 
 
 def test_scoreboard_api_real_and_authed(monkeypatch):
+    bf.clear_connectors(monkeypatch)
+    bf.install_board(monkeypatch)
     c = _client(monkeypatch)
     r = c.get("/api/narai/scoreboard", headers={"X-API-Key": "test-key-123"})
     assert r.status_code == 200
@@ -35,6 +39,8 @@ def test_scoreboard_api_real_and_authed(monkeypatch):
     assert "metrics" in j and "surfaces" in j
     assert j["surfaces"]["ds24"] is False          # honestly not connected
     assert j["metrics"]["deployments"]["value"] == 0
+    assert j["metrics"]["revenue_month"]["value"] is None       # no Stripe key here: not measured, never $0
+    assert j["metrics"]["places_scanned"]["label"] == "places scanned (outreach)"
     # global middleware enforces auth on /api/*
     assert c.get("/api/narai/scoreboard").status_code in (401, 403)
 

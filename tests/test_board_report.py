@@ -83,7 +83,7 @@ def test_the_message_for_the_plans_fixture_day(synced, monkeypatch):
                     "Toodle opt-ins: 2 · target 3 · meta 1, organic 1\n"
                     "SiteBoost replies: 1 · last 7 days: 2 (target 1 a week) · 1 automatic reply or bounce "
                     "ignored\n"
-                    "Revenue: $10.00 net · fees $3.17\n"
+                    "Revenue: $10.00 net · attributed $29.99 (meta) · fees $3.17\n"
                     "  Stripe $10.00: 1 sale, 1 refund, 1 dispute, 1 dispute won\n"
                     "Meta: Toodle spend $5.02 · 9 link clicks → 2 opt-ins\n"
                     "Stop rule: CPL $6.28 over the last 5 spend days (4 Meta opt-ins) → STOP (above $5.00)\n"
@@ -96,7 +96,7 @@ def test_the_message_with_stripe_alone_says_what_each_other_source_needs(synced)
                     "Toodle opt-ins: not connected (Kit key not set: KIT_API_KEY)\n"
                     "SiteBoost replies: not connected (no Instantly key: set INSTANTLY_API_KEY "
                     "(a key with the emails:read scope))\n"
-                    "Revenue: $10.00 net · fees $3.17\n"
+                    "Revenue: $10.00 net · attributed $0.00 · fees $3.17\n"
                     "  Stripe $10.00: 1 sale, 1 refund, 1 dispute, 1 dispute won\n"
                     "Meta: not connected (Meta token not set: META_INSIGHTS_TOKEN (or META_ACCESS_TOKEN))\n"
                     "Stop rule: not connected (needs Meta and Kit)\n"
@@ -131,8 +131,52 @@ def test_a_partial_day_says_so(db, stripe):
     stripe.add(*bf.fixture_day())
     stripe_sync.run(now=datetime(2026, 11, 1, 23, 0, tzinfo=timezone.utc))
     text = board_day.render_report(board_day.day_view(date(2026, 11, 1)))
-    assert "Revenue: -$19.99 net so far · fees $2.00 (partial)" in text   # the dispute fee came back
+    assert "Revenue: -$19.99 net so far · attributed $0.00 · fees $2.00 (partial)" in text   # the dispute fee came back
     assert "synced to 17:55 on Sun 1 Nov (New York)" in text and "Sources: Stripe partial" in text
+
+
+def _revenue_view(by_channel, attributed, *, net=1000, fees=317, counts=None, state="final"):
+    revenue = {"value": net, "net_usd_cents": net, "fees_usd_cents": fees, "attributed_usd_cents": attributed,
+               "by_channel": by_channel, "counts": {"sale": 2} if counts is None else counts, "state": state,
+               "connected": True, "note": ""}
+    return {"numbers": {"revenue": revenue}}
+
+
+def test_the_revenue_line_names_each_attributed_channel_the_largest_first():
+    view = _revenue_view({"organic": 1999, "unattributed": -1999, "meta": 2999, "zero": 0}, 4998)
+    assert board_day.summary_line(view) == ("Revenue: $10.00 net · attributed $49.98 (meta $29.99, organic $19.99)"
+                                            " · fees $3.17")
+    ties = _revenue_view({"b": 500, "a": 500}, 1000)
+    assert board_day.summary_line(ties) == "Revenue: $10.00 net · attributed $10.00 (a $5.00, b $5.00) · fees $3.17"
+    assert board_day.attributed_channels(ties["numbers"]["revenue"]) == [("a", 500), ("b", 500)]
+
+
+def test_the_largest_channel_comes_first_by_amount_not_by_name():
+    view = _revenue_view({"meta": 1999, "organic": 2999, "unattributed": -1999}, 4998)
+    assert board_day.summary_line(view) == ("Revenue: $10.00 net · attributed $49.98 (organic $29.99, meta $19.99)"
+                                            " · fees $3.17")
+    assert board_day.attributed_channels(view["numbers"]["revenue"]) == [("organic", 2999), ("meta", 1999)]
+
+
+def test_a_refund_of_a_credited_sale_attributes_a_negative_amount():
+    view = _revenue_view({"meta": -2999}, -2999, net=-2999, fees=0, counts={"refund": 1})
+    assert board_day.summary_line(view) == "Revenue: -$29.99 net · attributed -$29.99 (meta) · fees $0.00"
+
+
+def test_a_day_with_no_money_rows_says_nothing_about_attribution():
+    view = _revenue_view({}, 0, net=0, fees=0, counts={})
+    assert board_day.summary_line(view) == "Revenue: $0.00 net · fees $0.00"
+
+
+def test_several_channels_from_the_ledger_one_of_them_a_refund(synced, monkeypatch):
+    # the 31 Oct buyer (refunded on 1 Nov) had opted in on the blog before buying
+    ledger.ingest_leads("kit", None, [bf.optin(9, "2026-10-01T12:00:00Z", "organic", email="old@example.com")])
+    bf.configure_connectors(monkeypatch)
+    bf.load_fixture_leads(synced)
+    view = board_day.day_view(date(2026, 11, 1))
+    assert view["numbers"]["revenue"]["by_channel"] == {"meta": 2999, "organic": -1999, "unattributed": 0}
+    assert board_day.summary_line(view) == ("Revenue: $10.00 net · attributed $10.00 (meta $29.99, "
+                                            "organic -$19.99) · fees $3.17")
 
 
 def test_every_value_in_the_message_is_escaped(synced):
@@ -156,7 +200,7 @@ def test_a_partial_day_says_so_on_every_line(db, stripe, monkeypatch):
         "  synced to 17:00 on Sun 1 Nov (New York)",
         "SiteBoost replies: 1 so far · last 7 days: 2 (target 1 a week) · 1 automatic reply or bounce ignored",
         "  synced to 17:00 on Sun 1 Nov (New York)",
-        "Revenue: -$19.99 net so far · fees $2.00 (partial)",
+        "Revenue: -$19.99 net so far · attributed $0.00 · fees $2.00 (partial)",
         "  Stripe -$19.99: 1 refund, 1 dispute, 1 dispute won",
         "  synced to 17:00 on Sun 1 Nov (New York)",
         "Meta: Toodle spend $5.02 so far · 9 link clicks → 2 opt-ins",

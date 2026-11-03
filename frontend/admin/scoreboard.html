@@ -118,7 +118,7 @@ function err(m){const e=document.getElementById('err');e.textContent='⚠ '+m;e.
 function say(m,ms){const e=document.getElementById('msg');e.textContent=m;e.style.display='block';setTimeout(()=>e.style.display='none',ms||8000);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const MONEY=new Set(['revenue_month','revenue_all_time','mrr']);
-const ORDER=['mrr','revenue_month','revenue_all_time','users','trials','leads','emails_sent','conversion','churn','open_bugs','deployments'];
+const ORDER=['mrr','revenue_month','revenue_all_time','users','trials','places_scanned','emails_sent','churn','open_bugs','deployments'];
 async function load(){
   let snap;
   try{
@@ -132,10 +132,10 @@ async function load(){
     'As of '+esc(snap.generated_at)+' · '+snap.connected_count+'/'+snap.total_surfaces+' surfaces connected';
   const m=snap.metrics||{};
   document.getElementById('grid').innerHTML=ORDER.filter(k=>m[k]).map(k=>{
-    const x=m[k]; const lbl=k.replace(/_/g,' ');
+    const x=m[k]; const lbl=x.label||k.replace(/_/g,' ');
     let body;
     if(!x.connected){ body=`<div class="val off">not connected</div><span class="pill off">no live source</span>`; }
-    else { const v = x.value==null ? '—' : MONEY.has(k) ? ('$'+x.value) : x.value;   // null is unknown, not 0
+    else { const v = x.value==null ? '—' : MONEY.has(k) ? ((x.value<0?'-$':'$')+Math.abs(Number(x.value)).toFixed(2)) : x.value;   // null is unknown, not 0
            body=`<div class="val">${esc(v)}</div><span class="pill on">live</span>`; }
     return `<div class="card"><div class="label">${esc(lbl)}</div>${body}
       <div class="src">${esc(x.source)}</div>${x.note?`<div class="note">${esc(x.note)}</div>`:''}</div>`;
@@ -163,6 +163,9 @@ const SYNC_SOURCES={stripe:'Stripe',kit:'Kit',instantly:'Instantly',meta_ads:'Me
 const SYNC_IDS=Object.keys(SYNC_SOURCES);
 const SYNC_RELOAD_MS=60000;     // a sync still running after the route's wait (202): the day again a minute later
 const KIND={sale:'sale',refund:'refund',dispute:'dispute',dispute_reversal:'dispute won',adjustment:'adjustment'};
+// How a sale's channel was found (board_day's attribution); 'none' says nothing.
+const ATTR={click_id:'tracked link',checkout_utm:'checkout tag',lead_email:'earlier lead, same email'};
+function own(map,k){return Object.prototype.hasOwnProperty.call(map,k)?map[k]:'';}
 const VERDICT={stop:['STOP','kill'],ok:['OK','on'],collecting:['collecting','off'],no_spend:['no spend','off'],
   check_tags:['check the tags','part'],check_currency:['check the currency','part']};
 function usd(c){if(c==null)return '—';const a=Math.abs(c);
@@ -199,9 +202,20 @@ function repliesCard(r){
     <div class="src">last 7 days: ${esc(dash(r.value_7d))} · target ${esc(r.target_per_week)} a week</div>
     ${auto?`<div class="src">${esc(plural(auto,'automatic reply or bounce','automatic replies or bounces'))} ignored</div>`:''}`);
 }
+// Attributed revenue: the net with a known channel, then each channel's net, the
+// largest first, and what has no channel ('unattributed') last. Channels that net to
+// 0 are left out; a day with no money rows has no line (as in the morning message).
+function attributedLine(n){
+  if(n.attributed_usd_cents==null||!Object.keys(n.counts||{}).length)return '';
+  const by=n.by_channel||{}, names=Object.keys(by).filter(k=>by[k]!=null&&by[k]!==0);
+  const known=names.filter(k=>k!=='unattributed').sort((a,b)=>by[b]-by[a]||(a<b?-1:a>b?1:0));
+  const parts=known.concat(names.includes('unattributed')?['unattributed']:[]).map(k=>esc(k)+' '+esc(usd(by[k])));
+  return `<div class="src">attributed ${esc(usd(n.attributed_usd_cents))}${parts.length?' · '+parts.join(' · '):''}</div>`;
+}
 function revenueCard(n){
   card('rev-card','Revenue · net, USD',n,`<div class="val">${esc(usd(n.value))}</div>
     <div class="src">gross ${esc(usd(n.gross_usd_cents))} · refunds ${esc(usd(n.refunds_usd_cents))} · disputes ${esc(usd(n.disputes_usd_cents))}</div>
+    ${attributedLine(n)}
     <div class="src">fees ${esc(usd(n.fees_usd_cents))}, not taken out of net</div>`);
 }
 function spendCard(s,o){
@@ -256,7 +270,7 @@ async function loadDay(){
       <td>${esc(s.at?nyTime(s.at):s.on)}</td><td>${esc(KIND[s.kind]||s.kind)}</td>
       <td>${esc(s.product)}</td><td>${esc(s.buyer)}</td>
       <td class="num">${esc(usd(s.amount_usd_cents))}${s.currency&&s.currency!=='USD'?`<div class="src">${esc(minor(s.amount_minor,s.currency))}</div>`:''}</td>
-      <td>${esc(s.channel)}</td></tr>`).join('')
+      <td>${esc(s.channel)}${own(ATTR,s.attribution)?`<div class="src">${esc(own(ATTR,s.attribution))}</div>`:''}</td></tr>`).join('')
     :`<tr><td colspan="6" class="src">${esc(n.value!=null?'No sales this day.':n.connected?'No sales to list yet.':'Not connected: nothing to list.')}</td></tr>`;
 }
 document.getElementById('day-pick').addEventListener('change',e=>{

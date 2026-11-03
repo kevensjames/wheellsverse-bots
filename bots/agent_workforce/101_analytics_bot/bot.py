@@ -64,8 +64,15 @@ class AnalyticsAgentBot(BaseBot):
         bot_health = self._load_json_safe("bot_health.json")
         sections.append(self._summarize_data(bot_health, "Bot Health"))
 
-        # Click tracking
-        clicks = self._load_json_safe("clicks.json")
+        # Click tracking: the /go clicks table, in core.click_tracker's old shape (no IP addresses).
+        # Read here rather than through _load_clicks(), which answers [] when the table cannot be
+        # read: a failed read must say "No data available", never "0 records".
+        try:
+            from core.board import ledger
+            from core.click_tracker import _old_shape
+            clicks = [_old_shape(r) for r in ledger.read_clicks()]
+        except Exception:
+            clicks = None
         sections.append(self._summarize_data(clicks, "Click Tracking"))
 
         # Token usage

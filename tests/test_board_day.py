@@ -968,3 +968,60 @@ def test_the_stop_rule_card_waits_for_kit_and_names_the_missing_setting(tmp_path
     assert '<div class="val off">not connected</div>' in cards["spend-card"]
     for name in ("cpl-card", "spend-card"):
         assert NO_TOODLE_CAMPAIGNS in cards[name] and "$0.00" not in cards[name] and "no spend" not in cards[name]
+
+
+def test_the_page_shows_attributed_revenue_and_how_each_sale_was_credited(tmp_path, db, stripe, monkeypatch):
+    import core.click_tracker as ct
+    monkeypatch.setattr(ct, "_clock", lambda: datetime(2026, 11, 1, 23, 50, tzinfo=timezone.utc))
+    monkeypatch.setattr("core.telegram.notify_click", lambda **kwargs: True)
+    click = ct.new_click("insider", query={"utm_source": "meta"})
+    assert ct.save_click(click)
+    bts, (s0, s1) = bf.fixture_day()
+    stripe.add(bts, [s0, {**s1, "client_reference_id": click.id}])        # the 1 Nov sale came through the link
+    assert stripe_sync.run(now=NOW)["status"] == "ok"
+    ledger.ingest_leads("kit", None, [bf.optin(9, "2026-10-01T12:00:00Z", "organic", email="old@example.com")])
+    view = board_day.day_view(date(2026, 11, 1))
+    assert {(s["kind"], s["channel"], s["attribution"]) for s in view["sales"]} == {
+        ("sale", "meta", "click_id"), ("refund", "organic", "lead_email"),
+        ("dispute", "unattributed", "none"), ("dispute_reversal", "unattributed", "none")}
+    out = _page(tmp_path, view)
+    card = out["loaded"]["rev-card"]["html"]
+    assert '<div class="src">attributed $10.00 · meta $29.99 · organic -$19.99</div>' in card   # 0s left out
+    body = out["loaded"]["sales-body"]["html"]
+    assert 'meta<div class="src">tracked link</div>' in body
+    assert 'organic<div class="src">earlier lead, same email</div>' in body
+    assert "checkout tag" not in body and body.count('<div class="src">') == 2          # 'none' says nothing
+    for text in (card, body):
+        assert "undefined" not in text and "null" not in text and "NaN" not in text
+    # a hostile channel and an attribution that names an Object property are escaped, never run
+    hostile = '<img src=x onerror=alert(1)>'
+    sales = [dict(s, channel=hostile, attribution="constructor") if s["kind"] == "sale" else
+             dict(s, attribution="checkout_utm") if s["kind"] == "refund" else s for s in view["sales"]]
+    rev = dict(view["numbers"]["revenue"], by_channel={hostile: 2999, "organic": -1999, "unattributed": 0})
+    out = _page(tmp_path, dict(view, sales=sales, numbers=dict(view["numbers"], revenue=rev)))
+    card, body = out["loaded"]["rev-card"]["html"], out["loaded"]["sales-body"]["html"]
+    assert "&lt;img src=x onerror=alert(1)&gt; $29.99" in card and "<img" not in card
+    assert "&lt;img src=x onerror=alert(1)&gt;" in body and "<img" not in body
+    assert "function" not in body and 'organic<div class="src">checkout tag</div>' in body
+
+
+def test_the_page_lists_the_largest_channel_first_by_amount_not_by_name(tmp_path, synced):
+    view = board_day.day_view(date(2026, 11, 1))
+    rev = dict(view["numbers"]["revenue"], by_channel={"meta": 1999, "organic": 2999, "unattributed": -1999},
+               attributed_usd_cents=4998)
+    card = _page(tmp_path, dict(view, numbers=dict(view["numbers"], revenue=rev)))["loaded"]["rev-card"]["html"]
+    assert '<div class="src">attributed $49.98 · organic $29.99 · meta $19.99 · unattributed -$19.99</div>' in card
+
+
+def test_the_page_has_no_attribution_line_on_a_day_without_money(tmp_path, db, stripe):
+    db.set_source(measured_from="2026-01-01", synced_through="2026-11-02T11:55:00Z")
+    view = board_day.day_view(date(2026, 11, 1))
+    card = _page(tmp_path, view)["loaded"]["rev-card"]["html"]
+    assert "attributed" not in card and "$0.00" in card
+    # money rows that cancel out: attributed $0.00, as the morning message says
+    rev = dict(view["numbers"]["revenue"], counts={"sale": 1, "refund": 1}, by_channel={"meta": 0},
+               attributed_usd_cents=0)
+    card = _page(tmp_path, dict(view, numbers=dict(view["numbers"], revenue=rev)))["loaded"]["rev-card"]["html"]
+    assert '<div class="src">attributed $0.00</div>' in card
+    assert board_day.summary_line({"numbers": {"revenue": dict(rev, value=0, net_usd_cents=0, fees_usd_cents=0)}}) \
+        == "Revenue: $0.00 net · attributed $0.00 · fees $0.00"

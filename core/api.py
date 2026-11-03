@@ -1710,10 +1710,13 @@ async def serve_portfolio_cockpit(slug: str):
 
 
 @app.get("/api/narai/scoreboard")
-async def api_scoreboard():
-    """Honest portfolio scoreboard — real numbers from connected revenue surfaces
-    (Stripe via core.revenue, SiteBoost leads); unconnected surfaces reported as
-    not-connected, never faked. Auth-gated by the global api_key_middleware."""
+def api_scoreboard():
+    """Honest portfolio scoreboard — real numbers from connected surfaces:
+    revenue from the board's ledger by New York day, MRR and users read live
+    from Stripe, SiteBoost's places scanned (core/scoreboard.py). Unconnected
+    surfaces read not-connected, never faked. A plain def: the reads run in
+    the threadpool, off the event loop. Auth-gated by the global
+    api_key_middleware."""
     from core.scoreboard import snapshot
     return snapshot()
 
@@ -3195,13 +3198,13 @@ async def pipeline_batch_status():
 
 
 @app.get("/api/money/record")
-async def money_record_status():
-    """Status alias for POST /api/money/record. Returns last 30 days of records."""
-    try:
-        from core.money_center import get_recent_records
-        return {"records": get_recent_records(days=30)}
-    except Exception:
-        return {"records": []}
+def money_record_status():
+    """Status alias for POST /api/money/record: the manual entries of the last
+    30 New York days, newest first, from the board's ledger, in the old
+    record shape. {records: [], error: 'database not connected'} when the
+    database cannot be read."""
+    from core.board import money
+    return money.manual_records(30)
 
 
 @app.post("/api/narai/stream")
@@ -4332,11 +4335,11 @@ async def generate_weekly_report():
         earned_7d = 0.0
 
     lead_stats_data = get_email_capture().get_stats()
-    clicks_data = click_stats()
+    clicks_data = await asyncio.to_thread(click_stats)      # the clicks table: database reads
     total_articles = 20
     total_leads = lead_stats_data.get("total_leads", 0)
     leads_today = lead_stats_data.get("leads_today", 0)
-    total_clicks = clicks_data.get("total_clicks", 0)
+    total_clicks = clicks_data.get("total_clicks")           # None: the clicks cannot be read
     top_partner = max(
         clicks_data.get("by_partner", {}).items(),
         key=lambda x: x[1], default=("none", 0)
@@ -4352,7 +4355,7 @@ Write a concise, professional weekly performance report as styled HTML. Use inli
 This week's data (week ending {week}):
 - Articles live on blog: {total_articles}
 - New email leads: {total_leads} total, {leads_today} today
-- Affiliate clicks tracked: {total_clicks}
+- Affiliate clicks tracked: {total_clicks if total_clicks is not None else 'not connected'}
 - Top affiliate program by clicks: {top_partner}
 - Revenue earned (7 days): ${earned_7d:.2f}
 
@@ -7235,22 +7238,36 @@ async def repurpose_file(file_path: str, background_tasks: BackgroundTasks,
 # ─── Affiliate Click Tracking ────────────────────────────────────────────────
 
 @app.get("/go/{partner}")
-async def affiliate_redirect(partner: str, request: Request):
-    """Track affiliate click then redirect to partner URL."""
-    from core.click_tracker import record_click
+async def affiliate_redirect(partner: str, request: Request, background_tasks: BackgroundTasks):
+    """A tracked link: a 302 to the key's destination, and one row in the clicks
+    table (core/click_tracker.py), with no visitor address. A key outside
+    [a-z0-9_-]{1,64} after lower-casing, or with no destination, answers 404.
+    The row is stored after the redirect is sent, and best effort: a database
+    error is logged and never blocks the redirect. Past 30 stored clicks a
+    minute from one client (300 from everyone), it still redirects but stores
+    nothing. A Stripe Payment Link gets client_reference_id=<click id> for a
+    click within the limit (the one that is stored). Never cached: each click
+    is its own."""
+    from core import click_tracker
     from fastapi.responses import RedirectResponse
-    referrer = request.headers.get("referer", "")
-    ip = request.client.host if request.client else ""
-    dest = record_click(partner, referrer=referrer, ip=ip)
-    if not dest:
-        raise HTTPException(404, f"Unknown affiliate partner: {partner}")
-    _add_log(f"Affiliate click: {partner}", "INFO")
-    return RedirectResponse(url=dest, status_code=302)
+    click = click_tracker.new_click(partner, referrer=request.headers.get("referer", ""),
+                                    query=request.query_params)
+    if click is None:
+        raise HTTPException(404, "Unknown affiliate partner")
+    url = click.destination
+    if click_tracker.allow_click(_board_auth.client_ip(request)):
+        background_tasks.add_task(click_tracker.save_click, click)
+        url = click.url
+    _add_log(f"Affiliate click: {click.partner}", "INFO")
+    return RedirectResponse(url=url, status_code=302, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/clicks")
-async def get_click_stats():
-    """Affiliate click stats — total, by partner, recent 20."""
+def get_click_stats():
+    """Affiliate click stats from the clicks table: total, by partner, the 20
+    newest (no visitor address: none is stored), and the sales that came
+    through a tracked link, from the ledger. Counts are null, with connected
+    false and a note, when the database cannot be read."""
     from core.click_tracker import get_stats
     return get_stats()
 
@@ -7283,17 +7300,13 @@ _BLOG_ARTICLES = [
 _NETLIFY_BASE = "https://wheellsverse-bots.pages.dev/blog/"
 
 @app.get("/api/blog/articles")
-async def blog_articles():
-    """Blog Command Board — 20 live articles with per-article click attribution."""
-    from core.click_tracker import _load_clicks
-    raw_clicks = _load_clicks()
-    slug_clicks: Dict[str, int] = {}
-    for c in raw_clicks:
-        ref = c.get("referrer", "")
-        for art in _BLOG_ARTICLES:
-            slug = art["filename"].replace(".html", "")
-            if slug in ref:
-                slug_clicks[slug] = slug_clicks.get(slug, 0) + 1
+def blog_articles():
+    """Blog Command Board — the 20 live articles. A plain def: the clicks are
+    counted by the database, in the threadpool. clicks_total is null when the
+    clicks cannot be counted. Each article's clicks is null: a stored click
+    keeps only the referring site (its host), never the page, so clicks per
+    article are not measured (clicks_note says so)."""
+    from core.click_tracker import total_clicks
 
     cat_counts: Dict[str, int] = {}
     for art in _BLOG_ARTICLES:
@@ -7315,14 +7328,15 @@ async def blog_articles():
             "slug":       slug,
             "url":        _NETLIFY_BASE + art["filename"],
             "affiliates": art["affiliates"],
-            "clicks":     slug_clicks.get(slug, 0),
+            "clicks":     None,                  # not measured: never a 0 for a count nobody took
             "status":     "live",
         })
 
     return {
         "articles":        articles,
         "total":           len(articles),
-        "clicks_total":    len(raw_clicks),
+        "clicks_total":    total_clicks(),
+        "clicks_note":     "Clicks per article are not measured: a stored click keeps only the referring site.",
         "top_category":    top_category,
         "active_programs": len(all_affiliates),
         "category_counts": cat_counts,
@@ -7571,37 +7585,37 @@ async def gsc_submit_sitemap():
 
 @app.post("/api/telegram/alerts/daily")
 async def telegram_daily_alert():
-    """Send a daily revenue + activity summary to Telegram."""
+    """Send a daily revenue + activity summary to Telegram. Impact's earnings
+    read 'not connected' when Impact is not set up or its numbers could not be
+    read in full: never a $0.00 that was not measured."""
     from core.telegram import notify
-    from core.impact import get_earnings
-    try:
-        earn = get_earnings(days=1)
-        today_earned = earn.get("total_earned", 0)
-    except Exception:
-        today_earned = 0
+    from core.impact import earned_total
 
-    try:
-        earn7 = get_earnings(days=7)
-        week_earned = earn7.get("total_earned", 0)
-    except Exception:
-        week_earned = 0
+    def _earned(value) -> str:
+        if value is None:
+            return "not connected"
+        return f"{'-' if value < 0 else ''}${abs(value):.2f}"
+
+    # Impact over HTTP, off the event loop
+    today_earned = _earned(await asyncio.to_thread(earned_total, 1))
+    week_earned = _earned(await asyncio.to_thread(earned_total, 7))
 
     blog_dir = ROOT / "frontend" / "blog"
     article_count = max(0, len(list(blog_dir.glob("*.html"))) - 1) if blog_dir.exists() else 0
 
+    # /go clicks so far today in New York, counted by the database; — when it cannot say
     try:
-        from core.click_tracker import _load_clicks
-        clicks_today = sum(1 for c in _load_clicks()
-                           if c.get("timestamp", "")[:10] == datetime.now().strftime("%Y-%m-%d"))
+        from core.click_tracker import clicks_today as _clicks_today
+        clicks_today = await asyncio.to_thread(_clicks_today)
     except Exception:
-        clicks_today = 0
+        clicks_today = None
 
     msg = (
         f"📊 <b>WheellsVerse Daily Summary</b>\n"
         f"📅 {datetime.now().strftime('%B %d, %Y')}\n\n"
-        f"💰 Today's Earnings: <b>${today_earned:.2f}</b>\n"
-        f"📈 7-Day Total: <b>${week_earned:.2f}</b>\n"
-        f"🖱 Affiliate Clicks Today: <b>{clicks_today}</b>\n"
+        f"💰 Today's Earnings: <b>{today_earned}</b>\n"
+        f"📈 7-Day Total: <b>{week_earned}</b>\n"
+        f"🖱 Affiliate Clicks Today: <b>{'—' if clicks_today is None else clicks_today}</b>\n"
         f"📝 Blog Articles Live: <b>{article_count}</b>\n\n"
         f"🌐 <a href='https://wheellsverse-bots.pages.dev'>View Blog</a>"
     )
@@ -7997,10 +8011,12 @@ async def generate_newsletter():
 # ─── Revenue Tracker V2 ───────────────────────────────────────────────────────
 
 @app.get("/api/revenue/v2")
-async def revenue_v2():
-    """Enhanced revenue endpoint: Impact + click tracker + sparklines + goal tracking."""
+def revenue_v2():
+    """Enhanced revenue endpoint: Impact + click tracker + sparklines + goal tracking.
+    tracker_clicks (every /go click) and tracker_today (today's, by New York day)
+    are counted by the database; null when it cannot say, never 0."""
     from core.impact import get_earnings
-    from core.click_tracker import _load_clicks
+    from core import click_tracker
 
     # Impact data
     try:
@@ -8026,14 +8042,9 @@ async def revenue_v2():
     goal          = float(os.getenv("REVENUE_GOAL", "500"))
     goal_pct      = min(100, round(projection_30 / goal * 100, 1)) if goal > 0 else 0
 
-    # Click tracker — local affiliate link clicks per article
-    try:
-        raw_clicks = _load_clicks()
-        tracker_total = len(raw_clicks)
-        tracker_today = sum(1 for c in raw_clicks
-                            if c.get("timestamp", "")[:10] == today.strftime("%Y-%m-%d"))
-    except Exception:
-        tracker_total = tracker_today = 0
+    # Click tracker — /go clicks, counted in SQL (never len() of a capped read)
+    tracker_total = click_tracker.total_clicks()
+    tracker_today = click_tracker.clicks_today()
 
     # Per-program cards with program metadata
     PROGRAM_META = {
@@ -10126,23 +10137,10 @@ async def whatsapp_incoming(req: WhatsAppWebhookPayload):
 
 
 # ─── Week 9: Money Command Center API ────────────────────────────────────────
-
-_stripe_payments_file = ROOT / "data" / "stripe_payments.json"
-
-def _load_stripe_payments() -> list:
-    if _stripe_payments_file.exists():
-        try:
-            return json.loads(_stripe_payments_file.read_text())
-        except Exception:
-            return []
-    return []
-
-def _save_stripe_payment(event: dict):
-    payments = _load_stripe_payments()
-    payments.insert(0, event)
-    payments = payments[:500]  # keep last 500
-    _stripe_payments_file.parent.mkdir(parents=True, exist_ok=True)
-    _stripe_payments_file.write_text(json.dumps(payments, indent=2))
+# The money numbers come from the daily numbers board's ledger, by New York
+# day (core/board/money.py). The old JSON payment log is gone:
+# scripts/board_import_json.py imports its manual entries from a copy of the
+# file (safe to run again: each entry has a key made from the record).
 
 
 @app.post("/api/stripe/webhook")
@@ -10184,28 +10182,22 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks):
 
 async def _stripe_event_side_effects(event: dict) -> None:
     """What the receiver does for one verified Stripe event, once per event id:
-    the payment log, the Telegram and Discord subscription bridges, the
-    conversion log, the drip enrollment, the NarAI tier upgrade and the store
-    delivery. The bridges, the conversion log, the drip, the tier upgrade's
-    write and the store delivery catch their own errors, so one failure cannot
-    stop the others; anything else that raises fails the event, and Stripe's
-    retry runs it again."""
+    the activity log line, the Telegram and Discord subscription bridges, the
+    drip enrollment, the NarAI tier upgrade and the store delivery. No money
+    is recorded here: the Stripe sync reads it from Stripe's balance
+    transactions, and credits a sale to its tracked link (client_reference_id)
+    or the buyer's earlier lead in the ledger. The bridges, the drip, the tier
+    upgrade's write and the store delivery catch their own errors, so one
+    failure cannot stop the others; anything else that raises fails the
+    event, and Stripe's retry runs it again."""
+    from core.board.money import mask as _mask_email
     etype  = event.get("type", "")
     data   = event.get("data", {}).get("object", {})
     amount = data.get("amount_total") or data.get("amount_paid") or data.get("amount", 0)
     amount_usd = round(amount / 100, 2) if amount else 0.0
+    buyer_email = data.get("customer_email") or (data.get("customer_details") or {}).get("email", "") or ""
 
-    record = {
-        "ts":       datetime.now().isoformat(),
-        "type":     etype,
-        "amount":   amount_usd,
-        "currency": data.get("currency", "usd"),
-        "email":    data.get("customer_email") or data.get("customer_details", {}).get("email", ""),
-        "product":  data.get("description") or data.get("lines", {}).get("data", [{}])[0].get("description", "") if etype == "invoice.paid" else "",
-        "event_id": event.get("id", ""),
-    }
-    _save_stripe_payment(record)
-    _add_log(f"Stripe {etype}: ${amount_usd} from {record['email'][:30]}", "INFO")
+    _add_log(f"Stripe {etype}: ${amount_usd} from {_mask_email(buyer_email)[:30]}", "INFO")
 
     # Telegram private-group subscription bridge — react to checkout/cancel events
     # tagged with metadata.product == "tg_group" or carrying a tg_pairing_token.
@@ -10260,27 +10252,11 @@ async def _stripe_event_side_effects(event: dict) -> None:
     except Exception as _ds_err:
         _add_log(f"discord_subscription dispatch failed: {_ds_err}", "WARNING")
 
-    # Affiliate attribution — link Stripe payment back to most recent /go/{partner} click
-    if amount_usd > 0 and etype in ("checkout.session.completed", "invoice.paid"):
-        try:
-            from core.click_tracker import record_conversion
-            meta = data.get("metadata") or {}
-            partner_hint = meta.get("partner") or meta.get("affiliate_partner") or ""
-            record_conversion(
-                partner=partner_hint,
-                amount_usd=amount_usd,
-                customer_email=record["email"],
-                source="stripe",
-                external_id=event.get("id", ""),
-            )
-        except Exception as _e:
-            _add_log(f"record_conversion failed: {_e}", "WARNING")
-
     # Auto-enroll buyer into ConvertKit drip if email present
-    if record["email"] and etype in ("checkout.session.completed", "invoice.paid"):
+    if buyer_email and etype in ("checkout.session.completed", "invoice.paid"):
         try:
             from core.drip import enroll_in_drip
-            enroll_in_drip(email=record["email"], first_name="", source=f"stripe_{etype}")
+            enroll_in_drip(email=buyer_email, first_name="", source=f"stripe_{etype}")
         except Exception:
             pass
 
@@ -10288,7 +10264,7 @@ async def _stripe_event_side_effects(event: dict) -> None:
     if etype == "checkout.session.completed":
         meta = data.get("metadata", {})
         narai_plan = meta.get("narai_plan", "")
-        user_email = meta.get("user_email", "") or record["email"]
+        user_email = meta.get("user_email", "") or buyer_email
         if narai_plan in ("pro", "max", "ultra") and user_email:
             try:
                 from core.narai_user import get_supabase
@@ -10308,7 +10284,6 @@ async def _stripe_event_side_effects(event: dict) -> None:
             if store_key:
                 from core.store_delivery import deliver
                 details = data.get("customer_details", {}) or {}
-                buyer_email = data.get("customer_email") or details.get("email", "") or record["email"]
                 buyer_name = details.get("name", "") or ""
                 result = deliver(
                     store_key=store_key,
@@ -10323,25 +10298,23 @@ async def _stripe_event_side_effects(event: dict) -> None:
 
 
 @app.get("/api/money/summary")
-async def money_summary():
-    """Money Command Center — combined real-time snapshot of all revenue streams."""
-    from datetime import date, timedelta
-    today_str = date.today().isoformat()
-    week_ago  = (date.today() - timedelta(days=7)).isoformat()
+def money_summary():
+    """Money Command Center — one snapshot of every revenue stream. The money
+    comes from the board's ledger by New York day (core/board/money.py): stripe
+    {today, week, total (since Stripe is measured), recent (5 newest, buyers
+    masked)}, and the additive manual {today, week, total} and ledger
+    {connected, today, tz, measured_from, stripe_synced_through, note}.
+    Dollars; null when not measured, never 0. total_revenue_today is every
+    source, estimates never included: the old KDP estimate is gone
+    (kdp.est_daily is null)."""
+    from core.board import money
 
-    # ── Stripe ────────────────────────────────────────────────────────────────
-    payments  = _load_stripe_payments()
-    stripe_today  = sum(p["amount"] for p in payments if p["ts"][:10] == today_str)
-    stripe_week   = sum(p["amount"] for p in payments if p["ts"][:10] >= week_ago)
-    stripe_total  = sum(p["amount"] for p in payments)
-    stripe_recent = payments[:5]
+    numbers = money.money_summary_numbers()
 
     # ── KDP ───────────────────────────────────────────────────────────────────
     kdp_stats = _kdp_load_results()
     kdp_published = sum(1 for g in kdp_stats.values() if g.get("status") == "published")
     kdp_errors    = sum(1 for g in kdp_stats.values() if g.get("status") == "error")
-    # Estimated KDP revenue: published × $2.99 × 70% royalty / 30 days
-    kdp_est_daily = round(kdp_published * 2.99 * 0.70 / 30, 2)
 
     # ── Leads ─────────────────────────────────────────────────────────────────
     try:
@@ -10368,25 +10341,14 @@ async def money_summary():
     except Exception:
         mono_stats = {"total_injections": 0, "total_links": 0}
 
-    # ── Affiliate clicks ──────────────────────────────────────────────────────
-    try:
-        from core.click_tracker import get_click_tracker
-        click_data = get_click_tracker().get_summary(days=7)
-        aff_clicks_week = click_data.get("total_clicks", 0)
-    except Exception:
-        aff_clicks_week = 0
-
     return {
-        "stripe": {
-            "today":   stripe_today,
-            "week":    stripe_week,
-            "total":   stripe_total,
-            "recent":  stripe_recent,
-        },
+        "stripe": numbers["stripe"],
+        "manual": numbers["manual"],
+        "ledger": numbers["ledger"],
         "kdp": {
             "published":   kdp_published,
             "errors":      kdp_errors,
-            "est_daily":   kdp_est_daily,
+            "est_daily":   None,          # money never includes an estimate
             "genres":      kdp_stats,
         },
         "leads": {
@@ -10395,38 +10357,73 @@ async def money_summary():
             "list_size": list_size,
         },
         "monetization": mono_stats,
-        "affiliate_clicks_7d": aff_clicks_week,
-        "total_revenue_today": round(stripe_today + kdp_est_daily, 2),
+        # /go clicks of the last 7 New York days, counted in SQL; null when unreadable
+        "affiliate_clicks_7d": money.clicks_7d(),
+        "total_revenue_today": numbers["total_revenue_today"],
     }
 
 
 @app.get("/api/money/stripe")
-async def money_stripe(days: int = 30):
-    from datetime import date, timedelta
-    cutoff = (date.today() - timedelta(days=days)).isoformat()
-    payments = [p for p in _load_stripe_payments() if p["ts"][:10] >= cutoff]
-    total = sum(p["amount"] for p in payments)
-    by_type = {}
-    for p in payments:
-        by_type[p["type"]] = by_type.get(p["type"], 0) + p["amount"]
-    return {"total": round(total, 2), "count": len(payments), "by_type": by_type, "payments": payments[:50]}
+def money_stripe(days: int = 30):
+    """Stripe money of New York days today-`days` to today (days from 0 to
+    3660), from the board's ledger: total (net dollars), count (Stripe money
+    rows), by_type (sale, refund, dispute, adjustment; signed dollars) and
+    payments (the 50 newest, buyers masked). total and count are null unless
+    Stripe is measured over the whole window."""
+    from core.board import money
+    return money.stripe_payload(days)
+
+
+def _manual_entry_denial(request: Request) -> Optional[JSONResponse]:
+    """Manual money entries fail closed: they change the owner's board. With
+    API_KEY set, api_key_middleware has checked the key (or the owner's
+    session) already, as for every admin route: None. While API_KEY is not
+    set, only the signed-in owner's own page may record (core/board/auth.py).
+    Anything else answers 503 {error: money.NO_API_KEY} and nothing is
+    written; a session cookie sent from another site answers 403, and a
+    session store that cannot be read 503, as api_key_middleware answers them."""
+    if _API_KEY:
+        return None
+    from core.board.money import NO_API_KEY
+    status = _board_auth.api_cookie_status(request)
+    if status == "ok":
+        return None
+    if status == "forbidden":
+        return JSONResponse({"error": "Forbidden", "hint": "The board session works only on this site's own pages"},
+                            status_code=403)
+    if status == "unavailable":
+        return JSONResponse({"error": "Session check unavailable"}, status_code=503)
+    return JSONResponse({"error": NO_API_KEY}, status_code=503)
 
 
 @app.post("/api/money/record")
-async def money_record_manual(source: str, amount: float, note: str = ""):
-    """Manually record a revenue event (KDP royalty, affiliate payout, etc.)."""
-    record = {
-        "ts":     datetime.now().isoformat(),
-        "type":   f"manual_{source}",
-        "amount": amount,
-        "currency": "usd",
-        "email":  "",
-        "product": note,
-        "event_id": f"manual_{int(datetime.now().timestamp())}",
-    }
-    _save_stripe_payment(record)
-    _add_log(f"Manual revenue recorded: ${amount} from {source}", "INFO")
-    return {"status": "recorded", "amount": amount}
+def money_record_manual(request: Request, source: str, amount: float, note: str = "",
+                        idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")):
+    """Manually record a revenue event (KDP royalty, affiliate payout, etc.):
+    one manual ledger row (core.board.money.record_manual). Send an
+    Idempotency-Key header to make a retry safe: the same key again answers
+    from the stored entry. 200 {status: 'recorded', amount, id}; 422 a
+    refused amount, source or note; 409 the key was used for another amount;
+    503 the database is not connected. Stripe money comes from the Stripe sync.
+    While API_KEY is not set on the server, only the signed-in owner's own
+    page may record; anything else is a 503 (_manual_entry_denial)."""
+    denied = _manual_entry_denial(request)
+    if denied is not None:
+        return denied
+    from core.board import money
+    try:
+        result = money.record_manual(source, amount, note=note, entered_via="/api/money/record",
+                                     idempotency_key=idempotency_key)
+    except money.NotRecorded as e:
+        return JSONResponse({"status": "not recorded", "error": e.message}, status_code=e.status)
+    if not result["replayed"]:
+        _add_log(f"Manual revenue recorded: ${result['amount']:.2f} from {source.strip()[:64]}", "INFO")
+        from core.revenue import update_revenue_goal
+        update_revenue_goal()                        # the monthly goal follows the ledger (best effort)
+    out = {"status": "recorded", "amount": result["amount"], "id": result["id"]}
+    if result["replayed"]:
+        out["replayed"] = True
+    return out
 
 
 # ─── Money Center: Income Assets ─────────────────────────────────────────────
@@ -11207,31 +11204,59 @@ async def autopilot_set_mode(mode: str):
 
 # ─── Week 7: Revenue Dashboard API ───────────────────────────────────────────
 
+# RevenueEngine (core/revenue.py) reads the board's ledger by New York day. The
+# handlers are plain def: the database reads run in the threadpool.
+
 @app.get("/api/revenue/summary")
-async def revenue_summary():
+def revenue_summary():
     from core.revenue import get_summary
     return get_summary()
 
 @app.get("/api/revenue/dashboard")
-async def revenue_dashboard():
+def revenue_dashboard():
     from core.revenue import get_dashboard
     return get_dashboard(refresh_live=True)
 
 @app.post("/api/revenue/record")
-async def revenue_record(source: str, label: str, amount: float):
+def revenue_record(request: Request, source: str, label: str, amount: float,
+                   idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")):
+    """One manual ledger row, as POST /api/money/record: an Idempotency-Key
+    header makes a retry safe (the same key again answers from the stored
+    entry, with replayed: true); 422 a refused amount, text or key, 409 the
+    key was used for another amount, 503 the database is not connected.
+    While API_KEY is not set on the server, only the signed-in owner's own
+    page may record; anything else is a 503 (_manual_entry_denial)."""
+    denied = _manual_entry_denial(request)
+    if denied is not None:
+        return denied
+    from core.board.money import NotRecorded
     from core.revenue import record_revenue
-    record_revenue(amount, source, label)
-    return {"status": "recorded", "source": source, "label": label, "amount": amount}
+    try:
+        result = record_revenue(amount, source, label, idempotency_key=idempotency_key)
+    except NotRecorded as e:
+        return JSONResponse({"status": "not recorded", "error": e.message}, status_code=e.status)
+    out = {"status": "recorded", "source": source, "label": label, "amount": result["amount"],
+           "id": result["id"]}
+    if result["replayed"]:
+        out["replayed"] = True
+    return out
 
 @app.get("/api/revenue/report")
-async def revenue_report():
+def revenue_report():
     from core.revenue import RevenueEngine
     return {"report": RevenueEngine.get().daily_report()}
 
 @app.post("/api/revenue/send-report")
-async def revenue_send_report():
-    from core.revenue import RevenueEngine
-    RevenueEngine.get().send_daily_report()
+def revenue_send_report():
+    """Send the revenue report to Telegram now. The owner's daily message is
+    the board's, at 07:00 New York time; this one goes out only when asked.
+    {status: 'sent'} only when Telegram accepted it; 503 otherwise."""
+    from core.revenue import RevenueEngine, telegram_configured
+    if not telegram_configured():
+        return JSONResponse({"status": "not sent", "error": "Telegram is not configured"}, status_code=503)
+    if not RevenueEngine.get().send_daily_report():
+        return JSONResponse({"status": "not sent", "error": "Telegram did not accept the message"},
+                            status_code=503)
     return {"status": "sent"}
 
 
@@ -13812,7 +13837,7 @@ def launch(port: int = 5050, preload: bool = True):
         try:
             from pathlib import Path as _P9
             (_P9(__file__).parent.parent / "data").mkdir(exist_ok=True)
-            _add_log("Week 9: Money Command Center ready — /api/money/summary + /api/stripe/webhook", "INFO")
+            _add_log("Week 9: Money Command Center ready — /api/money/summary reads the board's ledger", "INFO")
         except Exception as e:
             _add_log(f"Week 9 init failed: {e}", "WARNING")
 
@@ -13843,23 +13868,9 @@ def launch(port: int = 5050, preload: bool = True):
         except Exception as e:
             _add_log(f"ContentCalendar start failed: {e}", "WARNING")
 
-        # ── Week 7: Revenue daily report at 08:00 ───────────────────────────────
-        try:
-            import schedule as _sched7
-            import threading as _th7
-            from core.revenue import RevenueEngine
-
-            _sched7.every().day.at("08:00").do(RevenueEngine.get().send_daily_report)
-
-            def _sched7_loop():
-                while True:
-                    _sched7.run_pending()
-                    import time as _t; _t.sleep(60)
-
-            _th7.Thread(target=_sched7_loop, daemon=True, name="revenue-reporter").start()
-            _add_log("Revenue daily report scheduled at 08:00", "INFO")
-        except Exception as e:
-            _add_log(f"Revenue reporter failed: {e}", "WARNING")
+        # The daily revenue message is the board's, at 07:00 New York time
+        # (start_board_scheduler). POST /api/revenue/send-report sends the old
+        # report on request; nothing schedules it.
 
         # ── Week 6: Performance dashboard refresh every 4 hours ─────────────────
         try:

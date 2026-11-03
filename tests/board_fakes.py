@@ -5,8 +5,12 @@ httpx.MockTransport, so no test reaches the network:
     (core.board.auth._transport), for sign-in.
   * FakeBoardDB: PostgREST over the board's tables and SQL functions
     (core.board.ledger._transport): the claims, board_ingest_ledger,
-    board_ingest_leads, board_fill_fx and board_day, by New York day, and the
-    upsert on ad_spend_daily. It follows the rules of
+    board_ingest_leads, board_fill_fx and board_day, by New York day, the
+    upsert on ad_spend_daily, the inserts into clicks, and the read-only views
+    board_ledger and board_revenue_daily. Reads honour PostgREST's filters
+    (eq, neq, in, lt, lte, gt, gte, is, not), order, offset, limit, Prefer:
+    count=exact (Content-Range, 206 when partial, 416 past the end) and the
+    API's row cap (max_rows, 1,000 by default, as on Supabase). It follows the rules of
     narai/migrations/0002_daily_numbers_board.sql that the board's code relies
     on; the real SQL is checked on PostgreSQL itself.
   * FakeStripe: the Stripe API's balance transactions and Checkout Sessions
@@ -189,6 +193,26 @@ _EXPONENT = {**dict.fromkeys("BIF CLP DJF GNF ISK JPY KMF KRW PYG RWF UGX UYI VN
 SPEND_COLUMNS = ("source_id", "campaign_id", "campaign_name", "funnel", "day", "currency", "spend_minor",
                  "spend_usd_cents", "fx_source", "fx_rate", "impressions", "link_clicks", "platform_leads",
                  "pulled_at", "job_run_id")
+# The columns PostgREST can select from these relations (a column outside them is a 400, as on PostgREST).
+LEDGER_COLUMNS = ("id", "source_id", "external_id", "kind", "occurred_at", "occurred_on", "local_day",
+                  "amount_minor", "currency", "amount_usd_cents", "fx_source", "fx_rate", "fee_usd_cents",
+                  "is_estimate", "product", "quantity", "customer_email", "channel", "attribution", "click_id",
+                  "order_ref", "via_platform", "source_event_id", "upload_id", "job_run_id", "raw", "created_at",
+                  "updated_at")
+BOARD_LEDGER_COLUMNS = ("id", "source_id", "external_id", "kind", "occurred_at", "occurred_on", "local_day",
+                        "amount_minor", "currency", "amount_usd_cents", "fee_usd_cents", "is_estimate", "quantity",
+                        "order_ref", "via_platform", "upload_id", "product", "customer_email", "channel",
+                        "attribution")
+REVENUE_DAILY_COLUMNS = ("local_day", "source_id", "channel", "sales", "units", "gross_usd_cents",
+                         "refunds_usd_cents", "disputes_usd_cents", "net_usd_cents", "fees_usd_cents",
+                         "unconverted_rows", "has_estimates")
+CLICK_COLUMNS = ("id", "partner", "clicked_at", "local_day", "referrer_host", "destination", "utm", "import_key",
+                 "created_at", "updated_at")
+CLICK_INSERT_COLUMNS = ("id", "partner", "clicked_at", "referrer_host", "destination", "utm", "import_key")
+_SELECTABLE = {"ledger_entries": LEDGER_COLUMNS, "board_ledger": BOARD_LEDGER_COLUMNS,
+               "board_revenue_daily": REVENUE_DAILY_COLUMNS, "clicks": CLICK_COLUMNS}
+_PARTNER = re.compile(r"[a-z0-9_-]{1,64}")                  # clicks.partner's check
+_UUID_TEXT = re.compile(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}", re.I)   # board_ingest_ledger's click id test
 
 
 class FakeSQLError(Exception):
@@ -373,12 +397,18 @@ class FakeBoardDB:
     kept. Check constraints run in name order, as Postgres runs them.
 
     Tables a test may read or fill: sources, job_runs, webhook_events, ledger
-    (ledger_entries), leads (lead_events), ad_spend (ad_spend_daily) and
-    fx_rates (add_fx_rate). There are no clicks or uploads here: a click id is
-    never stored and no upload covers a day."""
+    (ledger_entries; add_estimate puts a provisional KDP row there), leads
+    (lead_events), ad_spend (ad_spend_daily), fx_rates (add_fx_rate) and
+    clicks (by id). board_ingest_ledger keeps a row's click id only when it
+    names a stored click (in any case), also with attribution 'none'; it keeps
+    attribution 'click_id' only with a stored click and a channel, as the SQL
+    does. No upload covers a day."""
 
     def __init__(self):
         self.clock = lambda: datetime.now(timezone.utc)
+        self.max_rows = 1000                     # the API's row cap on one read (Supabase's db-max-rows)
+        self.exact_counts = True                 # False: a server that ignores Prefer: count=exact
+        self.clicks: dict[str, dict] = {}        # public.clicks, by id
         self.sources = {sid: {"id": sid, "kind": kind, "method": method, "display_name": name,
                               "account_ref": None, "day_tz": "America/New_York", "currency": None,
                               "enabled": True, "measured_from": None, "synced_through": None,
@@ -423,6 +453,18 @@ class FakeBoardDB:
             raise _violates("fx_rates", "fx_rates_usd_per_unit_check")
         self.fx_rates[(currency, d)] = {"id": str(uuid.uuid4()), "currency": currency, "day": d,
                                         "usd_per_unit": rate, "source": "ecb"}
+
+    def add_estimate(self, external_id: str, day: str, cents: int, product: str = "KDP royalties") -> None:
+        """A provisional KDP royalty, as board_apply_upload writes one: a date
+        (no time), USD, no processor fee (0), is_estimate true."""
+        d = date.fromisoformat(day)
+        self.ledger[("kdp", external_id)] = {
+            "id": str(uuid.uuid4()), "source_id": "kdp", "external_id": external_id,
+            "kind": "sale" if cents >= 0 else "refund", "occurred_at": None, "occurred_on": d, "local_day": d,
+            "amount_minor": cents, "currency": "USD", "amount_usd_cents": cents, "fx_source": "identity",
+            "fx_rate": None, "fee_usd_cents": 0, "is_estimate": True, "product": product, "quantity": 1,
+            "customer_email": None, "channel": None, "attribution": "none", "click_id": None, "order_ref": None,
+            "via_platform": None, "raw": {}, "job_run_id": None}
 
     def set_source(self, source_id: str = "stripe", **values) -> None:
         for k in ("synced_through", "last_ok_at", "last_error_at"):
@@ -469,24 +511,49 @@ class FakeBoardDB:
     def _tables(self) -> dict:
         return {"sources": self.sources, "job_runs": self.job_runs,
                 "webhook_events": self.webhook_events, "ledger_entries": self.ledger,
-                "lead_events": self.leads, "ad_spend_daily": self.ad_spend, "fx_rates": self.fx_rates}
+                "lead_events": self.leads, "ad_spend_daily": self.ad_spend, "fx_rates": self.fx_rates,
+                "clicks": self.clicks}
+
+    def _views(self) -> dict:
+        """The read-only views, computed when read."""
+        return {"board_ledger": self.board_ledger, "board_revenue_daily": self.board_revenue_daily}
+
+    @staticmethod
+    def _typed(row_value, value: str):
+        """The filter's text as the column's type, so it compares as Postgres
+        compares (a date as a date, a timestamptz as an instant)."""
+        if isinstance(row_value, datetime):
+            return _ts(value)
+        if isinstance(row_value, date):
+            return date.fromisoformat(value)
+        if _is_int(row_value):
+            return int(value)
+        return value
 
     @staticmethod
     def _cmp(row_value, op: str, value: str) -> bool:
         if op == "is":
-            return row_value is None if value == "null" else False
+            if value == "null":
+                return row_value is None
+            if value in ("true", "false"):               # IS TRUE / IS FALSE: a NULL is neither
+                return isinstance(row_value, bool) and row_value == (value == "true")
+            raise AssertionError(f"is.{value} is not faked")
+        if isinstance(row_value, bool) and op in ("eq", "neq"):
+            if value not in ("true", "false"):
+                raise FakeSQLError("22P02", f'invalid input syntax for type boolean: "{value}"')
+            return (row_value == (value == "true")) == (op == "eq")
         if op == "eq":
             return row_value is not None and str(row_value) == value
         if op == "neq":                          # SQL's <>: a NULL never matches
             return row_value is not None and str(row_value) != value
         if op == "in":
             return row_value is not None and str(row_value) in value.strip("()").split(",")
-        if op == "lt":
+        if op in ("lt", "lte", "gt", "gte"):
             if row_value is None:
                 return False
-            if isinstance(row_value, datetime):
-                return row_value < _ts(value)
-            return str(row_value) < value
+            a = row_value if isinstance(row_value, (date, int)) else str(row_value)
+            b = FakeBoardDB._typed(row_value, value)
+            return {"lt": a < b, "lte": a <= b, "gt": a > b, "gte": a >= b}[op]
         raise AssertionError(f"filter operator {op} is not faked")
 
     def _match(self, row: dict, filters: list[tuple[str, str]]) -> bool:
@@ -565,23 +632,45 @@ class FakeBoardDB:
         return value
 
     def _table(self, request: httpx.Request, table: str) -> httpx.Response:
-        rows = self._tables().get(table)
+        view = self._views().get(table)
+        if view is not None:
+            if request.method != "GET":
+                return httpx.Response(405, json={"code": "PGRST", "message": f"cannot write to the view {table}"})
+            rows = dict(enumerate(view()))
+        else:
+            rows = self._tables().get(table)
         if rows is None:
             return httpx.Response(404, json={"code": "42P01", "message": f"relation {table} does not exist"})
         if request.method == "POST":
             return self._insert(request, table)
         params = list(request.url.params.multi_items())
         select = next((v for k, v in params if k == "select"), None)
-        filters = [(k, v) for k, v in params if k not in ("select", "limit", "order")]
+        known = _SELECTABLE.get(table)
+        for column in (select.split(",") if select and known else []):
+            if column not in known:
+                return httpx.Response(400, json={"code": "42703",
+                                                 "message": f"column {table}.{column} does not exist"})
+        filters = [(k, v) for k, v in params if k not in ("select", "limit", "order", "offset")]
         matched = [r for r in rows.values() if self._match(r, filters)]
         if request.method == "GET":
+            total = len(matched)
             matched = self._ordered(matched, next((v for k, v in params if k == "order"), None))
+            offset = int(next((v for k, v in params if k == "offset"), 0) or 0)
+            exact = self.exact_counts and "count=exact" in request.headers.get("prefer", "")
+            if exact and offset > total:                 # PostgREST: a range past the end of a counted read
+                return httpx.Response(416, json={"code": "PGRST103", "message": "Requested range not satisfiable"},
+                                      headers={"Content-Range": f"*/{total}"})
+            matched = matched[offset:]
             limit = next((v for k, v in params if k == "limit"), None)
             if limit is not None:
                 matched = matched[:int(limit)]
-            out = [{k: self._out(v) for k, v in r.items() if select is None or k in select.split(",")}
-                   for r in matched]
-            return httpx.Response(200, json=out)
+            matched = matched[:self.max_rows]          # the API never answers more than its cap
+            columns = select.split(",") if select else known
+            out = [{k: self._out(v) for k, v in r.items() if columns is None or k in columns} for r in matched]
+            # PostgREST: Content-Range on every read; the total only with count=exact, and 206 when partial
+            of = str(total) if exact else "*"
+            headers = {"Content-Range": f"{offset}-{offset + len(out) - 1}/{of}" if out else f"*/{of}"}
+            return httpx.Response(206 if exact and len(out) < total else 200, json=out, headers=headers)
         if request.method == "PATCH":
             body = json.loads(request.content)
             for k, v in body.items():
@@ -608,6 +697,8 @@ class FakeBoardDB:
         is the primary key, so a row already on (source_id, campaign_id, day)
         is a unique violation, as is any repeat without a resolution. One
         statement: one bad row writes nothing."""
+        if table == "clicks":
+            return self._insert_clicks(request)
         if table != "ad_spend_daily":
             return httpx.Response(405, json={"message": f"inserting into {table} is not faked"})
         try:
@@ -664,6 +755,81 @@ class FakeBoardDB:
         if "return=representation" in prefer:
             return httpx.Response(201, json=[{k: self._out(v) for k, v in r.items()} for r in written])
         return httpx.Response(201)
+
+    def _insert_clicks(self, request: httpx.Request) -> httpx.Response:
+        """PostgREST's insert into clicks: a JSON object or an array of objects
+        with the same keys. With on_conflict=import_key and `Prefer:
+        resolution=ignore-duplicates` (ON CONFLICT (import_key) DO NOTHING) a
+        row whose import_key is there already, or came earlier in the same
+        call, is skipped; any other repeated key is a unique violation. With
+        `return=representation`, the rows inserted (only those), in `select`'s
+        columns. One statement: one bad row writes nothing."""
+        try:
+            body = json.loads(request.content or b"")
+        except ValueError:
+            return httpx.Response(400, json={"code": "PGRST102", "message": "Empty or invalid json"})
+        items = body if isinstance(body, list) else [body]
+        if not all(isinstance(x, dict) for x in items):
+            return httpx.Response(400, json={"code": "PGRST102", "message": "Empty or invalid json"})
+        columns = list(items[0]) if items else []
+        if any(set(x) != set(columns) for x in items):
+            return httpx.Response(400, json={"code": "PGRST102", "message": "All object keys must match"})
+        for c in columns:
+            if c not in CLICK_INSERT_COLUMNS:
+                return httpx.Response(400, json={"code": "PGRST204", "message": (
+                    f"Could not find the '{c}' column of 'clicks' in the schema cache")})
+        prefer = {p.strip() for p in request.headers.get("prefer", "").split(",") if p.strip()}
+        ignore = "resolution=ignore-duplicates" in prefer
+        target = request.url.params.get("on_conflict")
+        target_cols = {c.strip() for c in target.split(",")} if target else {"id"}
+        if target_cols not in ({"import_key"}, {"id"}):
+            raise FakeSQLError("42P10", "there is no unique or exclusion constraint matching the "
+                                        "ON CONFLICT specification")
+        if "resolution=merge-duplicates" in prefer:
+            raise AssertionError("an upsert on clicks is not faked")
+        staged, written = dict(self.clicks), []
+        keys = {r["import_key"] for r in staged.values() if r["import_key"] is not None}
+        for x in items:
+            new = self._click_row(x)
+            clash_id, clash_key = new["id"] in staged, new["import_key"] is not None and new["import_key"] in keys
+            if (clash_id and ignore and target_cols == {"id"}) or (clash_key and ignore and target_cols == {"import_key"}):
+                continue
+            if clash_id:
+                raise FakeSQLError("23505", 'duplicate key value violates unique constraint "clicks_pkey"')
+            if clash_key:
+                raise FakeSQLError("23505", 'duplicate key value violates unique constraint "clicks_import_once"')
+            staged[new["id"]] = new
+            written.append(new)
+            if new["import_key"] is not None:
+                keys.add(new["import_key"])
+        self.clicks.clear()
+        self.clicks.update(staged)
+        if "return=representation" in prefer:
+            select = request.url.params.get("select")
+            cols = select.split(",") if select else CLICK_COLUMNS
+            return httpx.Response(201, json=[{k: self._out(r[k]) for k in cols} for r in written])
+        return httpx.Response(201)
+
+    def _click_row(self, x: dict) -> dict:
+        """One payload object as the clicks row Postgres would insert, with its checks."""
+        now = self.clock()
+        clicked = _timestamptz(x["clicked_at"], now) if "clicked_at" in x else now
+        utm = x.get("utm", {}) if "utm" in x else {}
+        row = {"id": self._uuid_arg(x["id"]) if "id" in x else str(uuid.uuid4()),
+               "partner": _text(x.get("partner")), "clicked_at": clicked,
+               "local_day": clicked.astimezone(NY).date() if clicked is not None else None,
+               "referrer_host": _text(x.get("referrer_host")), "destination": _text(x.get("destination")),
+               "utm": utm, "import_key": _text(x.get("import_key")), "created_at": now, "updated_at": now}
+        _not_null("clicks", row, ("id", "partner", "clicked_at", "destination", "utm"))
+        checks = (
+            ("clicks_destination_check", 1 <= len(row["destination"]) <= 2048),
+            ("clicks_partner_check", bool(_PARTNER.fullmatch(row["partner"]))),
+            ("clicks_referrer_host_check", row["referrer_host"] is None or len(row["referrer_host"]) <= 255),
+            ("clicks_utm_check", isinstance(row["utm"], dict)))
+        for name, ok in checks:
+            if not ok:
+                raise _violates("clicks", name)
+        return row
 
     def _spend_row(self, x: dict) -> dict:
         """One payload object as the row Postgres would insert: missing columns
@@ -794,15 +960,18 @@ class FakeBoardDB:
                        customer_email=new["customer_email"] or old["customer_email"],
                        channel=new["channel"] if labelled else old["channel"],
                        attribution=new["attribution"] if labelled else old["attribution"],
+                       click_id=new["click_id"] if labelled else old["click_id"],
                        order_ref=old["order_ref"] or new["order_ref"],
                        via_platform=new["via_platform"] or old["via_platform"],
                        fee_usd_cents=old["fee_usd_cents"] if old["fee_usd_cents"] is not None else new["fee_usd_cents"])
         return [{"received": len(incoming), "inserted": len(incoming) - len(existing),
                  "relabelled": len(existing), "money_mismatches": mismatches}]
 
-    @staticmethod
-    def _ledger_row(source_id, run_id, x: dict) -> dict:
-        """One p_rows element as the SQL would write it, with its checks."""
+    def _ledger_row(self, source_id, run_id, x: dict) -> dict:
+        """One p_rows element as the SQL would write it, with its checks. A
+        click id is kept when it is a uuid (any case) of a stored click, also
+        with attribution 'none'; 'click_id' stays only with that click and a
+        channel. Labels never fail the row."""
         for k in ("amount_minor", "amount_usd_cents", "fee_usd_cents", "quantity"):
             if x.get(k) is not None and not _is_int(x[k]):
                 raise FakeSQLError("22P02", f'invalid input syntax for type bigint: "{x[k]}"')
@@ -817,9 +986,13 @@ class FakeBoardDB:
         channel = (None if not raw_channel else raw_channel if re.fullmatch(r"[a-z0-9_]{1,32}", raw_channel)
                    else "other")
         attribution = x.get("attribution") or "none"
-        if attribution == "none" or channel is None or attribution == "click_id":   # no clicks table here
+        raw_click = x.get("click_id")
+        click_id = None
+        if isinstance(raw_click, str) and _UUID_TEXT.fullmatch(raw_click):
+            click_id = raw_click.lower() if raw_click.lower() in self.clicks else None   # left join public.clicks
+        if attribution == "none" or channel is None or (attribution == "click_id" and click_id is None):
             attribution, channel = "none", None
-        row = {"source_id": source_id, "external_id": x.get("external_id"), "kind": kind,
+        row = {"id": str(uuid.uuid4()), "source_id": source_id, "external_id": x.get("external_id"), "kind": kind,
                "occurred_at": _ts(x.get("occurred_at")),
                "occurred_on": date.fromisoformat(x["occurred_on"]) if x.get("occurred_on") else None,
                "amount_minor": minor, "currency": currency, "amount_usd_cents": usd, "fx_source": fx,
@@ -827,14 +1000,16 @@ class FakeBoardDB:
                "fee_usd_cents": x.get("fee_usd_cents"), "is_estimate": bool(x.get("is_estimate")),
                "product": (str(x.get("product")).strip() or None) if x.get("product") else None,
                "quantity": x.get("quantity"), "customer_email": email, "channel": channel,
-               "attribution": attribution, "order_ref": x.get("order_ref"), "via_platform": x.get("via_platform"),
-               "raw": x.get("raw") or {}, "job_run_id": run_id}
+               "attribution": attribution, "click_id": click_id, "order_ref": x.get("order_ref"),
+               "via_platform": x.get("via_platform"), "raw": x.get("raw") or {}, "job_run_id": run_id}
         if not row["external_id"] or minor is None or not re.fullmatch(r"[A-Z]{3}", currency):
             raise FakeSQLError("23502", "null value or bad currency in ledger_entries")
         if kind not in ("sale", "refund", "dispute", "dispute_reversal", "fee", "adjustment"):
             raise FakeSQLError("23514", 'violates check constraint "ledger_entries_kind_check"')
         if (row["occurred_at"] is None) == (row["occurred_on"] is None):
             raise FakeSQLError("23514", 'violates check constraint "ledger_entries_one_time"')
+        # the generated column: the New York day of occurred_at, or occurred_on
+        row["local_day"] = row["occurred_at"].astimezone(NY).date() if row["occurred_at"] else row["occurred_on"]
         if kind in ("sale", "dispute_reversal") and (minor < 0 or (usd or 0) < 0) or \
                 kind in ("refund", "dispute", "fee") and (minor > 0 or (usd or 0) > 0):
             raise FakeSQLError("23514", 'violates check constraint "ledger_entries_sign"')
@@ -1001,6 +1176,35 @@ class FakeBoardDB:
                         "customer_email": email, "channel": channel, "attribution": attribution})
         return out
 
+    def board_revenue_daily(self) -> list[dict]:
+        """public.board_revenue_daily: board_ledger grouped by New York day,
+        source and channel, as the SQL sums it. Net is the money kinds' USD;
+        fees are the known fees minus the fee rows' amounts; rows without USD
+        are left out of the sums and counted; has_estimates is any estimate."""
+        groups: dict = {}
+        for r in self.board_ledger():
+            g = groups.setdefault((r["local_day"], r["source_id"], r["channel"]), {
+                "local_day": r["local_day"], "source_id": r["source_id"], "channel": r["channel"], "sales": 0,
+                "units": 0, "gross_usd_cents": 0, "refunds_usd_cents": 0, "disputes_usd_cents": 0,
+                "net_usd_cents": 0, "fees_usd_cents": 0, "unconverted_rows": 0, "has_estimates": False})
+            usd = r["amount_usd_cents"]
+            if r["kind"] == "sale":
+                g["sales"] += 1
+                g["units"] += r["quantity"] if r["quantity"] is not None else 1
+                g["gross_usd_cents"] += usd or 0
+            if r["kind"] == "refund":
+                g["refunds_usd_cents"] -= usd or 0
+            if r["kind"] in ("dispute", "dispute_reversal"):
+                g["disputes_usd_cents"] -= usd or 0
+            if r["kind"] in MONEY_KINDS:
+                g["net_usd_cents"] += usd or 0
+            g["fees_usd_cents"] += r["fee_usd_cents"] or 0
+            if r["kind"] == "fee":
+                g["fees_usd_cents"] -= usd or 0
+            g["unconverted_rows"] += usd is None
+            g["has_estimates"] = g["has_estimates"] or bool(r["is_estimate"])
+        return list(groups.values())
+
     def _cpl(self, day: date, p_days, p_stop, lookback: int = 30) -> dict:
         """board_cpl(day, p_days, p_stop): the stop rule over the last p_days
         days with Toodle spend within `lookback` days. A NULL setting is
@@ -1140,14 +1344,32 @@ class FakeBoardDB:
         }
 
 
+class FakeGoals:
+    """core.goal_tracker.GoalTracker.get() in a board test. An ok Stripe sync
+    and a manual entry move the monthly revenue goal (core.revenue); the real
+    tracker writes data/goals.json under the working directory and can send a
+    Telegram message, which a test must never do. Updates are kept here."""
+
+    def __init__(self):
+        self.updates: list[tuple] = []
+        self._goals: dict = {}
+
+    def update(self, goal_key, value):
+        self.updates.append((goal_key, value))
+
+
 def install_board(monkeypatch) -> FakeBoardDB:
     """Point core.board.ledger at a fresh FakeBoardDB (same URL and service key
-    as install(), which a test may call too for sign-in)."""
+    as install(), which a test may call too for sign-in), and GoalTracker at
+    db.goals, a FakeGoals."""
+    from core import goal_tracker
     from core.board import ledger
     db = FakeBoardDB()
     monkeypatch.setenv("SUPABASE_URL", URL)
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", SERVICE)
     monkeypatch.setattr(ledger, "_transport", httpx.MockTransport(db.handler))
+    db.goals = FakeGoals()
+    monkeypatch.setattr(goal_tracker.GoalTracker, "get", classmethod(lambda cls: db.goals))
     return db
 
 
@@ -1224,14 +1446,31 @@ def fixture_day() -> tuple[list[dict], list[dict]]:
     return bts, sessions
 
 
+def subscription(sub_id: str, *prices, status: str = "active") -> dict:
+    """A subscription with one item per price: (unit_amount, interval[,
+    quantity[, currency[, interval_count]]])."""
+    items = []
+    for n, (amount, interval, *rest) in enumerate(prices):
+        quantity = rest[0] if len(rest) > 0 else 1
+        currency = rest[1] if len(rest) > 1 else "usd"
+        every = rest[2] if len(rest) > 2 else 1
+        items.append({"id": f"si_{sub_id}_{n}", "object": "subscription_item", "quantity": quantity,
+                      "price": {"id": f"price_{sub_id}_{n}", "object": "price", "unit_amount": amount,
+                                "currency": currency, "recurring": {"interval": interval, "interval_count": every}}})
+    return {"id": sub_id, "object": "subscription", "status": status,
+            "items": {"object": "list", "data": items, "has_more": False}}
+
+
 class FakeStripe:
     """GET /v1/balance_transactions (created filters, newest first, cursor
-    pages) and GET /v1/checkout/sessions?payment_intent=..."""
+    pages), GET /v1/checkout/sessions?payment_intent=... and GET
+    /v1/subscriptions?status=active (cursor pages)."""
 
     def __init__(self, key: str = STRIPE_KEY):
         self.key = key
         self.balance_transactions: list[dict] = []
         self.sessions: dict[str, dict] = {}
+        self.subscriptions: list[dict] = []
         self.calls: list[httpx.Request] = []
         self.fail_next: list[int] = []          # statuses to answer, one per call, before any data
         self.session_status = 200               # e.g. 403: a key without Checkout read access
@@ -1275,6 +1514,13 @@ class FakeStripe:
             found = self.sessions.get(q.get("payment_intent"))
             return httpx.Response(200, json={"object": "list", "data": [found] if found else [],
                                              "has_more": False})
+        if request.url.path == "/v1/subscriptions":
+            rows = [s for s in self.subscriptions if s["status"] == q.get("status", "active")]
+            after = q.get("starting_after")
+            if after:
+                rows = rows[[s["id"] for s in rows].index(after) + 1:]
+            limit = min(int(q.get("limit", 10)), self.page_size)
+            return httpx.Response(200, json={"object": "list", "data": rows[:limit], "has_more": len(rows) > limit})
         return httpx.Response(404, json={"error": {"type": "invalid_request_error"}})
 
 

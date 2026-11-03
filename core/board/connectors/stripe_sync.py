@@ -35,8 +35,20 @@ skipped.
 Each new sale is labelled once, from its charge and Checkout Session: product,
 quantity, buyer email, the connected platform that created it (application), the
 checkout's utm_source as its channel, and client_reference_id as a click id (the
-SQL keeps it only when it names a stored click). Labels never block money: a
-failed label fetch is counted and the sale is written without it.
+SQL keeps it only when it names a stored click). A /go click hands its id to a
+Stripe Payment Link, so a sale whose click id names a stored click is credited
+to that click: its channel is the click's (the visitor's utm_source on the /go
+link, else the /go key) and its attribution 'click_id'. The click wins over the
+checkout's utm_source, and over the buyer's earlier lead (board_ledger matches a
+lead by email only for a sale with no stored channel). A refund or dispute
+takes its sale's channel. Labels never block money: a failed label fetch or
+click lookup is counted and the sale is written without it. The run's warning
+names those sales (the board's note and the morning message show it), and its
+detail lists them ('unlabelled'), so the next runs label them again while they
+are still in the read window; a second failure keeps what was stored.
+
+mrr() reads the active subscriptions for the scoreboard's MRR card
+(RevenueEngine.live_mrr in core/revenue.py): a read, nothing is written.
 
 Keys: STRIPE_READ_KEY (a restricted read-only key), else STRIPE_SECRET_KEY.
 """
@@ -49,6 +61,7 @@ import time
 from collections import Counter
 from dataclasses import replace
 from datetime import date, datetime, time as dtime, timedelta, timezone
+from fractions import Fraction
 from typing import Iterator, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -67,12 +80,17 @@ NY = ZoneInfo("America/New_York")
 OVERLAP = timedelta(hours=48)       # each run re-reads this much before the watermark
 LAG = timedelta(minutes=5)          # the watermark trails the run's start by this much
 DEFAULT_BACKFILL = date(2026, 1, 1)
+UNLABELLED_MOST = 500               # sales a run names in its detail, to be labelled again
 
 # Tests put an httpx.MockTransport here; None means the real network.
 _transport: Optional[httpx.BaseTransport] = None
 _sleep = time.sleep
 _TIMEOUT = 20.0
 _RETRIES = 3
+# The MRR card is read while a page waits: one short try and one retry, so a
+# Stripe outage costs the page seconds, not a minute and a half.
+_LIVE_TIMEOUT = 10.0
+_LIVE_RETRIES = 1
 
 SALE_TYPES = frozenset({"charge", "payment"})
 REFUND_TYPES = frozenset({"refund", "payment_refund"})
@@ -148,24 +166,25 @@ def _retry_after(r: httpx.Response, attempt: int) -> float:
 
 
 class _Stripe:
-    def __init__(self, key: str):
-        self._client = httpx.Client(transport=_transport, timeout=_TIMEOUT, base_url=API,
-                                    headers={"Authorization": f"Bearer {key}"})
+    def __init__(self, key: str, *, timeout: Optional[float] = None, retries: Optional[int] = None):
+        self._retries = _RETRIES if retries is None else retries
+        self._client = httpx.Client(transport=_transport, timeout=_TIMEOUT if timeout is None else timeout,
+                                    base_url=API, headers={"Authorization": f"Bearer {key}"})
 
     def close(self) -> None:
         self._client.close()
 
     def get(self, path: str, params: list) -> dict:
-        for attempt in range(_RETRIES + 1):
+        for attempt in range(self._retries + 1):
             try:
                 r = self._client.get(path, params=params)
             except httpx.HTTPError as e:
-                if attempt == _RETRIES:
+                if attempt == self._retries:
                     raise StripeError(f"Stripe unreachable ({type(e).__name__}) on {path}") from None
                 _sleep(float(2 ** attempt))
                 continue
             if r.status_code == 429 or r.status_code >= 500:
-                if attempt == _RETRIES:
+                if attempt == self._retries:
                     raise StripeError(f"Stripe HTTP {r.status_code}{_error_type(r)} on {path}")
                 _sleep(_retry_after(r, attempt))
                 continue
@@ -200,6 +219,60 @@ class _Stripe:
                                                   ("expand[]", "data.line_items")])
         data = page.get("data") or []
         return data[0] if data and isinstance(data[0], dict) else None
+
+    def active_subscriptions(self) -> Iterator[dict]:
+        """Every active subscription, its items and their prices included."""
+        after = None
+        while True:
+            page = self.get("/v1/subscriptions", [("status", "active"), ("limit", "100")]
+                            + ([("starting_after", after)] if after else []))
+            data = [s for s in page.get("data") or [] if isinstance(s, dict)]
+            yield from data
+            after = data[-1].get("id") if data else None
+            if not page.get("has_more") or not after:
+                return
+
+
+_MONTHS_PER = {"month": Fraction(1), "year": Fraction(1, 12), "week": Fraction(52, 12), "day": Fraction(365, 12)}
+
+
+def mrr(key: str) -> tuple[Optional[int], int, Optional[str]]:
+    """(monthly recurring revenue in US cents, active subscriptions, a
+    problem): every active subscription's items, each price per month
+    (a yearly price is a twelfth; quantity and interval_count count), summed
+    exactly and rounded to the cent once. The MRR is None, with the problem
+    named, when a price is not a plain USD amount (tiered, metered, or in
+    another currency) or a subscription's items do not all come in one read:
+    a smaller number would be wrong. A page waits on this read, so each call
+    gets one short retry (_LIVE_TIMEOUT, _LIVE_RETRIES). Raises StripeError."""
+    client = _Stripe(key, timeout=_LIVE_TIMEOUT, retries=_LIVE_RETRIES)
+    total, count, problem = Fraction(0), 0, None
+    try:
+        for sub in client.active_subscriptions():
+            count += 1
+            items = sub.get("items") if isinstance(sub.get("items"), dict) else {}
+            if items.get("has_more"):
+                problem = problem or "a subscription has more items than one read returns"
+            for item in items.get("data") or []:
+                price = item.get("price") if isinstance(item, dict) else None
+                recurring = price.get("recurring") if isinstance(price, dict) else None
+                amount, interval = (price or {}).get("unit_amount"), (recurring or {}).get("interval")
+                every = (recurring or {}).get("interval_count") or 1
+                quantity = item.get("quantity") if isinstance(item.get("quantity"), int) else 1
+                if str((price or {}).get("currency") or "").lower() != "usd":
+                    problem = problem or "a subscription is priced in another currency than USD"
+                elif isinstance(amount, bool) or not isinstance(amount, int) or interval not in _MONTHS_PER \
+                        or isinstance(every, bool) or not isinstance(every, int) or every < 1 \
+                        or (recurring or {}).get("usage_type") == "metered":
+                    problem = problem or "a subscription has a price that is not a plain amount"
+                else:
+                    total += Fraction(amount * quantity) * _MONTHS_PER[interval] / every
+    finally:
+        client.close()
+    if problem:
+        return None, count, problem
+    whole, rest = divmod(total.numerator, total.denominator)
+    return whole + (1 if 2 * rest >= total.denominator else 0), count, None
 
 
 # ─── mapping: one balance transaction to one ledger row ─────────────────────
@@ -365,11 +438,15 @@ def collect(key: str, since: datetime, until: datetime) -> tuple[list[LedgerRow]
             if kind == "sale":
                 sales.append((len(rows), src))
             rows.append(to_row(bt, kind))
-        # Label each sale once: the ones the ledger has already keep their labels.
-        known = ledger.existing_ids(SOURCE_ID, [rows[i].external_id for i, _ in sales]) if sales else set()
-        label_errors = 0
+        # Label each sale once: the ones the ledger has already keep their labels,
+        # except those a recent run could not label, which are tried again.
+        existing = ledger.existing_ids(SOURCE_ID, [rows[i].external_id for i, _ in sales]) if sales else set()
+        retry = _unlabelled_before() & existing if existing else set()
+        unlabelled: set[str] = set()
+        labelled = []
         for i, charge in sales:
-            if rows[i].external_id in known:
+            external_id = rows[i].external_id
+            if external_id in existing and external_id not in retry:
                 continue
             session = None
             payment_intent = _id(charge.get("payment_intent"))
@@ -377,15 +454,60 @@ def collect(key: str, since: datetime, until: datetime) -> tuple[list[LedgerRow]
                 try:
                     session = api.checkout_session(payment_intent)
                 except StripeError as e:
-                    label_errors += 1
-                    log.info("stripe sync: no labels for %s (%s)", rows[i].external_id, e)
+                    unlabelled.add(external_id)
+                    log.info("stripe sync: no labels for %s (%s)", external_id, e)
+                    if external_id in retry:
+                        continue            # failed again: the labels stored the first time stay as they are
             rows[i] = replace(rows[i], **sale_labels(charge, session))
+            labelled.append(i)
+        click_attributed, unchecked = _click_attribution(rows, labelled)
+        unlabelled |= unchecked
         return rows, {"listed": listed, "not_revenue": dict(not_revenue), "fees_kept": dict(fees_kept),
                       "unmapped_types": dict(unmapped), "skipped_test_mode": test_mode,
                       "non_usd_settlement": sum(1 for r in rows if r.amount_usd_cents is None),
-                      "label_errors": label_errors}
+                      "label_errors": len(unlabelled), "click_attributed": click_attributed,
+                      "unlabelled": sorted(unlabelled)[:UNLABELLED_MOST]}
     finally:
         api.close()
+
+
+def _unlabelled_before() -> set[str]:
+    """The sales the last complete run could not label (its detail's
+    'unlabelled'), so this run labels them again while they are still in its
+    read window (the 48 h overlap). Best effort: none when it cannot be read."""
+    try:
+        detail = ledger.last_ok_detail(JOB) or {}
+    except BoardDBError as e:
+        log.info("stripe sync: the last run's unlabelled sales cannot be read (%s)", e)
+        return set()
+    ids = detail.get("unlabelled")
+    return {i for i in ids if isinstance(i, str)} if isinstance(ids, list) else set()
+
+
+def _click_attribution(rows: list[LedgerRow], labelled: list[int]) -> tuple[int, set[str]]:
+    """Credit each newly labelled sale whose click id names a stored click to
+    that click: channel = the click's channel (its utm_source, else its /go
+    key; ledger.click_channel) and attribution 'click_id'. The click wins over
+    a checkout UTM, and over the buyer's earlier lead, which board_ledger uses
+    only for a sale with no stored channel. One lookup for all of them. A
+    lookup that fails leaves every other label as it was and is counted, never
+    failing the run: labels never block money. Returns (sales credited to a
+    click, the external ids of the sales whose click could not be checked)."""
+    with_click = [i for i in labelled if rows[i].click_id is not None]
+    if not with_click:
+        return 0, set()
+    try:
+        clicks = ledger.clicks_by_id(rows[i].click_id for i in with_click)
+    except BoardDBError as e:
+        log.info("stripe sync: the clicks of %d sales could not be checked (%s)", len(with_click), e)
+        return 0, {rows[i].external_id for i in with_click}
+    credited = 0
+    for i in with_click:
+        channel = ledger.click_channel(clicks.get(ledger.click_uuid(rows[i].click_id) or ""))
+        if channel:
+            rows[i] = replace(rows[i], channel=channel, attribution="click_id")
+            credited += 1
+    return credited, set()
 
 
 # ─── one run ────────────────────────────────────────────────────────────────
@@ -394,9 +516,10 @@ def _iso(value: Optional[datetime]) -> Optional[str]:
     return value.isoformat() if value else None
 
 
-def _warning(mismatches: int, unmapped: dict) -> Optional[str]:
+def _warning(mismatches: int, unmapped: dict, unlabelled: int = 0) -> Optional[str]:
     """What an ok run must still tell the owner (the run's error and the
-    source's last_error, so the board's note and the morning message show it)."""
+    source's last_error, so the board's note and the morning message show it).
+    The money warnings come first: last_error keeps 300 characters."""
     parts = []
     if mismatches:
         parts.append(f"{mismatches} balance transaction{'s disagree' if mismatches != 1 else ' disagrees'} "
@@ -405,6 +528,10 @@ def _warning(mismatches: int, unmapped: dict) -> Optional[str]:
         n = sum(unmapped.values())
         parts.append(f"skipped {n} balance transaction{'s' if n != 1 else ''} of a type the board does not "
                      f"map ({', '.join(sorted(unmapped))}): totals may differ from Stripe")
+    if unlabelled:
+        parts.append(f"{unlabelled} sale{'s' if unlabelled != 1 else ''} could not be labelled (Stripe's Checkout "
+                     "Session or the click could not be read): product and channel may be missing, so attributed "
+                     "revenue may be low")
     return "; ".join(parts) or None
 
 
@@ -463,7 +590,7 @@ def run(trigger: str = "schedule", days: Optional[int] = None, now: Optional[dat
                   else {"received": 0, "inserted": 0, "relabelled": 0, "money_mismatches": 0})
         detail.update(result)
         covered = started - LAG
-        error = _warning(result["money_mismatches"], counts["unmapped_types"])
+        error = _warning(result["money_mismatches"], counts["unmapped_types"], counts["label_errors"])
         ledger.finish_run(run_id, "ok", rows_written=result["inserted"], detail=detail, error=error,
                           window_start=since, window_end=until, covered_until=covered)
         ledger.mark_source_ok(SOURCE_ID, covered, backfill_from() if first else None, warning=error)

@@ -3718,21 +3718,26 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 
   <!-- Top stats row -->
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px">
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:18px">
     <div class="card" style="text-align:center">
       <div class="ct">Today's Revenue</div>
       <div class="cv gr" id="money-today">—</div>
-      <div class="csb">Stripe + KDP est.</div>
+      <div class="csb">All sources, New York day</div>
     </div>
     <div class="card" style="text-align:center">
       <div class="ct">Stripe This Week</div>
       <div class="cv cy" id="money-stripe-week">—</div>
-      <div class="csb">7-day payments</div>
+      <div class="csb">last 7 New York days, net</div>
     </div>
     <div class="card" style="text-align:center">
       <div class="ct">Stripe All Time</div>
       <div class="cv yl" id="money-stripe-total">—</div>
-      <div class="csb">total recorded</div>
+      <div class="csb">since the Stripe sync began, net</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Manual Entries</div>
+      <div class="cv yl" id="money-manual-week">—</div>
+      <div class="csb" id="money-manual-sub">last 7 New York days</div>
     </div>
     <div class="card" style="text-align:center">
       <div class="ct">Email List</div>
@@ -3755,10 +3760,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         <div class="st" style="font-size:12px">📚 Amazon KDP</div>
         <div class="ss" id="kdp-money-sub">Loading…</div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px">
         <div class="csm"><div class="ct">Published</div><div class="cv gr" id="money-kdp-pub">—</div><div class="csb">genres live</div></div>
-        <div class="csm"><div class="ct">Est. Daily</div><div class="cv cy" id="money-kdp-daily">—</div><div class="csb">royalty est.</div></div>
-        <div class="csm"><div class="ct">Est. Monthly</div><div class="cv yl" id="money-kdp-monthly">—</div><div class="csb">at current rate</div></div>
       </div>
       <div id="money-kdp-genres" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
@@ -3782,11 +3785,11 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
   </div>
 
-  <!-- Stripe Recent Payments -->
+  <!-- Recent payments: Stripe and manual entries -->
   <div class="card" style="margin-bottom:18px">
     <div class="sh" style="margin-bottom:12px">
-      <div class="st" style="font-size:12px">💳 Recent Stripe Payments</div>
-      <div class="ss">Webhook auto-records every checkout.session + invoice</div>
+      <div class="st" style="font-size:12px">💳 Recent Payments</div>
+      <div class="ss">Stripe (from the hourly sync) and manual entries</div>
     </div>
     <div id="money-stripe-payments">
       <div style="text-align:center;padding:24px;color:var(--text3);font-size:11px">
@@ -3841,7 +3844,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       <div id="money-goal-bar" style="height:100%;background:linear-gradient(90deg,#00ff88,#00d4ff);border-radius:4px;width:0%;transition:width .6s"></div>
     </div>
     <div style="font-size:9px;color:var(--text3);margin-top:6px">
-      Stripe all-time total · Set goal via <code>MONTHLY_REVENUE_GOAL</code> env var (default $1,000)
+      Stripe and manual entries, all time · Set goal via <code>MONTHLY_REVENUE_GOAL</code> env var (default $1,000)
     </div>
   </div>
 
@@ -8975,10 +8978,12 @@ function renderBlogCards(){
   if(q) arts=arts.filter(a=>a.title.toLowerCase().includes(q)||a.category.toLowerCase().includes(q));
   document.getElementById('blog-count-lbl').textContent=arts.length+' articles';
   if(!arts.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3)">No articles match.</div>';return;}
-  const maxClicks=Math.max(...arts.map(a=>a.clicks),1);
+  // A null click count is not measured: it shows a dash and an empty bar, never 0.
+  const counted=a=>typeof a.clicks==='number';
+  const maxClicks=Math.max(...arts.map(a=>counted(a)?a.clicks:0),1);
   grid.innerHTML=arts.map((a,i)=>{
     const cc=BLOG_CAT_COLORS[a.category]||'var(--border)';
-    const barW=Math.round((a.clicks/maxClicks)*100);
+    const barW=counted(a)?Math.round((a.clicks/maxClicks)*100):0;
     const affHtml=(a.affiliates||[]).map(k=>{const m=BLOG_AFF_META[k];return m?`<span class="blog-aff-chip ${m.cls}">${m.icon} ${m.label}</span>`:''}).join('');
     const affNames=(a.affiliates||[]).map(k=>BLOG_AFF_META[k]?.label||k).join(', ');
     return`<div class="blog-card" style="--cat-color:${cc};animation-delay:${i*0.04}s">
@@ -8989,7 +8994,7 @@ function renderBlogCards(){
   <div class="blog-aff-row">${affHtml||'<span style="font-size:9px;color:var(--text3)">No affiliates</span>'}</div>
   <div class="blog-clicks-row">
     <span style="font-size:9px;color:var(--text3)">Clicks:</span>
-    <span class="blog-click-count">${a.clicks}</span>
+    <span class="blog-click-count">${esc(counted(a)?a.clicks:'—')}</span>
     <div class="blog-click-bar-wrap"><div class="blog-click-bar" style="width:${barW}%"></div></div>
   </div>
   <div class="blog-earns">Earns via: ${esc(affNames||'—')}</div>
@@ -10926,28 +10931,31 @@ async function peLoadResults(){
 
 async function refreshMoney(){
   try {
-    const d = await fetch('/api/money/summary').then(r=>r.json());
-    const fmt = v => v===undefined||v===null ? '—' : (typeof v==='number' ? '$'+v.toFixed(2) : v);
+    // The summary, and the manual entries of the last 30 New York days (GET /api/money/record)
+    const [d, rec] = await Promise.all([fetch('/api/money/summary').then(r=>r.json()),
+      fetch('/api/money/record').then(r=>r.json()).catch(()=>null)]);
+    // null means "not measured": it shows a dash, never $0.00
+    const fmt = v => v===undefined||v===null ? '—' : (typeof v==='number' ? (v<0?'-$':'$')+Math.abs(v).toFixed(2) : v);
 
     // Top stats
     document.getElementById('money-today').textContent       = fmt(d.total_revenue_today);
     document.getElementById('money-stripe-week').textContent = fmt(d.stripe?.week);
     document.getElementById('money-stripe-total').textContent= fmt(d.stripe?.total);
+    document.getElementById('money-manual-week').textContent = fmt(d.manual?.week);
+    document.getElementById('money-manual-sub').textContent  = `last 7 New York days · all time ${fmt(d.manual?.total)}`;
     document.getElementById('money-list-size').textContent   = (d.leads?.list_size||0).toLocaleString();
     document.getElementById('money-leads-today').textContent = d.leads?.today ?? '—';
 
     // KDP panel
     const kdp = d.kdp || {};
     document.getElementById('money-kdp-pub').textContent     = kdp.published ?? '—';
-    document.getElementById('money-kdp-daily').textContent   = fmt(kdp.est_daily);
-    document.getElementById('money-kdp-monthly').textContent = fmt((kdp.est_daily||0)*30);
-    document.getElementById('kdp-money-sub').textContent     = `${kdp.published||0} published · ${kdp.errors||0} errors · est. $${((kdp.est_daily||0)*30).toFixed(0)}/mo`;
+    document.getElementById('kdp-money-sub').textContent     = `${kdp.published||0} published · ${kdp.errors||0} errors`;
     const genreEl = document.getElementById('money-kdp-genres');
     if(genreEl && kdp.genres){
       genreEl.innerHTML = Object.entries(kdp.genres).map(([g,v])=>{
         const status = typeof v==='object' ? v.status : v;
         const col = status==='published' ? '#00ff88' : status==='error' ? '#ff5050' : '#888';
-        return `<span style="font-size:10px;padding:3px 8px;border-radius:12px;background:${col}22;border:1px solid ${col}44;color:${col}">${g}</span>`;
+        return `<span style="font-size:10px;padding:3px 8px;border-radius:12px;background:${col}22;border:1px solid ${col}44;color:${col}">${esc(g)}</span>`;
       }).join('');
     }
 
@@ -10957,9 +10965,11 @@ async function refreshMoney(){
     document.getElementById('money-mono-links').textContent  = mono.total_links ?? '—';
     document.getElementById('money-aff-clicks').textContent  = d.affiliate_clicks_7d ?? '—';
 
-    // Stripe payments table
+    // Payments table: Stripe's newest and the manual entries, the newest first
     const pmtEl = document.getElementById('money-stripe-payments');
-    const pmts  = d.stripe?.recent || [];
+    const when  = p => { const t = Date.parse(p.ts||''); return isNaN(t) ? 0 : t; };
+    const pmts  = [...(d.stripe?.recent || []), ...(Array.isArray(rec?.records) ? rec.records : [])]
+      .sort((a,b)=>when(b)-when(a)).slice(0,8);
     if(pmts.length){
       pmtEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px">
         <thead><tr style="color:var(--text3);border-bottom:1px solid rgba(255,255,255,.08)">
@@ -10969,25 +10979,26 @@ async function refreshMoney(){
           <th style="text-align:right;padding:6px 8px">Amount</th>
         </tr></thead>
         <tbody>${pmts.map(p=>`<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
-          <td style="padding:6px 8px;color:var(--text3)">${p.ts?.slice(0,16)||'—'}</td>
-          <td style="padding:6px 8px;color:var(--cyan2)">${p.type||'—'}</td>
-          <td style="padding:6px 8px;color:var(--text2)">${p.email||'—'}</td>
-          <td style="padding:6px 8px;text-align:right;color:var(--green);font-weight:700">$${(p.amount||0).toFixed(2)}</td>
+          <td style="padding:6px 8px;color:var(--text3)">${esc(p.ts?.slice(0,16)||'—')}</td>
+          <td style="padding:6px 8px;color:var(--cyan2)">${esc(p.type||'—')}</td>
+          <td style="padding:6px 8px;color:var(--text2)">${esc(p.email||'—')}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--green);font-weight:700">${esc(fmt(p.amount))}</td>
         </tr>`).join('')}</tbody>
       </table>`;
     } else {
       pmtEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:11px">
-        No Stripe payments recorded yet.<br>
-        <code style="color:var(--cyan2);margin-top:6px;display:block">Webhook → https://your-server:5050/api/stripe/webhook</code>
+        No payments yet.<br>
+        <span style="margin-top:6px;display:block">Stripe payments come from the Stripe sync, every hour (Sync now on the board).</span>
         <button class="btn bgh bsm" style="margin-top:10px" onclick="moneyRecordManual()">+ Record Manual Payment</button>
       </div>`;
     }
 
-    // Goal bar
+    // Goal bar: Stripe and manual entries, all time; null (not measured) when either is, so no progress is shown
     const goal = 1000;
-    const pct  = Math.min(100, ((d.stripe?.total||0)/goal)*100);
+    const total = d.stripe?.total==null || d.manual?.total==null ? null : d.stripe.total + d.manual.total;
+    const pct  = total==null ? 0 : Math.max(0, Math.min(100, (total/goal)*100));
     document.getElementById('money-goal-bar').style.width = pct+'%';
-    document.getElementById('money-goal-lbl').textContent = `$${(d.stripe?.total||0).toFixed(2)} / $${goal.toLocaleString()}`;
+    document.getElementById('money-goal-lbl').textContent = `${fmt(total)} / $${goal.toLocaleString()}`;
 
   } catch(e){ console.error('Money refresh failed',e); }
   // Also reload income assets panel every time money refreshes
@@ -11055,9 +11066,26 @@ async function moneyRecordManual(){
   const amt = parseFloat(prompt('Amount in USD:','0.00'));
   if(isNaN(amt)||amt<=0){ toast('Invalid amount','error'); return; }
   const note = prompt('Note (optional):','');
-  const r = await fetch(`/api/money/record?source=${encodeURIComponent(source)}&amount=${amt}&note=${encodeURIComponent(note||'')}`,{method:'POST'}).then(r=>r.json());
-  if(r.status==='recorded'){ toast(`Recorded $${amt} from ${source}`,'success'); refreshMoney(); }
-  else toast('Record failed','error');
+  // One Idempotency-Key for this entry: sent again, the server answers from the stored entry and
+  // never writes it twice. So a request with no answer (or a 5xx) is asked once more with the same key.
+  const key = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID()
+            : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  const url = `/api/money/record?source=${encodeURIComponent(source)}&amount=${amt}&note=${encodeURIComponent(note||'')}`;
+  // The server's 503 while API_KEY is not set and no owner is signed in: nothing was written,
+  // and asking again cannot change that (core/board/money.py NO_API_KEY).
+  const NO_API_KEY = 'Not recorded: API_KEY is not set on the server.';
+  let r = null, answered = false;
+  for (let attempt = 0; attempt < 2 && !answered; attempt++) {
+    try {
+      const res = await fetch(url, {method:'POST', headers:{'Idempotency-Key': key}});
+      r = await res.json().catch(()=>null);
+      // recorded, or refused with the server's reason
+      answered = r !== null && (res.status < 500 || r.error === NO_API_KEY);
+    } catch(e) { r = null; }                        // no answer: it may be recorded all the same
+  }
+  if(r && r.status==='recorded'){ toast(`Recorded $${Number(r.amount).toFixed(2)} from ${source}`,'success'); refreshMoney(); }
+  else if(answered) toast(r.error || 'Not recorded','error');
+  else { toast('Not sure it was recorded: the server did not finish. Check Money before you enter it again.','error'); refreshMoney(); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

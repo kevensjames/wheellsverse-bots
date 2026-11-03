@@ -97,16 +97,20 @@ class RevenueLoop:
         try:
             from core.revenue import RevenueEngine
             dashboard = RevenueEngine.get().dashboard()
+            period = dashboard.get("period") or {}
+            month = period.get("month")              # last 30 New York days; None when not measured
+            mrr = dashboard.get("mrr")               # None when not read
             report["stripe"] = {
                 "status":        "success",
-                "total_revenue": dashboard.get("total", 0),
-                "mrr":           dashboard.get("mrr", 0),
-                "period":        dashboard.get("period", {}),
+                "total_revenue": month,
+                "mrr":           mrr,
+                "period":        period,
             }
-            log.info(
-                f"Revenue snapshot: total=${dashboard.get('total', 0):.2f} "
-                f"MRR=${dashboard.get('mrr', 0):.2f}"
-            )
+
+            def _usd(value):
+                return "not measured" if value is None else f"${value:.2f}"
+
+            log.info(f"Revenue snapshot: last 30 days={_usd(month)} MRR={_usd(mrr)}")
         except Exception as e:
             log.warning(f"Stripe snapshot failed (non-fatal): {e}")
             report["stripe"] = {"status": "error", "error": str(e)}

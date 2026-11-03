@@ -15,6 +15,7 @@ loop as the FastAPI app — no thread juggling, no async/sync gluework.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
@@ -49,9 +50,10 @@ def _safe_trigger(expr: str, fallback: str, timezone: str):
 async def _fire_briefing() -> None:
     """Cron callback: build briefing, deliver it, log it to memory.
     Errors caught so a failed run doesn't take the whole scheduler down
-    for tomorrow."""
+    for tomorrow. The briefing is built in a worker thread: its revenue and
+    KPI lines read the board's database, which must not hold the event loop."""
     try:
-        text = assemble_briefing()
+        text = await asyncio.to_thread(assemble_briefing)
         delivered = await deliver_via_telegram(text)
         log_briefing_to_memory(text)  # side effect, never blocks delivery
         logger.info(

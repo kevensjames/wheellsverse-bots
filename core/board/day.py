@@ -22,7 +22,16 @@ A real 0 stays 0. Amounts are USD cents. Buyers arrive masked from SQL.
            over that day and the 6 before it, null while any of those 7 days
            is before measured_from; auto_replies_ignored (automatic replies
            and bounces); target 1 a week
-  revenue  Stripe: net, gross, refunds, disputes and fees, every sale listed
+  revenue  Stripe, and manual entries (the 'manual' source) once there are
+           any: net, gross, refunds, disputes and fees, every sale listed,
+           split by source. Attributed revenue is the net with a known
+           channel, split by channel (by_channel; the rest is
+           'unattributed'): each sale's channel comes from its tracked /go
+           link (attribution click_id), its checkout's utm_source
+           (checkout_utm), or the buyer's earlier opt-in or reply, matched on
+           email (lead_email); a refund or dispute takes its sale's. The
+           morning message reads 'attributed $29.99 (meta)'. Its state is
+           Stripe's
   spend    Meta: Toodle spend and link clicks on the ad account's own day
            (day_tz), and all campaigns' spend. Spend that has no US dollar
            amount yet leaves the total null, never a smaller number. While
@@ -57,6 +66,8 @@ log = logging.getLogger("board.day")
 NY = ZoneInfo("America/New_York")
 TZ_NAME = "America/New_York"
 SOURCES = (("stripe", "Stripe"), ("kit", "Kit"), ("instantly", "Instantly"), ("meta_ads", "Meta"))
+# How the morning message names a source's money line (another source shows its id).
+SOURCE_NAMES = {"stripe": "Stripe", "manual": "Manual entries", "kdp": "KDP (estimate)"}
 OPTIN_TARGET = 3              # Toodle opt-ins a day (marketing/GLOBAL_PLAN.md:196)
 REPLY_TARGET_PER_WEEK = 1     # SiteBoost replies a week (marketing/GLOBAL_PLAN.md:197)
 CPL_LOOKBACK_DAYS = 30        # board_cpl looks this far back for spend days
@@ -173,6 +184,13 @@ def _how_read(source_id: str) -> tuple[Optional[str], list[str]]:
             return None, ["read with META_ACCESS_TOKEN; a read-only META_INSIGHTS_TOKEN is safer"]
         return reason, []
     return f"no connector for {source_id}", []
+
+
+def read_problem(source_id: str) -> Optional[str]:
+    """Why `source_id` (stripe, kit, instantly or meta_ads) cannot be read on
+    this server, in a few plain words that name the setting to fix; None when
+    its connector is configured. It reads settings only: no call goes out."""
+    return _how_read(source_id)[0]
 
 
 def _synced_into(pill: dict, day: date) -> bool:
@@ -332,20 +350,30 @@ def _replies(raw: dict, pill: dict, measured: bool, day: date) -> dict:
     return n
 
 
+def _kind_counts(sales: list) -> dict:
+    return {kind: n for kind, _, _ in _KIND_WORDS if (n := sum(1 for s in sales if s.get("kind") == kind))}
+
+
 def _revenue(raw: dict, pill: dict, measured: bool) -> tuple[dict, list]:
-    """Revenue (Stripe) and the day's sales list."""
+    """Revenue and the day's sales list. The state is Stripe's; the money is
+    every source's (Stripe, and manual entries once there are any): `source`
+    names them, by_source splits the net, counts_by_source the rows. counts
+    covers every source's rows, as before."""
     revenue, fees = _block(raw, "revenue"), _block(raw, "fees")
     sales = [s for s in raw.get("sales") or [] if isinstance(s, dict)] if measured else []
-    number = _number(pill, "stripe", counts={}, **{k: None for k in _MONEY_FIELDS})
+    number = _number(pill, "stripe", counts={}, counts_by_source={}, **{k: None for k in _MONEY_FIELDS})
     if measured:
+        by_source = raw.get("by_source") or {}
         number.update({k: revenue.get(k) for k in ("net_usd_cents", "gross_usd_cents", "refunds_usd_cents",
                                                    "disputes_usd_cents", "attributed_usd_cents",
                                                    "unconverted_rows", "has_estimates")})
         number.update(value=revenue.get("net_usd_cents"), fees_usd_cents=fees.get("fees_usd_cents"),
                       unknown_fee_rows=fees.get("unknown_fee_rows"),
-                      by_source=raw.get("by_source") or {}, by_channel=raw.get("by_channel") or {},
-                      counts={kind: n for kind, _, _ in _KIND_WORDS
-                              if (n := sum(1 for s in sales if s.get("kind") == kind))})
+                      by_source=by_source, by_channel=raw.get("by_channel") or {},
+                      counts=_kind_counts(sales),
+                      counts_by_source={str(src): _kind_counts([s for s in sales if s.get("source") == src])
+                                        for src in sorted({s.get("source") for s in sales if s.get("source")})},
+                      source=", ".join(["stripe"] + sorted(str(s) for s in by_source if s != "stripe")))
         extra = []
         if number["unconverted_rows"]:
             n = number["unconverted_rows"]
@@ -546,12 +574,38 @@ def _so_far(n: dict) -> str:
     return " so far" if n.get("state") == "partial" else ""
 
 
+def attributed_channels(rev: dict) -> list[tuple[str, int]]:
+    """[(channel, net cents)] of the day's attributed revenue: by_channel
+    without 'unattributed' and without a channel that nets to 0, the largest
+    first, then by name."""
+    by_channel = rev.get("by_channel") if isinstance(rev.get("by_channel"), dict) else {}
+    pairs = [(str(k), v) for k, v in by_channel.items()
+             if k != "unattributed" and _count(v) is not None and v != 0]
+    return sorted(pairs, key=lambda kv: (-kv[1], kv[0]))
+
+
+def _attributed(rev: dict) -> str:
+    """' · attributed $29.99 (meta)'; with several channels ' · attributed $49.98
+    (meta $29.99, organic $19.99)'; with none ' · attributed $0.00'. Left out
+    on a day with no money rows, so a real zero reads as before."""
+    total = _count(rev.get("attributed_usd_cents"))
+    if not rev.get("counts") or total is None:
+        return ""
+    pairs = attributed_channels(rev)
+    if len(pairs) == 1:
+        return f" · attributed {money(total)} ({pairs[0][0]})"
+    if pairs:
+        return f" · attributed {money(total)} ({', '.join(f'{name} {money(cents)}' for name, cents in pairs)})"
+    return f" · attributed {money(total)}"
+
+
 def summary_line(view: dict) -> str:
-    """The revenue line of the morning message, in plain text."""
+    """The revenue line of the morning message, in plain text: 'Revenue:
+    $10.00 net · attributed $29.99 (meta) · fees $3.17'."""
     rev = view["numbers"]["revenue"]
     if rev["value"] is None:
         return _no_value("Revenue", rev)
-    line = f"Revenue: {money(rev['net_usd_cents'])} net{_so_far(rev)}"
+    line = f"Revenue: {money(rev['net_usd_cents'])} net{_so_far(rev)}{_attributed(rev)}"
     line += f" · fees {money(rev['fees_usd_cents'])}"
     if rev["state"] == "partial":
         line += " (partial)"
@@ -656,8 +710,14 @@ def render_report(view: dict) -> str:
     rev = nums["revenue"]
     lines.append(e(summary_line(view)))
     if rev["value"] is not None:
-        stripe_net = (rev.get("by_source") or {}).get("stripe", 0)
-        lines.append(f"  Stripe {e(money(stripe_net))}: {e(_counts_words(rev.get('counts') or {}))}")
+        by_source = rev.get("by_source") or {}
+        per_source = rev.get("counts_by_source") or {}
+        stripe_counts = per_source.get("stripe", {}) if "counts_by_source" in rev else rev.get("counts") or {}
+        lines.append(f"  Stripe {e(money(by_source.get('stripe', 0)))}: {e(_counts_words(stripe_counts))}")
+        for source_id in sorted(set(by_source) - {"stripe"}, key=lambda s: (SOURCE_NAMES.get(s, s), s)):
+            name = SOURCE_NAMES.get(source_id, source_id)
+            lines.append(f"  {e(name)} {e(money(by_source[source_id]))}: "
+                         f"{e(_counts_words(per_source.get(source_id, {})))}")
         if rev.get("note"):
             lines.append(f"  {e(rev['note'])}")
     add(spend_line(nums["spend"], nums["optins"]), nums["spend"], nums["spend"]["value"] is not None)

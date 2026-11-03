@@ -10,9 +10,18 @@ core/board/auth.py reads owner_sessions. No supabase-py client.
   LedgerRow    one money movement (ledger_entries), written by board_ingest_ledger
   LeadRow      one Toodle opt-in or SiteBoost reply (lead_events), by board_ingest_leads
   AdSpendRow   one campaign's spend on one ad-account day (ad_spend_daily), a PostgREST upsert
+  clicks       one /go redirect (public.clicks), never with an IP address: insert_click
+               (live), import_clicks (the old JSON log), clicks_by_id and click_channel
+               (the Stripe sync's click attribution), and the readers behind
+               core/click_tracker.py
 
-Totals are never summed here. board_day computes them in SQL, by New York
-calendar day, in one round trip.
+Totals come from SQL: board_day computes one New York calendar day in one
+round trip, and board_revenue_daily one row per day, source and channel.
+Python adds only whole board_revenue_daily rows, read completely (read_days:
+the API answers at most MAX_ROWS rows to one read, so a long window is read
+in parts, and a single day it cannot read whole raises), and counts come from
+PostgREST's exact count. Ledger rows are never summed here. A list that must
+be whole (every click) is read page by page until an empty page (read_all).
 
 Amounts are integer minor units of their currency (cents for USD). A NULL USD
 amount or fee means "unknown", never 0. to_minor_units turns a decimal string
@@ -24,7 +33,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from fractions import Fraction
 from typing import Any, NamedTuple, Optional
@@ -52,6 +61,11 @@ LEAD_KINDS = frozenset({"optin", "reply"})
 class BoardDBError(Exception):
     """The board's tables could not be read or written: Supabase unset,
     unreachable, or the call refused (a missing migration, a bad money field)."""
+
+
+class TooManyRows(BoardDBError):
+    """read_all stopped at its cap (READ_ALL_MOST): the database answered,
+    but there are more rows than one whole read takes."""
 
 
 # ─── the connector contract: one money movement ─────────────────────────────
@@ -355,7 +369,10 @@ def _pg_error(r: httpx.Response) -> str:
     return f" ({code}: {message})" if (code or message) else ""
 
 
-def _call(method: str, path: str, *, params=None, json=None, prefer: Optional[str] = None) -> httpx.Response:
+def _call(method: str, path: str, *, params=None, json=None, prefer: Optional[str] = None,
+          timeout: Optional[float] = None) -> httpx.Response:
+    """One PostgREST call with the service key. `timeout` in seconds (default
+    _TIMEOUT). Raises BoardDBError, whose message never holds a key or a row."""
     cfg = db_settings()
     if cfg is None:
         raise BoardDBError("SUPABASE_URL or SUPABASE_SERVICE_KEY is not set")
@@ -366,7 +383,7 @@ def _call(method: str, path: str, *, params=None, json=None, prefer: Optional[st
     if prefer:
         headers["Prefer"] = prefer
     try:
-        with httpx.Client(transport=_transport, timeout=_TIMEOUT) as client:
+        with httpx.Client(transport=_transport, timeout=_TIMEOUT if timeout is None else timeout) as client:
             r = client.request(method, f"{cfg.url}/rest/v1/{path}", params=params, json=json,
                                headers=headers)
     except (httpx.HTTPError, httpx.InvalidURL) as e:
@@ -717,3 +734,335 @@ def board_day(day: Optional[date]) -> dict:
     if not isinstance(result, dict):
         raise BoardDBError("board_day: unexpected answer")
     return result
+
+
+# ─── reads for the legacy money routes (core/board/money.py) ────────────────
+
+MAX_ROWS = 1000      # Supabase's API answers at most this many rows to one read (its db-max-rows)
+READ_ALL_MOST = 200_000   # rows read_all reads before it gives up
+MONEY_KINDS = ("sale", "refund", "dispute", "dispute_reversal", "adjustment")   # fees are their own number
+MANUAL_SOURCE = "manual"
+REVENUE_FIELDS = ("sales", "units", "gross_usd_cents", "refunds_usd_cents", "disputes_usd_cents",
+                  "net_usd_cents", "fees_usd_cents", "unconverted_rows")
+_RANGE_RE = re.compile(r"(?:[0-9]+-[0-9]+|\*)/([0-9]+)")
+_WHOLE_RE = re.compile(r"-?[0-9]{1,19}")
+
+
+def _rows(r: httpx.Response) -> list[dict]:
+    rows = _json(r)
+    if not isinstance(rows, list) or not all(isinstance(x, dict) for x in rows):
+        raise BoardDBError(f"{r.request.url.path}: unexpected answer")
+    return rows
+
+
+def _total(r: httpx.Response) -> Optional[int]:
+    """The exact row count PostgREST puts in Content-Range ('0-9/42', '*/0')
+    when asked with Prefer: count=exact; None when the answer has none."""
+    m = _RANGE_RE.fullmatch(r.headers.get("content-range", "").strip())
+    return int(m.group(1)) if m else None
+
+
+def _params(params) -> list[tuple[str, str]]:
+    """Query parameters as (name, value) pairs, so a column can be filtered twice."""
+    return list(params.items()) if isinstance(params, dict) else list(params or ())
+
+
+def read_days(path: str, select: str, first: date, last: date, *, params=None, order: str) -> list[dict]:
+    """Every row of `path` (a table or view with a local_day column) whose
+    local_day is from `first` to `last`, read completely. One read answers at
+    most MAX_ROWS rows (or fewer, if the server is set lower), so each read
+    also asks for the exact count: a window that comes back short is split in
+    two and each half read again, and a single day that still comes back short
+    raises BoardDBError. A read is whole when it holds every row the database
+    counted; without a count, only when it is under MAX_ROWS. A total made
+    from these rows is never a smaller number. `params` adds filters ((name,
+    value) pairs or a dict)."""
+    if last < first:
+        return []
+    query = [("select", select), ("local_day", f"gte.{first.isoformat()}"),
+             ("local_day", f"lte.{last.isoformat()}"), *_params(params), ("order", order)]
+    r = _call("GET", path, params=query, prefer="count=exact")
+    rows, total = _rows(r), _total(r)
+    if len(rows) >= total if total is not None else len(rows) < MAX_ROWS:
+        return rows
+    if first == last:
+        raise BoardDBError(f"{path}: {first.isoformat()} has more rows than one read returns")
+    middle = first + timedelta(days=(last - first).days // 2)
+    return (read_days(path, select, first, middle, params=params, order=order)
+            + read_days(path, select, middle + timedelta(days=1), last, params=params, order=order))
+
+
+def read_all(path: str, select: str, *, params=None, order: str, most: Optional[int] = None) -> list[dict]:
+    """Every row of `path` that matches `params`, in `order`, read a page at a
+    time: limit MAX_ROWS, offset the rows read so far. It stops only at an
+    empty page, never at a short one, because a server set to answer fewer
+    rows than asked would otherwise end the read early. `order` must end in a
+    unique column (id), so paging never reads a row twice or skips one. More
+    than `most` rows (READ_ALL_MOST) raises TooManyRows (a BoardDBError: the
+    database answered) instead of reading without end."""
+    most = READ_ALL_MOST if most is None else most
+    rows: list[dict] = []
+    while True:
+        page = _rows(_call("GET", path, params=[("select", select), *_params(params), ("order", order),
+                                                ("limit", str(MAX_ROWS)), ("offset", str(len(rows)))]))
+        if not page:
+            return rows
+        rows.extend(page)
+        if len(rows) > most:
+            raise TooManyRows(f"{path}: more than {most:,} rows to read")
+
+
+def _whole(value, where: str) -> int:
+    """A whole number from PostgREST JSON (a count or a sum of cents)."""
+    if isinstance(value, bool):
+        raise BoardDBError(f"{where}: unexpected answer")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and _WHOLE_RE.fullmatch(value.strip()):
+        return int(value.strip())
+    raise BoardDBError(f"{where}: unexpected answer")
+
+
+def revenue_daily(first: date, last: date, *, source_id: Optional[str] = None) -> list[dict]:
+    """board_revenue_daily from `first` to `last`: one row per New York day,
+    source and channel, with sales, units, gross, refunds, disputes, net and
+    fees in US cents (ints) and the rows that have no USD amount yet. Groups
+    that hold an estimate (provisional KDP royalties) are left out: money
+    never includes an estimate. local_day comes back as a date."""
+    params = [("has_estimates", "is.false")]
+    if source_id is not None:
+        params.append(("source_id", f"eq.{source_id}"))
+    rows = read_days("board_revenue_daily", "local_day,source_id,channel," + ",".join(REVENUE_FIELDS),
+                     first, last, params=params, order="local_day.asc,source_id.asc,channel.asc")
+    out = []
+    for r in rows:
+        try:
+            day = date.fromisoformat(str(r.get("local_day")))
+        except ValueError:
+            raise BoardDBError("board_revenue_daily: unexpected answer") from None
+        item = {"local_day": day, "source_id": str(r.get("source_id") or ""), "channel": r.get("channel")}
+        for name in REVENUE_FIELDS:
+            item[name] = _whole(r.get(name), "board_revenue_daily")
+        out.append(item)
+    return out
+
+
+def first_ledger_day() -> Optional[date]:
+    """The earliest New York day with a ledger row; None when the ledger is empty."""
+    rows = _rows(_call("GET", "ledger_entries", params={"select": "local_day", "order": "local_day.asc",
+                                                         "limit": "1"}))
+    if not rows or not rows[0].get("local_day"):
+        return None
+    try:
+        return date.fromisoformat(str(rows[0]["local_day"]))
+    except ValueError:
+        raise BoardDBError("ledger_entries: unexpected answer") from None
+
+
+def count(path: str, params=None, *, select: str = "external_id") -> int:
+    """How many rows of `path` match `params`, counted by the database
+    (Prefer: count=exact; PostgREST answers it in Content-Range), never by
+    reading the rows: one read stops at MAX_ROWS."""
+    r = _call("GET", path, params=[("select", select), *_params(params), ("limit", "1")], prefer="count=exact")
+    total = _total(r)
+    if total is None:
+        raise BoardDBError(f"{path}: no row count in the answer")
+    return total
+
+
+def _kinds(kinds) -> str:
+    kinds = tuple(kinds)
+    if not kinds or not set(kinds) <= KINDS:
+        raise ValueError("kinds must be ledger kinds")
+    return f"in.({','.join(kinds)})"
+
+
+def money_rows(source_id: str, first: Optional[date] = None, last: Optional[date] = None, *,
+               kinds=MONEY_KINDS, limit: int = 50) -> tuple[list[dict], int]:
+    """(the newest `limit` money rows of `source_id` from board_ledger, the
+    exact count of all of them), on New York days `first` to `last` (either
+    end open when None). Estimates are left out. Each row: external_id, kind,
+    occurred_at, occurred_on, local_day, amount_usd_cents, product,
+    customer_email (whole: mask it before it leaves the server) and order_ref.
+    A refund or dispute carries its sale's product and buyer (board_ledger)."""
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
+    limit = min(limit, MAX_ROWS)
+    params = [("select","external_id,kind,occurred_at,occurred_on,local_day,amount_usd_cents,product,"
+                         "customer_email,order_ref"),
+              ("source_id", f"eq.{source_id}"), ("kind", _kinds(kinds)), ("is_estimate", "is.false")]
+    if first is not None:
+        params.append(("local_day", f"gte.{first.isoformat()}"))
+    if last is not None:
+        params.append(("local_day", f"lte.{last.isoformat()}"))
+    params += [("order", "occurred_at.desc.nullslast,local_day.desc,external_id.desc"), ("limit", str(limit))]
+    r = _call("GET", "board_ledger", params=params, prefer="count=exact")
+    rows, total = _rows(r), _total(r)
+    if total is None:
+        raise BoardDBError("board_ledger: no row count in the answer")
+    return rows, total
+
+
+def find_row(source_id: str, external_id: str) -> Optional[dict]:
+    """One ledger row by its key, or None: external_id, kind, amount_minor,
+    currency, amount_usd_cents, occurred_at, product and raw."""
+    rows = _rows(_call("GET", "ledger_entries", params={
+        "select": "external_id,kind,amount_minor,currency,amount_usd_cents,occurred_at,product,raw",
+        "source_id": f"eq.{source_id}", "external_id": f"eq.{external_id}", "limit": "1"}))
+    return rows[0] if rows else None
+
+
+def sources_rows() -> list[dict]:
+    """Every row of public.sources (state, watermark, measured_from), by id."""
+    return _rows(_call("GET", "sources", params={
+        "select": "id,kind,method,enabled,measured_from,synced_through,day_tz,last_ok_at,last_error,last_error_at",
+        "order": "id.asc"}))
+
+
+def manual_row(external_id: str, amount_cents: int, occurred_at: datetime, *,
+               product: Optional[str] = None, raw: Optional[dict] = None) -> LedgerRow:
+    """One manual entry as a ledger row of the 'manual' source: US cents the
+    owner entered, a sale when positive and an adjustment when negative (never
+    0), in USD (board_ingest_ledger makes it its own USD amount: 'identity'),
+    with an unknown fee (NULL: the owner did not say), dated `occurred_at`.
+    Text loses any NUL, which Postgres refuses."""
+    _key(external_id, "external_id", 255)
+    if isinstance(amount_cents, bool) or not isinstance(amount_cents, int):
+        raise TypeError("a manual amount is integer US cents")
+    if amount_cents == 0:
+        raise ValueError("a manual amount is not 0")
+    if abs(amount_cents) > _BIGINT_MAX:
+        raise ValueError("a manual amount must fit in a bigint of cents")
+    _label(product, "product")
+    return LedgerRow(external_id=external_id, kind="sale" if amount_cents > 0 else "adjustment",
+                     amount_minor=amount_cents, currency="USD", occurred_at=occurred_at,
+                     product=(_no_nul(product).strip() or None) if product is not None else None,
+                     raw=_no_nul(dict(raw or {})))
+
+
+# ─── clicks: /go redirects (public.clicks; no visitor IP address is stored) ──
+
+CLICK_TIMEOUT = 3.0       # seconds for a live click's insert: a hung database holds a worker briefly
+_CLICKS_CHUNK = 500
+LIVE_CLICK_COLUMNS = ("id", "partner", "clicked_at", "referrer_host", "destination", "utm")
+IMPORT_CLICK_COLUMNS = ("partner", "clicked_at", "referrer_host", "destination", "utm", "import_key")
+CLICK_FIELDS = "id,partner,clicked_at,referrer_host,destination,utm"
+_CHANNEL_RE = re.compile(r"[a-z0-9_]{1,32}")    # ledger_entries.channel's check
+
+
+def insert_click(row: dict) -> None:
+    """Store one live /go click: exactly LIVE_CLICK_COLUMNS of `row` (id, the
+    click id a Payment Link carries as client_reference_id; partner; clicked_at,
+    a timestamptz string; referrer_host, the referring host only; destination;
+    utm, an object), with Prefer: return=minimal and a short timeout
+    (CLICK_TIMEOUT), because a click is best effort. Anything else in `row` is
+    never sent: local_day is generated by the database, and the table has no
+    column for an IP address. Raises BoardDBError."""
+    _call("POST", "clicks", json={c: _no_nul(row.get(c)) for c in LIVE_CLICK_COLUMNS},
+          prefer="return=minimal", timeout=CLICK_TIMEOUT)
+
+
+def import_clicks(rows: list[dict]) -> int:
+    """Insert old clicks (scripts/board_import_json.py) into public.clicks, in
+    chunks of 500; returns how many were new. Each row sends exactly
+    IMPORT_CLICK_COLUMNS (the id is the database's default), the same keys in
+    every object, as PostgREST requires of a bulk insert. A row whose
+    import_key is there already is left as it is (ON CONFLICT (import_key) DO
+    NOTHING), so an import can run again. No visitor IP address is ever
+    stored: the table has no column for one."""
+    new = 0
+    for start in range(0, len(rows), _CLICKS_CHUNK):
+        chunk = [{c: _no_nul(r.get(c)) for c in IMPORT_CLICK_COLUMNS} for r in rows[start:start + _CLICKS_CHUNK]]
+        r = _call("POST", "clicks", params={"on_conflict": "import_key", "select": "id"}, json=chunk,
+                  prefer="resolution=ignore-duplicates,return=representation")
+        new += len(_rows(r))
+    return new
+
+
+def click_uuid(value) -> Optional[str]:
+    """A click id as canonical lower-case uuid text; None when `value` is not a uuid."""
+    if isinstance(value, UUID):
+        return str(value)
+    try:
+        return str(UUID(str(value).strip())) if value else None
+    except ValueError:
+        return None
+
+
+def clicks_by_id(ids) -> dict[str, dict]:
+    """The stored clicks among `ids` (uuids, or uuid text in any case; anything
+    else is left out), as {id: {id, partner, utm}} with the id as canonical
+    lower-case text. In chunks of _IDS_CHUNK, each read whole (read_all), so
+    a server that answers fewer rows than a chunk holds still finds every
+    click. Raises BoardDBError."""
+    wanted = sorted({u for u in (click_uuid(i) for i in ids) if u})
+    found: dict[str, dict] = {}
+    for start in range(0, len(wanted), _IDS_CHUNK):
+        chunk = wanted[start:start + _IDS_CHUNK]
+        for r in read_all("clicks", "id,partner,utm", params={"id": f"in.({','.join(chunk)})"}, order="id.asc"):
+            cid = click_uuid(r.get("id"))
+            if cid:
+                found[cid] = {"id": cid, "partner": r.get("partner"),
+                              "utm": r.get("utm") if isinstance(r.get("utm"), dict) else {}}
+    return found
+
+
+def click_channel(click: Optional[dict]) -> Optional[str]:
+    """The channel a stored click gives the sale it led to: the visitor's own
+    utm_source on the /go link, else the /go key itself ('insider'). Trimmed,
+    lower-cased and '-' read as '_', it must be 1 to 32 of a-z, 0-9 and _
+    (the ledger's channel check), and never 'unattributed', the board's word
+    for no channel. None when neither is usable."""
+    if not isinstance(click, dict):
+        return None
+    utm = click.get("utm") if isinstance(click.get("utm"), dict) else {}
+    for value in (utm.get("utm_source"), click.get("partner")):
+        if isinstance(value, str):
+            channel = value.strip().lower().replace("-", "_")
+            if _CHANNEL_RE.fullmatch(channel) and channel != "unattributed":
+                return channel
+    return None
+
+
+def read_clicks(select: str = CLICK_FIELDS) -> list[dict]:
+    """Every stored click, the oldest first (clicked_at, then id), read whole
+    however many there are (read_all)."""
+    return read_all("clicks", select, order="clicked_at.asc,id.asc")
+
+
+def newest_clicks(limit: int, select: str = CLICK_FIELDS) -> list[dict]:
+    """The `limit` newest stored clicks (at most MAX_ROWS), the newest first:
+    fewer only when there are fewer, never because a server answers fewer
+    rows to one read (it reads on from where the last page ended)."""
+    limit = max(1, min(int(limit), MAX_ROWS))
+    rows: list[dict] = []
+    while len(rows) < limit:
+        page = _rows(_call("GET", "clicks", params=[("select", select), ("order", "clicked_at.desc,id.desc"),
+                                                    ("limit", str(limit - len(rows))), ("offset", str(len(rows)))]))
+        if not page:
+            break
+        rows.extend(page)
+    return rows[:limit]
+
+
+def count_clicks(first: Optional[date] = None, last: Optional[date] = None) -> int:
+    """How many clicks were made on New York days `first` to `last` (local_day;
+    either end open when None), counted by the database."""
+    params = []
+    if first is not None:
+        params.append(("local_day", f"gte.{first.isoformat()}"))
+    if last is not None:
+        params.append(("local_day", f"lte.{last.isoformat()}"))
+    return count("clicks", params, select="id")
+
+
+def click_sales() -> list[dict]:
+    """Every sale in the ledger with a stored click id (board_ingest_ledger
+    keeps a click id only when it names a stored click): source_id,
+    external_id, click_id and amount_usd_cents, read whole. Estimates are
+    left out."""
+    return read_all("ledger_entries", "source_id,external_id,click_id,amount_usd_cents",
+                    params=[("kind", "eq.sale"), ("click_id", "not.is.null"), ("is_estimate", "is.false")],
+                    order="id.asc")

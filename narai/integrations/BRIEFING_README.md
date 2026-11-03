@@ -40,16 +40,19 @@ never a crash. Order is fixed (most-actionable first):
 
 | Section | Source | Lights up when |
 |---|---|---|
-| 💰 Revenue | `core.click_tracker.get_stats()` | Always (lifetime totals) |
+| 💰 Revenue | `core.board.day.summary_line(day_view(yesterday))`: yesterday's net, attributed revenue by channel and fees, New York day (the board's 07:00 line) | The board's database and Stripe sync are connected (otherwise "not connected", never $0) |
 | 📈 Trading | `narai.core.trading.paper.PaperBroker.status()` | Always (defaults to $10k starting equity) |
 | 📅 Calendar | `narai.godmode.adapters.google.get_service('calendar')` | Google OAuth connected |
 | 📨 Inbox | Same, `gmail` service, `q='is:important is:unread'` | Google OAuth connected |
 | 🪙 Crypto | `yfinance` BTC-USD + ETH-USD, 2-day history | Always (yfinance is unauthenticated) |
-| ✅ KPIs | `core.click_tracker._load_clicks()` + `_load_conversions()` | Always (compares yesterday vs day-before) |
+| ✅ KPIs | `core.click_tracker.clicks_on(day)` + the board's day view (net revenue) | Always (yesterday vs the day before, New York days; "—" for a number that cannot be read; a partial day's revenue reads "so far" and gets no arrow) |
 
 ## HTTP endpoints
 
-All require Bearer JWT from `/api/v2/narai/auth/login`.
+All require a Bearer JWT from `/api/v2/narai/auth/login`, and only the board
+owner's: the token's user must be `BOARD_OWNER_USER_ID` (403 for anyone else's
+token, 503 while it is unset), because the briefing holds the board's numbers.
+The briefing is built in a worker thread, never on the event loop.
 
 | Endpoint | Method | Returns | Side effect |
 |---|---|---|---|

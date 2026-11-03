@@ -83,8 +83,16 @@ def _run(source: str, connector, trigger: str) -> dict:
 
 
 def sync_stripe(trigger: str = "schedule") -> dict:
-    """One Stripe sync run (it records its own failures); never raises."""
-    return _run("stripe", stripe_sync, trigger)
+    """One Stripe sync run (it records its own failures); never raises. After
+    an ok run, the monthly revenue goal follows the ledger's last 30 days."""
+    out = _run("stripe", stripe_sync, trigger)
+    if isinstance(out, dict) and out.get("status") == "ok":
+        try:
+            from core.revenue import update_revenue_goal
+            update_revenue_goal()                   # best effort: never fails the job
+        except Exception as e:  # noqa: BLE001
+            log.warning("revenue goal not updated (%s)", type(e).__name__)
+    return out
 
 
 def sync_kit(trigger: str = "schedule") -> dict:

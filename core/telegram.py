@@ -188,7 +188,8 @@ def notify_click(partner: str, total_today: int = 0):
     # NEW (2026-06-16): broadcast never exposes the source partner key
     # (doordash / cashapp / robinhood / etc). All clicks land on the owned
     # stan.store product — the notification reflects that exclusively. The
-    # partner key is still recorded to data/clicks.json for source attribution.
+    # partner key is still recorded, in the board's clicks table
+    # (core/click_tracker.py), for source attribution.
     msg = "🖱 Product click → <b>stan.store/Wheellsverse</b>"
     if total_today:
         msg += f" (today: {total_today})"
