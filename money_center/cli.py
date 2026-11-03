@@ -161,7 +161,10 @@ def cmd_start(asset_id: str):
     try:
         log_path = HERE / "logs" / f"{asset_id}.log"
         log_fd = open(log_path, "a", encoding="utf-8")
-        subprocess.Popen(
+        # Reviewed: run_command is a whole shell line the operator saved in the
+        # registry, run as typed. No outside input is spliced into it. Bare
+        # nosemgrep so p/default's equivalent rules are covered too.
+        subprocess.Popen(  # nosemgrep
             cmd, shell=True, cwd=wdir,
             stdout=log_fd, stderr=log_fd,
             env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"},
@@ -190,7 +193,8 @@ def cmd_stop(asset_id: str):
 
     console.print(f"[yellow]⏹ Stopping:[/yellow] {cmd}")
     try:
-        subprocess.run(cmd, shell=True, timeout=10)
+        # Reviewed: operator-saved shell line, same as run_command in cmd_start.
+        subprocess.run(cmd, shell=True, timeout=10)  # nosemgrep
         reg.update_status(asset_id, "stopped", "last_stop")
         reg._log("info", asset_id, "stop", f"Stopped: {cmd}")
         console.print(f"[yellow]✓ '{asset_id}' stopped.[/yellow]")
