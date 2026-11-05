@@ -22,10 +22,11 @@ Available endpoints on this account:
 """
 
 import logging
+import math
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -75,8 +76,10 @@ def _get(endpoint: str, params: dict = None) -> dict:
         return {"error": str(e)}
 
 
-def _get_all_pages(endpoint: str, list_key: str, params: dict = None, max_pages: int = 10) -> List[Dict]:
-    """Fetch all pages for a paginated endpoint."""
+def _read_pages(endpoint: str, list_key: str, params: dict = None, max_pages: int = 10) -> tuple:
+    """(items, complete) for a paginated endpoint: the items read, and whether
+    every page was read. complete is False when a page could not be read
+    (Impact not set up, refused, down) or when there were more than max_pages."""
     all_items = []
     page = 1
     p = {**(params or {}), "PageSize": 200}
@@ -84,14 +87,19 @@ def _get_all_pages(endpoint: str, list_key: str, params: dict = None, max_pages:
         p["Page"] = page
         data = _get(endpoint, p)
         if "error" in data:
-            break
+            return all_items, False
         items = data.get(list_key, [])
         all_items.extend(items)
         total = int(data.get("@total", 0))
         if len(all_items) >= total or not items:
-            break
+            return all_items, True
         page += 1
-    return all_items
+    return all_items, False
+
+
+def _get_all_pages(endpoint: str, list_key: str, params: dict = None, max_pages: int = 10) -> List[Dict]:
+    """Fetch all pages for a paginated endpoint (the items that could be read)."""
+    return _read_pages(endpoint, list_key, params, max_pages)[0]
 
 
 # ─── Account Info ──────────────────────────────────────────────────────────────
@@ -154,18 +162,18 @@ def get_programs_summary() -> Dict:
 # ─── Earnings ─────────────────────────────────────────────────────────────────
 
 def get_earnings(days: int = 30) -> Dict:
-    """Pull commission earnings for the last N days (max 44)."""
+    """Pull commission earnings for the last N days (max 44). complete is
+    False when not every page of Actions could be read (Impact not set up,
+    or a read failed): the totals then cover only what was read, and an
+    unread total is not a real $0.00 (see earned_total)."""
     days = min(days, 44)
     start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
     end = datetime.now().strftime("%Y-%m-%dT23:59:59Z")
 
-    actions = _get_all_pages("Actions", "Actions", {
+    actions, complete = _read_pages("Actions", "Actions", {
         "StartDate": start,
         "EndDate": end,
     })
-
-    if isinstance(actions, dict) and "error" in actions:
-        return actions  # propagate error
 
     total = 0.0
     by_program: Dict[str, float] = {}
@@ -200,8 +208,34 @@ def get_earnings(days: int = 30) -> Dict:
         "by_day": dict(sorted(by_day.items())),
         "by_status": {k: round(v, 2) for k, v in by_status.items()},
         "action_count": len(actions),
+        "complete": complete,
         "fetched_at": datetime.now().isoformat(),
     }
+
+
+def configured() -> bool:
+    """True when IMPACT_ACCOUNT_SID and IMPACT_API_PASSWORD are both set."""
+    return bool(os.getenv("IMPACT_ACCOUNT_SID", "") and os.getenv("IMPACT_API_PASSWORD", ""))
+
+
+def earned_total(days: int) -> Optional[float]:
+    """Impact's commissions over the last `days` days, in dollars, or None
+    when Impact is not set up or its earnings could not be read in full. A
+    total that was not read is never shown as $0.00; a total Impact did
+    report, 0 included, is a number."""
+    if not configured():
+        return None
+    try:
+        earn = get_earnings(days=days)
+    except Exception as e:  # noqa: BLE001 — not read: no number
+        logger.warning("Impact earnings were not read (%s)", type(e).__name__)
+        return None
+    if not isinstance(earn, dict) or "error" in earn or earn.get("complete") is not True:
+        return None
+    total = earn.get("total_earned")
+    if isinstance(total, bool) or not isinstance(total, (int, float)) or not math.isfinite(total):
+        return None
+    return float(total)
 
 
 def get_today_earnings() -> Dict:

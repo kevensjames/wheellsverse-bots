@@ -32,17 +32,85 @@ h2{letter-spacing:-.01em}td a{text-decoration:none}td a:hover{text-decoration:un
 .surf.off{color:var(--muted)}
 .btn{padding:8px 14px;border:1px solid var(--border);background:#1a1a1a;color:var(--text);
   border-radius:8px;cursor:pointer;font-weight:600}
+.btn.sm{padding:3px 10px;font-size:.75rem}
+.btn:disabled{opacity:.6;cursor:default}
 #err{background:rgba(239,68,68,.12);color:#fca5a5;padding:8px 24px;display:none}
+#msg{background:rgba(99,102,241,.12);color:#c7d2fe;padding:8px 24px;display:none}
+#signin{background:rgba(245,158,11,.10);color:#fde68a;padding:12px 24px;display:none;border-bottom:1px solid var(--border)}
+#signin form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 0}
+#signin input{background:#1a1a1a;color:var(--text);border:1px solid var(--border);border-radius:8px;
+  padding:7px 10px;font:inherit;min-width:240px}
 .note{color:var(--amber);font-size:.72rem;margin-top:4px}
 .truth{margin:6px 24px 0;color:var(--muted);font-size:.85rem}
+.board{padding:16px 24px 4px;max-width:1000px;border-bottom:1px solid var(--border)}
+.dayhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.daytitle{font-size:1.5rem;font-weight:800;letter-spacing:-.01em;margin-top:4px}
+.dayctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dayctl input{background:#1a1a1a;color:var(--text);border:1px solid var(--border);border-radius:8px;
+  padding:7px 10px;font:inherit;color-scheme:dark}
+.pill.part{background:rgba(245,158,11,.15);color:var(--amber)}
+.surf.part{color:var(--amber);border-color:rgba(245,158,11,.4)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.verdict{font-size:.85rem;line-height:1.4;margin-top:8px}
+.srclist{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.srcrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.srcrow .src{flex-basis:100%;margin-top:0;overflow-wrap:anywhere}
+h2.minor{margin:20px 0 0;font-size:1.05rem}
+.tablewrap{overflow-x:auto}
+table.sales{width:100%;border-collapse:collapse;margin-top:8px}
+table.sales th{text-align:left;color:var(--muted);font-size:.72rem;font-weight:600;text-transform:uppercase;
+  letter-spacing:.04em;padding:6px;border-bottom:1px solid var(--border)}
+table.sales td{padding:7px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+table.sales .num{text-align:right;white-space:nowrap}
+@media (max-width:520px){.top,.board,.wrap{padding-left:16px;padding-right:16px}
+  .headline,.sub{padding-left:16px;padding-right:16px}.truth{margin-left:16px;margin-right:16px}}
 </style>
 </head>
 <body>
 <div class="top">
   <div class="brand">📊 Portfolio Scoreboard</div>
-  <button class="btn" onclick="load()">Refresh</button>
+  <div style="display:flex;gap:8px">
+    <button class="btn" onclick="loadDay();load()">Refresh</button>
+    <button class="btn" type="button" onclick="signOut()">Sign out</button>
+  </div>
 </div>
 <div id="err"></div>
+<div id="msg" role="status"></div>
+<div id="signin">
+  <div>Owner sign-in: the board's numbers need this app's owner session. The owner key is exchanged
+    for a session cookie and kept nowhere by this page.</div>
+  <form onsubmit="event.preventDefault();submitSignIn()">
+    <input id="owner-key" type="password" autocomplete="current-password" placeholder="Owner key" aria-label="Owner key">
+    <button class="btn" type="submit">Sign in</button>
+    <span id="signin-msg" role="status"></span>
+  </form>
+</div>
+<section class="board" aria-labelledby="day-title">
+  <div class="dayhead">
+    <div>
+      <div class="label">Morning board · one New York day</div>
+      <div class="daytitle" id="day-title">Loading…</div>
+      <div class="src" id="day-sub"></div>
+    </div>
+    <div class="dayctl">
+      <input type="date" id="day-pick" aria-label="Day (New York)">
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card" id="optins-card"><div class="label">Toodle opt-ins</div><div class="val off">Loading…</div></div>
+    <div class="card" id="replies-card"><div class="label">SiteBoost replies</div><div class="val off">Loading…</div></div>
+    <div class="card" id="rev-card"><div class="label">Revenue · net, USD</div><div class="val off">Loading…</div></div>
+    <div class="card" id="spend-card"><div class="label">Meta · Toodle spend, USD</div><div class="val off">Loading…</div></div>
+    <div class="card" id="cpl-card"><div class="label">Stop rule · cost per Meta opt-in</div><div class="val off">Loading…</div></div>
+  </div>
+  <h2 class="minor">Sources</h2>
+  <div class="srclist" id="day-sources"></div>
+  <h2 style="margin:22px 0 0;font-size:1.05rem">Sales <span class="src" id="sales-meta"></span></h2>
+  <div class="tablewrap"><table class="sales">
+    <thead><tr><th>Time (NY)</th><th>Kind</th><th>Product</th><th>Buyer</th><th class="num">USD</th><th>Channel</th></tr></thead>
+    <tbody id="sales-body"><tr><td colspan="6" class="src">Loading…</td></tr></tbody>
+  </table></div>
+</section>
 <div class="headline" id="headline">Loading…</div>
 <div class="sub" id="meta"></div>
 <div class="truth">Honest view: a metric reads <strong>“not connected”</strong> when its surface has no live integration — never a fake zero. A real <strong>0</strong> means measured-and-empty.</div>
@@ -56,23 +124,54 @@ h2{letter-spacing:-.01em}td a{text-decoration:none}td a:hover{text-decoration:un
 
 </div>
 <script>
-const API='/api/narai/scoreboard';
-const INJECTED='%%API_KEY%%';
-function key(){
-  if(INJECTED && INJECTED!=='%%API_KEY%%') return INJECTED.replace(/[^ -~]/g,'').trim();
-  let k=sessionStorage.getItem('wv_key');
-  if(!k){k=prompt('Paste platform admin API_KEY:');if(k)sessionStorage.setItem('wv_key',k.trim());}
-  return (k||'').replace(/[^ -~]/g,'').trim();
+// One owner login: this app's operator session (core/operator_session_web.py). Same-origin
+// calls; the HttpOnly wv_session cookie is the only credential: no key header, nothing stored,
+// nothing in the URL. A 401 from /api/board/* means no owner session in this browser, so the
+// sign-in shows: the owner key is read, cleared from the field at once and sent once to
+// POST /admin/session/login, which answers with the cookie.
+const API='/api/board/scoreboard';
+function signIn(){
+  const box=document.getElementById('signin');
+  if(box.style.display==='block')return;
+  box.style.display='block';
+  fetch('/admin/ui-config',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).then(c=>{
+    if(c&&c.operator_session_enabled===false)
+      document.getElementById('signin-msg').textContent='Owner sign-in is not available on this deployment.';
+  }).catch(()=>{});
+}
+async function submitSignIn(){
+  const field=document.getElementById('owner-key'),msg=document.getElementById('signin-msg');
+  const secret=field.value.trim(); field.value='';
+  if(!secret){msg.textContent='Enter the owner key.';return;}
+  msg.textContent='Signing in…';
+  let r,j=null;
+  try{
+    r=await fetch('/admin/session/login',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({secret})});
+    j=await r.json().catch(()=>null);
+  }catch(e){msg.textContent='Sign-in request failed.';return;}
+  if(r.status===401){msg.textContent='That key was not accepted.';return;}
+  if(r.status===404||r.status===405){msg.textContent='Owner sign-in is not available on this deployment.';return;}
+  if(!r.ok){msg.textContent='Sign-in unavailable (HTTP '+r.status+').';return;}
+  if(!j||j.role!=='owner'){msg.textContent='Signed in, but not as the owner: the board needs the owner key.';return;}
+  msg.textContent='';
+  document.getElementById('signin').style.display='none';
+  loadDay(); load();
+}
+async function signOut(){
+  try{await fetch('/admin/session/logout',{method:'POST',credentials:'same-origin'});}catch(e){}
+  signIn();
 }
 function err(m){const e=document.getElementById('err');e.textContent='⚠ '+m;e.style.display='block';setTimeout(()=>e.style.display='none',8000);}
+function say(m,ms){const e=document.getElementById('msg');e.textContent=m;e.style.display='block';setTimeout(()=>e.style.display='none',ms||8000);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const MONEY=new Set(['revenue_month','revenue_all_time','mrr']);
-const ORDER=['mrr','revenue_month','revenue_all_time','users','trials','leads','emails_sent','conversion','churn','open_bugs','deployments'];
+const ORDER=['mrr','revenue_month','revenue_all_time','users','trials','places_scanned','emails_sent','churn','open_bugs','deployments'];
 async function load(){
   let snap;
   try{
-    const res=await fetch(API,{headers:{'X-API-Key':key()}});
-    if(res.status===401){sessionStorage.removeItem('wv_key');err('API key rejected (401) — refresh');return;}
+    const res=await fetch(API,{credentials:'same-origin'});
+    if(res.status===401){signIn();return;}
     if(!res.ok){err('HTTP '+res.status);return;}
     snap=await res.json();
   }catch(e){err(e.message);return;}
@@ -81,10 +180,10 @@ async function load(){
     'As of '+esc(snap.generated_at)+' · '+snap.connected_count+'/'+snap.total_surfaces+' surfaces connected';
   const m=snap.metrics||{};
   document.getElementById('grid').innerHTML=ORDER.filter(k=>m[k]).map(k=>{
-    const x=m[k]; const lbl=k.replace(/_/g,' ');
+    const x=m[k]; const lbl=x.label||k.replace(/_/g,' ');
     let body;
     if(!x.connected){ body=`<div class="val off">not connected</div><span class="pill off">no live source</span>`; }
-    else { const v = MONEY.has(k) ? ('$'+(x.value??0)) : (x.value??0);
+    else { const v = x.value==null ? '—' : MONEY.has(k) ? ((x.value<0?'-$':'$')+Math.abs(Number(x.value)).toFixed(2)) : x.value;   // null is unknown, not 0
            body=`<div class="val">${esc(v)}</div><span class="pill on">live</span>`; }
     return `<div class="card"><div class="label">${esc(lbl)}</div>${body}
       <div class="src">${esc(x.source)}</div>${x.note?`<div class="note">${esc(x.note)}</div>`:''}</div>`;
@@ -95,7 +194,7 @@ async function load(){
   loadOpps();
 }
 async function loadOpps(){
-  let d; try{ const r=await fetch('/api/narai/opportunities?limit=8',{headers:{'X-API-Key':key()}}); if(!r.ok)return; d=await r.json(); }catch(e){return;}
+  let d; try{ const r=await fetch('/api/board/opportunities?limit=8',{credentials:'same-origin'}); if(!r.ok)return; d=await r.json(); }catch(e){return;}
   document.getElementById('opp-meta').textContent=(d.connected_feeds||0)+'/5 feeds · scanned '+(d.scanned||0);
   const rows=d.opportunities||[];
   document.getElementById('opp-body').innerHTML = rows.length ? rows.map(o=>
@@ -104,6 +203,151 @@ async function loadOpps(){
       <div class="src">${esc(o.source)} · ${esc(o.popularity)} · signal ${esc(o.score)}</div></td></tr>`).join('')
     : '<tr><td class="src" style="padding:6px">No live opportunities (feeds unreachable).</td></tr>';
 }
+// The morning board: one New York day from /api/board/day (amounts are USD cents;
+// a number whose source is not connected is null, shown as "not connected", never 0;
+// any other null on a card reads "—").
+const DAY_API='/api/board/day';
+const SYNC_SOURCES={stripe:'Stripe',kit:'Kit',instantly:'Instantly',meta_ads:'Meta'};   // POST /api/board/sync/<id>
+const SYNC_IDS=Object.keys(SYNC_SOURCES);
+const SYNC_RELOAD_MS=60000;     // a sync still running after the route's wait (202): the day again a minute later
+const KIND={sale:'sale',refund:'refund',dispute:'dispute',dispute_reversal:'dispute won',adjustment:'adjustment'};
+// How a sale's channel was found (board_day's attribution); 'none' says nothing.
+const ATTR={click_id:'tracked link',checkout_utm:'checkout tag',lead_email:'earlier lead, same email'};
+function own(map,k){return Object.prototype.hasOwnProperty.call(map,k)?map[k]:'';}
+const VERDICT={stop:['STOP','kill'],ok:['OK','on'],collecting:['collecting','off'],no_spend:['no spend','off'],
+  check_tags:['check the tags','part'],check_currency:['check the currency','part']};
+function usd(c){if(c==null)return '—';const a=Math.abs(c);
+  return (c<0?'-':'')+'$'+Math.floor(a/100).toLocaleString('en-US')+'.'+String(a%100).padStart(2,'0');}
+function minor(m,cur){try{const f=new Intl.NumberFormat('en-US',{style:'currency',currency:cur});
+  return f.format(m/Math.pow(10,f.resolvedOptions().maximumFractionDigits));}catch(e){return m+' '+cur;}}
+function nyTime(iso){try{return new Date(iso).toLocaleTimeString('en-US',{timeZone:'America/New_York',
+  hour:'2-digit',minute:'2-digit',hourCycle:'h23'});}catch(e){return iso;}}
+function stateWord(s){return String(s||'not_connected').replace(/_/g,' ');}
+function plural(n,one,many){return n+' '+(n===1?one:many);}
+function dash(v){return v==null?'—':v;}                                  // null is unknown, never 0
+function count(n,one,many){return n==null?'— '+many:plural(n,one,many);}
+function wantedDay(){const d=new URLSearchParams(location.search).get('date')||'';return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:'';}
+function tone(x){return x.state==='final'?'on':x.connected?'part':'off';}
+function statePill(x){return `<span class="pill ${tone(x)}">${esc(stateWord(x.state))}</span>`;}
+function foot(x){return `<div class="src">source: ${esc(x.source)}</div>${x.note?`<div class="note">${esc(x.note)}</div>`:''}`;}
+// One card: a number with no value reads "not connected" (or "no number yet" when its
+// source is connected but has not measured this day), never 0. `body` holds escaped HTML.
+function card(id,label,x,body){
+  const shown=x.value!=null;
+  document.getElementById(id).innerHTML=`<div class="label">${esc(label)}</div>`+
+    (shown?body:`<div class="val off">${esc(x.connected?'no number yet':'not connected')}</div>`)+
+    `<div class="pills">${statePill(x)}</div>${foot(x)}`;
+}
+function optinsCard(o){
+  const split=Object.entries(o.by_channel||{}).map(([k,c])=>k+' '+c).join(' · ');
+  card('optins-card','Toodle opt-ins',o,`<div class="val">${esc(o.value)}</div>
+    <div class="src">target ${esc(o.target)} a day${o.value>=o.target?' · met':''}</div>
+    ${split?`<div class="src">by channel: ${esc(split)}</div>`:''}`);
+}
+function repliesCard(r){
+  const auto=r.auto_replies_ignored||0;
+  card('replies-card','SiteBoost replies',r,`<div class="val">${esc(r.value)}</div>
+    <div class="src">last 7 days: ${esc(dash(r.value_7d))} · target ${esc(r.target_per_week)} a week</div>
+    ${auto?`<div class="src">${esc(plural(auto,'automatic reply or bounce','automatic replies or bounces'))} ignored</div>`:''}`);
+}
+// Attributed revenue: the net with a known channel, then each channel's net, the
+// largest first, and what has no channel ('unattributed') last. Channels that net to
+// 0 are left out; a day with no money rows has no line (as in the morning message).
+function attributedLine(n){
+  if(n.attributed_usd_cents==null||!Object.keys(n.counts||{}).length)return '';
+  const by=n.by_channel||{}, names=Object.keys(by).filter(k=>by[k]!=null&&by[k]!==0);
+  const known=names.filter(k=>k!=='unattributed').sort((a,b)=>by[b]-by[a]||(a<b?-1:a>b?1:0));
+  const parts=known.concat(names.includes('unattributed')?['unattributed']:[]).map(k=>esc(k)+' '+esc(usd(by[k])));
+  return `<div class="src">attributed ${esc(usd(n.attributed_usd_cents))}${parts.length?' · '+parts.join(' · '):''}</div>`;
+}
+function revenueCard(n){
+  card('rev-card','Revenue · net, USD',n,`<div class="val">${esc(usd(n.value))}</div>
+    <div class="src">gross ${esc(usd(n.gross_usd_cents))} · refunds ${esc(usd(n.refunds_usd_cents))} · disputes ${esc(usd(n.disputes_usd_cents))}</div>
+    ${attributedLine(n)}
+    <div class="src">fees ${esc(usd(n.fees_usd_cents))}, not taken out of net</div>`);
+}
+function spendCard(s,o){
+  const leads=o.value!=null?plural(o.value,'opt-in','opt-ins'):(o.connected?'opt-ins not counted yet':'opt-ins not connected');
+  card('spend-card','Meta · Toodle spend, USD',s,`<div class="val">${esc(usd(s.value))}</div>
+    <div class="src">${esc(count(s.toodle_link_clicks,'link click','link clicks'))} → ${esc(leads)}</div>
+    <div class="src">all campaigns ${esc(usd(s.all_usd_cents))} · ${esc(dash(s.impressions))} impressions</div>`);
+}
+// The stop rule: a verdict, or none yet while Kit reads the last spend day (connected,
+// the note says what it waits for), or not connected. Its cost per opt-in may be null
+// with a verdict (check the currency, or no Meta opt-in): "—", never $0.00.
+function cplCard(c){
+  const v=c.connected?VERDICT[c.verdict]:null, waiting=c.connected&&!v;
+  const body=v?`<div class="val">${esc(usd(c.cpl_meta_usd_cents))}</div>`:
+    `<div class="val off">${esc(waiting?'no verdict yet':'not connected')}</div>`;
+  const pill=v?`<span class="pill ${v[1]}">${esc(v[0])}</span>`:waiting?'':'<span class="pill off">not connected</span>';
+  const facts=v&&c.spend_days?`
+    <div class="src">${esc(usd(c.spend_usd_cents))} over ${esc(c.spend_days)} of ${esc(dash(c.spend_days_needed))} spend days, ${esc(dash(c.first_day))} to ${esc(dash(c.last_day))}</div>
+    <div class="src">${esc(count(c.meta_optins,'Meta opt-in','Meta opt-ins'))} of ${esc(dash(c.toodle_optins))} · ${esc(usd(c.cpl_all_usd_cents))} per Toodle opt-in</div>`:'';
+  document.getElementById('cpl-card').innerHTML=`<div class="label">Stop rule · cost per Meta opt-in</div>${body}
+    <div class="pills">${pill}${c.connected?statePill(c):''}</div>
+    <div class="verdict">${esc(c.verdict_text)}</div>${facts}
+    <div class="src">stop above ${esc(usd(c.stop_above_cents))} per Meta opt-in, after ${esc(dash(c.spend_days_needed))} spend days</div>
+    ${c.note?`<div class="note">${esc(c.note)}</div>`:''}`;
+}
+function sourcesList(list){
+  document.getElementById('day-sources').innerHTML=list.map(s=>{
+    const button=SYNC_IDS.includes(s.id)?`<button class="btn sm" type="button" data-sync="${esc(s.id)}" aria-label="Sync ${esc(SYNC_SOURCES[s.id])} now">Sync now</button>`:'';
+    return `<div class="srcrow"><span class="surf ${tone(s)}">${s.connected?'● ':'○ '}${esc(s.name)} · ${esc(stateWord(s.state))}</span>${button}
+      ${s.note?`<div class="src">${esc(s.note)}</div>`:''}</div>`;
+  }).join('');
+}
+async function loadDay(){
+  const d=wantedDay(); let v;
+  try{
+    const r=await fetch(DAY_API+(d?'?date='+encodeURIComponent(d):''),{credentials:'same-origin'});
+    if(r.status===401){signIn();return;}
+    if(!r.ok){err('Board: HTTP '+r.status);return;}
+    v=await r.json();
+  }catch(e){err(e.message);return;}
+  const hrs=v.hours_in_day===25?' · a 25-hour day: clocks went back':v.hours_in_day===23?' · a 23-hour day: clocks went forward':'';
+  document.getElementById('day-title').textContent=v.label||v.day;
+  document.getElementById('day-sub').textContent=v.day+' · New York'+hrs;
+  document.getElementById('day-pick').value=v.day;
+  const nums=v.numbers||{};
+  const o=nums.optins||{},n=nums.revenue||{};
+  optinsCard(o); repliesCard(nums.replies||{}); revenueCard(n); spendCard(nums.spend||{},o); cplCard(nums.cpl||{});
+  sourcesList(v.sources||[]);
+  const rows=v.sales||[];
+  document.getElementById('sales-meta').textContent=n.value!=null?'· '+rows.length+(rows.length===1?' row':' rows'):'';
+  document.getElementById('sales-body').innerHTML=rows.length?rows.map(s=>`<tr>
+      <td>${esc(s.at?nyTime(s.at):s.on)}</td><td>${esc(KIND[s.kind]||s.kind)}</td>
+      <td>${esc(s.product)}</td><td>${esc(s.buyer)}</td>
+      <td class="num">${esc(usd(s.amount_usd_cents))}${s.currency&&s.currency!=='USD'?`<div class="src">${esc(minor(s.amount_minor,s.currency))}</div>`:''}</td>
+      <td>${esc(s.channel)}${own(ATTR,s.attribution)?`<div class="src">${esc(own(ATTR,s.attribution))}</div>`:''}</td></tr>`).join('')
+    :`<tr><td colspan="6" class="src">${esc(n.value!=null?'No sales this day.':n.connected?'No sales to list yet.':'Not connected: nothing to list.')}</td></tr>`;
+}
+document.getElementById('day-pick').addEventListener('change',e=>{
+  const d=e.target.value; if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;
+  history.replaceState(null,'',location.pathname+'?date='+d); loadDay();
+});
+// "Sync now": one sync of that source (once a minute each), then the day again. The
+// route waits up to 50 s for the run; a run still going answers 202 with a note and
+// carries on, so the note is shown and the day is read again a minute later.
+document.getElementById('day-sources').addEventListener('click',async e=>{
+  const b=e.target.closest('button[data-sync]'); if(!b)return;
+  const id=b.dataset.sync; if(!SYNC_IDS.includes(id))return;
+  b.disabled=true; b.textContent='Syncing…';
+  let later=false;
+  try{
+    const r=await fetch('/api/board/sync/'+encodeURIComponent(id),{method:'POST',credentials:'same-origin'});
+    if(r.status===401){signIn();return;}
+    const j=await r.json().catch(()=>({}));
+    if(r.status===202){
+      later=true;
+      say(SYNC_SOURCES[id]+' sync: '+(j.note||'Still running. The board updates when it finishes.'),SYNC_RELOAD_MS);
+      setTimeout(loadDay,SYNC_RELOAD_MS);
+    }
+    else if(!r.ok||j.error){err(SYNC_SOURCES[id]+' sync: '+(j.error||('HTTP '+r.status)));}   // an ok run can carry a warning
+  }catch(x){err(x.message);}
+  finally{b.disabled=false;b.textContent='Sync now';}
+  if(!later)loadDay();
+});
+loadDay();
 load();
 </script>
 </body>

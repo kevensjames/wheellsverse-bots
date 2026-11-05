@@ -2,25 +2,34 @@
 Daily briefing assembler.
 
 Each section is wrapped in a defensive try/except so a missing data source
-(no Google OAuth yet, empty click_tracker, paper broker not initialized)
+(no Google OAuth yet, the board's database down, paper broker not initialized)
 degrades that section to a graceful "—" line instead of breaking the whole
 briefing. The cron firing this should never crash on missing data.
 
 Sections (in order):
   1. Header — date, owner greeting
-  2. Revenue — yesterday's affiliate clicks + conversions ($)
+  2. Revenue — yesterday's revenue line from the daily numbers board
+     (core.board.day: net, attributed revenue by channel, fees), for the New
+     York calendar day, the same line as the board's 07:00 message
   3. Trading — paper broker P&L + active positions + open SELL signals
   4. Calendar — today's events from Google Calendar
   5. Inbox — top priority emails (Phase 2.1; stub for now)
   6. Crypto — BTC/ETH from yfinance (already a dep) + 24h change
-  7. KPIs — yesterday vs day-before deltas (clicks, revenue)
+  7. KPIs — yesterday vs the day before, both New York days: /go clicks
+     (core.click_tracker.clicks_on) and net revenue (the board's day view).
+     A number that cannot be read prints "—", never 0.
+
+Sections 2 and 7 are the board's lines, the owner's numbers: board=False
+leaves both out (the HTTP routes pass it unless the request also passes the
+app's owner check, narai/api/routes/briefing.py). The 07:00 cron keeps them.
 
 Public API:
-    assemble_briefing(now: datetime | None = None) -> str   # plain text
-    deliver_via_telegram(text: str) -> bool                  # send + log
+    assemble_briefing(now: datetime | None = None, *, board: bool = True) -> str   # plain text
+    deliver_via_telegram(text: str) -> bool                                         # send + log
 """
 from __future__ import annotations
 
+import html
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -34,20 +43,15 @@ ROOT = Path(__file__).resolve().parents[2]
 
 # ── Section: Revenue ─────────────────────────────────────────────────────────
 
-def _revenue_section(yesterday: datetime) -> str:
+def _revenue_section(now: datetime) -> str:
+    """Yesterday's revenue, New York day, from the board's day view: the same
+    line as its morning message ('💰 Revenue: $10.00 net · attributed $29.99
+    (meta) · fees $3.17'), or why there is no number ('not connected', never
+    $0). The text is escaped for Telegram HTML."""
     try:
-        from core.click_tracker import get_stats
-        stats = get_stats()
-        total_clicks = stats.get("total_clicks", 0)
-        revenue = stats.get("total_revenue_usd", 0.0)
-        by_partner = stats.get("by_partner", {})
-        # All-time top partner — yesterday filtering would need timestamps; we
-        # surface lifetime numbers and let the user see momentum from KPI delta.
-        top_partner = max(by_partner.items(), key=lambda kv: kv[1])[0] if by_partner else "—"
-        return (
-            f"💰 Revenue (lifetime): ${revenue:.2f} · "
-            f"{total_clicks} clicks · top: {top_partner}"
-        )
+        from core.board import day as board_day
+        view = board_day.day_view(board_day.yesterday_ny(now))
+        return "💰 " + html.escape(board_day.summary_line(view), quote=False)
     except Exception as e:
         logger.warning(f"revenue_section failed: {e}")
         return "💰 Revenue: —"
@@ -261,41 +265,35 @@ def _crypto_section() -> str:
 # ── Section: KPI delta ───────────────────────────────────────────────────────
 
 def _kpi_section(now: datetime) -> str:
-    """Yesterday vs day-before deltas — the morning briefing metric the user
-    actually wants to see ('did things go up?'). We bucket the raw clicks +
-    conversions JSON by UTC date here rather than refactoring click_tracker;
-    cheap (O(N) over a single-user file) and isolated to this code path."""
+    """Yesterday vs the day before, both New York calendar days: /go clicks
+    (counted by the database) and net revenue (the board's day view). An
+    unknown number prints '—', never 0, and gets no arrow. A partial day's
+    revenue (its sync has not read the whole day) reads 'so far' and gets no
+    arrow either: a day still being read is no drop."""
     try:
-        from core.click_tracker import _load_clicks, _load_conversions
-        # UTC dates so we match the click_tracker timestamp ('+Z' suffix).
-        today_utc = now.astimezone(timezone.utc).date()
-        yesterday = (today_utc - timedelta(days=1)).isoformat()
-        day_before = (today_utc - timedelta(days=2)).isoformat()
+        from core.board import day as board_day
+        from core.click_tracker import clicks_on
+        yesterday = board_day.yesterday_ny(now)
+        day_before = yesterday - timedelta(days=1)
+        c_yest, c_prev = clicks_on(yesterday), clicks_on(day_before)
+        rev_yest = board_day.day_view(yesterday)["numbers"]["revenue"]
+        rev_prev = board_day.day_view(day_before)["numbers"]["revenue"]
+        r_yest, r_prev = rev_yest["value"], rev_prev["value"]
+        partial = "partial" in (rev_yest.get("state"), rev_prev.get("state"))
+        so_far = " so far" if rev_yest.get("state") == "partial" and r_yest is not None else ""
 
-        def _click_count_on(date_str: str, items: list) -> int:
-            return sum(1 for c in items if c.get("ts", "").startswith(date_str))
+        def _arrow(a, b) -> str:
+            if a is None or b is None:
+                return ""
+            return " ▲" if a > b else (" ▼" if a < b else " →")
 
-        def _revenue_on(date_str: str, items: list) -> float:
-            return sum(
-                float(c.get("amount_usd", 0) or 0)
-                for c in items
-                if c.get("ts", "").startswith(date_str)
-            )
+        def _n(value) -> str:
+            return "—" if value is None else str(value)
 
-        clicks = _load_clicks()
-        convs = _load_conversions()
-        c_yest = _click_count_on(yesterday, clicks)
-        c_prev = _click_count_on(day_before, clicks)
-        r_yest = _revenue_on(yesterday, convs)
-        r_prev = _revenue_on(day_before, convs)
-
-        # Format clicks delta with directional indicator. n=0 base means
-        # "no signal yet" (don't divide by zero); show absolute count instead.
-        c_arrow = "▲" if c_yest > c_prev else ("▼" if c_yest < c_prev else "→")
-        r_arrow = "▲" if r_yest > r_prev else ("▼" if r_yest < r_prev else "→")
         return (
-            f"✅ KPIs (yesterday): {c_yest} clicks {c_arrow} (prev {c_prev}) · "
-            f"${r_yest:.2f} revenue {r_arrow} (prev ${r_prev:.2f})"
+            f"✅ KPIs (yesterday, New York): {_n(c_yest)} clicks{_arrow(c_yest, c_prev)} (prev {_n(c_prev)}) · "
+            f"{board_day.money(r_yest)} net revenue{so_far}{'' if partial else _arrow(r_yest, r_prev)} "
+            f"(prev {board_day.money(r_prev)})"
         )
     except Exception as e:
         logger.warning(f"kpi_section failed: {e}")
@@ -304,40 +302,44 @@ def _kpi_section(now: datetime) -> str:
 
 # ── Assembler ────────────────────────────────────────────────────────────────
 
-def assemble_briefing(now: datetime | None = None) -> str:
+def assemble_briefing(now: datetime | None = None, *, board: bool = True) -> str:
     """Build the morning briefing as plain text (Telegram HTML-safe).
 
     Each section is best-effort. A failing data source produces a "—" line,
     never a raised exception. The full briefing should be safe to deliver
     regardless of which integrations are configured.
+
+    board=False leaves out the two lines read from the daily numbers board,
+    the revenue line and the KPI line, and does not read the board at all:
+    they are the owner's numbers. The other sections are the same either way.
     """
     if now is None:
         now = datetime.now(timezone.utc)
-    yesterday = now - timedelta(days=1)
     date_str = now.strftime("%A, %B %-d, %Y")
 
     lines = [
         f"🌅 <b>Good morning, J.K.</b>",
         f"<i>{date_str}</i>",
         "",
-        _revenue_section(yesterday),
+        *([_revenue_section(now)] if board else []),    # yesterday, New York day
         _trading_section(),
         _calendar_section(now),
         _inbox_section(),
         _subscribers_section(),
         _crypto_section(),
-        _kpi_section(now),
+        *([_kpi_section(now)] if board else []),
         "",
         "→ Reply with a question or command.",
     ]
     return "\n".join(lines)
 
 
-def assemble_briefing_markdown(now: datetime | None = None) -> str:
+def assemble_briefing_markdown(now: datetime | None = None, *, board: bool = True) -> str:
     """Plain-text briefing for non-Telegram destinations (Slack, email, SMS).
-    Strips the HTML tags assemble_briefing() emits and reflows minor markup."""
+    Strips the HTML tags assemble_briefing() emits and reflows minor markup.
+    `board` as in assemble_briefing()."""
     import re
-    html = assemble_briefing(now)
+    html = assemble_briefing(now, board=board)
     # Drop <b>, </b>, <i>, </i> — leaving the contents intact.
     text = re.sub(r"</?[bi]>", "", html)
     return text

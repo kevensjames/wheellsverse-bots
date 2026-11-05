@@ -21,7 +21,7 @@ lxml>=5.2.0
 
 # Scheduling
 schedule>=1.2.0
-APScheduler>=3.10.4
+APScheduler>=3.10.4,<4   # 4.x drops AsyncIOScheduler (narai/integrations/scheduler.py: briefing and board jobs)
 
 # Data processing
 pandas>=2.2.0
@@ -68,6 +68,7 @@ flask-cors>=4.0.0
 # Utilities
 python-dateutil>=2.9.0
 pytz>=2024.1
+tzdata>=2024.1   # IANA zones for zoneinfo: the board's New York days (core/board/), whatever the image ships
 colorama>=0.4.6
 tqdm>=4.66.0
 pyyaml>=6.0.1

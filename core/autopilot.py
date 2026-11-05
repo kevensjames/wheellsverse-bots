@@ -11,7 +11,7 @@ Every hour she:
   4. Checks for viral posts and multiplies them (ViralDetector)
   5. Monitors and replies to DMs (DMReplyEngine)
   6. Reviews ad spend and adjusts boosts (BudgetManager)
-  7. Updates revenue dashboard (RevenueEngine)
+  7. (Revenue is not sent from here: the board's 07:00 New York message reports it)
   8. Adjusts her emotional state based on performance (PersonalityEngine)
 
 Every day she:
@@ -19,6 +19,7 @@ Every day she:
   - Publishes 2 YouTube Shorts
   - Sends weekly newsletter (Mondays)
   - Reports goal progress to Telegram
+  - Reads the revenue numbers (the board's ledger) into the day's results
   - Re-engages cold leads
 
 This is full autonomy. NarAI is the employee who never sleeps.
@@ -243,7 +244,8 @@ class AutopilotEngine:
     # ── Daily cycle ────────────────────────────────────────────────────────────
 
     def run_daily(self) -> Dict:
-        """Full daily tasks — runs at 08:00."""
+        """Full daily tasks — runs at 08:05, the container's time, when
+        autopilot is enabled in full mode (or on POST /api/autopilot/run-daily)."""
         s = self._state
         s.add_log("Daily cycle starting")
         results: Dict = {"started_at": datetime.now(timezone.utc).isoformat()}
@@ -293,13 +295,8 @@ class AutopilotEngine:
         except Exception as e:
             s.add_log(f"Re-engagement failed: {e}", "WARNING")
 
-        # ── 5. Revenue report ─────────────────────────────────────────────────
-        try:
-            from core.revenue import RevenueEngine
-            RevenueEngine.get().send_daily_report()
-            s.add_log("Revenue report sent")
-        except Exception as e:
-            s.add_log(f"Revenue report failed: {e}", "WARNING")
+        # ── 5. Revenue numbers (no message: the board's 07:00 one reports them) ──
+        self._daily_revenue(results)
 
         # ── 6. Goal check + send report ───────────────────────────────────────
         try:
@@ -325,6 +322,19 @@ class AutopilotEngine:
         return results
 
     # ── Helpers ────────────────────────────────────────────────────────────────
+
+    def _daily_revenue(self, results: Dict) -> None:
+        """The day's revenue numbers (RevenueEngine.summary: the board's
+        ledger by New York day) into results['revenue']. Nothing is sent: the
+        owner gets one daily revenue message, the board's at 07:00 New York
+        time, and POST /api/revenue/send-report sends this report on request."""
+        s = self._state
+        try:
+            from core.revenue import RevenueEngine
+            results["revenue"] = RevenueEngine.get().summary()
+            s.add_log("Revenue: the board 07:00 message reports it")
+        except Exception as e:
+            s.add_log(f"Revenue numbers not read ({type(e).__name__})", "WARNING")
 
     def _pick_best_topic(self) -> Optional[str]:
         """Pick the best topic to create content about right now."""

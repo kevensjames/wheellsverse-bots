@@ -40,23 +40,30 @@ never a crash. Order is fixed (most-actionable first):
 
 | Section | Source | Lights up when |
 |---|---|---|
-| 💰 Revenue | `core.click_tracker.get_stats()` | Always (lifetime totals) |
+| 💰 Revenue | `core.board.day.summary_line(day_view(yesterday))`: yesterday's net, attributed revenue by channel and fees, New York day (the board's 07:00 line) | The board's database and Stripe sync are connected (otherwise "not connected", never $0) |
 | 📈 Trading | `narai.core.trading.paper.PaperBroker.status()` | Always (defaults to $10k starting equity) |
 | 📅 Calendar | `narai.godmode.adapters.google.get_service('calendar')` | Google OAuth connected |
 | 📨 Inbox | Same, `gmail` service, `q='is:important is:unread'` | Google OAuth connected |
 | 🪙 Crypto | `yfinance` BTC-USD + ETH-USD, 2-day history | Always (yfinance is unauthenticated) |
-| ✅ KPIs | `core.click_tracker._load_clicks()` + `_load_conversions()` | Always (compares yesterday vs day-before) |
+| ✅ KPIs | `core.click_tracker.clicks_on(day)` + the board's day view (net revenue) | Always (yesterday vs the day before, New York days; "—" for a number that cannot be read; a partial day's revenue reads "so far" and gets no arrow) |
 
 ## HTTP endpoints
 
-All require Bearer JWT from `/api/v2/narai/auth/login`.
+All require a Bearer JWT from `/api/v2/narai/auth/login`. The 💰 Revenue and
+✅ KPIs lines are the daily numbers board's, the owner's numbers: a route puts
+them in only when the request also passes the app's owner check, the
+`X-API-Key` header or an owner `wv_session` cookie (core/api.py
+`owner_request_ok`), and leaves them out otherwise (`assemble_briefing(board=False)`;
+the rest of the briefing is unchanged, and nothing is refused for it). The
+07:00 cron keeps them. The briefing is built in a worker thread, never on the
+event loop.
 
 | Endpoint | Method | Returns | Side effect |
 |---|---|---|---|
 | `/api/v2/narai/briefing/preview` | POST | `{text, delivered:false}` (HTML) | None |
 | `/api/v2/narai/briefing/markdown` | POST | `{text, format:'plain'}` | None |
 | `/api/v2/narai/briefing/now` | POST | `{text, delivered:bool}` | Telegram if env set |
-| `/api/v2/narai/briefing/test` | POST | `{status:'fired'}` | Calls `_fire_briefing()` (cron path) |
+| `/api/v2/narai/briefing/test` | POST | `{status:'fired'}` | Calls `_fire_briefing(board=…)` (cron path; the board's lines only for the owner) |
 
 ## Dashboard integration
 
