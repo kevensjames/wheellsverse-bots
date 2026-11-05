@@ -166,7 +166,8 @@ function err(m){const e=document.getElementById('err');e.textContent='⚠ '+m;e.
 function say(m,ms){const e=document.getElementById('msg');e.textContent=m;e.style.display='block';setTimeout(()=>e.style.display='none',ms||8000);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const MONEY=new Set(['revenue_month','revenue_all_time','mrr']);
-const ORDER=['mrr','revenue_month','revenue_all_time','users','trials','places_scanned','emails_sent','churn','open_bugs','deployments'];
+const PERCENT=new Set(['conversion']);   // a fraction, shown as a percentage as the Command Center does
+const ORDER=['mrr','revenue_month','revenue_all_time','users','trials','places_scanned','emails_sent','conversion','churn','open_bugs','deployments'];
 async function load(){
   let snap;
   try{
@@ -183,7 +184,8 @@ async function load(){
     const x=m[k]; const lbl=x.label||k.replace(/_/g,' ');
     let body;
     if(!x.connected){ body=`<div class="val off">not connected</div><span class="pill off">no live source</span>`; }
-    else { const v = x.value==null ? '—' : MONEY.has(k) ? ((x.value<0?'-$':'$')+Math.abs(Number(x.value)).toFixed(2)) : x.value;   // null is unknown, not 0
+    else { const v = x.value==null ? '—' : MONEY.has(k) ? ((x.value<0?'-$':'$')+Math.abs(Number(x.value)).toFixed(2))
+             : PERCENT.has(k) ? (Number(x.value)*100).toFixed(1)+'%' : x.value;   // null is unknown, not 0
            body=`<div class="val">${esc(v)}</div><span class="pill on">live</span>`; }
     return `<div class="card"><div class="label">${esc(lbl)}</div>${body}
       <div class="src">${esc(x.source)}</div>${x.note?`<div class="note">${esc(x.note)}</div>`:''}</div>`;

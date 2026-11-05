@@ -2762,12 +2762,23 @@ async def serve_scoreboard():
 
 
 # Daily numbers board API (/api/board/*, see core/board/). Owner-only through this
-# app's one owner check: api_key_middleware gates every non-public /api/ path, and
-# the include adds verify_api_key to every route, so the board stays gated even if
-# the middleware or the public tables change. Either takes X-API-Key or an owner
-# wv_session cookie (with the CSRF origin check on writes). No public path is added.
+# app's one owner check, three times: api_key_middleware gates every non-public /api/
+# path; the include adds verify_api_key to every route, so the board stays gated if
+# the middleware is taken away; and it adds _board_owner_only, which asks
+# owner_request_ok and never reads the public tables (_PUBLIC_PATHS, PUBLIC_API_RULES),
+# so the board stays gated even if a change to those tables would make an /api/board
+# path public (the middleware and verify_api_key both skip a public path). Each takes
+# X-API-Key or an owner wv_session cookie (with the CSRF origin check on writes). No
+# public path is added: tests/test_board_owner_check.py pins the tables' sizes.
+async def _board_owner_only(request: Request) -> None:
+    """401 unless owner_request_ok: the board's owner check, whatever the public tables say."""
+    if not owner_request_ok(request):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
 from core.board import routes as _board_routes
-app.include_router(_board_routes.router, dependencies=[Depends(verify_api_key)])
+app.include_router(_board_routes.router,
+                   dependencies=[Depends(verify_api_key), Depends(_board_owner_only)])
 
 # The board's jobs on New York time: the hourly Stripe sync, the 07:00 report
 # and its startup catch-up (core/board/jobs.py). Needs nothing from NarAI v2.
@@ -11283,7 +11294,10 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks):
     (core/board/stripe_webhook.py), so the side effects in
     _stripe_event_side_effects run once per event: a replay answers 200 and
     runs nothing; the same event arriving while it runs answers 409, and Stripe
-    retries later; an event that failed runs again on Stripe's retry. Money is
+    retries later; an event that failed runs again on Stripe's retry. When the
+    side effects ran but the 'processed' mark cannot be stored, the answer is
+    still 200 and the mark is retried in the background, before the row can
+    look abandoned (10 minutes) and a late duplicate run them again. Money is
     not recorded here: a verified event starts the Stripe balance-transaction
     sync (core/board/connectors/stripe_sync.py) in the background."""
     from core.board import stripe_webhook as _board_webhook
@@ -11301,14 +11315,19 @@ async def stripe_webhook(request: Request, background_tasks: BackgroundTasks):
         return JSONResponse({"received": True, "status": "in progress"}, status_code=409)
     if claim != "run":           # processed already, or a test-mode event (stored as ignored)
         return {"received": True, "status": "done"}
-    background_tasks.add_task(_board_webhook.start_sync)
     try:
         await _stripe_event_side_effects(event)
     except Exception as e:
         logger.exception(f"Stripe webhook {event.get('id')}: side effects failed")
+        background_tasks.add_task(_board_webhook.start_sync)
         await _board_webhook.finish(event, False, f"side effects failed: {type(e).__name__}")
         return JSONResponse({"error": "Processing failed"}, status_code=500)
-    await _board_webhook.finish(event, True)
+    if not await _board_webhook.finish(event, True):
+        logger.error(f"Stripe webhook {event.get('id')}: side effects ran, but the event could not be "
+                     f"marked processed; retrying the mark in the background")
+        # queued first: background tasks run one after another, and the sync can take minutes
+        background_tasks.add_task(_board_webhook.retry_mark_processed, event)
+    background_tasks.add_task(_board_webhook.start_sync)
     return {"received": True}
 
 

@@ -253,6 +253,84 @@ def test_a_failed_or_abandoned_event_runs_again(setup):
     assert fx.calls["delivery"] == 2 and db.webhook_events[("stripe", "evt_2")]["status"] == "processed"
 
 
+def test_a_processed_mark_that_fails_is_retried_so_a_late_duplicate_runs_nothing(setup, monkeypatch, caplog):
+    """The side effects ran, then storing 'processed' failed once (a database
+    error right after a good claim). The receiver still answers 200, logs an
+    error naming the event, and marks it again in the background (after a short
+    wait, before the sync), so a duplicate delivered 11 minutes later, past
+    board_claim_webhook's 10 minutes for an abandoned row, answers 'done' and
+    runs no side effect a second time."""
+    from core.board import ledger, stripe_webhook
+    from core.board.ledger import BoardDBError
+    client, db, fx, api = setup
+    real, tries, waits = ledger.finish_webhook, [], []
+
+    def flaky(*args, **kwargs):
+        tries.append(fx.calls["stripe_sync"])                 # syncs run before this try
+        if len(tries) == 1:
+            raise BoardDBError("webhook_events: HTTP 503")
+        return real(*args, **kwargs)
+
+    async def no_wait(seconds):
+        waits.append(seconds)
+
+    monkeypatch.setattr(ledger, "finish_webhook", flaky)
+    monkeypatch.setattr(stripe_webhook, "_sleep", no_wait)
+    caplog.set_level("WARNING")
+    r = post(client, checkout_event("evt_mark"))
+    assert r.status_code == 200 and r.json() == {"received": True}
+    assert dict(fx.calls) == ALL_CHECKOUT_EFFECTS
+    assert tries == [0, 0] and waits == [stripe_webhook.MARK_RETRY_DELAYS[0]]   # one retry, before the sync
+    assert db.webhook_events[("stripe", "evt_mark")]["status"] == "processed"
+    said = [(rec.levelname, rec.getMessage()) for rec in caplog.records]
+    assert ("ERROR", "Stripe webhook evt_mark: side effects ran, but the event could not be marked processed; "
+                     "retrying the mark in the background") in said
+    assert ("WARNING", "stripe webhook: marked evt_mark processed on retry 1") in said
+    later = db.clock() + timedelta(minutes=11)
+    monkeypatch.setattr(db, "clock", lambda: later)
+    r = post(client, checkout_event("evt_mark"))
+    assert r.status_code == 200 and r.json()["status"] == "done"
+    assert dict(fx.calls) == ALL_CHECKOUT_EFFECTS                               # nothing ran twice
+
+
+def test_a_processed_mark_that_keeps_failing_is_retried_a_few_times_then_reported(setup, monkeypatch, caplog):
+    """Every retry fails too: a fixed number of tries, each wait longer than the
+    one before and all of them inside the 10 minutes, a retry that breaks counted
+    as one more failed try, an error naming the event when it gives up, and the
+    sync still starts once the tries are over. The answer was 200 all along."""
+    from core.board import ledger, stripe_webhook
+    from core.board.ledger import BoardDBError
+    client, db, fx, api = setup
+    tries, waits = [], []
+
+    def down(*args, **kwargs):
+        tries.append(fx.calls["stripe_sync"])
+        if len(tries) == 3:
+            raise RuntimeError("not a database error")
+        raise BoardDBError("webhook_events: HTTP 503")
+
+    async def no_wait(seconds):
+        waits.append(seconds)
+
+    monkeypatch.setattr(ledger, "finish_webhook", down)
+    monkeypatch.setattr(stripe_webhook, "_sleep", no_wait)
+    caplog.set_level("ERROR", logger="board.stripe_webhook")
+    r = post(client, checkout_event("evt_down"))
+    assert r.status_code == 200 and r.json() == {"received": True}
+    delays = stripe_webhook.MARK_RETRY_DELAYS
+    assert waits == list(delays) and len(delays) >= 2
+    assert all(a < b for a, b in zip(delays, delays[1:]))                        # backoff
+    assert sum(delays) + ledger._TIMEOUT * len(delays) < 10 * 60                 # inside the 10 minutes
+    assert tries == [0] * (1 + len(delays))                                      # all of them before the sync
+    assert fx.calls["stripe_sync"] == 1 and fx.calls["delivery"] == 1
+    assert db.webhook_events[("stripe", "evt_down")]["status"] == "received"
+    said = [rec.getMessage() for rec in caplog.records if rec.name == "board.stripe_webhook"]
+    assert "stripe webhook: retry 2 to mark evt_down processed broke (RuntimeError)" in said
+    gave_up = [m for m in said if "gave up" in m]
+    assert len(gave_up) == 1 and gave_up[0].startswith(
+        f"stripe webhook: gave up marking evt_down processed after {len(delays)} retries.")
+
+
 def test_a_failing_receiver_answers_500_and_stripes_retry_runs_it_once(setup, monkeypatch):
     client, db, fx, api = setup
     real, failures = api._add_log, []
@@ -269,8 +347,9 @@ def test_a_failing_receiver_answers_500_and_stripes_retry_runs_it_once(setup, mo
     row = db.webhook_events[("stripe", "evt_1")]
     assert row["status"] == "failed" and row["error"] == "side effects failed: OSError"
     assert fx.calls["delivery"] == 0 and fx.calls["tier_upgrade"] == 0
+    assert fx.calls["stripe_sync"] == 1                           # a verified event starts the sync, failed or not
     assert post(client, checkout_event()).status_code == 200      # Stripe's retry
-    assert fx.calls["delivery"] == 1 and fx.calls["tier_upgrade"] == 1
+    assert fx.calls["delivery"] == 1 and fx.calls["tier_upgrade"] == 1 and fx.calls["stripe_sync"] == 2
     assert db.webhook_events[("stripe", "evt_1")]["status"] == "processed"
 
 

@@ -2,15 +2,15 @@
 /api/board/*.
 
 There is no board sign-in: the board uses production's owner login, the
-operator session. Every route here is owner-only through production's check,
-twice: api_key_middleware gates every /api/ path that is not public (and
-/api/board/ is not), and core/api.py includes this router with
-Depends(verify_api_key). Either way the caller needs the X-API-Key header
-(API_KEY) or an owner wv_session cookie (core/operator_session_web.py); a
-cookie on a write (POST) must also pass production's CSRF origin check. Every
-refusal is a 401. This module must not import core.api (that import would be
-circular), which is why the dependency is attached where the router is
-included.
+operator session. Every route here is owner-only through production's check:
+api_key_middleware gates every /api/ path that is not public (and /api/board/
+is not), and core/api.py includes this router with Depends(verify_api_key) and
+Depends(_board_owner_only), the same check without the public tables. Each way
+the caller needs the X-API-Key header (API_KEY) or an owner wv_session cookie
+(core/operator_session_web.py); a cookie on a write (POST) must also pass
+production's CSRF origin check. Every refusal is a 401. This module must not
+import core.api (that import would be circular), which is why the dependencies
+are attached where the router is included.
 
 Handlers are plain def: FastAPI runs the blocking Supabase calls in its
 threadpool, off the event loop.

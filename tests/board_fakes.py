@@ -1276,6 +1276,9 @@ def install_board(monkeypatch) -> FakeBoardDB:
 
 # ═══ Stripe's API ═══════════════════════════════════════════════════════════
 
+# Fake Stripe keys in the board's tests are written as two adjacent literals ("rk_live_" "..."):
+# Python joins them into the same string, and a secret scan's Stripe-key pattern, which reads
+# the source line, does not mistake a fake for a real key.
 STRIPE_KEY = "rk_live_" "FAKEboardRead1"   # fake, and too short to pass for a real key
 
 

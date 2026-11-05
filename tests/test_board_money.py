@@ -474,16 +474,32 @@ def test_the_scoreboard_page_shows_the_cards_with_their_labels(ledger_day, monke
     metrics = ledger_day.client.get("/api/narai/scoreboard", headers=KEY).json()["metrics"]
     metrics["revenue_all_time"]["value"] = -5.5                       # a month of refunds shows as a loss
     metrics["emails_sent"]["note"] = "<b>sent</b> & counted"
-    grid = _page(tmp_path, board_day.day_view(date(2026, 11, 1)), metrics=metrics)["loaded"]["grid"]["html"]
+    view = board_day.day_view(date(2026, 11, 1))
+    grid = _page(tmp_path, view, metrics=metrics)["loaded"]["grid"]["html"]
     labels = re.findall(r'<div class="label">(.*?)</div>', grid)
     assert labels == ["MRR", "revenue, last 30 days", "revenue, all time", "users", "trials",
-                      "places scanned (outreach)", "emails sent", "churn", "open bugs", "deployments"]
+                      "places scanned (outreach)", "emails sent", "conversion", "churn", "open bugs", "deployments"]
     month = dollars(sql_net(ledger_day.db, T - timedelta(days=29), T))
     assert f'<div class="val">${month:.2f}</div>' in grid and '<div class="val">$99.00</div>' in grid
     assert '<div class="val">-$5.50</div>' in grid and "$-" not in grid
     assert "counted on the server disk; a deploy resets it" in grid
     assert "&lt;b&gt;sent&lt;/b&gt; &amp; counted" in grid and "<b>sent" not in grid
-    assert "leads" not in grid and "conversion" not in grid
+    # production's conversion card stays, a percentage as on the Command Center (4 users / 40 leads);
+    # its leads card is the places-scanned card above, under that card's own label
+    assert '<div class="val">10.0%</div>' in _scoreboard_card(grid, "conversion")
+    # a conversion with no number reads a dash, never 0.0%; one not measured reads "not connected"
+    metrics["conversion"].update(value=None)
+    card = _scoreboard_card(_page(tmp_path, view, metrics=metrics)["loaded"]["grid"]["html"], "conversion")
+    assert '<div class="val">—</div>' in card and "%" not in card
+    metrics["conversion"].update(value=None, connected=False)
+    card = _scoreboard_card(_page(tmp_path, view, metrics=metrics)["loaded"]["grid"]["html"], "conversion")
+    assert '<div class="val off">not connected</div>' in card and "%" not in card
+
+
+def _scoreboard_card(grid: str, label: str) -> str:
+    """The one card in the scoreboard grid's HTML whose label is `label`."""
+    (card,) = [c for c in grid.split('<div class="card">')[1:] if c.startswith(f'<div class="label">{label}</div>')]
+    return card
 
 
 # ─── (c) manual entries are manual ledger rows ──────────────────────────────

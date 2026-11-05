@@ -1,8 +1,9 @@
 """The daily numbers board has ONE login: production's owner check.
 
 Every /api/board/* route is owner-only through core/api.py's api_key_middleware
-and, by construction, verify_api_key on every route of the router (the include
-in core/api.py). The owner is the X-API-Key header (API_KEY) or an owner
+and, by construction, verify_api_key and _board_owner_only (owner_request_ok,
+which ignores the public tables) on every route of the router (the include in
+core/api.py). The owner is the X-API-Key header (API_KEY) or an owner
 wv_session cookie (core/operator_session_web.py), with the CSRF origin check on
 a cookie-authenticated write; every refusal is a 401, production's convention.
 The board's own Supabase sign-in, /board/login, its sessions and its page gate
@@ -21,7 +22,11 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from fastapi.routing import iter_route_contexts
+
+try:
+    from fastapi.routing import iter_route_contexts   # FastAPI keeps included routers nested
+except ImportError:      # FastAPI 0.116 (requirements allow it): includes are flattened into app.routes
+    iter_route_contexts = list
 
 from core.board import routes as board_routes
 from tests import board_fakes as bf
@@ -100,16 +105,24 @@ def test_the_board_adds_no_public_path():
 def test_with_the_middleware_taken_away_verify_api_key_alone_still_gates_the_board(board, monkeypatch):
     """Defence in depth: core.api's app without api_key_middleware (as a
     refactor of the middleware could leave it) still refuses every board call
-    that is not the owner's, through the dependency on each route."""
+    that is not the owner's, through verify_api_key on each route. The board's
+    other dependency (_board_owner_only) is made to let every call through here,
+    so this checks verify_api_key on its own, a wrong key included;
+    test_a_board_path_made_public_in_the_tables_still_needs_the_owner checks
+    _board_owner_only on its own."""
     import core.api as api
     client, runs = board
     kept = [m for m in api.app.user_middleware if m.kwargs.get("dispatch") is not api.api_key_middleware]
     assert len(kept) == len(api.app.user_middleware) - 1
     monkeypatch.setattr(api.app, "user_middleware", kept)
     monkeypatch.setattr(api.app, "middleware_stack", None)          # rebuilt, without it, on the next call
+    monkeypatch.setattr(api, "owner_request_ok", lambda request: True)    # _board_owner_only passes all
     r = client.get(GET_URL)
     assert (r.status_code, r.json()) == (401, {"detail": "Invalid or missing API key"})
-    for headers in (bf.SAME_ORIGIN, {**bf.owner_headers(), "Origin": "https://evil.example"},
+    r = client.get(GET_URL, headers={"X-API-Key": "wrong-key"})
+    assert (r.status_code, r.json()) == (401, {"detail": "Invalid or missing API key"})
+    for headers in (bf.SAME_ORIGIN, {"X-API-Key": "wrong-key"},
+                    {**bf.owner_headers(), "Origin": "https://evil.example"},
                     {**bf.owner_headers("operator"), **bf.SAME_ORIGIN}):
         assert client.post_sync(headers).status_code == 401
     assert client.get(f"{GET_URL}?api_key={bf.API_KEY}").status_code == 401
@@ -118,6 +131,39 @@ def test_with_the_middleware_taken_away_verify_api_key_alone_still_gates_the_boa
     assert client.get(GET_URL, headers=bf.owner_headers()).status_code == 200
     assert client.post_sync({**bf.owner_headers(), **bf.SAME_ORIGIN}).status_code == 200
     assert runs == [("owner", None)]
+
+
+def test_a_board_path_made_public_in_the_tables_still_needs_the_owner(board, monkeypatch):
+    """The include's second dependency, core.api._board_owner_only, asks
+    owner_request_ok, which never reads the public tables. So if a change to
+    _PUBLIC_PATHS or PUBLIC_API_RULES made the board's paths public, which opens
+    both api_key_middleware and verify_api_key, every board route would still
+    answer 401 to anyone but the owner, and the owner would still get in."""
+    import core.api as api
+    client, runs = board
+    monkeypatch.setattr(board_routes.board_day, "day_view", lambda d=None: {"day": "stub"})   # never reached
+    monkeypatch.setattr("core.opportunities.scan", lambda limit=8: {"opportunities": []})    # never reached
+    found = _board_routes()
+    urls = {ctx.path.replace("{source}", "stripe") for ctx in found}
+    monkeypatch.setattr(api, "_PUBLIC_PATHS", set(api._PUBLIC_PATHS) | urls)
+    rule = api.PublicRule("/api/board", frozenset({"GET", "POST"}), True, "made public by this test, on purpose")
+    monkeypatch.setattr(api, "PUBLIC_API_RULES", api.PUBLIC_API_RULES + (rule,))
+    for ctx in found:
+        url = ctx.path.replace("{source}", "stripe")
+        for method in ctx.methods:
+            assert url in api._PUBLIC_PATHS and api._public_rule_for(url, method) is rule   # public now
+            for headers in (bf.SAME_ORIGIN, {"X-API-Key": "wrong-key", **bf.SAME_ORIGIN},
+                            {**bf.owner_headers("operator"), **bf.SAME_ORIGIN}):
+                r = client.request(method, url, headers=headers)
+                assert (r.status_code, r.json()) == (401, {"detail": "Invalid or missing API key"}), (method, url)
+    assert client.post_sync({**bf.owner_headers(), "Origin": "https://evil.example"}).status_code == 401
+    assert runs == []
+    assert client.get(GET_URL, headers=KEY).status_code == 200
+    assert client.get(GET_URL, headers=bf.owner_headers()).status_code == 200
+    assert client.post_sync({**bf.owner_headers(), **bf.SAME_ORIGIN}).status_code == 200
+    assert runs == [("owner", None)]
+    for ctx in found:                                                    # on every route, by construction
+        assert api._board_owner_only in [d.call for d in ctx.dependant.dependencies], ctx.path
 
 
 def test_the_boards_own_sign_in_is_gone(board):

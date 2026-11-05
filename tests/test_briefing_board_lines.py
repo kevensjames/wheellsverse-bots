@@ -270,6 +270,9 @@ def _briefing_text(path: str, r, sent: list) -> str:
 
 
 NOT_THE_OWNER = [{}, {"X-API-Key": "wrong-key"},
+                 # a non-ASCII key (sent as raw bytes) makes hmac.compare_digest raise inside
+                 # core.api.owner_request_ok: it must fail closed, not open
+                 {"X-API-Key": b"\xff"},
                  {**bf.owner_headers("operator"), **bf.SAME_ORIGIN},
                  {**bf.owner_headers(ttl_seconds=-60), **bf.SAME_ORIGIN},          # expired
                  {"Cookie": "wv_session=not-a-token", **bf.SAME_ORIGIN},
@@ -375,7 +378,11 @@ def test_every_briefing_post_keeps_require_auth_as_a_direct_dependency():
     included routes. So, by construction, on the router and on core.api's own
     route table (fastapi.routing.iter_route_contexts): require_auth stays the
     first direct dependency of each briefing POST, the owner check beside it."""
-    from fastapi.routing import APIRoute, iter_route_contexts
+    from fastapi.routing import APIRoute
+    try:
+        from fastapi.routing import iter_route_contexts   # FastAPI keeps included routers nested
+    except ImportError:  # FastAPI 0.116 (requirements allow it): includes are flattened into app.routes
+        iter_route_contexts = list
     import core.api as api
     import narai.api.routes.briefing as routes
     from narai.api.auth import require_auth
