@@ -1215,9 +1215,9 @@ def add_suppression_endpoint(req: SuppressionAddRequest,
     """
     try:
         from core.cold_outreach import add_suppression
-        add_suppression(req.email, via=req.via)
+        stores = add_suppression(req.email, via=req.via)  # db=False → Supabase write failed, file kept
         log_event("suppression.added", email=req.email, via=req.via)
-        return {"status": "ok", "email": req.email, "via": req.via}
+        return {"status": "ok", "email": req.email, "via": req.via, "stores": stores}
     except Exception as e:
         raise HTTPException(500, f"Failed: {e!s}")
 
@@ -1432,7 +1432,7 @@ def launch_readiness(_=Depends(verify_admin_api_key)) -> dict:
     else:
         out.append({"axis": "unsubscribe", "status": "ok",
                     "label": "Unsubscribe token system",
-                    "detail": "Secret set, /u/{token} endpoint live, suppression list volume-mounted",
+                    "detail": "Secret set, /u/{token} endpoint live",
                     "action": ""})
 
     # 3. Sending domain auth (DNS)
@@ -1480,16 +1480,37 @@ def launch_readiness(_=Depends(verify_admin_api_key)) -> dict:
                         "detail": f"Key set; campaign {campaign_id[:8]}... resolved from {source}. Send pipeline can POST leads.",
                         "action": ""})
 
-    # 5. Suppression list health
+    # 5. Suppression list — which store is active and whether opt-outs survive a
+    # redeploy. Same check send_sequences() runs before every batch ("fail" = sends
+    # are refused). Also retries the file → Supabase sync while anything is pending.
     try:
-        from core.cold_outreach import list_suppressions
+        from core.cold_outreach import list_suppressions, suppression_store_status
+        st = suppression_store_status()
         supps = list_suppressions()
         n = len(supps)
         clicks = sum(1 for s in supps if s.get("via") == "click")
-        out.append({"axis": "suppression", "status": "ok" if n >= 0 else "warn",
+        where = st["store"] if st["store"] != "file" else f"file {st['path']}"
+        state = ("durable" if st["durable"] else
+                 "NOT durable (wiped on redeploy)" if st["store"] == "file" else "NOT readable")
+        detail = f"Store: {where} — {state}. {n} total ({clicks} from real opt-out clicks)."
+        if st["reason"]:
+            detail += f" Sends refused: {st['reason']}."
+        if st["pending"]:
+            detail += (f" {st['pending']} opt-out(s) only in this container's file, not yet in Supabase "
+                       f"(retrying in the background): {st['db_error']}")
+        elif st["db_error"]:
+            detail += f" Last Supabase write failed: {st['db_error']}"
+        status = ("fail" if not st["ok"] else
+                  "ok" if st["durable"] and not st["pending"] and not st["db_error"] else "warn")
+        out.append({"axis": "suppression", "status": status,
                     "label": "Suppression list",
-                    "detail": f"{n} total ({clicks} from real opt-out clicks). Volume-backed at SITEBOOST_SUPPRESSIONS_PATH.",
-                    "action": ""})
+                    "detail": detail,
+                    "action": "" if status == "ok" else
+                              "Don't send until this shows 0 pending: `railway run` sends only see Supabase"
+                              if st["ok"] and st["durable"] else
+                              "Apply narai/migrations/0001_siteboost_suppressions.sql in Supabase and set "
+                              "SUPABASE_URL + SUPABASE_SERVICE_KEY (the service_role key) here and "
+                              "wherever sends run"})
     except Exception as e:
         out.append({"axis": "suppression", "status": "warn",
                     "label": "Suppression list",

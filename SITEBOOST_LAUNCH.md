@@ -198,23 +198,14 @@ railway up --service wheellsverse-v2 --detach
 
 These aren't strictly "blockers" but they affect production-grade correctness:
 
-### Volume attach for suppression persistence (HIGH PRIORITY)
+### Suppression persistence (HIGH PRIORITY — owner action)
 
-Currently suppressions live at `data/launches/siteboost/suppressions.json` INSIDE the container. Container filesystem is wiped on every Railway redeploy. **An unsubscribed email could re-receive emails after a deploy** — that's a CAN-SPAM violation.
-
-**Fix:**
-```bash
-cd /tmp/siteboost-deploy
-# Attach the existing Railway volume to wheellsverse-v2 at /var/data
-railway volume attach grateful-flexibility-volume --service wheellsverse-v2 --mount /var/data
-
-# Set the env var to point suppressions at the volume
-railway variables --service wheellsverse-v2 \
-  --set "SITEBOOST_SUPPRESSIONS_PATH=/var/data/siteboost/suppressions.json"
-
-# Redeploy
-railway up --service wheellsverse-v2 --detach
-```
+- Opt-outs go to BOTH `suppressions.json` and the Supabase table `siteboost_suppressions`; reads use the union. A Supabase write gets 3 tries, then is retried in the background and at every boot until it lands.
+- On Railway (or with `SITEBOOST_REQUIRE_DURABLE_SUPPRESSIONS=1`), `send_sequences` refuses a batch unless it can read the table's probe row, re-checks each recipient, and stops if a read fails. Local runs without Railway env stay file-only (with a warning).
+- **Owner action (once):** run `narai/migrations/0001_siteboost_suppressions.sql` in the Supabase SQL Editor; set `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` (the service_role key) on Railway and wherever you send (`railway run` inherits Railway's).
+- **Attach the volume too**, so an opt-out not yet in Supabase survives a redeploy: `railway volume attach grateful-flexibility-volume --service wheellsverse-v2 --mount /var/data`, then `railway variables --service wheellsverse-v2 --set "SITEBOOST_SUPPRESSIONS_PATH=/var/data/siteboost/suppressions.json"` and redeploy.
+- Right before any `railway run` send, open `/launch-readiness`: "Suppression list" must show `supabase+file — durable` and no pending opt-outs.
+- Instantly isn't told about opt-outs: add each one to Instantly's blocklist too, or its queued follow-up touches still go out.
 
 ### DMARC reporting (low priority)
 
