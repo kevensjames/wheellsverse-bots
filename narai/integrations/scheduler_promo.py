@@ -258,11 +258,13 @@ async def _send_discord_fleet_status() -> None:
         logger.warning(f"fleet status: bots failed: {e}")
 
     try:
+        import asyncio
         from core.click_tracker import get_stats
-        stats = get_stats()
+        stats = await asyncio.to_thread(get_stats)        # database reads: in a worker, never on the event loop
+        revenue, clicks = stats.get("total_revenue_usd"), stats.get("total_clicks")   # None: not readable
         lines.append(
-            f"  Affiliate: ${stats.get('total_revenue_usd', 0.0):.2f} · "
-            f"{stats.get('total_clicks', 0)} clicks (lifetime)"
+            f"  Affiliate: {'—' if revenue is None else f'${revenue:.2f}'} · "
+            f"{'—' if clicks is None else clicks} clicks (lifetime)"
         )
     except Exception as e:
         lines.append("  Affiliate: —")

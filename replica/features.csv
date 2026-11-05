@@ -1,0 +1,124 @@
+feature,area,priority,original,clone,notes
+"Left sidebar nav: Control Center, Metrics, Customers, Settings",navigation,must,yes,no,S00. Settings opens from the profile picture at the bottom left (src 30). Metrics menu order not found.
+Control Center home dashboard with key metric cards,control center,must,yes,no,"S01. Default card set and order not documented (src 73, 158). For this owner lead with yesterday's revenue (see owner rows)."
+Choose which key metrics show on the home dashboard,control center,could,yes,no,"S01. Feb-2025 video and an older 'Customize' dropdown (src 98, 157; medium)."
+"Live Stream feed of events: signups, charges, upgrades, downgrades, cancellations, failed charges",live stream,must,yes,no,"S02 (src 72, 71, 73). Refunds are tracked but do not change MRR (src 77)."
+Filter the Live Stream by event type,live stream,should,yes,no,S02 (src 71).
+Insight on feed rows such as a new subscriber's LTV,live stream,could,yes,no,S02 (src 72).
+One page per metric with a time-series graph,metric page,must,yes,no,"S03 template for M01-M25 (src 16, 17). Third-party code links /stats/<metric> (src 156; medium)."
+Date range picker with the range kept in the URL,metric page,must,yes,no,"S03, C04. Range in the URL hash per third-party code (src 156; medium). Build your own picker; do not reuse the original's open-source one (src 164)."
+"Day, week and month interval control",metric page,should,yes,no,Implied by the help; not confirmed (src 17; guess).
+Compare Dates: compare two date ranges,metric page,should,yes,no,S13 (src 25). Presets and display not documented.
+List of customers behind each number with links to profiles,metric page,should,yes,no,"S03 (src 16, 17)."
+Compare Plans section on metric pages,metric page,could,yes,no,S03 (src 16). For this owner a by-product view fits better (guess).
+Trendlines on charts,metric page,could,yes,no,Behaviour not documented (src 94).
+Annotations on graphs (date and note for one metric or all graphs),metric page,could,yes,no,API fields known (src 123); help article not read (src 26); UI not documented. Useful to mark launches and campaigns.
+"Goals: a goal line on a graph (name, start and end dates and values)",goals,should,yes,no,"S12, F09 (src 24). The repo already tracks a monthly revenue goal (core/revenue.py). Growth tier in the original per third parties (src 171; medium)."
+"Revenue Breakout: MRR movement by new, expansion, reactivation, downgrade and churn",breakouts,could,yes,no,"S04 (src 53, 18). Secondary for mostly one-off sales."
+P&L-style breakouts with nested segment rows,breakouts,could,yes,no,S04. Shipped 2026-03-18 (src 53).
+Plan Breakdowns and Active Subscriptions per plan,metrics,could,yes,no,S05 (src 20).
+"Retention cohort tables, also by segment",metrics,could,yes,no,"S06 (src 61, 22)."
+MRR: normalised monthly recurring revenue,metrics,should,yes,no,"M01 (src 4, 78, 92). Secondary card for this owner (src 158; inference)."
+"Net Revenue: charges minus refunds, fees not deducted",metrics,must,yes,no,M19 (src 9). The main number for one-off sales. Not comparable by segment (src 22).
+Other Revenue: one-time charges,metrics,must,yes,no,"M21 (src 12, 59; medium). One-off product sales land here."
+"Refunds metric, dated by refund date",metrics,must,yes,no,"M23 (src 77, 71). Does not change MRR."
+Fees metric (payment provider fees),metrics,should,yes,no,M20 (src 10). Not removed from other metrics in the original.
+New Customers,metrics,should,yes,no,M08 (src 16). Defined for subscriptions; one-off buyers need a first-purchase rule (guess).
+Cancellations,metrics,should,yes,no,"M11 (src 17, 31). Delinquent customers count after the Data Settings window."
+Active Customers,metrics,could,yes,no,M06 (src 87; medium). Paying subscribers only.
+Active Subscriptions,metrics,could,yes,no,"M07 (src 20, 27)."
+ARR (MRR x 12),metrics,could,yes,no,"M02 (src 89, 93)."
+ARPU (MRR / Active Customers),metrics,could,yes,no,M03 (src 6).
+ASP: average first purchase over 30 days,metrics,could,yes,no,M04 (src 13). An average order value per store may fit one-off sales better (guess).
+LTV (ARPU / User Churn),metrics,could,yes,no,M05 (src 7). On profiles LTV means total charges.
+Upgrades and expansion MRR,metrics,could,yes,no,M09 (src 16).
+Downgrades and contraction MRR,metrics,could,yes,no,"M10 (src 17). Sources conflict on contraction MRR (src 85, 161); pick one rule."
+Reactivations,metrics,could,yes,no,"M12 (src 18, 84)."
+User Churn (rolling 30 days),metrics,could,yes,no,M13 (src 8).
+Revenue Churn (rolling 30 days),metrics,could,yes,no,M14 (src 8). Sources conflict on counting failed charges (src 83).
+Net Revenue Churn,metrics,could,yes,no,"M15 (src 70, 88)."
+NRR (Net Revenue Retention),metrics,could,yes,no,M16 (src 14).
+GRR (Gross Revenue Retention),metrics,could,yes,no,M17 (src 15).
+Quick Ratio,metrics,could,yes,no,M18 (src 70; medium).
+Coupons metric,metrics,could,yes,no,M24 (src 70; medium).
+Failed Charges metric,metrics,could,yes,no,M25 (src 19). Recovery itself is out of the slice.
+Usage Revenue (Stripe metered usage),metrics,could,yes,no,"M22 (src 11, 58). The research names no metered billing for this owner (guess: low value)."
+Churned Customers,metrics,could,yes,no,Named in the Sheets add-on; no definition found (src 106).
+MRR Growth Rate,metrics,could,yes,no,Named in the Sheets add-on; no definition found (src 106).
+New Subscriptions,metrics,could,yes,no,"Named in the Sheets add-on and the API metric ids; no definition found (src 106, 129)."
+"Customers directory with search and sort (LTV, plan, signup date, name)",customers,should,yes,no,S07. Sort and search come from an older post (src 75; medium). Columns not found.
+"Add Filter panel: 25+ searchable attributes (plan, MRR, LTV, email, source, dates, country)",customers,should,yes,no,"S07, C05 (src 21, 86)."
+One-time and recurring charge count and value filters,customers,should,yes,no,(src 57). Fits buyers of one-off products.
+Custom attributes and Stripe metadata become filters automatically,customers,could,yes,no,"(src 21, 62)."
+"Customer profile: LTV, MRR, products, location, event history",customer profile,should,yes,no,"S08 (src 75, 76; medium). Current layout not documented."
+Exclude a customer from all metrics,customer profile,could,yes,no,"S21, F10 (src 44)."
+GDPR delete: exclude a customer and erase their data,customer profile,should,yes,no,"S21, F10 (src 44). The clone will store buyer emails from every store."
+"Save stacked filters as a named segment showing MRR, ARPU and Active Customers",segments,should,yes,no,"S09, F04 (src 22, 86)."
+Segment switcher ('All Customers' dropdown) applied to metrics,segments,should,yes,no,"S09, C05 (src 22)."
+"Manage Segments: edit, update or save as new",segments,could,yes,no,S09 (src 22).
+Compare up to 5 segments on a metric (not Net Revenue),segments,should,yes,no,"S09 (src 52, 22). For this owner compare stores (see owner rows)."
+Segment by data source (payment provider),segments,should,yes,no,"(src 82, 21). The original's only way to see one store."
+"Geo: customers by country, by count or MRR, with a donut chart",customer insights,could,yes,no,"S10 (src 43, 64)."
+"Renewing, Cancelling and Non-Paying lists with CSV export by email",customer insights,could,yes,no,S10 (src 43). Daily refresh; up to 250 each; Renewing needs billing-period dates; Cancelling is Stripe only.
+"Custom dashboards: create, name, add metrics, apply a segment, switch, remove",dashboards,could,yes,no,"S11, F08 (src 23). Growth tier in the original (src 97). This owner needs one strong default view first."
+Share a dashboard with the team,dashboards,could,yes,no,S11 (src 23). One-person company.
+"Dashboard widgets: metric, goal and table",dashboards,could,yes,no,"C01 (src 56, 94)."
+Data Connections page to connect and disconnect sources,data sources,must,yes,no,"S14, F01 (src 33, 32)."
+Connect Stripe (OAuth) and import its history,data sources,must,yes,no,"F01 (src 32, 99). The repo already pulls Stripe charges (core/revenue.py)."
+Combine several sources into one view,data sources,must,yes,no,"(src 34, 81). The original cannot split every graph by source."
+Import progress after connecting (minutes to hours),data sources,should,yes,no,"(src 32, 34). UI not documented."
+API to send data from unsupported providers (custom source),data sources,could,yes,no,"(src 39, 113). The clone uses its own store connectors instead."
+CSV import of subscriptions (run by support),data sources,could,yes,no,(src 38). Make it self-serve in the clone (see owner rows).
+Shopify Partners app-billing connector,data sources,could,yes,no,(src 33). Not the owner's Shopify store; see the owner connector row.
+"Native connectors for Braintree, Recurly, Chargebee (Beta), App Store Connect, Google Play",data sources,could,yes,no,"(src 3, 51, 35). None is one of the owner's stores."
+"Zapier actions: create customer, subscription and plan",data sources,could,yes,no,"(src 42, 162). Write-only; no triggers."
+"Metric Summary email: daily, weekly or monthly",reports,must,yes,no,"S17, F05 (src 29). Content and send time not documented."
+Instant email notifications for events such as cancellations,reports,should,yes,no,"S17 (src 29, 79)."
+Connect Slack and choose a channel,reports,should,yes,no,S18 (src 28).
+"Slack recurring reports (daily, weekly, monthly) with metrics chosen per report",reports,should,yes,no,"S18, F06 (src 28). One channel only. Growth tier per third parties (src 171; medium)."
+Slack instant event notifications,reports,could,yes,no,S18 (src 28).
+Slash command for on-demand numbers in Slack,reports,could,yes,no,"S18 (src 28, 104). The original's command is /baremetrics; name it for the clone."
+Reporting currency with conversion at each transaction's date,settings,should,yes,no,"S16 (src 31, 80). A change reprocesses the account; once a day."
+"Delinquency window (30 days, 2 months, never)",settings,could,yes,no,S16 (src 31). Subscriptions only.
+"Team: invite users as Admin, User or Billing User",settings,could,yes,no,S15 (src 30). One-person company.
+Hide or favorite plans,settings,could,yes,no,S20 (src 45).
+Rename manual plans,settings,could,yes,no,"S20 (src 66, 46)."
+API keys in Settings for a read API,settings,could,yes,no,"(src 107, 108). Third parties put the Analytics API in Scale only (src 142, 171; medium)."
+"Data Exports: MRR per customer, retention tables, active subscriptions, segmentation data",exports,could,yes,no,"S19, F07 (src 27, 55). CSV zip by email; 6 per day per report."
+Breakdown Details export: one row per event for a chosen date,exports,should,yes,no,S19 (src 54). Closest piece to 'what made money yesterday'; show it on screen in the clone (guess).
+Investor Links: time-limited read-only share,sharing,could,yes,no,"(src 2, 165; medium). Customer details anonymised."
+Google Sheets add-on with one function per metric,integrations,could,yes,no,(src 106). A sheet or CSV feed would cover it.
+MCP server and Claude connector for asking about metrics,integrations,could,yes,no,"(src 49, 50, 100, 105)."
+"Recover: dunning, failed-charge recovery, at-risk cards",out of slice,could,yes,skip,"Outside the slice (src 19, 30)."
+Cancellation Insights,out of slice,could,yes,skip,Outside the slice (src 69).
+Trial Insights and trial metrics,out of slice,could,yes,skip,"Outside the slice (src 106, 129)."
+"Forecast and Forecast+ (scenarios, budgets, QuickBooks and Xero)",out of slice,could,yes,skip,"Outside the slice (src 37, 36)."
+Benchmarks against similar businesses,out of slice,could,yes,skip,Built from other Baremetrics customers' data; cannot be cloned (src 48).
+"Customer augmentation: CSV, HubSpot sync, API attributes",out of slice,could,yes,skip,"Data augmentation is outside the slice (src 47, 40, 118)."
+Intercom two-way sync and inbox widget,out of slice,could,yes,skip,"Attribute sync is data augmentation; outside the slice (src 41, 68)."
+Stripe App: metrics inside Stripe's dashboard,out of slice,could,yes,skip,Runs inside Stripe's own dashboard; not part of the web-app slice (src 76).
+"Morning view: yesterday's net revenue by store and product, with every sale listed",morning view,must,no,no,"Core loop. The original has no single view of one-off revenue per store per day (src 54, 72; guess)."
+Morning view: yesterday's new leads by source next to revenue,morning view,must,no,no,The owner wants revenue and leads in one view. No lead metric was found in the original (src 1; guess).
+"Store as a first-class dimension on every card, chart and email line",morning view,must,no,no,The original merges sources and cannot split every graph by source (src 34).
+Daily totals by calendar day in the owner's time zone,ledger,must,no,no,"No time-zone setting found in the original. The repo uses rolling 24-hour windows and UTC dates (core/revenue.py:239-259; narai/integrations/briefing.py)."
+"One sales ledger for all stores: event time, cents, currency, refunds, fees, deduped by store id",ledger,must,no,no,"Today sales sit in separate JSON files, and Stripe events are not deduped (core/api.py:10110-10281)."
+Verify webhook signatures and reject unsigned posts,ledger,must,no,no,"Every receiver must check signatures before writing to the ledger. Gaps in the current receivers were reported to the owner privately."
+Spot sales that appear both in Stripe and in a store,ledger,should,no,no,"Guess: Payhip, Stan or BigCommerce sales may settle in the owner's Stripe; the charge 'application' field may name the platform (src 186, not opened)."
+"Connection status on every card: live, not connected, last upload",connectors,should,no,no,"Reuse the scoreboard contract {value, connected, source, note} (core/scoreboard.py:18-20). Also label data lag."
+Gumroad connector: sales and refunds by API v2 and webhooks with backfill,connectors,must,no,no,Easy. A client exists but is unused (core/gumroad_client.py). Docs not opened (src 187).
+Shopify store connector: orders and refunds by Admin API and webhooks,connectors,must,no,no,Easy. Add read_all_orders for history past 60 days (shopify.app.toml:29; src 189 not opened).
+Kit connector: new subscribers per day and per form,leads,must,no,no,Easy. The v4 client exists but cannot list subscribers (core/kit.py). Check the rate limit (src 194; guess).
+BigCommerce connector: orders and refunds by store API token and webhooks,connectors,should,no,no,Easy (guess). Env names exist but no client (.env.example:99-117; core/scoreboard.py:95).
+Whop connector: payments and memberships,connectors,should,no,no,Medium (guess). The client uses API v5 and has no payments call (core/whop_client.py). Confirm the current version (src 198).
+"Payhip connector: sales by webhook, history by CSV export",connectors,should,no,no,Medium (guess). The receiver guesses payload fields (core/api.py:12204-12466). No known endpoint lists past sales.
+Digistore24 connector: vendor API and IPN notifications,connectors,should,no,no,Medium (guess). No code in the repo (core/scoreboard.py:93). No doc URL verified.
+Amazon KDP report upload,connectors,should,no,no,Manual upload only; no public sales API (guess). Do not drive a logged-in browser (src 203). Label KDP numbers as estimates with the upload time.
+Stan Store CSV upload,connectors,should,no,no,"Manual upload only (provisional). The repo notes 'web-login only, no sales API' (core/scoreboard.py:94). Check for a Zapier trigger or Stripe settlement first."
+"Leads from SiteBoost (places scanned, cold emails sent) labelled as outreach",leads,should,no,no,Today's scoreboard counts SiteBoost scans as 'leads' (core/scoreboard.py:44-59). Keep them apart from Kit subscribers.
+One leads table keyed by email with source and channel,leads,should,no,no,"Leads sit in four places today (core/email_capture.py, core/lead_capture.py, narai/api/routes/toodle.py, core/siteboost_state.py)."
+"Channel for every sale from tracked links (/go redirect, UTM tags, last click within 72 hours)",attribution,must,no,no,Today only Stripe sales get attributed (core/click_tracker.py:101-246).
+"Channel from store data (Shopify visit UTMs, Gumroad referrer, BigCommerce order source)",attribution,should,no,no,"Field names unverified (src 192, 187, 195; guess)."
+Ad spend per day from Meta Ads against revenue by channel,attribution,could,no,no,"Insights API with ads_read (src 199, not opened). The repo pins Graph v19.0, likely expired (core/meta_ads.py:47; guess)."
+Morning report to Telegram,reports,should,no,no,"The repo already sends revenue alerts and a briefing to Telegram (narai/integrations/scheduler.py, core/output_automation.py)."
+Impact.com affiliate earnings as an extra source,connectors,could,no,no,Already wired (core/impact.py). Not one of the ten stores.
+Feed daily totals to the bots' revenue gate,ledger,could,no,no,revenue_gate.set_metrics_provider() is never called (core/revenue_gate.py:107-169).

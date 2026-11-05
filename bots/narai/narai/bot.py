@@ -1233,7 +1233,7 @@ Respond like the most real, most human person who also runs his entire empire:
         },
         {
             "name": "revenue_today",
-            "description": "Check today's total revenue across all streams: Stripe payments, KDP royalty estimates, leads captured, and email list size. Use when user asks 'how much did we make today', 'check revenue', 'what's our income', 'how many leads today', 'how's the money doing'.",
+            "description": "Check today's total revenue across all streams: Stripe payments, manual entries (KDP royalties, affiliate payouts), leads captured, and email list size. Use when user asks 'how much did we make today', 'check revenue', 'what's our income', 'how many leads today', 'how's the money doing'.",
             "input_schema": {
                 "type": "object",
                 "properties": {}
@@ -3026,24 +3026,30 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
         except Exception as e:
             return f"Can't reach the money API right now: {e}"
 
-        stripe = d.get("stripe", {})
-        kdp = d.get("kdp", {})
-        leads = d.get("leads", {})
-        mono = d.get("monetization", {})
+        stripe = d.get("stripe") or {}
+        manual = d.get("manual") or {}
+        kdp = d.get("kdp") or {}
+        leads = d.get("leads") or {}
+        mono = d.get("monetization") or {}
+        usd = _usd_or_not_measured
 
-        lines = ["💰 **Revenue Snapshot**\n"]
-        lines.append(f"📈 **Today's total:** ${d.get('total_revenue_today', 0):.2f}")
-        lines.append(f"💳 **Stripe today:** ${stripe.get('today', 0):.2f}  |  This week: ${stripe.get('week', 0):.2f}  |  All-time: ${stripe.get('total', 0):.2f}")
-        lines.append(f"📚 **KDP:** {kdp.get('published', 0)} genres published  |  Est. daily royalty: ${kdp.get('est_daily', 0):.2f}  |  Est. monthly: ${(kdp.get('est_daily', 0) * 30):.2f}")
+        lines = ["💰 **Revenue Snapshot** (New York days, net of refunds)\n"]
+        lines.append(f"📈 **Today's total:** {usd(d.get('total_revenue_today'))}")
+        lines.append(f"💳 **Stripe today:** {usd(stripe.get('today'))}  |  Last 7 days: {usd(stripe.get('week'))}  |  All-time: {usd(stripe.get('total'))}")
+        lines.append(f"✍️ **Manual entries today:** {usd(manual.get('today'))}  |  Last 7 days: {usd(manual.get('week'))}  |  All-time: {usd(manual.get('total'))}")
+        lines.append(f"📚 **KDP:** {kdp.get('published', 0)} genres published")
         lines.append(f"📧 **Email list:** {leads.get('list_size', 0):,} subscribers  |  Leads today: {leads.get('today', 0)}")
         lines.append(f"🔗 **Monetized posts:** {mono.get('total_injections', 0)}  |  Affiliate links injected: {mono.get('total_links', 0)}")
-        # OLD: lines.append(f"🖱️ **Affiliate clicks (7d):** {d.get('affiliate_clicks_7d', 0)}")
-        lines.append(f"🖱️ **Product clicks (7d):** {d.get('affiliate_clicks_7d', 0)}")
+        clicks = d.get("affiliate_clicks_7d")
+        lines.append(f"🖱️ **Product clicks (7d):** {'not measured' if clicks is None else clicks}")
+        note = (d.get("ledger") or {}).get("note")
+        if note and stripe.get("today") is None:
+            lines.append(f"ℹ️ {note}")
 
         # Any recent Stripe payments?
-        recent = stripe.get("recent", [])
+        recent = stripe.get("recent") or []
         if recent:
-            lines.append(f"\n💳 **Latest payment:** ${recent[0].get('amount', 0):.2f} from {recent[0].get('email', 'unknown')} ({recent[0].get('type', '')})")
+            lines.append(f"\n💳 **Latest payment:** {usd(recent[0].get('amount'))} from {recent[0].get('email') or 'unknown'} ({recent[0].get('type', '')})")
 
         return "\n".join(lines)
 
@@ -3056,38 +3062,73 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
         except Exception as e:
             return f"Can't reach Stripe payment data: {e}"
 
-        total = d.get("total", 0)
-        count = d.get("count", 0)
-        pmts = d.get("payments", [])
-        by_type = d.get("by_type", {})
+        total = d.get("total")
+        count = d.get("count")
+        pmts = d.get("payments") or []
+        by_type = d.get("by_type") or {}
+        usd = _usd_or_not_measured
 
+        if count is None:
+            note = (d.get("ledger") or {}).get("note") or "the Stripe numbers are not measured"
+            return f"Stripe payments for the last {days} days are not measured: {note}"
         if count == 0:
-            return f"No Stripe payments recorded in the last {days} days. Make sure your Stripe webhook is pointed at: https://your-server:5050/api/stripe/webhook"
+            return f"No Stripe payments in the last {days} days."
 
-        lines = [f"💳 **Stripe Payments — Last {days} days**\n"]
-        lines.append(f"**Total: ${total:.2f}** across {count} transactions")
+        lines = [f"💳 **Stripe Payments — Last {days} days** (New York days)\n"]
+        lines.append(f"**Net total: {usd(total)}** across {count} transactions")
         if by_type:
-            lines.append("By type: " + ", ".join(f"{t}: ${v:.2f}" for t, v in by_type.items()))
+            lines.append("By type: " + ", ".join(f"{t}: {usd(v)}" for t, v in by_type.items()))
         lines.append("\nRecent:")
         for p in pmts[:5]:
-            lines.append(f"  • ${p.get('amount', 0):.2f} — {p.get('email', 'anon')} ({p.get('type', '')}) {p.get('ts', '')[:10]}")
+            lines.append(f"  • {usd(p.get('amount'))} — {p.get('email') or 'anon'} ({p.get('type', '')}) {(p.get('ts') or '')[:10]}")
         return "\n".join(lines)
 
     def _narai_record_revenue(self, source: str, amount: float, note: str = "") -> str:
-        """Record a manual revenue event."""
-        try:
-            import requests as _req
-            r = _req.post(
-                "http://localhost:5050/api/money/record",
-                params={"source": source, "amount": amount, "note": note},
-                timeout=10,
-            )
-            d = r.json()
-            if d.get("status") == "recorded":
-                return f"✅ Recorded ${amount:.2f} from **{source}**. I've added it to your Money Command Center."
-            return f"Record attempt returned: {d}"
-        except Exception as e:
-            return f"Failed to record revenue: {e}"
+        """Record a manual revenue event. One Idempotency-Key per entry: a
+        request with no answer (or a 5xx) is asked once more with the same key,
+        and the server answers from the stored entry, never writing it twice.
+        When the outcome is still unknown, say so: it may be recorded. The
+        server's 503 that says API_KEY is not set is a refusal: nothing was
+        written, so it is not asked again and NarAI says so in its words."""
+        import uuid as _uuid
+        import requests as _req
+        key, d, answered = str(_uuid.uuid4()), None, False
+        for _attempt in range(2):
+            try:
+                r = _req.post(
+                    "http://localhost:5050/api/money/record",
+                    params={"source": source, "amount": amount, "note": note},
+                    headers={"Idempotency-Key": key},
+                    timeout=10,
+                )
+                d = r.json()
+                # recorded, or refused with the server's reason (_NO_API_KEY is final too)
+                answered = isinstance(d, dict) and (r.status_code < 500 or d.get("error") == _NO_API_KEY)
+            except Exception:  # noqa: BLE001 — no answer: it may be recorded all the same
+                d, answered = None, False
+            if answered:
+                break
+        if isinstance(d, dict) and d.get("status") == "recorded":
+            return f"✅ Recorded {_usd_or_not_measured(d.get('amount', amount))} from **{source}**. I've added it to your Money Command Center."
+        if answered:
+            reason = str(d.get("error") or "the server did not say why")
+            return reason if reason.startswith("Not recorded") else f"Not recorded: {reason}"
+        return ("I could not confirm it was recorded: the server did not finish. "
+                "Check the Money Command Center before recording it again.")
+
+
+# The server's 503 for a manual entry while API_KEY is not set and no owner is
+# signed in (core/board/money.py NO_API_KEY): nothing was written, and asking
+# again cannot change that.
+_NO_API_KEY = "Not recorded: API_KEY is not set on the server."
+
+
+def _usd_or_not_measured(value) -> str:
+    """$1,234.56 (or -$19.99); 'not measured' for a number the server could
+    not measure, which arrives as null, never as 0."""
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "not measured"
+    return f"{'-' if value < 0 else ''}${abs(value):,.2f}"
 
 
 # ─── Singleton ────────────────────────────────────────────────────────────────

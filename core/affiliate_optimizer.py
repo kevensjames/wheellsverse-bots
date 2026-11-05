@@ -297,13 +297,10 @@ class AffiliateOptimizer:
     # ── Click sync from click_tracker ─────────────────────────────────────────
 
     def _sync_clicks(self):
-        """Read click data from click_tracker and update tests."""
+        """Read click data from click_tracker (the clicks table) and update tests."""
         try:
-            clicks_file = DATA_DIR / "clicks.json"
-            if not clicks_file.exists():
-                return
-            raw = json.loads(clicks_file.read_text())
-            clicks = raw if isinstance(raw, list) else raw.get("clicks", [])
+            from core.click_tracker import _load_clicks
+            clicks = _load_clicks()          # [] when the clicks cannot be read
 
             for click in clicks:
                 partner = click.get("partner", "")
