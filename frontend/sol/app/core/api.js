@@ -43,6 +43,37 @@ async function api(path, opts = {}) {
   return d;
 }
 
+// ── Session revocation (used by logout() in core/router.js) ───────────────────
+// _authEpoch counts sign-outs in this tab. A refresh records it when it starts;
+// if a sign-out happens before the refresh answers, the refresh must not store
+// the new tokens (that would sign the tab back in) and revokes them instead.
+let _authEpoch = 0;
+const REVOKE_TIMEOUT_MS = 3000;
+
+// Settles when `p` settles or after `ms`, whichever is first; never rejects.
+function _withTimeout(p, ms) {
+  let timer;
+  const limit = new Promise(resolve => { timer = setTimeout(resolve, ms); });
+  return Promise.race([Promise.resolve(p).catch(() => {}), limit]).finally(() => clearTimeout(timer));
+}
+
+// Best-effort revoke of one refresh token (POST /auth/logout, body exactly
+// {refresh_token}: the backend rejects extra fields). Resolves true only when the
+// server answers 2xx; never throws. It does not end an access token already issued.
+async function _revokeRefresh(refreshToken) {
+  if (!refreshToken) return false;
+  try {
+    const r = await fetch(API + '/auth/logout', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    return !!(r && r.ok);
+  } catch {
+    return false;
+  }
+}
+
 // Exchange refresh_token for a fresh access_token. Returns true on success.
 // Called from api() on 401; never throws so callers can fall through to the
 // login redirect on hard failure.
@@ -52,6 +83,7 @@ async function _tryRefresh() {
   if (!refresh) return false;
   // Dedupe concurrent 401s so we don't rotate the refresh token multiple times.
   if (_refreshPromise) return _refreshPromise;
+  const epoch = _authEpoch;
   _refreshPromise = (async () => {
     try {
       const r = await fetch(API + '/auth/refresh', {
@@ -61,6 +93,12 @@ async function _tryRefresh() {
       });
       if (!r.ok) return false;
       const d = await r.json();
+      if (epoch !== _authEpoch) {
+        // Signed out while this refresh was in flight: keep the tab signed out
+        // and revoke the session the server just created.
+        await _revokeRefresh(d && d.refresh_token);
+        return false;
+      }
       localStorage.setItem('sol_token', d.access_token);
       localStorage.setItem('sol_refresh', d.refresh_token);
       token = d.access_token;

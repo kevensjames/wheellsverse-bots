@@ -38,9 +38,28 @@ function nav(page) {
   try { if (typeof SolOrb !== 'undefined') { page === 'dashboard' ? SolOrb.resume() : SolOrb.stop(); } } catch (e) {}
 }
 
+// Sign out. Clears BOTH stored tokens first, so nothing in this tab can reuse
+// them, then asks the backend to revoke this device's refresh session
+// (POST /auth/logout) and leaves. Bumping _authEpoch stops a refresh that is
+// already in flight from storing new tokens afterwards (see _tryRefresh in
+// core/api.js); logout also waits for that refresh, so the session it created
+// is revoked before the page goes away. The whole wait is bounded
+// (REVOKE_TIMEOUT_MS): a failed, slow or unreachable revoke never keeps the user
+// signed in here. Repeated clicks share one sign-out.
+// Limit: revocation ends the refresh session only. An access token already
+// issued stays valid at the API until it expires.
+let _logoutPromise = null;
 function logout() {
+  if (_logoutPromise) return _logoutPromise;
+  _authEpoch++;
+  const refresh = localStorage.getItem('sol_refresh');
+  const inflightRefresh = _refreshPromise;
   localStorage.removeItem('sol_token');
-  window.location.href = '/sol/';
+  localStorage.removeItem('sol_refresh');
+  token = null;
+  _logoutPromise = _withTimeout(Promise.all([_revokeRefresh(refresh), inflightRefresh]), REVOKE_TIMEOUT_MS)
+    .then(() => { window.location.href = '/sol/'; });
+  return _logoutPromise;
 }
 
 // Mobile "More" sheet
