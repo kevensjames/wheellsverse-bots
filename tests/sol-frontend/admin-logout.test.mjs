@@ -14,7 +14,9 @@
 //   5. an ordinary admin refresh (no sign-out) still stores the rotated pair
 //   6. signing out and in again while an old refresh is in flight keeps the NEW session
 //      (the old request's failure path must not clear it)
-//   7. a page opened with a stored admin session (showApp() runs while the script loads)
+//   7. a request sent before a sign-out whose 401 arrives after a new sign-in is not
+//      refreshed or re-sent under the new session (it may be a different admin)
+//   8. a page opened with a stored admin session (showApp() runs while the script loads)
 //      still loads: anything api() reads must be declared before that call
 //
 // Admin tokens live in sessionStorage (one tab), so there is no cross-tab case here.
@@ -165,6 +167,23 @@ await scenario('[A7] signed out and in again while an old refresh is in flight: 
   const outcome = await pending; await tick(); await tick();
   ok(app.session.get('sol_admin_token') === AT3 && app.session.get('sol_admin_refresh') === RT3 && app.V('adminToken') === AT3, `the new admin session is kept (saw ${JSON.stringify([...app.session])})`);
   ok(app.revokes().map(c => JSON.parse(c.body).refresh_token).includes(RT2), 'the late session from the old refresh was revoked');
+  ok(/^rejected/.test(outcome), 'the old request fails (' + outcome + ')');
+});
+
+await scenario('[A9] a request from before the sign-out gets its 401 after a new sign-in: not re-sent under the new session', async () => {
+  const AT3 = 'synthetic-admin-access-3', RT3 = 'synthetic-admin-refresh-3';
+  const gate = deferred();
+  const app = makeAdmin(call => (call.url === API + '/admin/users' ? gate.p : call.url === API + '/auth/refresh' ? res(200, { access_token: AT2, refresh_token: RT2 }) : res(204)));
+  app.signIn();
+  const pending = app.V("api('/admin/users')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  await tick();
+  app.V('adminLogout()');
+  app.session.set('sol_admin_token', AT3); app.session.set('sol_admin_refresh', RT3); app.V(`adminToken = '${AT3}'`);   // what doLogin() stores
+  gate.resolve(res(401, { detail: 'Invalid token' }));
+  const outcome = await pending; await tick(); await tick();
+  ok(app.refreshes().length === 0, `the new session is not refreshed for the old request (saw ${app.refreshes().length})`);
+  ok(app.calls.filter(c => c.url === API + '/admin/users').length === 1, 'the old request is not re-sent');
+  ok(app.session.get('sol_admin_token') === AT3 && app.session.get('sol_admin_refresh') === RT3 && app.V('adminToken') === AT3, `the new admin session is unchanged (saw ${JSON.stringify([...app.session])})`);
   ok(/^rejected/.test(outcome), 'the old request fails (' + outcome + ')');
 });
 
