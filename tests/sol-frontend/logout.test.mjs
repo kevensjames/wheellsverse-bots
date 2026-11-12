@@ -284,5 +284,17 @@ await scenario('[14] sign-out clicked before core/api.js has loaded', async () =
   ok(app.hrefs[app.hrefs.length - 1] === '/sol/', 'redirected to /sol/');
 });
 
+await scenario('[15] a refresh in flight answers 50 ms after sign-out (within the bound)', async () => {
+  const app = makeApp(call => (call.url === API + '/auth/refresh'
+    ? new Promise(r => setTimeout(() => r(res(200, { access_token: A2, refresh_token: R2, token_type: 'bearer' })), 50))
+    : Promise.resolve(res(204))));
+  app.V('_tryRefresh()');
+  await tick();
+  await app.V('logout()');
+  const iR2 = app.events.indexOf('revoke-answered:' + R2), iNav = app.events.indexOf('redirect');
+  ok(iR2 !== -1 && iR2 < iNav, 'the session the late refresh created was revoked before the redirect: ' + JSON.stringify(app.events));
+  ok(!app.store.has('sol_token') && !app.store.has('sol_refresh'), 'nothing stored');
+});
+
 console.log(`\nsign-out: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
