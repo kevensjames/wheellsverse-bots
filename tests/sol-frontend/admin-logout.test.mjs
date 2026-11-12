@@ -12,6 +12,10 @@
 //   4. an admin refresh already in flight at sign-out stores nothing afterwards and
 //      revokes the session it was given
 //   5. an ordinary admin refresh (no sign-out) still stores the rotated pair
+//   6. signing out and in again while an old refresh is in flight keeps the NEW session
+//      (the old request's failure path must not clear it)
+//   7. a page opened with a stored admin session (showApp() runs while the script loads)
+//      still loads: anything api() reads must be declared before that call
 //
 // Admin tokens live in sessionStorage (one tab), so there is no cross-tab case here.
 // What it does NOT prove: server-side revocation, or anything about the deployed portal.
@@ -32,8 +36,8 @@ const res = (status, body) => ({ status, ok: status >= 200 && status < 300, stat
 const deferred = () => { let resolve; const p = new Promise(r => { resolve = r; }); return { p, resolve }; };
 const tick = () => new Promise(r => setTimeout(r, 0));
 
-function makeAdmin(route) {
-  const session = new Map();   // empty at load: the script's `if (adminToken) showApp()` does not run
+function makeAdmin(route, initial = {}) {
+  const session = new Map(Object.entries(initial));   // empty by default: `if (adminToken) showApp()` does not run at load
   const calls = [];
   const elements = new Map();
   const element = id => {
@@ -145,6 +149,32 @@ await scenario('[A6] ordinary admin refresh without sign-out still stores the ro
   ok(app.session.get('sol_admin_token') === AT2 && app.session.get('sol_admin_refresh') === RT2, 'rotated admin tokens stored');
   ok(app.V('adminToken') === AT2, 'in-memory admin token updated');
   ok(app.revokes().length === 0, 'no revoke request');
+});
+
+await scenario('[A7] signed out and in again while an old refresh is in flight: the new session is kept', async () => {
+  const AT3 = 'synthetic-admin-access-3', RT3 = 'synthetic-admin-refresh-3';
+  const gate = deferred();
+  const app = makeAdmin(call => (call.url === API + '/auth/refresh' ? gate.p : call.url === API + '/auth/logout' ? res(204) : res(401, { detail: 'Invalid token' })));
+  app.signIn();
+  const pending = app.V("api('/admin/users')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  await tick(); await tick();
+  ok(app.refreshes().length === 1, 'the old request is refreshing');
+  app.V('adminLogout()');
+  app.session.set('sol_admin_token', AT3); app.session.set('sol_admin_refresh', RT3); app.V(`adminToken = '${AT3}'`);   // what doLogin() stores
+  gate.resolve(res(200, { access_token: AT2, refresh_token: RT2 }));
+  const outcome = await pending; await tick(); await tick();
+  ok(app.session.get('sol_admin_token') === AT3 && app.session.get('sol_admin_refresh') === RT3 && app.V('adminToken') === AT3, `the new admin session is kept (saw ${JSON.stringify([...app.session])})`);
+  ok(app.revokes().map(c => JSON.parse(c.body).refresh_token).includes(RT2), 'the late session from the old refresh was revoked');
+  ok(/^rejected/.test(outcome), 'the old request fails (' + outcome + ')');
+});
+
+await scenario('[A8] a page opened with a stored admin session loads (showApp() at script load)', async () => {
+  let app = null, threw = null;
+  try {
+    app = makeAdmin(() => new Promise(() => {}), { sol_admin_token: AT, sol_admin_refresh: RT });   // requests never answer
+  } catch (e) { threw = e; }
+  ok(threw === null, 'the admin script loads without throwing' + (threw ? ' (' + String(threw).split('\n')[0] + ')' : ''));
+  ok(app && app.calls.some(c => c.url === API + '/auth/me'), 'showApp() ran and requested /auth/me');
 });
 
 await tick(); await tick();
