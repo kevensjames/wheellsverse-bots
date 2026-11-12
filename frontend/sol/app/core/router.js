@@ -38,22 +38,63 @@ function nav(page) {
   try { if (typeof SolOrb !== 'undefined') { page === 'dashboard' ? SolOrb.resume() : SolOrb.stop(); } } catch (e) {}
 }
 
+// ── Sign-out and session revocation ──────────────────────────────────────────
+// These live here, not in core/api.js: app.html loads router.js before api.js,
+// and the Sign out button can be clicked before api.js has run, so logout()
+// must not depend on api.js having loaded.
+// _authEpoch counts sign-outs in this tab. A refresh records it when it starts;
+// if a sign-out happens before the refresh answers, the refresh must not store
+// the new tokens (that would sign the tab back in) and revokes them instead
+// (see _tryRefresh in core/api.js).
+let _authEpoch = 0;
+const REVOKE_TIMEOUT_MS = 3000;
+
+// Settles when `p` settles or after `ms`, whichever is first; never rejects.
+function _withTimeout(p, ms) {
+  let timer;
+  const limit = new Promise(resolve => { timer = setTimeout(resolve, ms); });
+  return Promise.race([Promise.resolve(p).catch(() => {}), limit]).finally(() => clearTimeout(timer));
+}
+
+// Best-effort revoke of one refresh token (POST /auth/logout, body exactly
+// {refresh_token}: the backend rejects extra fields). Resolves true only when the
+// server answers 2xx; never throws. A 2xx is not proof of revocation (the
+// backend also answers 204 for an unknown token), and it does not end an access
+// token already issued.
+async function _revokeRefresh(refreshToken) {
+  if (!refreshToken) return false;
+  try {
+    const r = await fetch(API + '/auth/logout', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    return !!(r && r.ok);
+  } catch {
+    return false;
+  }
+}
+
 // Sign out. Clears BOTH stored tokens first, so nothing in this tab can reuse
 // them, then asks the backend to revoke this device's refresh session
-// (POST /auth/logout) and leaves. Bumping _authEpoch stops a refresh that is
-// already in flight from storing new tokens afterwards (see _tryRefresh in
-// core/api.js); logout also waits for that refresh, so the session it created
-// is revoked before the page goes away. The whole wait is bounded
-// (REVOKE_TIMEOUT_MS): a failed, slow or unreachable revoke never keeps the user
-// signed in here. Repeated clicks share one sign-out.
-// Limit: revocation ends the refresh session only. An access token already
-// issued stays valid at the API until it expires.
+// (POST /auth/logout), then leaves. Bumping _authEpoch stops a refresh that is
+// already in flight from storing new tokens afterwards; logout also waits for
+// that refresh, so if it answers within the bound the session it created is
+// revoked before the page goes away. api() calls that get a 401 meanwhile wait
+// for this sign-out instead of navigating first (a navigation would cancel the
+// revoke request). The whole wait is bounded (REVOKE_TIMEOUT_MS): a failed,
+// slow or unreachable revoke never keeps the user signed in here. Repeated
+// clicks share one sign-out.
+// Limits: revocation ends the refresh session only; an access token already
+// issued stays valid at the API until it expires. Navigation started by
+// anything else during the wait can still cancel the revoke.
 let _logoutPromise = null;
 function logout() {
   if (_logoutPromise) return _logoutPromise;
   _authEpoch++;
   const refresh = localStorage.getItem('sol_refresh');
-  const inflightRefresh = _refreshPromise;
+  // core/api.js may not have run yet; then no refresh can be in flight.
+  const inflightRefresh = (typeof _refreshPromise !== 'undefined') ? _refreshPromise : null;
   localStorage.removeItem('sol_token');
   localStorage.removeItem('sol_refresh');
   token = null;

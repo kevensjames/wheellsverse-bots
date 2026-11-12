@@ -33,6 +33,10 @@ async function api(path, opts = {}) {
     if (refreshed) {
       return api(path, { ...opts, _retry: true });
     }
+    // Signing out (core/router.js logout()): let it finish revoking and redirect.
+    // Navigating away here first would cancel its revoke request. (During a
+    // sign-out _tryRefresh() always returns false: the refresh token is gone.)
+    if (_logoutPromise) { await _logoutPromise; throw new Error('Signed out'); }
     localStorage.removeItem('sol_token');
     localStorage.removeItem('sol_refresh');
     window.location.href = '/sol/';
@@ -41,37 +45,6 @@ async function api(path, opts = {}) {
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(formatApiError(d, r.statusText));
   return d;
-}
-
-// ── Session revocation (used by logout() in core/router.js) ───────────────────
-// _authEpoch counts sign-outs in this tab. A refresh records it when it starts;
-// if a sign-out happens before the refresh answers, the refresh must not store
-// the new tokens (that would sign the tab back in) and revokes them instead.
-let _authEpoch = 0;
-const REVOKE_TIMEOUT_MS = 3000;
-
-// Settles when `p` settles or after `ms`, whichever is first; never rejects.
-function _withTimeout(p, ms) {
-  let timer;
-  const limit = new Promise(resolve => { timer = setTimeout(resolve, ms); });
-  return Promise.race([Promise.resolve(p).catch(() => {}), limit]).finally(() => clearTimeout(timer));
-}
-
-// Best-effort revoke of one refresh token (POST /auth/logout, body exactly
-// {refresh_token}: the backend rejects extra fields). Resolves true only when the
-// server answers 2xx; never throws. It does not end an access token already issued.
-async function _revokeRefresh(refreshToken) {
-  if (!refreshToken) return false;
-  try {
-    const r = await fetch(API + '/auth/logout', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    return !!(r && r.ok);
-  } catch {
-    return false;
-  }
 }
 
 // Exchange refresh_token for a fresh access_token. Returns true on success.
