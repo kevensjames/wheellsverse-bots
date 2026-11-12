@@ -72,6 +72,20 @@ async function _tryRefresh() {
         await _revokeRefresh(d && d.refresh_token);
         return false;
       }
+      if (localStorage.getItem('sol_refresh') !== refresh) {
+        // The stored session changed while this refresh was in flight: another
+        // tab signed out, signed in again, or refreshed. Storing these late
+        // tokens would undo that (after a sign-out elsewhere it would sign the
+        // browser back in), so revoke the session this refresh created and use
+        // whatever session is stored now, if any. localStorage has no
+        // cross-tab compare-and-set; this check and the write below run in one
+        // synchronous step of this tab.
+        await _revokeRefresh(d && d.refresh_token);
+        const storedToken = localStorage.getItem('sol_token');
+        if (epoch !== _authEpoch || !storedToken || !localStorage.getItem('sol_refresh')) return false;
+        token = storedToken;
+        return true;
+      }
       localStorage.setItem('sol_token', d.access_token);
       localStorage.setItem('sol_refresh', d.refresh_token);
       token = d.access_token;
@@ -175,6 +189,9 @@ async function init() {
     // Return from participation checkout (?participation=success) — flag-gated; loadCatalog polls backend truth.
     if (featureOn('catalog') && new URLSearchParams(location.search).get('participation')) nav('catalog');
   } catch {
+    // A sign-out in progress (core/router.js logout()) revokes the session and
+    // redirects by itself; navigating here first would cancel its revoke.
+    if (_logoutPromise) { await _logoutPromise; return; }
     localStorage.removeItem('sol_token');
     window.location.href = '/sol/';
   }

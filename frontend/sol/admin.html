@@ -339,6 +339,9 @@ tr:hover td{background:var(--surface-2)}
 <script>
 const API = 'https://sol-api-production.up.railway.app';
 let adminToken = sessionStorage.getItem('sol_admin_token');
+// Counts admin sign-outs on this page. Declared here, before showApp() can run
+// below, because api() reads it synchronously. See adminLogout().
+let _adminAuthEpoch = 0;
 let allUsers = [], allGroups = [];
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -465,11 +468,43 @@ function togglePw() {
   else { i.type = 'password'; b.textContent = 'show'; }
 }
 
+// Sign out of the admin portal. Clears BOTH admin tokens first, so nothing on
+// this page can reuse them, then asks the backend to revoke the refresh session
+// (POST /auth/logout). Best effort: the page does not navigate, so nothing here
+// cancels that request, and a failed revoke never keeps the admin signed in.
+// Bumping _adminAuthEpoch stops a refresh already in flight from storing new
+// tokens afterwards (it revokes them instead, see _tryAdminRefresh), and a
+// request that started before the sign-out neither refreshes nor clears the
+// session after it (see api()).
+// Limits: an access token already issued stays valid at the API until it
+// expires; a 2xx is not proof of revocation (the backend also answers 204 for
+// an unknown token); closing the tab at once can still cancel the request.
 function adminLogout() {
+  _adminAuthEpoch++;
+  const refresh = sessionStorage.getItem('sol_admin_refresh');
   sessionStorage.removeItem('sol_admin_token');
+  sessionStorage.removeItem('sol_admin_refresh');
   adminToken = null;
   document.getElementById('loginGate').style.display = 'flex';
   document.getElementById('appShell').style.display = 'none';
+  _adminRevokeRefresh(refresh);
+}
+
+// Best-effort revoke of one refresh token (POST /auth/logout, body exactly
+// {refresh_token}: the backend rejects extra fields). Resolves true only on a
+// 2xx answer; never throws.
+async function _adminRevokeRefresh(refreshToken) {
+  if (!refreshToken) return false;
+  try {
+    const r = await fetch(API + '/auth/logout', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    return !!(r && r.ok);
+  } catch {
+    return false;
+  }
 }
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
@@ -797,6 +832,7 @@ async function loadEmailPreview(template) {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
+  const epoch = _adminAuthEpoch;
   const r = await fetch(API + path, {
     ...opts,
     headers: {
@@ -811,10 +847,13 @@ async function api(path, opts = {}) {
   // server restart, etc.). Prevents the admin from being kicked out
   // every 60 min during a long triage session.
   if (r.status === 401 && !opts._retry) {
-    const refreshed = await _tryAdminRefresh();
+    const refreshed = epoch === _adminAuthEpoch && await _tryAdminRefresh();
     if (refreshed) {
       return api(path, { ...opts, _retry: true });
     }
+    // Signed out since this request started (and maybe signed in again): its
+    // 401 belongs to the old session, so leave the current state alone.
+    if (epoch !== _adminAuthEpoch) throw new Error('Signed out');
     sessionStorage.removeItem('sol_admin_token');
     sessionStorage.removeItem('sol_admin_refresh');
     adminToken = null;
@@ -836,6 +875,7 @@ async function _tryAdminRefresh() {
   const refresh = sessionStorage.getItem('sol_admin_refresh');
   if (!refresh) return false;
   if (_adminRefreshPromise) return _adminRefreshPromise;
+  const epoch = _adminAuthEpoch;
   _adminRefreshPromise = (async () => {
     try {
       const r = await fetch(API + '/auth/refresh', {
@@ -845,6 +885,12 @@ async function _tryAdminRefresh() {
       });
       if (!r.ok) return false;
       const d = await r.json();
+      if (epoch !== _adminAuthEpoch) {
+        // Signed out while this refresh was in flight: do not sign the page
+        // back in; revoke the session the server just created.
+        await _adminRevokeRefresh(d && d.refresh_token);
+        return false;
+      }
       sessionStorage.setItem('sol_admin_token', d.access_token);
       sessionStorage.setItem('sol_admin_refresh', d.refresh_token);
       adminToken = d.access_token;
