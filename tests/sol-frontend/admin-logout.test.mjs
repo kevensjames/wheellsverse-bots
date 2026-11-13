@@ -18,6 +18,11 @@
 //      refreshed or re-sent under the new session (it may be a different admin)
 //   8. a page opened with a stored admin session (showApp() runs while the script loads)
 //      still loads: anything api() reads must be declared before that call
+//   9. a session that ends any other way (expiry, a new sign-in through the form) also
+//      stops old requests from refreshing or being re-sent under the next session, and a
+//      refresh from an earlier session is never shared with the next one
+//  10. tokens are gone at once even if the revoke never answers; a sign-out while a
+//      refresh answer is still being read stores nothing; the revoke uses keepalive
 //
 // Admin tokens live in sessionStorage (one tab), so there is no cross-tab case here.
 // What it does NOT prove: server-side revocation, or anything about the deployed portal.
@@ -30,11 +35,14 @@ const HTML = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend
 const scripts = [...readFileSync(HTML, 'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
 const SRC = scripts.find(s => s.includes('function adminLogout'));
 if (!SRC) throw new Error('admin script with adminLogout() not found in admin.html');
+// The negative checks ([A4] no refresh, [A9] not re-sent) would pass vacuously if
+// requests went to another host, so the API rewrite must apply.
+if (!/const API = '[^']*';/.test(SRC)) throw new Error('admin API constant not found: the rewrite would not apply');
 const API = 'https://sol-api.invalid';
 const AT = 'synthetic-admin-access-1', RT = 'synthetic-admin-refresh-1';
 const AT2 = 'synthetic-admin-access-2', RT2 = 'synthetic-admin-refresh-2';
 
-const res = (status, body) => ({ status, ok: status >= 200 && status < 300, statusText: '', json: async () => body ?? {} });
+const res = (status, body, bodyGate) => ({ status, ok: status >= 200 && status < 300, statusText: '', json: async () => { if (bodyGate) await bodyGate; return body ?? {}; } });
 const deferred = () => { let resolve; const p = new Promise(r => { resolve = r; }); return { p, resolve }; };
 const tick = () => new Promise(r => setTimeout(r, 0));
 
@@ -54,7 +62,7 @@ function makeAdmin(route, initial = {}) {
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     document: { getElementById: element, querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, createElement: () => element('created') },
     fetch: (url, opts = {}) => {
-      const call = { url: String(url), method: (opts.method || 'GET').toUpperCase(), headers: opts.headers || {}, body: opts.body };
+      const call = { url: String(url), method: (opts.method || 'GET').toUpperCase(), headers: opts.headers || {}, body: opts.body, keepalive: !!opts.keepalive };
       calls.push(call);
       try { return Promise.resolve(route(call)); } catch (e) { return Promise.reject(e); }
     },
@@ -194,6 +202,102 @@ await scenario('[A8] a page opened with a stored admin session loads (showApp() 
   } catch (e) { threw = e; }
   ok(threw === null, 'the admin script loads without throwing' + (threw ? ' (' + String(threw).split('\n')[0] + ')' : ''));
   ok(app && app.calls.some(c => c.url === API + '/auth/me'), 'showApp() ran and requested /auth/me');
+});
+
+await scenario('[A10] the session expires, another admin signs in, then an old request gets its 401: not refreshed or re-sent', async () => {
+  const AT3 = 'synthetic-admin-access-3', RT3 = 'synthetic-admin-refresh-3';
+  const gate = deferred();
+  const app = makeAdmin(call => (call.url === API + '/admin/users' ? gate.p : call.url === API + '/auth/refresh' ? res(401, { detail: 'Invalid or expired refresh token' }) : call.url === API + '/auth/logout' ? res(204) : res(401, { detail: 'Token expired' })));
+  app.signIn();
+  const old = app.V("api('/admin/users')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  await tick();
+  const expired = await app.V("api('/admin/groups')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  ok(/Session expired/.test(expired) && !app.session.has('sol_admin_token'), 'the session expired (refresh rejected) and the tokens were cleared');
+  const refreshesBefore = app.refreshes().length;
+  app.session.set('sol_admin_token', AT3); app.session.set('sol_admin_refresh', RT3); app.V(`adminToken = '${AT3}'`);   // the next admin signs in
+  gate.resolve(res(401, { detail: 'Token expired' }));
+  const outcome = await old; await tick(); await tick();
+  ok(app.refreshes().length === refreshesBefore, `the new session is not refreshed for the old request (saw ${app.refreshes().length - refreshesBefore} more)`);
+  ok(app.calls.filter(c => c.url === API + '/admin/users').length === 1, 'the old request is not re-sent');
+  ok(app.session.get('sol_admin_token') === AT3 && app.session.get('sol_admin_refresh') === RT3 && app.V('adminToken') === AT3, `the new session is unchanged (saw ${JSON.stringify([...app.session])})`);
+  ok(/^rejected/.test(outcome), 'the old request fails (' + outcome + ')');
+});
+
+await scenario('[A11] a sign-in through the real login form ends the earlier session: an old request is not re-sent under it', async () => {
+  const AT3 = 'synthetic-admin-access-3', RT3 = 'synthetic-admin-refresh-3';
+  const gate = deferred();
+  const app = makeAdmin(call => (call.url === API + '/admin/users' ? gate.p
+    : call.url === API + '/auth/login' ? res(200, { access_token: AT3, refresh_token: RT3, token_type: 'bearer' })
+    : call.url === API + '/admin/reconcile' ? res(200, {})
+    : call.url === API + '/auth/refresh' ? res(200, { access_token: AT2, refresh_token: RT2 })
+    : res(204)));
+  app.signIn();
+  const old = app.V("api('/admin/users')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  await tick();
+  app.element('aEmail').value = 'admin-y@example.invalid'; app.element('aPassword').value = 'synthetic-password';
+  await app.V('adminLogin()');
+  ok(app.session.get('sol_admin_token') === AT3, 'the login form stored the new session');
+  gate.resolve(res(401, { detail: 'Token expired' }));
+  const outcome = await old; await tick(); await tick();
+  ok(app.refreshes().length === 0, `no refresh for the old request (saw ${app.refreshes().length})`);
+  ok(app.calls.filter(c => c.url === API + '/admin/users').length === 1, 'the old request is not re-sent');
+  ok(app.session.get('sol_admin_token') === AT3 && app.session.get('sol_admin_refresh') === RT3, `the new session is unchanged (saw ${JSON.stringify([...app.session])})`);
+  ok(/^rejected/.test(outcome), 'the old request fails (' + outcome + ')');
+});
+
+await scenario("[A12] a refresh from before a sign-out is not shared with the next session's 401 (N4, NF3)", async () => {
+  const AT3 = 'synthetic-admin-access-3', RT3 = 'synthetic-admin-refresh-3', AT4 = 'synthetic-admin-access-4', RT4 = 'synthetic-admin-refresh-4';
+  const oldRefresh = deferred();
+  const app = makeAdmin(call => {
+    if (call.url === API + '/auth/refresh') return JSON.parse(call.body).refresh_token === RT ? oldRefresh.p : res(200, { access_token: AT4, refresh_token: RT4 });
+    if (call.url === API + '/auth/logout') return res(204);
+    if (call.url === API + '/admin/groups') return call.headers.Authorization === 'Bearer ' + AT4 ? res(200, { groups: [] }) : res(401, { detail: 'Token expired' });
+    return res(401, { detail: 'Token expired' });
+  });
+  app.signIn();
+  const old = app.V("api('/admin/users')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  await tick(); await tick();
+  ok(app.refreshes().length === 1, 'the old session is refreshing');
+  app.V('adminLogout()');
+  app.session.set('sol_admin_token', AT3); app.session.set('sol_admin_refresh', RT3); app.V(`adminToken = '${AT3}'`);   // the next admin signs in
+  const freshP = app.V("api('/admin/groups')").then(v => 'resolved', e => 'rejected: ' + e.message);
+  const fresh = await Promise.race([freshP, new Promise(r => setTimeout(() => r('still pending after 1000 ms (waiting on the old refresh)'), 1000))]);
+  ok(fresh === 'resolved', `the new session's request refreshes on its own and succeeds (${fresh})`);
+  ok(app.refreshes().some(c => JSON.parse(c.body).refresh_token === RT3), 'it refreshed with the new refresh token');
+  ok(app.session.get('sol_admin_token') === AT4 && app.session.get('sol_admin_refresh') === RT4, `the new session's rotated pair is stored (saw ${JSON.stringify([...app.session])})`);
+  oldRefresh.resolve(res(200, { access_token: AT2, refresh_token: RT2 }));
+  await old; await freshP; await tick(); await tick();
+  ok(app.session.get('sol_admin_token') === AT4, 'the old refresh answering late changes nothing');
+  ok(app.revokes().some(c => JSON.parse(c.body).refresh_token === RT2), 'and its late session is revoked');
+});
+
+await scenario('[A13] the revoke never answers: both admin tokens are gone at once (NF8)', async () => {
+  const app = makeAdmin(call => (call.url === API + '/auth/logout' ? new Promise(() => {}) : res(204)));
+  app.signIn();
+  app.V('adminLogout()');
+  ok(!app.session.has('sol_admin_token') && !app.session.has('sol_admin_refresh') && app.V('adminToken') === null, 'both tokens removed synchronously, before any answer');
+});
+
+await scenario('[A14] sign-out while the refresh answer is still being read: nothing is stored (NF7)', async () => {
+  const body = deferred();
+  const app = makeAdmin(call => (call.url === API + '/auth/refresh' ? res(200, { access_token: AT2, refresh_token: RT2 }, body.p) : res(204)));
+  app.signIn();
+  const refreshing = app.V('_tryAdminRefresh()');
+  await tick(); await tick();
+  app.V('adminLogout()');
+  body.resolve();
+  const got = await refreshing; await tick(); await tick();
+  ok(got === false, 'the refresh reports failure');
+  ok(!app.session.has('sol_admin_token') && !app.session.has('sol_admin_refresh'), `nothing stored (saw ${JSON.stringify([...app.session])})`);
+  ok(app.revokes().some(c => JSON.parse(c.body).refresh_token === RT2), 'the late session is revoked');
+});
+
+await scenario('[A15] the admin revoke is sent with keepalive, so closing the tab cannot cancel it (N6)', async () => {
+  const app = makeAdmin(() => res(204));
+  app.signIn();
+  app.V('adminLogout()');
+  const rv = app.revokes();
+  ok(rv.length === 1 && rv[0].keepalive === true, `one revoke, keepalive set (saw ${JSON.stringify(rv.map(c => c.keepalive))})`);
 });
 
 await tick(); await tick();

@@ -25,7 +25,8 @@
 //      before the scripts at the end of app.html have run)
 //  10. another tab cannot restore the session: a refresh that started in tab B
 //      before tab A signed out stores nothing and revokes what it was given;
-//      if tab A has meanwhile signed in again, tab B keeps tab A's new session
+//      if tab A has meanwhile signed in again, tab B leaves tab A's new session
+//      stored but does not adopt it (more multi-tab cases: session-tabs.test.mjs)
 //  11. init() failing during a sign-out waits for the sign-out instead of
 //      navigating first
 //
@@ -319,7 +320,7 @@ await scenario('[16] two tabs: tab A signs out while tab B refreshes', async () 
   ok(tabA.revokes().some(c => JSON.parse(c.body).refresh_token === R), 'tab A revoked the stored refresh token');
 });
 
-await scenario('[17] two tabs: tab A signs out and signs in again while tab B refreshes', async () => {
+await scenario('[17] two tabs: tab A signs out and signs in again while tab B refreshes: B keeps the new session but does not adopt it', async () => {
   const A3 = 'synthetic-access-3', R3 = 'synthetic-refresh-3';
   const shared = new Map([['sol_token', A], ['sol_refresh', R]]);
   const refreshGate = deferred();
@@ -333,7 +334,9 @@ await scenario('[17] two tabs: tab A signs out and signs in again while tab B re
   const got = await refreshing; await tick();
   ok(shared.get('sol_token') === A3 && shared.get('sol_refresh') === R3, `tab A's new session is kept (saw ${JSON.stringify([...shared])})`);
   ok(tabB.revokes().some(c => JSON.parse(c.body).refresh_token === R2), 'tab B revoked the session its late refresh created');
-  ok(got === true && tabB.V('token') === A3, 'tab B continues with the shared new session');
+  // A request from before a sign-out is never re-sent under a session stored after it,
+  // even for the same user (it may be another user: see session-tabs.test.mjs [T1], [T3]).
+  ok(got === false && tabB.V('token') !== A3, 'tab B does not adopt the session stored after the sign-out');
 });
 
 await scenario('[18] init() fails during a sign-out: it waits for the sign-out', async () => {
@@ -353,7 +356,7 @@ await scenario('[18] init() fails during a sign-out: it waits for the sign-out',
   ok(app.events.indexOf('revoke-answered:' + R) !== -1 && app.events.indexOf('revoke-answered:' + R) < app.events.indexOf('redirect'), 'revoke answered before the redirect');
 });
 
-await scenario('[19] init() fails with no sign-out: unchanged, it signs the tab out', async () => {
+await scenario('[19] init() fails with no sign-out: unchanged, it removes the access token and redirects once (the refresh token is left in place, as before)', async () => {
   const app = makeApp(call => (call.url === API + '/auth/me' ? Promise.resolve(res(500, { detail: 'synthetic server error' })) : Promise.resolve(res(204))));
   await app.V('init()'); await tick();
   ok(app.hrefs.length === 1 && app.hrefs[0] === '/sol/', 'redirected to /sol/');

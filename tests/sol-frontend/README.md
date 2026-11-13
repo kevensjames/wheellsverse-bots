@@ -1,7 +1,7 @@
 # SOL member-app tests
 
 Regression tests for the buildless, multi-file SOL member app (`frontend/sol/app/`).
-Two run with **zero dependencies**; the browser journeys need Playwright.
+The `.test.mjs` files and `static-checks.mjs` run with **zero dependencies**; the browser journeys need Playwright.
 
 ## Run
 
@@ -12,6 +12,7 @@ node tests/sol-frontend/guard.test.mjs       # SolGuard unit + concurrency
 node tests/sol-frontend/route-abort.test.mjs # P3 money-safety: mutations never cancelled
 node tests/sol-frontend/logout.test.mjs      # member sign-out: refresh revoked, no late token kept
 node tests/sol-frontend/admin-logout.test.mjs # admin sign-out: refresh revoked, no silent refresh after
+node tests/sol-frontend/session-tabs.test.mjs # several tabs: no session restored, adopted or lost across tabs
 
 # Browser journeys — needs Playwright (a dev-only tool; the app stays buildless):
 npm i -D playwright && npx playwright install chromium
@@ -24,8 +25,9 @@ node tests/sol-frontend/journeys.mjs
 |------|------|--------|
 | `static-checks.mjs` | none | Reads the module load order from `app.html`; per-file `node --check`; **concatenation parse** (the critical guard for a shared-global-scope split — two files declaring the same top-level `let`/`const`/`class` parse alone but collide at load); duplicate top-level symbol scan. |
 | `guard.test.mjs` | none | Loads the real `core/guard.js` in a `vm` sandbox and asserts every `SolGuard` semantic: synchronous acquire, duplicate-drop, idempotent release, `run()`/`runFor()` release-in-`finally` on success + rejection + sync-throw, and per-record concurrency (record A never blocks record B). |
-| `logout.test.mjs` | none | Loads the real `core/state.js`, `core/router.js` and `core/api.js` in a `vm` sandbox with a scripted fetch (synthetic tokens). Sign-out clears both tokens, sends one `POST /auth/logout` with exactly `{refresh_token}` before redirecting, survives a failing or slow revoke, and a refresh in flight (in this tab or another tab sharing `localStorage`) never leaves a live session behind. Does not prove server-side revocation. |
-| `admin-logout.test.mjs` | none | Loads the inline script of `admin.html` in a `vm` sandbox (`sessionStorage`, stub DOM). Admin sign-out clears the access and refresh tokens, revokes the refresh session, and no later 401 or in-flight refresh signs the admin back in. Does not prove server-side revocation. |
+| `logout.test.mjs` | none | Loads the real `core/router.js` and `core/api.js` in a `vm` sandbox (`API` and `token` injected) with a scripted fetch (synthetic tokens). Sign-out clears both tokens, sends one `POST /auth/logout` with exactly `{refresh_token}` before redirecting, and survives a failing or slow revoke. A refresh in flight (in this tab or another tab sharing `localStorage`) stores nothing afterwards; the session it created is revoked when the refresh answers within the 3 s bound. Does not prove server-side revocation. |
+| `admin-logout.test.mjs` | none | Loads the inline script of `admin.html` in a `vm` sandbox (`sessionStorage`, stub DOM). Admin sign-out clears the access and refresh tokens at once and revokes the refresh session (keepalive); no later 401 or in-flight refresh signs the admin back in, and a request from an earlier session (ended by sign-out, expiry or a new sign-in) is never refreshed or re-sent under the next one. Does not prove server-side revocation. |
+| `session-tabs.test.mjs` | none | Loads the real `core/state.js`, `core/router.js` and `core/api.js` once per tab in `vm` sandboxes that share one `localStorage` (with `storage` events), optionally Web Locks, and a mock backend that rotates refresh tokens on receipt. A tab never re-sends a request under another user's session or one stored after a sign-out; two tabs refreshing at once stay signed in with no orphaned session; a sign-out in one tab signs the others out at once. Does not prove server-side revocation or Firefox/Safari behaviour. |
 | `journeys.mjs` | Playwright | Starts a static server, generates the mock harness, drives real Chromium through primary member journeys A–J (dashboard, KYC, bank, discover, timeline, premium, goals, notifications, community, trust) plus dialogs (`SolDialog`), guards (`SolGuard`), **P3 request cancellation** (GETs carry the route abort signal, mutations do not, in-flight GETs abort on nav), and **P4 circle-detail** (money math, no legacy badge, design-system classes, no PII). |
 | `harness.mjs` | none | Generates `frontend/sol/boot-test.html` = the current `app.html` + an injected query- and `AbortSignal`-aware **mock backend** with realistic response shapes. Imported by `journeys.mjs`; also runnable directly. |
 
