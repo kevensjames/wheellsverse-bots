@@ -160,6 +160,7 @@ function makeTab(browser, server, label, { blockRevokes = false } = {}) {
   tab.V = expr => vm.runInContext(expr, sandbox);
   tab.dispatchStorage = ev => { for (const fn of listeners.storage) fn({ ...ev, storageArea: localStorage, url: 'https://app.invalid/sol/app' }); };
   tab.listeners = listeners;
+  tab.dispatch = (type, ev) => { for (const fn of listeners[type] || []) fn(ev); };
   tab.revokes = () => calls.filter(c => c.method === 'POST' && c.url === API + '/auth/logout');
   tab.request = (path, opts) => tab.V(`api(${JSON.stringify(path)}, ${JSON.stringify(opts || {})})`).then(v => ({ ok: true, v }), e => ({ ok: false, e: String(e && e.message) }));
   browser.tabs.push(tab);
@@ -490,6 +491,42 @@ await scenario("[T20] init() in a tab whose session was replaced (X signed out, 
   await B.V('init()').catch(() => {}); await settle();
   ok(browser.store.get('sol_token') === Y.access_token && browser.store.get('sol_refresh') === Y.refresh_token, `Y's stored session is untouched (saw ${JSON.stringify([...browser.store].filter(([k]) => k !== 'sol_signout'))})`);
   ok(B.reloads === 1 && B.hrefs.length === 0, `tab B reloads once and does not also redirect (reloads ${B.reloads}, redirects ${JSON.stringify(B.hrefs)})`);
+});
+
+// ── Back button: a page restored from the back/forward cache (critic CR-1, CR-1b) ──
+await scenario('[T21] X signs out, Y signs in, X presses Back (page restored from the cache): nothing goes out as Y and the page reloads', async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  const X = browser.signIn(server, 'user-x');
+  const A = makeTab(browser, server, 'A');
+  await A.V('logout()');
+  const Y = browser.signIn(server, 'user-y');
+  server.expire(X.access_token);
+  const out = await A.request(...PAY); await settle();      // a request from the restored page's old code
+  ok(!server.log.some(l => l.tab === 'A' && (l.as === 'user-y' || (l.path === '/auth/refresh'))), "the signed-out page neither refreshes Y's session nor sends anything as Y");
+  ok(!out.ok, 'its request fails');
+  const before = A.reloads;
+  A.dispatch('pageshow', { persisted: true });
+  ok(A.reloads === before + 1, `restored from the cache, the page reloads (state.js then starts from the stored session) (reloads ${A.reloads - before})`);
+  ok(browser.store.get('sol_refresh') === Y.refresh_token && server.sessions.get(Y.refresh_token).active, "Y's session is untouched");
+});
+
+await scenario('[T22] X signs out and presses Back with nobody signed in: the restored page reloads (and state.js sends it to the sign-in page)', async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  browser.signIn(server, 'user-x');
+  const A = makeTab(browser, server, 'A');
+  await A.V('logout()');
+  const before = A.reloads;
+  A.dispatch('pageshow', { persisted: true });
+  ok(A.reloads === before + 1, `the page reloads (reloads ${A.reloads - before})`);
+});
+
+await scenario('[T23] a page restored from the cache with its session unchanged is left alone; a normal page load is too', async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  browser.signIn(server, 'user-x');
+  const A = makeTab(browser, server, 'A');
+  A.dispatch('pageshow', { persisted: true });
+  A.dispatch('pageshow', { persisted: false });
+  ok(A.reloads === 0 && A.hrefs.length === 0, `no reload, no redirect (events ${JSON.stringify(A.events)})`);
 });
 
 // ── keepalive ───────────────────────────────────────────────────────────────
