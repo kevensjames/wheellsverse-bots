@@ -20,8 +20,13 @@
 //   tag has not reached this tab's copy of localStorage yet (another tab's
 //   writes arrive one at a time).
 // - A refresh token the server rejected, or that a tab ends because of a
-//   sign-out or another user's sign-in elsewhere, is listed as dead
-//   (sol_refresh_failed) instead of being deleted.
+//   sign-out or another user's sign-in elsewhere, is marked dead (one key per
+//   token, sol_dead.<fingerprint>, so tabs marking at once do not overwrite
+//   each other) instead of being deleted.
+// - A refresh that a tab stopped waiting for, whose answer may still come, is
+//   noted (sol_refresh_pending): until the answer comes or the request is given
+//   up, tabs send that refresh token again at most once (a probe) and do not
+//   end the session over a 401 on it.
 // - Only the user's own sign-out removes the tokens, and a sign-in replaces them.
 // A pair stored before this file existed has no tag at all and counts as before.
 // Limit: when two sign-ins or a sign-in and a sign-out race in different tabs,
@@ -30,8 +35,9 @@
 // of another user does not count either.
 const SOL_SIGNOUT_KEY = 'sol_signout';
 const SOL_SESSION_KEY = 'sol_session';
-const SOL_DEAD_KEY = 'sol_refresh_failed';
-const SOL_DEAD_MAX = 8;
+const SOL_DEAD_PREFIX = 'sol_dead.';
+const SOL_DEAD_KEEP_MS = 24 * 3600 * 1000;   // dead marks older than this are pruned (their access tokens expired long ago)
+const SOL_PENDING_KEY = 'sol_refresh_pending';
 // One channel per page: a sign-out is also announced here, so open tabs leave
 // even when its record cannot be written (storage full). A message never
 // reaches the channel that posted it.
@@ -66,7 +72,7 @@ function _solTagCovers(tag, token, refresh, signout) {
   return parts[0] === (signout || '-') && !!user && parts[1] === encodeURIComponent(user);
 }
 function _solIsDead(refresh) {
-  return !!refresh && (localStorage.getItem(SOL_DEAD_KEY) || '').split(' ').indexOf(_solFingerprint(refresh)) !== -1;
+  return !!refresh && localStorage.getItem(SOL_DEAD_PREFIX + _solFingerprint(refresh)) !== null;
 }
 
 // The stored session { token, refresh, dead } if it counts (see above), else null.
@@ -93,27 +99,66 @@ function _solWriteSession(token, refresh) {
   localStorage.setItem(SOL_SESSION_KEY, _solTag(token, refresh, localStorage.getItem(SOL_SIGNOUT_KEY)));
 }
 
-// List a refresh token as dead (newest first, at most SOL_DEAD_MAX). Best effort.
+// Mark a refresh token as dead (its own key), and prune old marks. Best effort.
 function _solMarkDead(refresh) {
   if (!refresh) return;
+  try { localStorage.setItem(SOL_DEAD_PREFIX + _solFingerprint(refresh), String(Date.now())); } catch {}
   try {
-    const fp = _solFingerprint(refresh);
-    const rest = (localStorage.getItem(SOL_DEAD_KEY) || '').split(' ').filter(x => x && x !== fp);
-    localStorage.setItem(SOL_DEAD_KEY, [fp].concat(rest).slice(0, SOL_DEAD_MAX).join(' '));
+    if (typeof localStorage.key !== 'function') return;
+    const old = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(SOL_DEAD_PREFIX) === 0 && Date.now() - Number(localStorage.getItem(k)) > SOL_DEAD_KEEP_MS) old.push(k);
+    }
+    old.forEach(k => localStorage.removeItem(k));
   } catch {}
 }
 
-// A new sign-out record. Returns false if storage refused it.
-function _solWriteSignoutRecord() {
+// True while a refresh of `refresh` that a tab stopped waiting for may still
+// answer (see _lateRefresh in core/api.js).
+function _solRefreshPending(refresh) {
   try {
-    localStorage.setItem(SOL_SIGNOUT_KEY, Date.now() + '-' + Math.random().toString(36).slice(2));
+    const v = (localStorage.getItem(SOL_PENDING_KEY) || '').split('|');
+    return !!refresh && v[0] === _solFingerprint(refresh) && Number(v[1]) > Date.now();
+  } catch {
+    return false;
+  }
+}
+function _solNotePending(refresh, until) {
+  try { localStorage.setItem(SOL_PENDING_KEY, _solFingerprint(refresh) + '|' + until); } catch {}
+}
+// Claim the one probe allowed while `refresh` is pending: true for the first
+// tab that asks (it may send the token again), false afterwards.
+function _solClaimProbe(refresh) {
+  try {
+    const v = (localStorage.getItem(SOL_PENDING_KEY) || '').split('|');
+    if (v[0] !== _solFingerprint(refresh) || v[2] === 'probed') return false;
+    localStorage.setItem(SOL_PENDING_KEY, v[0] + '|' + v[1] + '|probed');
     return true;
   } catch {
     return false;
   }
 }
+function _solClearPending(refresh) {
+  try { if ((localStorage.getItem(SOL_PENDING_KEY) || '').split('|')[0] === _solFingerprint(refresh)) localStorage.removeItem(SOL_PENDING_KEY); } catch {}
+}
 
-// Tell the other open pages that the session they run on has ended.
-function _solAnnounceSignout() {
-  try { if (_solChannel) _solChannel.postMessage({ type: 'signed-out' }); } catch {}
+// A new sign-out record. `signIn`: a sign-in follows at once (the landing
+// page replacing a session), so open tabs give its new pair a moment to arrive
+// and reload into it. Returns false if storage refused it.
+function _solWriteSignoutRecord(signIn) {
+  try {
+    localStorage.setItem(SOL_SIGNOUT_KEY, Date.now() + '-' + Math.random().toString(36).slice(2) + (signIn ? '-in' : ''));
+    return true;
+  } catch {
+    return false;
+  }
+}
+// True when a sign-out record says a sign-in follows.
+function _solRecordIsSignIn(record) { return typeof record === 'string' && /-in$/.test(record); }
+
+// Tell the other open pages that the session they run on has ended (`signIn`:
+// a new session is already stored).
+function _solAnnounceSignout(signIn) {
+  try { if (_solChannel) _solChannel.postMessage(signIn ? { type: 'signed-out', next: true } : { type: 'signed-out' }); } catch {}
 }

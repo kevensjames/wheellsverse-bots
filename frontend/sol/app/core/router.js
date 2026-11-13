@@ -48,14 +48,17 @@ function nav(page) {
 // things (see _tryRefresh in core/api.js):
 // - A sign-out, in this tab (_authEpoch) or in another (the sign-out record,
 //   which logout() and the landing page's sign-in change when they end a
-//   session, and a 'signed-out' message on the sol-auth channel). A request
-//   from before it is never refreshed or re-sent, even if someone has signed in
-//   again since, and a refresh that answers after it stores nothing and revokes
-//   what it was given. Each tab has its own copy of localStorage that other
-//   tabs' writes reach a little later, so a tab can still store a late pair just
-//   after a sign-out elsewhere; that pair carries the earlier record in its tag,
-//   so no page uses it, and the tab revokes it when the sign-out reaches it
-//   (_endMySession). No tab deletes anything for this.
+//   session, and a 'signed-out' message on the sol-auth channel). Once a tab has
+//   seen it, a request from before it is not refreshed or re-sent, even if
+//   someone has signed in again since, and a refresh that answers after it
+//   stores nothing and revokes what it was given. Each tab has its own copy of
+//   localStorage that other tabs' writes reach a little later, so a tab that
+//   has not seen the sign-out yet can still store a late pair (and re-send the
+//   request it refreshed for, under that pair); the pair carries the earlier
+//   record in its tag, so no page uses it, and the tab revokes it when the
+//   sign-out reaches it (_endMySession). No tab deletes anything for this; the
+//   late pair stays stored, unused, until the next sign-in replaces it, and its
+//   access token stays valid at the API until it expires.
 // - Another user's session. A tab only continues with sessions of the user it
 //   was opened for (the `sub` of its access token); otherwise it reloads.
 // - Two tabs refreshing at once. Refreshes take a lock shared by the tabs (Web
@@ -212,14 +215,30 @@ function logout() {
 // leaves.
 // Limit: a refresh that answers after the bound is cancelled by the navigation;
 // the session the server created for it then stays active, held by no browser.
+// When the sign-out came from a sign-in elsewhere (the landing page replacing
+// the session), the new pair follows the sign-out record, and this tab's copy of
+// localStorage receives the writes one at a time: it waits up to
+// SIGNIN_FOLLOWS_WAIT_MS for that pair before choosing the sign-in page, so it
+// reloads into the new session instead.
+const SIGNIN_FOLLOWS_WAIT_MS = 500;
 let _leaveWantReload = null;
+let _leaveSignInFollows = false;
 function _leavePending() { return _leaving || _leaveWantReload !== null; }
-function _leaveAfterRefresh(reload) {
+function _leaveAfterRefresh(reload, signInFollows) {
   const first = _leaveWantReload === null;
   _leaveWantReload = !!reload || _leaveWantReload === true;
+  _leaveSignInFollows = _leaveSignInFollows || !!signInFollows;
   if (!first) return;
   token = null;
-  _withTimeout(_refreshesInFlight(), REVOKE_TIMEOUT_MS).then(() => _leave(_leaveWantReload || !!_liveSession()));
+  _withTimeout(_refreshesInFlight(), REVOKE_TIMEOUT_MS).then(() => {
+    const until = Date.now() + (_leaveSignInFollows ? SIGNIN_FOLLOWS_WAIT_MS : 0);
+    const decide = () => {
+      if (_leaveWantReload || _liveSession()) return _leave(true);
+      if (Date.now() < until && !_leaving) return void setTimeout(decide, 50);
+      _leave(false);
+    };
+    decide();
+  });
 }
 
 // Follow the other tabs at once instead of acting with this tab's in-memory
@@ -228,18 +247,18 @@ function _leaveAfterRefresh(reload) {
 // signing in reloads it; in both cases this tab first ends a pair it stored
 // itself. Other changes (a refresh by another tab, another tab listing a dead
 // refresh token) change nothing.
-function _onSignedOutElsewhere() {
+function _onSignedOutElsewhere(signInFollows) {
   _signoutSeen = true;
   if (_leaving || _logoutPromise) return;
   _endMySession();
-  _leaveAfterRefresh(false);
+  _leaveAfterRefresh(false, signInFollows);
 }
 if (typeof _solChannel !== 'undefined' && _solChannel) {
-  _solChannel.addEventListener('message', e => { if (e && e.data && e.data.type === 'signed-out') _onSignedOutElsewhere(); });
+  _solChannel.addEventListener('message', e => { if (e && e.data && e.data.type === 'signed-out') _onSignedOutElsewhere(e.data.next === true); });
 }
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('storage', e => {
-    if (e.key === null || e.key === SIGNOUT_KEY) { _onSignedOutElsewhere(); return; }
+    if (e.key === null || e.key === SIGNOUT_KEY) { _onSignedOutElsewhere(e.key !== null && typeof _solRecordIsSignIn === 'function' && _solRecordIsSignIn(e.newValue)); return; }
     if (_leaving || _logoutPromise) return;
     if (e.key === 'sol_token' && e.newValue && _isOtherUser(e.newValue)) { _endMySession(); _leaveAfterRefresh(true); }
   });

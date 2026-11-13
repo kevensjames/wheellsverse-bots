@@ -371,6 +371,9 @@ function _adminNoteEnded(family) {
 // True when the session in this tab's sessionStorage is a copy of one that was
 // signed out in another tab.
 function _adminCopyEnded() { return !!adminToken && _adminFamilyEnded(sessionStorage.getItem('sol_admin_family')); }
+// The session family this page itself runs on (set at load and at sign-in). A
+// page restored from the back/forward cache compares it with sessionStorage,
+// which a later page of this tab may have changed.
 let allUsers = [], allGroups = [];
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -390,10 +393,20 @@ function showApp() {
   refreshHaltBanner();
 }
 
-if (_adminCopyEnded()) _adminSignOutHere();
+let _adminFamily = adminToken ? sessionStorage.getItem('sol_admin_family') : null;
+if (_adminCopyEnded()) _adminSignOutHere(false);
 if (adminToken) showApp();
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-  window.addEventListener('pageshow', e => { if (e && e.persisted && _adminCopyEnded()) _adminSignOutHere(); });
+  // Restored from the back/forward cache: if this page's own session ended, or
+  // a later page of this tab replaced it, reload (and sign out first if the
+  // ended session is still the one in sessionStorage).
+  window.addEventListener('pageshow', e => {
+    if (!e || !e.persisted || !adminToken || !_adminFamily) return;
+    const current = sessionStorage.getItem('sol_admin_family');
+    if (current === _adminFamily && !_adminFamilyEnded(_adminFamily)) return;
+    if (current === _adminFamily) _adminSignOutHere(false);
+    _adminReloadPage();
+  });
 }
 
 async function adminLogin() {
@@ -506,7 +519,8 @@ function _adminStartSession(access, refresh) {
   sessionStorage.setItem('sol_admin_token', access);
   if (refresh) sessionStorage.setItem('sol_admin_refresh', refresh);
   else sessionStorage.removeItem('sol_admin_refresh');
-  sessionStorage.setItem('sol_admin_family', Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
+  _adminFamily = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  sessionStorage.setItem('sol_admin_family', _adminFamily);
   adminToken = access;
 }
 
@@ -525,28 +539,39 @@ function _adminStartSession(access, refresh) {
 // an unknown token). A duplicated tab is reached at once only where
 // BroadcastChannel exists and while it is open, otherwise when it next loads or
 // is restored; the member app's session is not ended.
+// The page then reloads (after the keepalive revoke is sent), so member data
+// and the admin's identity loaded under the ended session do not stay in the
+// document.
 function adminLogout() {
   const family = sessionStorage.getItem('sol_admin_family');
-  _adminSignOutHere();
+  _adminSignOutHere(false);
   _adminNoteEnded(family);
   if (family && _adminChannel) { try { _adminChannel.postMessage({ type: 'signed-out', family }); } catch {} }
+  _adminReloadPage();
 }
-function _adminSignOutHere() {
+// End this page's session: tokens gone, login gate shown, refresh revoked.
+// `clearPage`: reload afterwards (the page showed data of that session).
+function _adminSignOutHere(clearPage) {
   _adminEndSession('signed-out');
   const refresh = sessionStorage.getItem('sol_admin_refresh');
   sessionStorage.removeItem('sol_admin_token');
   sessionStorage.removeItem('sol_admin_refresh');
   sessionStorage.removeItem('sol_admin_family');
   adminToken = null;
+  _adminFamily = null;
   document.getElementById('loginGate').style.display = 'flex';
   document.getElementById('appShell').style.display = 'none';
   _adminRevokeRefresh(refresh);
+  if (clearPage) _adminReloadPage();
+}
+function _adminReloadPage() {
+  try { if (window.location && typeof window.location.reload === 'function') window.location.reload(); } catch {}
 }
 if (_adminChannel) {
   _adminChannel.addEventListener('message', e => {
     const d = e && e.data;
     if (!d || d.type !== 'signed-out' || !d.family || d.family !== sessionStorage.getItem('sol_admin_family')) return;
-    _adminSignOutHere();
+    _adminSignOutHere(true);
   });
 }
 

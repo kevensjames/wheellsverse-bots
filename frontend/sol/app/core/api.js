@@ -91,24 +91,32 @@ const REFRESH_LOCK_WAIT_MS = 10000;
 // does not hold every tab's refresh. The answer is still kept (_lateRefresh):
 // if the server received the request it has rotated the refresh token, and
 // dropping the answer would end the session. When it comes it is handled as if
-// it had come in time, and this tab's next 401 waits for it first. The request
+// it had come in time. Until then (it is noted in localStorage, core/session.js)
+// tabs use a newer session another tab stored if there is one; this tab's next
+// 401 waits up to REFRESH_LATE_JOIN_MS for that answer; and the token is sent
+// again at most once, as a probe: if the earlier request never reached the
+// server, the probe renews the session; if it did, the probe gets a 401, which
+// then ends nothing. Other requests fail as 'transient' meanwhile. The request
 // itself is given up after REFRESH_ANSWER_MAX_MS.
 const REFRESH_FETCH_TIMEOUT_MS = 20000;
 const REFRESH_ANSWER_MAX_MS = 120000;
+const REFRESH_LATE_JOIN_MS = 3000;
 let _lateRefresh = null;
+let _lateProbeSent = false;   // used when the note could not be written
 
 async function _tryRefresh() {
   // One refresh per tab at a time; concurrent 401s share it (also while another
   // tab's sign-out is emptying the storage, so it can revoke its late session).
   if (_refreshPromise) return _refreshPromise;
-  const late = _lateRefresh;
   const s = _liveSession();
-  if (!late && (!s || !s.refresh)) { _refreshOutcome = 'signed-out'; return false; }
+  if (!_lateRefresh && (!s || !s.refresh)) { _refreshOutcome = 'signed-out'; return false; }
   const epoch = _authEpoch;
   const sentWith = token;
-  // An earlier refresh of this tab may still answer: wait for it (bounded)
-  // rather than send the token it may already have rotated.
-  const p = (late ? _withTimeout(late, REFRESH_FETCH_TIMEOUT_MS) : Promise.resolve())
+  // This tab's own earlier refresh may answer any moment: give it a short while
+  // (not when another tab already stored a usable newer session: use that).
+  const late = _lateRefresh;
+  const newerUsable = !!(s && s.token !== sentWith && !_expiresSoon(s.token) && !_isOtherUser(s.token));
+  const p = (late && !newerUsable ? _withTimeout(late, REFRESH_LATE_JOIN_MS) : Promise.resolve())
     .then(() => _withRefreshLock(() => _refreshSession(epoch, sentWith)));
   _refreshPromise = p;
   p.then(() => { if (_refreshPromise === p) _refreshPromise = null; });
@@ -200,6 +208,9 @@ async function _refreshSession(epoch, sentWith) {
     const now = stored();
     if (now === 'stale') return fail('stale');
     if (now === 'mine' && _solLiveSession().refresh !== refresh) return fail('transient');   // newer session, access token not usable yet
+    // A refresh of this token that a tab stopped waiting for may still answer
+    // (it rotated it): that answer decides, not this 401.
+    if (!late && (_solRefreshPending(refresh) || _lateRefresh)) return fail('transient');
     // This tab's session is over. List its refresh token as dead, so the other
     // tabs stop using it too (a concurrent refresh of the same token that
     // succeeded may still store its pair over it).
@@ -214,10 +225,25 @@ async function _refreshSession(epoch, sentWith) {
   };
   try {
     const before = stored();
-    if (before !== 'mine') return fail(before === 'none' ? 'signed-out' : 'stale');
+    if (before !== 'mine') {
+      // This tab's own earlier refresh may still answer: that decides.
+      if (before === 'none' && _lateRefresh) return fail('transient');
+      return fail(before === 'none' ? 'signed-out' : 'stale');
+    }
     // Another tab already refreshed this session: use its access token rather
     // than rotating the refresh token again.
     if (start.token !== sentWith && !_expiresSoon(start.token)) return adopt(start.token);
+    // A refresh of this token that a tab (this one or another) stopped waiting
+    // for may still answer, and may already have rotated it: send it again only
+    // as the one probe (see REFRESH_FETCH_TIMEOUT_MS); otherwise this request
+    // fails and that answer decides.
+    if (_solRefreshPending(refresh)) {
+      if (!_solClaimProbe(refresh)) return fail('transient');
+    } else if (_lateRefresh) {
+      if (_lateProbeSent) return fail('transient');
+      _lateProbeSent = true;
+    }
+    const startedAt = Date.now();
     const answer = _postRefresh(refresh);
     const TIMED_OUT = {};
     let timer = null;
@@ -230,10 +256,12 @@ async function _refreshSession(epoch, sentWith) {
       clearTimeout(timer);
     }
     if (a === TIMED_OUT) {
+      _solNotePending(refresh, startedAt + REFRESH_ANSWER_MAX_MS);
+      _lateProbeSent = false;
       const kept = answer
         .then(x => { late = true; return handle(x); }, () => false)
         .catch(() => false)
-        .finally(() => { if (_lateRefresh === kept) _lateRefresh = null; });
+        .finally(() => { _solClearPending(refresh); if (_lateRefresh === kept) _lateRefresh = null; });
       _lateRefresh = kept;
       return fail('transient');
     }
@@ -402,6 +430,9 @@ async function init() {
     // or none).
     if (_leavePending()) return;
     if (e && (e.transient || e.status === 429 || e.status >= 500 || _aborted(e))) {
+      // Say so, rather than sit on the loading state (a rate limit can last
+      // minutes); the Sign out button stays usable.
+      try { const el = document.getElementById('userEmail'); if (el) el.textContent = 'Reconnecting…'; } catch {}
       const wait = _initRetryMs;
       _initRetryMs = Math.min(_initRetryMs * 2, INIT_RETRY_MAX_MS);
       setTimeout(init, wait);
