@@ -170,6 +170,9 @@ function makeBrowser({ locks = false, storageEvents = true, lag = false } = {}) 
     if (holding) queue.push(m); else setTimeout(() => deliver(m), 0);
   };
   const hold = () => { holding = true; };
+  // Deliver the first n held messages in order (a tab sees part of another tab's write).
+  const deliverFirst = n => { for (const m of queue.splice(0, n)) deliver(m); };
+  const queued = () => queue.map(m => (m.broadcast ? 'broadcast' : m.key));
   // Deliver only the held BroadcastChannel messages (storage events stay held).
   const deliverBroadcasts = () => { for (let i = 0; i < queue.length;) { if (queue[i].broadcast) queue.splice(i, 1)[0].broadcast(); else i++; } };
   const release = () => { holding = false; const q = queue.splice(0); setTimeout(() => { for (const m of q) deliver(m); }, 0); };
@@ -209,7 +212,7 @@ function makeBrowser({ locks = false, storageEvents = true, lag = false } = {}) 
     removeEventListener() {}
     close() { this.closed = true; }
   }
-  const browser = { store, tabs, locksApi, write, storePair, signIn, rawSignIn, hold, release, deliverNow, deliverBroadcasts, lag, BroadcastChannel: BroadcastChannelStub, get landing() { return landing; } };
+  const browser = { store, tabs, locksApi, write, storePair, signIn, rawSignIn, hold, release, deliverNow, deliverFirst, queued, deliverBroadcasts, lag, BroadcastChannel: BroadcastChannelStub, get landing() { return landing; } };
   return browser;
 }
 
@@ -238,7 +241,9 @@ function makeLanding(browser, server) {
 // localStorage write throws, e.g. QuotaExceededError), noAbortSignalTimeout (an older
 // browser without AbortSignal.timeout), between(tab) (runs after state.js and before
 // router.js, e.g. a sign-out elsewhere while this page is still loading).
-function makeTab(browser, server, label, { blockRevokes = false, throwOnSet = null, noAbortSignalTimeout = false, between = null } = {}) {
+// noSessionJs: core/session.js is not loaded (an app.html from before it was added, served
+// with this version's scripts).
+function makeTab(browser, server, label, { blockRevokes = false, throwOnSet = null, noAbortSignalTimeout = false, between = null, noSessionJs = false } = {}) {
   const calls = [], hrefs = [], events = [], listeners = { storage: [] };
   let reloads = 0;
   const location = { search: '', reload: () => { reloads++; events.push('reload'); } };
@@ -289,7 +294,7 @@ function makeTab(browser, server, label, { blockRevokes = false, throwOnSet = nu
   tab.listeners = listeners;
   tab.dispatchStorage = ev => { for (const fn of listeners.storage || []) fn({ ...ev, storageArea: localStorage, url: 'https://app.invalid/sol/app' }); };
   browser.tabs.push(tab);
-  if (SESSION_JS) vm.runInContext(SESSION_JS, sandbox);
+  if (SESSION_JS && !noSessionJs) vm.runInContext(SESSION_JS, sandbox);
   vm.runInContext(SRC['state.js'], sandbox);
   if (between) between(tab);
   for (const f of ['router.js', 'api.js']) vm.runInContext(SRC[f], sandbox);
@@ -1128,6 +1133,110 @@ await scenario("[T51] lagging views and the old landing page (no record): B's la
   await C.request('/groups'); await sleep(40);               // C still holds X's first refresh token: rejected, listed dead too
   const t = openNow(browser, server);
   ok(userOf(t) !== 'user-x', `after that, a tab opened now still does not run as X (it got ${t ? userOf(t) : 'no session'})`);
+});
+
+// ── Round 5: findings of the interrupted review 4 (regression lens) ───────────
+await scenario('[T52] a tab still on the earlier version refreshes the session (no sign-out): its pair, written without a tag, still counts (review 4, E1)', async () => {
+  const server = makeServer(), browser = makeBrowser();
+  const X = browser.signIn(server, 'user-x');                 // stored by this version: tagged
+  const B = makeTab(browser, server, 'B');
+  server.expire(X.access_token);
+  server.sessions.get(X.refresh_token).active = false;        // the earlier-version tab rotated X's refresh token ...
+  const X2 = server.issue('user-x');
+  browser.write(null, 'sol_token', X2.access_token); browser.write(null, 'sol_refresh', X2.refresh_token);   // ... and stored the new pair (two writes, no tag)
+  await settle();
+  ok(openNow(browser, server) === X2.access_token, 'a tab opened now uses that pair');
+  const r = await B.request('/groups'); await settle();
+  ok(r.ok && B.hrefs.length === 0 && B.reloads === 0, `B's next 401 continues with it instead of signing out (${r.ok ? 'ok' : r.e}; redirects ${JSON.stringify(B.hrefs)})`);
+});
+
+await scenario("[T53] lagging views: B sees only part of tab A's write of its refreshed pair (a torn read) when B gets a 401: B continues with A's session (review 4, E5)", async () => {
+  for (const seen of [1, 2]) {
+    const server = makeServer(), browser = makeBrowser({ lag: true, locks: true });
+    const X = browser.signIn(server, 'user-x');
+    await settle();
+    const A = makeTab(browser, server, 'A'), B = makeTab(browser, server, 'B');
+    server.expire(X.access_token);
+    browser.hold();
+    const ra = await A.request('/groups');
+    const q = browser.queued();
+    ok(ra.ok && q.slice(0, 2).join() === 'sol_token,sol_refresh', `A refreshed; its writes are held, tokens first (${q.join()})`);
+    browser.deliverFirst(seen);                               // B has seen the first `seen` of A's writes
+    const rb = await B.request('/groups');
+    browser.release(); await sleep(40);
+    ok(rb.ok && B.hrefs.length === 0 && B.reloads === 0, `B saw ${seen} of A's writes: it continues (${rb.ok ? 'ok' : rb.e}; redirects ${JSON.stringify(B.hrefs)})`);
+    ok(userOf(openNow(browser, server)) === 'user-x', 'and a tab opened afterwards still runs as X');
+  }
+});
+
+await scenario("[T54] the same-user rule never crosses users: a late pair of X written without a tag over Y's tagged sign-in (no record change) is not used", async () => {
+  const server = makeServer(), browser = makeBrowser();
+  browser.signIn(server, 'user-x');
+  const A = makeTab(browser, server, 'A');
+  await A.V('logout()'); await sleep(20);
+  browser.signIn(server, 'user-y');                           // this version's landing page: tagged for Y, after the sign-out
+  const late = server.issue('user-x');                        // a tab still on the earlier version stores its late pair of X
+  browser.write(null, 'sol_token', late.access_token); browser.write(null, 'sol_refresh', late.refresh_token);
+  const t = openNow(browser, server);
+  ok(userOf(t) !== 'user-x', `a tab opened now does not run as X (it got ${t ? userOf(t) : 'no session'})`);
+});
+
+await scenario('[T55] an app.html from before core/session.js, served with this version\'s scripts: the page loads without errors, takes no session and goes to the sign-in page; sign-out still works (review 4, E3)', async () => {
+  const server = makeServer(), browser = makeBrowser();
+  const X = browser.signIn(server, 'user-x');
+  let P = null, threw = null;
+  try { P = makeTab(browser, server, 'P', { noSessionJs: true }); } catch (e) { threw = e; }
+  ok(threw === null, `state.js, router.js and api.js load without core/session.js${threw ? ' (' + String(threw).split('\n')[0] + ')' : ''}`);
+  if (!P) return;
+  ok(P.V('token') === null && P.hrefs[0] === '/sol/', `no session is taken; the page goes to the sign-in page (saw ${JSON.stringify(P.hrefs)})`);
+  let out = null; try { await P.V('logout()'); out = 'ok'; } catch (e) { out = String(e).split('\n')[0]; }
+  ok(out === 'ok' && server.active('user-x').length === 0 && !browser.store.has('sol_refresh'), `logout() still works: tokens removed and the session revoked (${out}; active ${JSON.stringify(server.active('user-x'))})`);
+  void X;
+});
+
+await scenario('[T56] a refresh the server received (and rotated) answers only after the bound: the request fails then, but the late answer is kept and the next request works (review 4, E4)', async () => {
+  const server = makeServer(), browser = makeBrowser({ locks: true });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B');
+  server.expire(X.access_token);
+  const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');   // received and rotated at once; the answer waits
+  const first = await within(B.request('/groups'), 23000);
+  ok(first.settled && !first.v.ok && B.hrefs.length === 0 && B.reloads === 0, `the request fails at the bound and B stays (${first.settled ? first.v.e : 'still waiting'})`);
+  g.release(); await sleep(60);
+  const live = openNow(browser, server);
+  ok(live && userOf(live) === 'user-x' && live !== X.access_token, 'the late answer was stored: a tab opened now uses the rotated pair');
+  const again = await B.request('/groups'); await settle();
+  ok(again.ok && sent(server, 'B', '/auth/refresh').length === 1, `the next request works without another refresh (${again.ok ? 'ok' : again.e}; refreshes ${sent(server, 'B', '/auth/refresh').length})`);
+});
+
+await scenario('[T57] while the late answer is still awaited, the tab\'s next 401 waits for it instead of sending the rotated token again', async () => {
+  const server = makeServer(), browser = makeBrowser({ locks: true });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B');
+  server.expire(X.access_token);
+  const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');
+  const first = await within(B.request('/groups'), 23000);
+  ok(first.settled && !first.v.ok, `the first request fails at the bound (${first.settled ? first.v.e : 'still waiting'})`);
+  const second = B.request('/circles');
+  await sleep(300);
+  g.release();
+  const r2 = await within(second, 23000); await settle();
+  ok(r2.settled && r2.v.ok, `the second request succeeds with the late pair (${r2.settled ? (r2.v.ok ? 'ok' : r2.v.e) : 'still waiting'})`);
+  ok(sent(server, 'B', '/auth/refresh').length === 1 && B.hrefs.length === 0, `one refresh in all, no sign-out (refreshes ${sent(server, 'B', '/auth/refresh').length}; redirects ${JSON.stringify(B.hrefs)})`);
+});
+
+await scenario('[T58] X signs out while that late answer is still awaited: when it comes, nothing is stored and its session is revoked', async () => {
+  const server = makeServer(), browser = makeBrowser({ locks: true });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B'), A = makeTab(browser, server, 'A');
+  server.expire(X.access_token);
+  const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');
+  const first = await within(B.request('/groups'), 23000);
+  ok(first.settled && !first.v.ok, 'the request failed at the bound');
+  await A.V('logout()'); await sleep(20);
+  g.release(); await sleep(80);
+  ok(openNow(browser, server) === null, 'nothing counts afterwards');
+  ok(server.active('user-x').length === 0, `the late session was revoked (active ${JSON.stringify(server.active('user-x'))})`);
 });
 
 // ── keepalive ───────────────────────────────────────────────────────────────
