@@ -86,22 +86,30 @@ let _refreshPromise = null;
 let _refreshOutcome = null;
 let _refreshAdopted = false;   // the last successful call used another tab's newer token
 const REFRESH_LOCK_WAIT_MS = 10000;
-// A refresh that has not answered by then is given up (and counts as
-// 'transient'): otherwise one hung request would hold the refresh lock, and so
-// every tab's refresh, indefinitely. Limit: if the server did receive it, it
-// rotated the refresh token, and this device's next refresh is rejected (the
-// user signs in again).
+// This tab stops waiting for a refresh that has not answered by then: the
+// request fails ('transient') and the lock is released, so one hung request
+// does not hold every tab's refresh. The answer is still kept (_lateRefresh):
+// if the server received the request it has rotated the refresh token, and
+// dropping the answer would end the session. When it comes it is handled as if
+// it had come in time, and this tab's next 401 waits for it first. The request
+// itself is given up after REFRESH_ANSWER_MAX_MS.
 const REFRESH_FETCH_TIMEOUT_MS = 20000;
+const REFRESH_ANSWER_MAX_MS = 120000;
+let _lateRefresh = null;
 
 async function _tryRefresh() {
   // One refresh per tab at a time; concurrent 401s share it (also while another
   // tab's sign-out is emptying the storage, so it can revoke its late session).
   if (_refreshPromise) return _refreshPromise;
-  const s = _solLiveSession();
-  if (!s || !s.refresh) { _refreshOutcome = 'signed-out'; return false; }
+  const late = _lateRefresh;
+  const s = _liveSession();
+  if (!late && (!s || !s.refresh)) { _refreshOutcome = 'signed-out'; return false; }
   const epoch = _authEpoch;
   const sentWith = token;
-  const p = _withRefreshLock(() => _refreshSession(epoch, sentWith));
+  // An earlier refresh of this tab may still answer: wait for it (bounded)
+  // rather than send the token it may already have rotated.
+  const p = (late ? _withTimeout(late, REFRESH_FETCH_TIMEOUT_MS) : Promise.resolve())
+    .then(() => _withRefreshLock(() => _refreshSession(epoch, sentWith)));
   _refreshPromise = p;
   p.then(() => { if (_refreshPromise === p) _refreshPromise = null; });
   return p;
@@ -134,12 +142,12 @@ async function _withRefreshLock(fn) {
   }
 }
 
-// POST /auth/refresh, given up after REFRESH_FETCH_TIMEOUT_MS (also while its
-// body is being read). Returns { status } or { status, body }; throws when there
-// is no answer or the body cannot be read.
+// POST /auth/refresh, given up after REFRESH_ANSWER_MAX_MS (also while its body
+// is being read). Returns { status } or { status, body }; throws when there is
+// no answer or the body cannot be read.
 async function _postRefresh(refreshToken) {
   const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
-  const timer = ctrl ? setTimeout(() => ctrl.abort(), REFRESH_FETCH_TIMEOUT_MS) : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), REFRESH_ANSWER_MAX_MS) : null;
   try {
     const r = await fetch(API + '/auth/refresh', {
       method: 'POST',
@@ -158,6 +166,10 @@ async function _postRefresh(refreshToken) {
 // pair counts only if its commit tag matches and its refresh token is not dead.
 // Nothing here deletes a stored session (see core/session.js for why).
 async function _refreshSession(epoch, sentWith) {
+  // True while handling an answer that came after this tab stopped waiting: it
+  // then stores, uses or revokes the session as usual, but the outcome of the
+  // request that gave up was already reported, and another may be in progress.
+  let late = false;
   const ended = () => epoch !== _authEpoch || _signedOutSinceLoad();
   // Another user's access token is stored, whether or not its pair counts yet
   // (a sign-in elsewhere may be half written).
@@ -171,8 +183,8 @@ async function _refreshSession(epoch, sentWith) {
     if (!s || !s.refresh) return otherUserStored() ? 'stale' : 'none';
     return (ended() || _isOtherUser(s.token)) ? 'stale' : 'mine';
   };
-  const fail = outcome => { _refreshOutcome = outcome; return false; };
-  const adopt = t => { token = t; _refreshAdopted = true; return true; };
+  const fail = outcome => { if (!late) _refreshOutcome = outcome; return false; };
+  const adopt = t => { token = t; if (!late) _refreshAdopted = true; return true; };
   const start = _solLiveSession();
   const refresh = start && start.refresh;
   _refreshAdopted = false;
@@ -206,25 +218,49 @@ async function _refreshSession(epoch, sentWith) {
     // Another tab already refreshed this session: use its access token rather
     // than rotating the refresh token again.
     if (start.token !== sentWith && !_expiresSoon(start.token)) return adopt(start.token);
+    const answer = _postRefresh(refresh);
+    const TIMED_OUT = {};
+    let timer = null;
     let a;
-    try { a = await _postRefresh(refresh); } catch { return afterTransient(); }
+    try {
+      a = await Promise.race([answer, new Promise(resolve => { timer = setTimeout(() => resolve(TIMED_OUT), REFRESH_FETCH_TIMEOUT_MS); })]);
+    } catch {
+      return afterTransient();
+    } finally {
+      clearTimeout(timer);
+    }
+    if (a === TIMED_OUT) {
+      const kept = answer
+        .then(x => { late = true; return handle(x); }, () => false)
+        .catch(() => false)
+        .finally(() => { if (_lateRefresh === kept) _lateRefresh = null; });
+      _lateRefresh = kept;
+      return fail('transient');
+    }
+    return await handle(a);
+  } catch {
+    return afterTransient();
+  }
+
+  // What to do with the answer to this refresh.
+  async function handle(a) {
     if (a.status === 401 || a.status === 403) return afterRejected();
     const d = a.body;
     if (!d || typeof d.access_token !== 'string' || !d.refresh_token) return afterTransient();
-    const late = d.refresh_token;
+    const issued = d.refresh_token;
     if (ended()) {
       // Signed out (here or in another tab) while this refresh was in flight:
       // store nothing (that would sign the browser back in) and revoke what
       // the server just created, before this tab navigates (bounded).
-      await _withTimeout(_revokeRefresh(late), REVOKE_TIMEOUT_MS);
+      await _withTimeout(_revokeRefresh(issued), REVOKE_TIMEOUT_MS);
       return fail(stored() === 'none' ? 'signed-out' : 'stale');
     }
     if (_isOtherUser(d.access_token)) {
       // The stored refresh token was another user's: keep that user's rotated
       // session for them if it is still the one stored, but do not use it here.
       const s = _solStoredSession();
-      if (s && s.refresh === refresh) _solWriteSession(d.access_token, late);
-      else _revokeRefresh(late);
+      if (s && s.refresh === refresh) _solWriteSession(d.access_token, issued);
+      else _revokeRefresh(issued);
       return fail('stale');
     }
     const now = _solStoredSession();
@@ -232,9 +268,9 @@ async function _refreshSession(epoch, sentWith) {
       // Storage still holds the session this refresh used (also when another
       // tab's refresh of the same token was rejected meanwhile and listed it as
       // dead: ours rotated it first): keep the pair.
-      _solWriteSession(d.access_token, late);
+      _solWriteSession(d.access_token, issued);
       _myToken = d.access_token;
-      _myRefresh = late;
+      _myRefresh = issued;
       token = d.access_token;
       return true;
     }
@@ -244,7 +280,7 @@ async function _refreshSession(epoch, sentWith) {
       // redundant: revoke it without waiting (keepalive; nothing depends on the
       // answer). Use the stored session if its access token is usable;
       // otherwise keep using our own fresh access token, in memory only.
-      _revokeRefresh(late);
+      _revokeRefresh(issued);
       if (!_expiresSoon(live.token)) return adopt(live.token);
       token = d.access_token;
       return true;
@@ -252,10 +288,8 @@ async function _refreshSession(epoch, sentWith) {
     // No session of this tab's user counts now: a sign-out this tab has not
     // seen yet (or whose record could not be written), or another user's
     // sign-in, perhaps half written. Store nothing and revoke what we were given.
-    await _withTimeout(_revokeRefresh(late), REVOKE_TIMEOUT_MS);
+    await _withTimeout(_revokeRefresh(issued), REVOKE_TIMEOUT_MS);
     return fail(stored() === 'stale' ? 'stale' : 'signed-out');
-  } catch {
-    return afterTransient();
   }
 }
 
@@ -345,8 +379,9 @@ const INIT_RETRY_MAX_MS = 30000;
 let _initRetryMs = INIT_RETRY_FIRST_MS;
 async function init() {
   // This tab is already leaving (a sign-out, or another user's sign-in, in
-  // another tab while it loaded): load nothing.
-  if (_logoutPromise || _leavePending()) return;
+  // another tab while it loaded), or state.js took no session and sent it to
+  // the sign-in page: load nothing.
+  if (_logoutPromise || _leavePending() || !token) return;
   try {
     me = await api('/auth/me');
     _initRetryMs = INIT_RETRY_FIRST_MS;

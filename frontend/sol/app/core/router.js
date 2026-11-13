@@ -65,7 +65,7 @@ function nav(page) {
 //   refresh that does not answer in time keeps it.
 let _authEpoch = 0;
 const REVOKE_TIMEOUT_MS = 3000;
-const SIGNOUT_KEY = SOL_SIGNOUT_KEY;
+const SIGNOUT_KEY = 'sol_signout';   // SOL_SIGNOUT_KEY in core/session.js (named here so this file loads without it)
 const _signoutAtLoad = (typeof _signoutAtStart !== 'undefined') ? _signoutAtStart : localStorage.getItem(SIGNOUT_KEY);
 let _signoutSeen = false;   // a 'signed-out' message, or the record changing, reached this tab
 let _leaving = false;       // this tab is already navigating away or reloading
@@ -79,8 +79,22 @@ let _myToken = null, _myRefresh = null;
 function _endMySession() {
   const mine = _myRefresh;
   _myToken = _myRefresh = null;
-  _solMarkDead(mine);
+  if (typeof _solMarkDead === 'function') _solMarkDead(mine);
   return _revokeRefresh(mine);
+}
+
+// The stored session that counts (core/session.js), or null. Also null when
+// core/session.js did not load (an app.html from before it): such a page takes
+// no session (see core/state.js) and must still be able to sign out and leave.
+function _liveSession() { return (typeof _solLiveSession === 'function') ? _solLiveSession() : null; }
+
+// This tab's refresh still in flight, and one it stopped waiting for whose
+// answer may still come (core/api.js). Leaving first would cancel either.
+function _refreshesInFlight() {
+  return Promise.all([
+    (typeof _refreshPromise !== 'undefined') ? _refreshPromise : null,
+    (typeof _lateRefresh !== 'undefined') ? _lateRefresh : null,
+  ]);
 }
 
 // True when a sign-out happened, in this tab or another, since this tab loaded.
@@ -167,19 +181,22 @@ function logout() {
   _authEpoch++;
   const refresh = localStorage.getItem('sol_refresh');
   // core/api.js may not have run yet; then no refresh can be in flight.
-  const inflightRefresh = (typeof _refreshPromise !== 'undefined') ? _refreshPromise : null;
+  const inflightRefresh = _refreshesInFlight();
   // The record and the empty tag go first, so the other tabs see the sign-out
   // before the tokens go. If storage is full, the record is retried once
   // removing the tokens has freed space; even if it never lands, the
   // announcement reaches the open tabs, and a refresh elsewhere will not store
   // a pair into the emptied storage (see _refreshSession).
-  const tagNoSession = () => { try { localStorage.setItem(SOL_SESSION_KEY, _solTag(null, null, localStorage.getItem(SIGNOUT_KEY))); } catch {} };
-  const recorded = _solWriteSignoutRecord();
+  // (Written here rather than through core/session.js, so that sign-out works
+  // on a page where that file did not load.)
+  const writeRecord = () => { try { localStorage.setItem(SIGNOUT_KEY, Date.now() + '-' + Math.random().toString(36).slice(2)); return true; } catch { return false; } };
+  const tagNoSession = () => { try { if (typeof _solTag === 'function') localStorage.setItem(SOL_SESSION_KEY, _solTag(null, null, localStorage.getItem(SIGNOUT_KEY))); } catch {} };
+  const recorded = writeRecord();
   tagNoSession();
   localStorage.removeItem('sol_token');
   localStorage.removeItem('sol_refresh');
-  if (!recorded && _solWriteSignoutRecord()) tagNoSession();
-  _solAnnounceSignout();
+  if (!recorded && writeRecord()) tagNoSession();
+  if (typeof _solAnnounceSignout === 'function') _solAnnounceSignout();
   _myToken = _myRefresh = null;
   token = null;
   _logoutPromise = _withTimeout(Promise.all([_revokeRefresh(refresh), inflightRefresh]), REVOKE_TIMEOUT_MS)
@@ -202,8 +219,7 @@ function _leaveAfterRefresh(reload) {
   _leaveWantReload = !!reload || _leaveWantReload === true;
   if (!first) return;
   token = null;
-  const inflight = (typeof _refreshPromise !== 'undefined') ? _refreshPromise : null;
-  _withTimeout(inflight, REVOKE_TIMEOUT_MS).then(() => _leave(_leaveWantReload || !!_solLiveSession()));
+  _withTimeout(_refreshesInFlight(), REVOKE_TIMEOUT_MS).then(() => _leave(_leaveWantReload || !!_liveSession()));
 }
 
 // Follow the other tabs at once instead of acting with this tab's in-memory
@@ -218,7 +234,7 @@ function _onSignedOutElsewhere() {
   _endMySession();
   _leaveAfterRefresh(false);
 }
-if (_solChannel) {
+if (typeof _solChannel !== 'undefined' && _solChannel) {
   _solChannel.addEventListener('message', e => { if (e && e.data && e.data.type === 'signed-out') _onSignedOutElsewhere(); });
 }
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
@@ -235,7 +251,7 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
   // _leaving makes them change nothing, so the reload is not replaced.
   window.addEventListener('pageshow', e => {
     if (!e || !e.persisted) return;
-    const stored = _solLiveSession();
+    const stored = _liveSession();
     if (_logoutPromise || _leaving || _signedOutSinceLoad() || !stored || _isOtherUser(stored.token)) {
       if (_signedOutSinceLoad()) _endMySession();
       _leaving = true;
@@ -247,7 +263,7 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
 // A sign-out, or another user's sign-in, in another tab while this page was
 // still loading (before the listener above existed): leave now.
 if (typeof token !== 'undefined' && token) {
-  const storedAtLoad = _solLiveSession();
+  const storedAtLoad = _liveSession();
   if (_signedOutSinceLoad()) _leaveAfterRefresh(false);
   else if (storedAtLoad && _isOtherUser(storedAtLoad.token)) _leaveAfterRefresh(true);
 }
