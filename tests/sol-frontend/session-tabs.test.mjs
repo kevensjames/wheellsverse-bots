@@ -845,6 +845,51 @@ await scenario('[T39] a storage clear event (key null) signs the tab out; a relo
   }
 });
 
+await scenario('[T40] X signs out and signs in again in another tab before tab B reacts: B reloads (a session is stored by then) instead of showing the sign-in page', async () => {
+  const server = makeServer(), browser = makeBrowser();
+  browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B'), A = makeTab(browser, server, 'A');
+  A.V('logout()');
+  browser.signIn(server, 'user-x');                     // the landing page stores X's new session before B's events run
+  await sleep(50);
+  ok(B.reloads === 1 && B.hrefs.length === 0, `B reloads once (events ${JSON.stringify(B.events)})`);
+});
+
+await scenario("[T41] B's refresh is rejected because another tab rotated first, and that tab's stored access token is already expired: B does not adopt it", async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B');
+  server.expire(X.access_token);
+  server.sessions.get(X.refresh_token).active = false;   // rotated by another tab ...
+  const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');
+  const p = B.request('/groups');
+  await settle();
+  const stale = server.issue('user-x', 1000); server.expire(stale.access_token);   // ... which stored a pair whose access token is expired
+  browser.write(null, 'sol_token', stale.access_token); browser.write(null, 'sol_refresh', stale.refresh_token);
+  g.release();
+  const r = await p; await settle();
+  ok(g.hit && server.log.find(l => l.tab === 'B' && l.path === '/auth/refresh').status === 401, "B's refresh was rejected (401)");
+  ok(!server.log.some(l => l.tab === 'B' && l.bearer === stale.access_token), 'B did not send the expired token');
+  ok(browser.store.get('sol_refresh') === stale.refresh_token && B.hrefs.length === 0, `the newer session is kept and B stays (${r.ok ? 'ok' : r.e})`);
+});
+
+await scenario("[T42] B's refresh answers while another user's sign-in is half written (Y's access token, still X's refresh token): B writes nothing over it", async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B');
+  server.expire(X.access_token);
+  const g = server.gate(e => e.path === '/auth/refresh');
+  const p = B.request(...PAY);
+  await settle();
+  const Y = server.issue('user-y');
+  browser.write(null, 'sol_token', Y.access_token);     // the landing page's first write has landed, its second not yet
+  g.release(); await p; await settle();
+  ok(browser.store.get('sol_token') === Y.access_token, "Y's access token was not overwritten");
+  browser.write(null, 'sol_refresh', Y.refresh_token);   // the second write lands
+  ok(server.active('user-x').length === 0, `B's late session of X was revoked (active ${JSON.stringify(server.active('user-x'))})`);
+  ok(!server.log.some(l => l.tab === 'B' && l.as === 'user-y') && B.reloads === 1, 'B sent nothing as Y and reloads');
+});
+
 // ── keepalive ───────────────────────────────────────────────────────────────
 await scenario('[T16] the sign-out revoke is sent with keepalive, so a navigation cannot cancel it (N5)', async () => {
   const server = makeServer(), browser = makeBrowser();
