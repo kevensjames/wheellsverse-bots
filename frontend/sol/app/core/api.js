@@ -99,6 +99,19 @@ async function _refreshSession(epoch, sentWith) {
   const refresh = localStorage.getItem('sol_refresh');
   // Clear the stored session only if it is still the one this refresh used.
   const clearMine = () => { if (localStorage.getItem('sol_refresh') === refresh) { localStorage.removeItem('sol_token'); localStorage.removeItem('sol_refresh'); } };
+  // The refresh was rejected or did not complete. If another tab stored a newer
+  // session of this user meanwhile (it rotated this token first, without the
+  // lock), use it; otherwise this tab's session is over.
+  const afterFailure = () => {
+    const now = stored();
+    if (now === 'mine' && localStorage.getItem('sol_refresh') !== refresh && localStorage.getItem('sol_token')) {
+      token = localStorage.getItem('sol_token');
+      return true;
+    }
+    if (now === 'stale') return fail('stale');
+    clearMine();
+    return fail('signed-out');
+  };
   try {
     const before = stored();
     if (before !== 'mine') return fail(before === 'none' ? 'signed-out' : 'stale');
@@ -111,18 +124,7 @@ async function _refreshSession(epoch, sentWith) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ refresh_token: refresh }),
     });
-    if (!r.ok) {
-      const now = stored();
-      // Rejected because another tab rotated this token first (no lock): use
-      // the session it stored.
-      if (now === 'mine' && localStorage.getItem('sol_refresh') !== refresh && localStorage.getItem('sol_token')) {
-        token = localStorage.getItem('sol_token');
-        return true;
-      }
-      if (now === 'stale') return fail('stale');
-      clearMine();
-      return fail('signed-out');
-    }
+    if (!r.ok) return afterFailure();
     const d = await r.json();
     const late = d && d.refresh_token;
     if (ended()) {
@@ -160,8 +162,7 @@ async function _refreshSession(epoch, sentWith) {
     token = d.access_token;
     return true;
   } catch {
-    clearMine();
-    return fail('signed-out');
+    return afterFailure();
   }
 }
 
