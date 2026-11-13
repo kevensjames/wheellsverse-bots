@@ -43,45 +43,48 @@ function nav(page) {
 // and the Sign out button can be clicked before api.js has run, so logout()
 // must not depend on api.js having loaded.
 //
-// The session is shared by every tab of this origin (localStorage), so a tab
-// guards against three things (see _tryRefresh in core/api.js):
-// - A sign-out, in this tab (_authEpoch) or in another (SIGNOUT_KEY, which
-//   logout() and the landing page's sign-in change when they end a session). A
-//   request from before it is never refreshed or re-sent, even if someone has
-//   signed in again since, and a refresh that answers after it stores nothing
-//   and revokes what it was given. Each tab has its own copy of localStorage
-//   that other tabs' writes reach a little later, so a tab can still store a
-//   late pair just after a sign-out elsewhere; it removes and revokes that pair
-//   when the sign-out reaches it (_dropMySession).
+// The session is shared by every tab of this origin (localStorage; see
+// core/session.js for how a stored pair counts), so a tab guards against three
+// things (see _tryRefresh in core/api.js):
+// - A sign-out, in this tab (_authEpoch) or in another (the sign-out record,
+//   which logout() and the landing page's sign-in change when they end a
+//   session, and a 'signed-out' message on the sol-auth channel). A request
+//   from before it is never refreshed or re-sent, even if someone has signed in
+//   again since, and a refresh that answers after it stores nothing and revokes
+//   what it was given. Each tab has its own copy of localStorage that other
+//   tabs' writes reach a little later, so a tab can still store a late pair just
+//   after a sign-out elsewhere; that pair carries the earlier record in its tag,
+//   so no page uses it, and the tab revokes it when the sign-out reaches it
+//   (_endMySession). No tab deletes anything for this.
 // - Another user's session. A tab only continues with sessions of the user it
 //   was opened for (the `sub` of its access token); otherwise it reloads.
 // - Two tabs refreshing at once. Refreshes take a lock shared by the tabs (Web
 //   Locks API) where available; a tab whose refresh is rejected because another
 //   tab rotated the token first uses the session that tab stored, and only a
-//   rejected refresh (401/403) ends the session: a 429, 5xx or network error
-//   keeps it.
+//   rejected refresh (401/403) ends the session: a 429, 5xx, network error or a
+//   refresh that does not answer in time keeps it.
 let _authEpoch = 0;
 const REVOKE_TIMEOUT_MS = 3000;
-const SIGNOUT_KEY = 'sol_signout';
+const SIGNOUT_KEY = SOL_SIGNOUT_KEY;
 const _signoutAtLoad = (typeof _signoutAtStart !== 'undefined') ? _signoutAtStart : localStorage.getItem(SIGNOUT_KEY);
-let _leaving = false;   // this tab is already navigating away or reloading
+let _signoutSeen = false;   // a 'signed-out' message, or the record changing, reached this tab
+let _leaving = false;       // this tab is already navigating away or reloading
 
 // The pair this tab itself last stored (see _refreshSession in core/api.js).
-// Chromium keeps a copy of localStorage per tab, so this tab can store a late
-// pair just after a sign-out (or another user's sign-in) elsewhere that it has
-// not seen yet, and its write can land last. When it does see that sign-out or
-// sign-in, it removes that pair if it is still stored, and revokes it.
+// When a sign-out or another user's sign-in elsewhere reaches this tab, that
+// pair's session is over: list it as dead (so no page uses it, even if this
+// tab's late write landed last) and revoke it. Nothing is deleted: this tab's
+// copy of localStorage may be behind, and a delete could remove a newer session.
 let _myToken = null, _myRefresh = null;
-function _dropMySession() {
-  if (_myToken && localStorage.getItem('sol_token') === _myToken) localStorage.removeItem('sol_token');
-  if (_myRefresh && localStorage.getItem('sol_refresh') === _myRefresh) localStorage.removeItem('sol_refresh');
+function _endMySession() {
   const mine = _myRefresh;
   _myToken = _myRefresh = null;
+  _solMarkDead(mine);
   return _revokeRefresh(mine);
 }
 
 // True when a sign-out happened, in this tab or another, since this tab loaded.
-function _signedOutSinceLoad() { return localStorage.getItem(SIGNOUT_KEY) !== _signoutAtLoad; }
+function _signedOutSinceLoad() { return _signoutSeen || localStorage.getItem(SIGNOUT_KEY) !== _signoutAtLoad; }
 
 // The claims of an access token (a JWT), or null when they cannot be read. Used
 // only to tell apart sessions of different users in this browser, never to
@@ -145,16 +148,17 @@ function _leave(reload) {
   else window.location.href = '/sol/';
 }
 
-// Sign out. Records the sign-out for the other tabs (SIGNOUT_KEY), clears BOTH
-// stored tokens, so nothing can reuse them, then asks the backend to revoke this
-// device's refresh session (POST /auth/logout), then leaves. Bumping _authEpoch
-// stops a refresh already in flight in this tab from storing new tokens
-// afterwards; logout also waits for that refresh, so if it answers within the
-// bound the session it created is revoked before the page goes away. api()
-// calls that get a 401 meanwhile wait for this sign-out instead of navigating
-// first. The whole wait is bounded (REVOKE_TIMEOUT_MS): a failed, slow or
-// unreachable revoke never keeps the user signed in here. Repeated clicks share
-// one sign-out.
+// Sign out. Records the sign-out for the other tabs (a new sign-out record and,
+// with it, a tag for no session, so a pair another tab writes late does not
+// count), clears BOTH stored tokens, so nothing can reuse them, announces it on
+// the sol-auth channel, then asks the backend to revoke this device's refresh
+// session (POST /auth/logout), then leaves. Bumping _authEpoch stops a refresh
+// already in flight in this tab from storing new tokens afterwards; logout also
+// waits for that refresh, so if it answers within the bound the session it
+// created is revoked before the page goes away. api() calls that get a 401
+// meanwhile wait for this sign-out instead of navigating first. The whole wait
+// is bounded (REVOKE_TIMEOUT_MS): a failed, slow or unreachable revoke never
+// keeps the user signed in here. Repeated clicks share one sign-out.
 // Limits: revocation ends the refresh session only; an access token already
 // issued stays valid at the API until it expires.
 let _logoutPromise = null;
@@ -164,16 +168,18 @@ function logout() {
   const refresh = localStorage.getItem('sol_refresh');
   // core/api.js may not have run yet; then no refresh can be in flight.
   const inflightRefresh = (typeof _refreshPromise !== 'undefined') ? _refreshPromise : null;
-  // Record the sign-out first, so the other tabs see it before the tokens go. If
-  // the write fails (storage full), retry once after removing the tokens has
-  // freed space. Even if it never lands, a refresh elsewhere will not store a
-  // pair into the emptied storage (see _refreshSession).
-  const record = () => localStorage.setItem(SIGNOUT_KEY, Date.now() + '-' + Math.random().toString(36).slice(2));
-  let recorded = false;
-  try { record(); recorded = true; } catch {}
+  // The record and the empty tag go first, so the other tabs see the sign-out
+  // before the tokens go. If storage is full, the record is retried once
+  // removing the tokens has freed space; even if it never lands, the
+  // announcement reaches the open tabs, and a refresh elsewhere will not store
+  // a pair into the emptied storage (see _refreshSession).
+  const tagNoSession = () => { try { localStorage.setItem(SOL_SESSION_KEY, _solTag(null, null, localStorage.getItem(SIGNOUT_KEY))); } catch {} };
+  const recorded = _solWriteSignoutRecord();
+  tagNoSession();
   localStorage.removeItem('sol_token');
   localStorage.removeItem('sol_refresh');
-  if (!recorded) { try { record(); } catch {} }
+  if (!recorded && _solWriteSignoutRecord()) tagNoSession();
+  _solAnnounceSignout();
   _myToken = _myRefresh = null;
   token = null;
   _logoutPromise = _withTimeout(Promise.all([_revokeRefresh(refresh), inflightRefresh]), REVOKE_TIMEOUT_MS)
@@ -185,7 +191,8 @@ function logout() {
 // that the session changed, stores nothing and revokes the session it was
 // given, and leaving first would cancel that. Every caller shares one wait; a
 // reload wins over the sign-in page, and the tab also reloads (rather than
-// showing the sign-in page) when a session is stored by the time it leaves.
+// showing the sign-in page) when a session that counts is stored by the time it
+// leaves.
 // Limit: a refresh that answers after the bound is cancelled by the navigation;
 // the session the server created for it then stays active, held by no browser.
 let _leaveWantReload = null;
@@ -196,32 +203,41 @@ function _leaveAfterRefresh(reload) {
   if (!first) return;
   token = null;
   const inflight = (typeof _refreshPromise !== 'undefined') ? _refreshPromise : null;
-  _withTimeout(inflight, REVOKE_TIMEOUT_MS).then(() => _leave(_leaveWantReload || !!localStorage.getItem('sol_refresh')));
+  _withTimeout(inflight, REVOKE_TIMEOUT_MS).then(() => _leave(_leaveWantReload || !!_solLiveSession()));
 }
 
 // Follow the other tabs at once instead of acting with this tab's in-memory
-// access token until it expires: a sign-out elsewhere (when its record was
-// written) signs this tab out, and another user signing in reloads it; in both
-// cases this tab first drops a pair it stored itself. Other changes (a refresh
-// by another tab, or another tab dropping only its access token after an
-// error) change nothing.
+// access token until it expires: a sign-out elsewhere (its record, or its
+// announcement on the sol-auth channel) signs this tab out, and another user
+// signing in reloads it; in both cases this tab first ends a pair it stored
+// itself. Other changes (a refresh by another tab, another tab listing a dead
+// refresh token) change nothing.
+function _onSignedOutElsewhere() {
+  _signoutSeen = true;
+  if (_leaving || _logoutPromise) return;
+  _endMySession();
+  _leaveAfterRefresh(false);
+}
+if (_solChannel) {
+  _solChannel.addEventListener('message', e => { if (e && e.data && e.data.type === 'signed-out') _onSignedOutElsewhere(); });
+}
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('storage', e => {
+    if (e.key === null || e.key === SIGNOUT_KEY) { _onSignedOutElsewhere(); return; }
     if (_leaving || _logoutPromise) return;
-    if (e.key === null || e.key === SIGNOUT_KEY) { _dropMySession(); _leaveAfterRefresh(false); }
-    else if (e.key === 'sol_token' && e.newValue && _isOtherUser(e.newValue)) { _dropMySession(); _leaveAfterRefresh(true); }
+    if (e.key === 'sol_token' && e.newValue && _isOtherUser(e.newValue)) { _endMySession(); _leaveAfterRefresh(true); }
   });
   // Back/forward cache: a restored page keeps its old JS state and still shows
-  // the old session's data. If this page signed out, or the stored session is
-  // gone or another user's, reload it so state.js starts again from what is
-  // stored now (and sends the tab to the sign-in page when nothing is).
-  // Storage events the page missed while cached arrive after this; _leaving
-  // makes them change nothing, so the reload is not replaced.
+  // the old session's data. If this page signed out, or no session that counts
+  // is stored or it is another user's, reload it so state.js starts again from
+  // what is stored now (and sends the tab to the sign-in page when nothing
+  // counts). Storage events the page missed while cached arrive after this;
+  // _leaving makes them change nothing, so the reload is not replaced.
   window.addEventListener('pageshow', e => {
     if (!e || !e.persisted) return;
-    const stored = localStorage.getItem('sol_token');
-    if (_logoutPromise || _leaving || _signedOutSinceLoad() || !stored || _isOtherUser(stored)) {
-      if (_signedOutSinceLoad()) _dropMySession();
+    const stored = _solLiveSession();
+    if (_logoutPromise || _leaving || _signedOutSinceLoad() || !stored || _isOtherUser(stored.token)) {
+      if (_signedOutSinceLoad()) _endMySession();
       _leaving = true;
       window.location.reload();
     }
@@ -231,9 +247,9 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
 // A sign-out, or another user's sign-in, in another tab while this page was
 // still loading (before the listener above existed): leave now.
 if (typeof token !== 'undefined' && token) {
-  const storedAtLoad = localStorage.getItem('sol_token');
+  const storedAtLoad = _solLiveSession();
   if (_signedOutSinceLoad()) _leaveAfterRefresh(false);
-  else if (storedAtLoad && _isOtherUser(storedAtLoad)) _leaveAfterRefresh(true);
+  else if (storedAtLoad && _isOtherUser(storedAtLoad.token)) _leaveAfterRefresh(true);
 }
 
 // Mobile "More" sheet
