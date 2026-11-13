@@ -176,6 +176,15 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     if (e.key === null || e.key === SIGNOUT_KEY) _leaveAfterRefresh(false);
     else if (e.key === 'sol_token' && e.newValue && _isOtherUser(e.newValue)) _leaveAfterRefresh(true);
   });
+  // Back/forward cache: a restored page keeps its old JS state and still shows
+  // the old session's data. If this page signed out, or the stored session is
+  // gone or another user's, reload it so state.js starts again from what is
+  // stored now (and sends the tab to the sign-in page when nothing is).
+  window.addEventListener('pageshow', e => {
+    if (!e || !e.persisted) return;
+    const stored = localStorage.getItem('sol_token');
+    if (_logoutPromise || _leaving || _signedOutSinceLoad() || !stored || _isOtherUser(stored)) window.location.reload();
+  });
 }
 
 // Mobile "More" sheet

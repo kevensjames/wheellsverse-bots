@@ -29,6 +29,9 @@ async function api(path, opts = {}) {
   // (valid 30 days) before giving up and bouncing the user to login. This
   // keeps long-running tabs alive past the 60-min access-token TTL.
   if (r.status === 401 && !opts._retry) {
+    // This page signed out (it may be back from the back/forward cache): never
+    // refresh from here; let the sign-out finish.
+    if (_logoutPromise) { await _logoutPromise; throw new Error('Signed out'); }
     const refreshed = await _tryRefresh();
     if (refreshed) {
       return api(path, { ...opts, _retry: true });
