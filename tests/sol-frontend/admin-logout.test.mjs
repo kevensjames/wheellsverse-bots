@@ -226,7 +226,8 @@ await scenario('[A10] the session expires, another admin signs in, then an old r
 await scenario('[A11] a sign-in through the real login form ends the earlier session: an old request is not re-sent under it', async () => {
   const AT3 = 'synthetic-admin-access-3', RT3 = 'synthetic-admin-refresh-3';
   const gate = deferred();
-  const app = makeAdmin(call => (call.url === API + '/admin/users' ? gate.p
+  let usersCalls = 0;   // showApp() after the sign-in loads /admin/users itself; only the first call is the old request
+  const app = makeAdmin(call => (call.url === API + '/admin/users' ? (usersCalls++ === 0 ? gate.p : res(200, []))
     : call.url === API + '/auth/login' ? res(200, { access_token: AT3, refresh_token: RT3, token_type: 'bearer' })
     : call.url === API + '/admin/reconcile' ? res(200, {})
     : call.url === API + '/auth/refresh' ? res(200, { access_token: AT2, refresh_token: RT2 })
@@ -237,10 +238,12 @@ await scenario('[A11] a sign-in through the real login form ends the earlier ses
   app.element('aEmail').value = 'admin-y@example.invalid'; app.element('aPassword').value = 'synthetic-password';
   await app.V('adminLogin()');
   ok(app.session.get('sol_admin_token') === AT3, 'the login form stored the new session');
+  const usersAfterLogin = app.calls.filter(c => c.url === API + '/admin/users' && c.headers.Authorization !== 'Bearer ' + AT).length;   // showApp()'s own loads
   gate.resolve(res(401, { detail: 'Token expired' }));
   const outcome = await old; await tick(); await tick();
   ok(app.refreshes().length === 0, `no refresh for the old request (saw ${app.refreshes().length})`);
-  ok(app.calls.filter(c => c.url === API + '/admin/users').length === 1, 'the old request is not re-sent');
+  const usersNow = app.calls.filter(c => c.url === API + '/admin/users' && c.headers.Authorization !== 'Bearer ' + AT).length;
+  ok(usersNow === usersAfterLogin, `the old request is not re-sent under the new session (${usersNow - usersAfterLogin} extra /admin/users call(s))`);
   ok(app.session.get('sol_admin_token') === AT3 && app.session.get('sol_admin_refresh') === RT3, `the new session is unchanged (saw ${JSON.stringify([...app.session])})`);
   ok(/^rejected/.test(outcome), 'the old request fails (' + outcome + ')');
 });
