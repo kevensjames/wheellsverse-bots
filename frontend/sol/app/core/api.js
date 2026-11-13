@@ -35,11 +35,13 @@ async function api(path, opts = {}) {
     }
     // Signing out (core/router.js logout()): let it finish revoking and redirect.
     // Navigating away here first would cancel its revoke request. (During a
-    // sign-out _tryRefresh() always returns false: the refresh token is gone.)
+    // sign-out _tryRefresh() always returns false.)
     if (_logoutPromise) { await _logoutPromise; throw new Error('Signed out'); }
-    localStorage.removeItem('sol_token');
-    localStorage.removeItem('sol_refresh');
-    window.location.href = '/sol/';
+    // A different session is stored now (another user's, or one stored after a
+    // sign-out): this page belongs to the old one, so reload it. The request is
+    // not re-sent under that session.
+    if (_refreshOutcome === 'stale') { _leave(true); throw new Error('Session changed in another tab'); }
+    _leave(false);
     throw new Error('Session expired');
   }
   const d = await r.json().catch(() => ({}));
@@ -47,56 +49,120 @@ async function api(path, opts = {}) {
   return d;
 }
 
-// Exchange refresh_token for a fresh access_token. Returns true on success.
-// Called from api() on 401; never throws so callers can fall through to the
-// login redirect on hard failure.
+// Get a usable access token after a 401. Returns true when this tab may re-send
+// its request with `token`; never throws. When it returns false, _refreshOutcome
+// says why: 'signed-out' (this tab's session is over) or 'stale' (a different
+// session is stored now: another user's, or one stored after a sign-out), and
+// api() leaves or reloads the tab. See the comment above _authEpoch in
+// core/router.js for what this guards against.
 let _refreshPromise = null;
+let _refreshOutcome = null;
+const REFRESH_LOCK_WAIT_MS = 10000;
 async function _tryRefresh() {
-  const refresh = localStorage.getItem('sol_refresh');
-  if (!refresh) return false;
-  // Dedupe concurrent 401s so we don't rotate the refresh token multiple times.
+  if (!localStorage.getItem('sol_refresh')) { _refreshOutcome = 'signed-out'; return false; }
+  // One refresh per tab at a time; concurrent 401s share it.
   if (_refreshPromise) return _refreshPromise;
   const epoch = _authEpoch;
-  _refreshPromise = (async () => {
-    try {
-      const r = await fetch(API + '/auth/refresh', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ refresh_token: refresh }),
-      });
-      if (!r.ok) return false;
-      const d = await r.json();
-      if (epoch !== _authEpoch) {
-        // Signed out while this refresh was in flight: keep the tab signed out
-        // and revoke the session the server just created.
-        await _revokeRefresh(d && d.refresh_token);
-        return false;
-      }
-      if (localStorage.getItem('sol_refresh') !== refresh) {
-        // The stored session changed while this refresh was in flight: another
-        // tab signed out, signed in again, or refreshed. Storing these late
-        // tokens would undo that (after a sign-out elsewhere it would sign the
-        // browser back in), so revoke the session this refresh created and use
-        // whatever session is stored now, if any. localStorage has no
-        // cross-tab compare-and-set; this check and the write below run in one
-        // synchronous step of this tab.
-        await _revokeRefresh(d && d.refresh_token);
-        const storedToken = localStorage.getItem('sol_token');
-        if (epoch !== _authEpoch || !storedToken || !localStorage.getItem('sol_refresh')) return false;
-        token = storedToken;
+  const sentWith = token;
+  const p = _withRefreshLock(() => _refreshSession(epoch, sentWith));
+  _refreshPromise = p;
+  p.then(() => { if (_refreshPromise === p) _refreshPromise = null; });
+  return p;
+}
+
+// Runs fn holding a lock shared by every tab of this origin (Web Locks API), so
+// two tabs never rotate the same refresh token at once. Without the API, or if
+// the lock is not granted within REFRESH_LOCK_WAIT_MS, fn runs without it.
+async function _withRefreshLock(fn) {
+  const locks = (typeof navigator !== 'undefined' && navigator && navigator.locks) || null;
+  if (!locks || typeof locks.request !== 'function') return fn();
+  let started = false;
+  try {
+    const opts = (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function')
+      ? { signal: AbortSignal.timeout(REFRESH_LOCK_WAIT_MS) } : {};
+    return await locks.request('sol-auth-refresh', opts, () => { started = true; return fn(); });
+  } catch {
+    return started ? false : fn();
+  }
+}
+
+async function _refreshSession(epoch, sentWith) {
+  const ended = () => epoch !== _authEpoch || _signedOutSinceLoad();
+  // 'none': no session stored; 'stale': a session that is not this tab's;
+  // 'mine': this tab's user, and no sign-out since this tab loaded.
+  const stored = () => {
+    if (!localStorage.getItem('sol_refresh')) return 'none';
+    const t = localStorage.getItem('sol_token');
+    return (ended() || (t && _isOtherUser(t))) ? 'stale' : 'mine';
+  };
+  const fail = outcome => { _refreshOutcome = outcome; return false; };
+  const refresh = localStorage.getItem('sol_refresh');
+  // Clear the stored session only if it is still the one this refresh used.
+  const clearMine = () => { if (localStorage.getItem('sol_refresh') === refresh) { localStorage.removeItem('sol_token'); localStorage.removeItem('sol_refresh'); } };
+  try {
+    const before = stored();
+    if (before !== 'mine') return fail(before === 'none' ? 'signed-out' : 'stale');
+    // Another tab already refreshed this session: use its access token rather
+    // than rotating the refresh token again.
+    const storedToken = localStorage.getItem('sol_token');
+    if (storedToken && storedToken !== sentWith && !_expiresSoon(storedToken)) { token = storedToken; return true; }
+    const r = await fetch(API + '/auth/refresh', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ refresh_token: refresh }),
+    });
+    if (!r.ok) {
+      const now = stored();
+      // Rejected because another tab rotated this token first (no lock): use
+      // the session it stored.
+      if (now === 'mine' && localStorage.getItem('sol_refresh') !== refresh && localStorage.getItem('sol_token')) {
+        token = localStorage.getItem('sol_token');
         return true;
       }
-      localStorage.setItem('sol_token', d.access_token);
-      localStorage.setItem('sol_refresh', d.refresh_token);
-      token = d.access_token;
-      return true;
-    } catch {
-      return false;
-    } finally {
-      _refreshPromise = null;
+      if (now === 'stale') return fail('stale');
+      clearMine();
+      return fail('signed-out');
     }
-  })();
-  return _refreshPromise;
+    const d = await r.json();
+    const late = d && d.refresh_token;
+    if (ended()) {
+      // Signed out (here or in another tab) while this refresh was in flight:
+      // store nothing (that would sign the browser back in) and revoke what
+      // the server just created, before this tab navigates (bounded).
+      await _withTimeout(_revokeRefresh(late), REVOKE_TIMEOUT_MS);
+      return fail(stored() === 'none' ? 'signed-out' : 'stale');
+    }
+    if (d && _isOtherUser(d.access_token)) {
+      // The stored refresh token was another user's: keep that user's rotated
+      // session for them if it is still the one stored, but do not use it here.
+      if (localStorage.getItem('sol_refresh') === refresh) {
+        localStorage.setItem('sol_token', d.access_token);
+        localStorage.setItem('sol_refresh', late);
+      } else {
+        _revokeRefresh(late);
+      }
+      return fail('stale');
+    }
+    const storedRefresh = localStorage.getItem('sol_refresh');
+    if (storedRefresh && storedRefresh !== refresh) {
+      // Another tab stored a newer session meanwhile. Ours is redundant: revoke
+      // it without waiting (keepalive; nothing depends on the answer) and use
+      // the stored one if it is this tab's user's.
+      _revokeRefresh(late);
+      if (stored() !== 'mine') return fail('stale');
+      token = localStorage.getItem('sol_token') || d.access_token;
+      return true;
+    }
+    // Storage holds the token we sent, or is empty without any sign-out (another
+    // tab's failed refresh cleared it): keep the new pair.
+    localStorage.setItem('sol_token', d.access_token);
+    localStorage.setItem('sol_refresh', late);
+    token = d.access_token;
+    return true;
+  } catch {
+    clearMine();
+    return fail('signed-out');
+  }
 }
 
 // FastAPI returns validation errors as detail=[{loc, msg, type}, ...] on 422.
@@ -192,6 +258,9 @@ async function init() {
     // A sign-out in progress (core/router.js logout()) revokes the session and
     // redirects by itself; navigating here first would cancel its revoke.
     if (_logoutPromise) { await _logoutPromise; return; }
+    // api() is already leaving or reloading this tab (another session is stored,
+    // or none): do not remove a token that may be another session's.
+    if (_leaving) return;
     localStorage.removeItem('sol_token');
     window.location.href = '/sol/';
   }

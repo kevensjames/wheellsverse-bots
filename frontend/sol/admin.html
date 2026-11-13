@@ -403,9 +403,7 @@ async function adminLogin() {
     });
     if (chk.status === 403) throw new Error('Not an admin account (login OK, role missing)');
     if (!chk.ok && chk.status !== 200) throw new Error(`Admin check failed: [${chk.status}]`);
-    sessionStorage.setItem('sol_admin_token', d.access_token);
-    if (d.refresh_token) sessionStorage.setItem('sol_admin_refresh', d.refresh_token);
-    adminToken = d.access_token;
+    _adminStartSession(d.access_token, d.refresh_token);
     showApp();
   } catch(e) {
     hint.textContent = e.message;
@@ -436,9 +434,7 @@ async function adminLoginTotp() {
     const chk = await fetch(API + '/admin/reconcile', { headers:{'Authorization':'Bearer ' + d.access_token} });
     if (chk.status === 403) throw new Error('Not an admin account');
     if (!chk.ok) throw new Error(`Admin check failed: [${chk.status}]`);
-    sessionStorage.setItem('sol_admin_token', d.access_token);
-    if (d.refresh_token) sessionStorage.setItem('sol_admin_refresh', d.refresh_token);
-    adminToken = d.access_token;
+    _adminStartSession(d.access_token, d.refresh_token);
     delete window._pendingTotpChallenge;
     showApp();
   } catch(e) {
@@ -479,6 +475,18 @@ function togglePw() {
 // Limits: an access token already issued stays valid at the API until it
 // expires; a 2xx is not proof of revocation (the backend also answers 204 for
 // an unknown token); closing the tab at once can still cancel the request.
+// Store a new admin session from a sign-in. Bumping _adminAuthEpoch ends the
+// earlier session for any request still in flight: it will not refresh or be
+// re-sent under this one (it may be a different admin). A refresh token left by
+// an earlier session is not kept.
+function _adminStartSession(access, refresh) {
+  _adminAuthEpoch++;
+  sessionStorage.setItem('sol_admin_token', access);
+  if (refresh) sessionStorage.setItem('sol_admin_refresh', refresh);
+  else sessionStorage.removeItem('sol_admin_refresh');
+  adminToken = access;
+}
+
 function adminLogout() {
   _adminAuthEpoch++;
   const refresh = sessionStorage.getItem('sol_admin_refresh');
@@ -491,8 +499,8 @@ function adminLogout() {
 }
 
 // Best-effort revoke of one refresh token (POST /auth/logout, body exactly
-// {refresh_token}: the backend rejects extra fields). Resolves true only on a
-// 2xx answer; never throws.
+// {refresh_token}: the backend rejects extra fields). keepalive lets the request
+// outlive a closed tab. Resolves true only on a 2xx answer; never throws.
 async function _adminRevokeRefresh(refreshToken) {
   if (!refreshToken) return false;
   try {
@@ -500,6 +508,7 @@ async function _adminRevokeRefresh(refreshToken) {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ refresh_token: refreshToken }),
+      keepalive: true,
     });
     return !!(r && r.ok);
   } catch {
@@ -854,6 +863,9 @@ async function api(path, opts = {}) {
     // Signed out since this request started (and maybe signed in again): its
     // 401 belongs to the old session, so leave the current state alone.
     if (epoch !== _adminAuthEpoch) throw new Error('Signed out');
+    // The session is over (its refresh was rejected). End it for every request
+    // still in flight, so none refreshes or is re-sent under the next sign-in.
+    _adminAuthEpoch++;
     sessionStorage.removeItem('sol_admin_token');
     sessionStorage.removeItem('sol_admin_refresh');
     adminToken = null;
@@ -868,15 +880,17 @@ async function api(path, opts = {}) {
   return d;
 }
 
-// Silent refresh for the admin session. Dedupes concurrent 401s so we only
-// rotate the refresh token once per wave of failures. Returns true on success.
-let _adminRefreshPromise = null;
+// Silent refresh for the admin session. Dedupes concurrent 401s of the SAME
+// session so we only rotate the refresh token once per wave of failures; a
+// refresh started by an earlier session is never shared with a later one.
+// Returns true on success.
+let _adminRefreshPromise = null, _adminRefreshEpoch = -1;
 async function _tryAdminRefresh() {
   const refresh = sessionStorage.getItem('sol_admin_refresh');
   if (!refresh) return false;
-  if (_adminRefreshPromise) return _adminRefreshPromise;
+  if (_adminRefreshPromise && _adminRefreshEpoch === _adminAuthEpoch) return _adminRefreshPromise;
   const epoch = _adminAuthEpoch;
-  _adminRefreshPromise = (async () => {
+  const p = (async () => {
     try {
       const r = await fetch(API + '/auth/refresh', {
         method: 'POST',
@@ -887,8 +901,9 @@ async function _tryAdminRefresh() {
       const d = await r.json();
       if (epoch !== _adminAuthEpoch) {
         // Signed out while this refresh was in flight: do not sign the page
-        // back in; revoke the session the server just created.
-        await _adminRevokeRefresh(d && d.refresh_token);
+        // back in; revoke the session the server just created (without
+        // waiting: keepalive, and nothing depends on the answer).
+        _adminRevokeRefresh(d && d.refresh_token);
         return false;
       }
       sessionStorage.setItem('sol_admin_token', d.access_token);
@@ -898,10 +913,12 @@ async function _tryAdminRefresh() {
     } catch {
       return false;
     } finally {
-      _adminRefreshPromise = null;
+      if (_adminRefreshPromise === p) _adminRefreshPromise = null;
     }
   })();
-  return _adminRefreshPromise;
+  _adminRefreshPromise = p;
+  _adminRefreshEpoch = epoch;
+  return p;
 }
 
 // FastAPI returns 422 validation errors as detail=[{loc,msg,type}, ...]; without
