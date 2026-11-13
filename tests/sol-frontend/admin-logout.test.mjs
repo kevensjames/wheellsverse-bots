@@ -339,6 +339,45 @@ await scenario('[A17] a sign-in whose answer has no refresh token does not keep 
   ok(!app.session.has('sol_admin_refresh'), `the previous admin's refresh token is gone (saw ${app.session.get('sol_admin_refresh')})`);
 });
 
+await scenario('[A18] a sign-in through the real TOTP form also ends the earlier session and drops its refresh token', async () => {
+  const AT3 = 'synthetic-admin-access-3', RT3 = 'synthetic-admin-refresh-3';
+  const gate = deferred();
+  let usersCalls = 0;
+  const app = makeAdmin(call => (call.url === API + '/admin/users' ? (usersCalls++ === 0 ? gate.p : res(200, []))
+    : call.url === API + '/auth/login/totp' ? res(200, { access_token: AT3, refresh_token: RT3, token_type: 'bearer' })
+    : call.url === API + '/admin/reconcile' ? res(200, {})
+    : call.url === API + '/auth/refresh' ? res(200, { access_token: AT2, refresh_token: RT2 })
+    : res(204)));
+  app.signIn();
+  const old = app.V("api('/admin/users')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  await tick();
+  app.V("window._pendingTotpChallenge = 'synthetic-challenge'");
+  app.element('aTotp').value = '123456';
+  await app.V('adminLoginTotp()');
+  ok(app.session.get('sol_admin_token') === AT3 && app.session.get('sol_admin_refresh') === RT3, 'the TOTP form stored the new session');
+  const usersAfterLogin = app.calls.filter(c => c.url === API + '/admin/users' && c.headers.Authorization !== 'Bearer ' + AT).length;
+  gate.resolve(res(401, { detail: 'Token expired' }));
+  const outcome = await old; await tick(); await tick();
+  ok(app.refreshes().length === 0, `no refresh for the old request (saw ${app.refreshes().length})`);
+  ok(app.calls.filter(c => c.url === API + '/admin/users' && c.headers.Authorization !== 'Bearer ' + AT).length === usersAfterLogin, 'the old request is not re-sent under the new session');
+  ok(/^rejected/.test(outcome), 'the old request fails (' + outcome + ')');
+  const app2 = makeAdmin(call => (call.url === API + '/auth/login/totp' ? res(200, { access_token: AT3, token_type: 'bearer' }) : res(200, [])));
+  app2.signIn();
+  app2.V("window._pendingTotpChallenge = 'synthetic-challenge'"); app2.element('aTotp').value = '123456';
+  await app2.V('adminLoginTotp()');
+  ok(!app2.session.has('sol_admin_refresh'), "a TOTP answer without a refresh token does not keep the previous admin's");
+});
+
+await scenario('[A19] two requests get a 401 together and the session expires: both report "Session expired" (RV2R-9)', async () => {
+  const app = makeAdmin(call => (call.url === API + '/auth/refresh' ? res(401, { detail: 'Invalid or expired refresh token' }) : res(401, { detail: 'Token expired' })));
+  app.signIn();
+  const [a, b] = await Promise.all([
+    app.V("api('/admin/users')").then(() => 'resolved', e => e.message),
+    app.V("api('/admin/groups')").then(() => 'resolved', e => e.message),
+  ]);
+  ok(a === 'Session expired' && b === 'Session expired', `both say Session expired (saw ${JSON.stringify([a, b])})`);
+});
+
 await tick(); await tick();
 ok(unhandled.length === 0, `no unhandled promise rejections (saw ${JSON.stringify(unhandled)})`);
 console.log(`\nadmin sign-out: ${pass} passed, ${fail} failed`);
