@@ -56,9 +56,9 @@ function makeServer() {
   const log = [];
   const gates = [];
   let n = 0;
-  const issue = user => {
+  const issue = (user, exp = 4102444800) => {
     n++;
-    const a = `${b64u({ alg: 'HS256', typ: 'JWT' })}.${b64u({ sub: user, type: 'access', exp: 4102444800, jti: `synthetic-${n}` })}.synthetic-signature-${n}`;
+    const a = `${b64u({ alg: 'HS256', typ: 'JWT' })}.${b64u({ sub: user, type: 'access', exp, jti: `synthetic-${n}` })}.synthetic-signature-${n}`;
     const r = `synthetic-refresh-${user}-${n}`;
     sessions.set(r, { user, active: true });
     access.set(a, { user, valid: true });
@@ -66,7 +66,7 @@ function makeServer() {
   };
   // gate(pred): the next matching request is processed at once (rotation on receipt)
   // but its answer waits for release(). opts.body holds the body too (headers first).
-  const gate = (pred, opts = {}) => { const g = { pred, d: deferred(), body: opts.body ? deferred() : null, hit: false, release: () => g.d.resolve(), releaseBody: () => g.body && g.body.resolve() }; gates.push(g); return g; };
+  const gate = (pred, opts = {}) => { const g = { pred, d: deferred(), body: opts.body ? deferred() : null, networkError: !!opts.networkError, hit: false, release: () => g.d.resolve(), releaseBody: () => g.body && g.body.resolve() }; gates.push(g); return g; };
   const handle = async call => {
     const path = call.url.slice(API.length);
     const bearer = (call.headers.Authorization || call.headers.authorization || '').replace(/^Bearer /, '');
@@ -87,7 +87,7 @@ function makeServer() {
     }
     entry.status = out[0];
     const g = gates.find(x => !x.hit && x.pred(entry, call));
-    if (g) { g.hit = true; await g.d.p; return res(out[0], out[1], g.body && g.body.p); }
+    if (g) { g.hit = true; await g.d.p; if (g.networkError) throw new TypeError('Failed to fetch'); return res(out[0], out[1], g.body && g.body.p); }
     return res(out[0], out[1]);
   };
   const active = user => [...sessions].filter(([, s]) => s.active && (!user || s.user === user)).map(([k]) => k);
@@ -447,6 +447,49 @@ await scenario("[T17] with storage events: tab B refreshing when X signs out and
   const i = B.events.findIndex(e => e.startsWith('revoke-answered:'));
   const j = B.events.findIndex(e => e === 'reload' || e.startsWith('redirect'));
   ok(i !== -1 && j !== -1 && i < j && B.events.filter(e => e === 'reload' || e.startsWith('redirect')).length === 1, `B revoked its late session, then left once (events ${JSON.stringify(B.events)})`);
+});
+
+await scenario("[T18] another tab stored a newer access token that is already expired: this tab refreshes instead of adopting it", async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B');
+  server.expire(X.access_token);
+  const stale = server.issue('user-x', 1000);           // exp in 1970: already expired
+  server.expire(stale.access_token);
+  server.sessions.get(X.refresh_token).active = false;  // the other tab rotated X's first token into `stale`
+  browser.write(null, 'sol_token', stale.access_token); browser.write(null, 'sol_refresh', stale.refresh_token);
+  const r = await B.request('/groups'); await settle();
+  ok(r.ok, `tab B's request succeeds after a real refresh (${r.ok ? 'ok' : r.e})`);
+  ok(sent(server, 'B', '/auth/refresh').length === 1, 'tab B refreshed the stored session');
+  ok(server.sessions.get(browser.store.get('sol_refresh'))?.active === true, 'the stored session is active');
+});
+
+await scenario("[T19] tab B's refresh fails with a network error while another tab stores a newer session of the same user: B continues with it", async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B'), C = makeTab(browser, server, 'C');
+  server.expire(X.access_token);
+  const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh', { networkError: true });
+  const p = B.request('/groups');
+  await settle();
+  const newer = server.issue('user-x');
+  browser.write(C, 'sol_token', newer.access_token); browser.write(C, 'sol_refresh', newer.refresh_token);
+  g.release();
+  const r = await p; await settle();
+  ok(browser.store.get('sol_refresh') === newer.refresh_token, "tab C's newer session is not cleared");
+  ok(r.ok && B.hrefs.length === 0, `tab B continues with it (${r.ok ? 'ok' : r.e}; redirects ${JSON.stringify(B.hrefs)})`);
+});
+
+await scenario("[T20] init() in a tab whose session was replaced (X signed out, Y signed in): it reloads and leaves Y's session alone", async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B'), A = makeTab(browser, server, 'A');
+  await A.V('logout()');
+  const Y = browser.signIn(server, 'user-y');
+  server.expire(X.access_token);
+  await B.V('init()').catch(() => {}); await settle();
+  ok(browser.store.get('sol_token') === Y.access_token && browser.store.get('sol_refresh') === Y.refresh_token, `Y's stored session is untouched (saw ${JSON.stringify([...browser.store].filter(([k]) => k !== 'sol_signout'))})`);
+  ok(B.reloads === 1 && B.hrefs.length === 0, `tab B reloads once and does not also redirect (reloads ${B.reloads}, redirects ${JSON.stringify(B.hrefs)})`);
 });
 
 // ── keepalive ───────────────────────────────────────────────────────────────

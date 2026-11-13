@@ -303,6 +303,42 @@ await scenario('[A15] the admin revoke is sent with keepalive, so closing the ta
   ok(rv.length === 1 && rv[0].keepalive === true, `one revoke, keepalive set (saw ${JSON.stringify(rv.map(c => c.keepalive))})`);
 });
 
+await scenario("[A16] the old refresh finishing does not drop the new session's refresh in flight: a second 401 joins it", async () => {
+  const AT3 = 'synthetic-admin-access-3', RT3 = 'synthetic-admin-refresh-3', AT4 = 'synthetic-admin-access-4', RT4 = 'synthetic-admin-refresh-4';
+  const oldRefresh = deferred(), newRefresh = deferred();
+  const app = makeAdmin(call => {
+    if (call.url === API + '/auth/refresh') return JSON.parse(call.body).refresh_token === RT ? oldRefresh.p : newRefresh.p;
+    if (call.url === API + '/auth/logout') return res(204);
+    return call.headers.Authorization === 'Bearer ' + AT4 ? res(200, []) : res(401, { detail: 'Token expired' });
+  });
+  app.signIn();
+  const old = app.V("api('/admin/users')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  await tick(); await tick();
+  app.V('adminLogout()');
+  app.session.set('sol_admin_token', AT3); app.session.set('sol_admin_refresh', RT3); app.V(`adminToken = '${AT3}'`);
+  const first = app.V("api('/admin/groups')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  await tick(); await tick();
+  oldRefresh.resolve(res(200, { access_token: AT2, refresh_token: RT2 }));   // the old refresh ends while the new one is pending
+  await old; await tick(); await tick();
+  const second = app.V("api('/admin/overview')").then(() => 'resolved', e => 'rejected: ' + e.message);
+  await tick(); await tick();
+  newRefresh.resolve(res(200, { access_token: AT4, refresh_token: RT4 }));
+  const [a, b] = await Promise.all([first, second]); await tick();
+  ok(app.refreshes().filter(c => JSON.parse(c.body).refresh_token === RT3).length === 1, `the new session's refresh token is rotated once (saw ${app.refreshes().filter(c => JSON.parse(c.body).refresh_token === RT3).length})`);
+  ok(a === 'resolved' && b === 'resolved', `both new-session requests succeed (${a}, ${b})`);
+  ok(app.session.get('sol_admin_refresh') === RT4, 'the rotated pair is stored');
+});
+
+await scenario('[A17] a sign-in whose answer has no refresh token does not keep the previous admin\'s refresh token', async () => {
+  const AT3 = 'synthetic-admin-access-3';
+  const app = makeAdmin(call => (call.url === API + '/auth/login' ? res(200, { access_token: AT3, token_type: 'bearer' }) : res(200, [])));
+  app.signIn();
+  app.element('aEmail').value = 'admin-y@example.invalid'; app.element('aPassword').value = 'synthetic-password';
+  await app.V('adminLogin()');
+  ok(app.session.get('sol_admin_token') === AT3, 'the new access token is stored');
+  ok(!app.session.has('sol_admin_refresh'), `the previous admin's refresh token is gone (saw ${app.session.get('sol_admin_refresh')})`);
+});
+
 await tick(); await tick();
 ok(unhandled.length === 0, `no unhandled promise rejections (saw ${JSON.stringify(unhandled)})`);
 console.log(`\nadmin sign-out: ${pass} passed, ${fail} failed`);
