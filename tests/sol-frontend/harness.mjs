@@ -171,7 +171,10 @@ window.fetch = async (u, o) => {
 // Write boot-test.html from the current app.html + mock. Returns the file path.
 export function generateHarness() {
   const appHtml = readFileSync(join(SOL, 'app.html'), 'utf8');
-  const marker = '<script src="/sol/app/core/state.js"></script>';
+  // The mock goes before the first core script that reads the session (core/session.js
+  // when app.html has it, else core/state.js).
+  const sessionTag = '<script src="/sol/app/core/session.js"></script>';
+  const marker = appHtml.includes(sessionTag) ? sessionTag : '<script src="/sol/app/core/state.js"></script>';
   if (!appHtml.includes(marker)) throw new Error('state.js script tag not found in app.html');
   let out = appHtml.replace(marker, mockBlock() + marker);
   // Cache-bust every /sol/app asset so a static server with no cache headers

@@ -23,8 +23,12 @@
 //      refresh from an earlier session is never shared with the next one
 //  10. tokens are gone at once even if the revoke never answers; a sign-out while a
 //      refresh answer is still being read stores nothing; the revoke uses keepalive
+//  11. a refresh that fails for a passing reason (429, 5xx, network) keeps the session;
+//      a request reports how ITS session ended; a sign-out also ends the copy of the
+//      session in a duplicated tab (it shares the 'sol-admin-auth' BroadcastChannel)
 //
-// Admin tokens live in sessionStorage (one tab), so there is no cross-tab case here.
+// Admin tokens live in sessionStorage (one tab); the only cross-tab case is a duplicated
+// tab, which starts with a copy of that sessionStorage.
 // What it does NOT prove: server-side revocation, or anything about the deployed portal.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -46,7 +50,20 @@ const res = (status, body, bodyGate) => ({ status, ok: status >= 200 && status <
 const deferred = () => { let resolve; const p = new Promise(r => { resolve = r; }); return { p, resolve }; };
 const tick = () => new Promise(r => setTimeout(r, 0));
 
-function makeAdmin(route, initial = {}) {
+// A BroadcastChannel shared by the pages of one browser: a message reaches the OTHER
+// channels of that name, asynchronously.
+function makeHub() {
+  const channels = [];
+  class BroadcastChannel {
+    constructor(name) { this.name = name; this.onmessage = null; channels.push(this); }
+    postMessage(data) { for (const c of channels) if (c !== this && c.name === this.name && !c.closed) setTimeout(() => { if (c.onmessage) c.onmessage({ data }); }, 0); }
+    addEventListener(t, fn) { if (t === 'message') { const prev = this.onmessage; this.onmessage = ev => { if (prev) prev(ev); fn(ev); }; } }
+    close() { this.closed = true; }
+  }
+  return { BroadcastChannel, channels };
+}
+
+function makeAdmin(route, initial = {}, { hub = null } = {}) {
   const session = new Map(Object.entries(initial));   // empty by default: `if (adminToken) showApp()` does not run at load
   const calls = [];
   const elements = new Map();
@@ -57,6 +74,7 @@ function makeAdmin(route, initial = {}) {
   const rejections = [];
   const sandbox = {
     console, setTimeout, clearTimeout, Promise, JSON, URLSearchParams,
+    ...(hub ? { BroadcastChannel: hub.BroadcastChannel } : {}),
     window: { location: { href: '', search: '' } },
     sessionStorage: { getItem: k => (session.has(k) ? session.get(k) : null), setItem: (k, v) => session.set(k, String(v)), removeItem: k => session.delete(k) },
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
@@ -376,6 +394,58 @@ await scenario('[A19] two requests get a 401 together and the session expires: b
     app.V("api('/admin/groups')").then(() => 'resolved', e => e.message),
   ]);
   ok(a === 'Session expired' && b === 'Session expired', `both say Session expired (saw ${JSON.stringify([a, b])})`);
+});
+
+// ── Round 4: third independent review (review 3) ────────────────────────────
+for (const [label, refreshAnswer] of [['429', () => res(429, { detail: 'Rate limit exceeded' })], ['503', () => res(503, { detail: 'Service unavailable' })], ['network error', () => { throw new TypeError('Failed to fetch'); }]]) {
+  await scenario(`[A20] the refresh fails for a passing reason (${label}): the admin stays signed in and the next request works (RV3-N3)`, async () => {
+    let refreshes = 0;
+    const app = makeAdmin(call => {
+      if (call.url === API + '/auth/refresh') return ++refreshes === 1 ? refreshAnswer() : res(200, { access_token: AT2, refresh_token: RT2 });
+      if (call.url === API + '/auth/logout') return res(204);
+      return call.headers.Authorization === 'Bearer ' + AT2 ? res(200, { users: [] }) : res(401, { detail: 'Token expired' });
+    });
+    app.signIn();
+    const first = await app.V("api('/admin/users')").then(() => 'resolved', e => 'rejected: ' + e.message);
+    ok(/^rejected/.test(first) && !/Session expired/.test(first), `the request fails without ending the session (${first})`);
+    ok(app.session.get('sol_admin_token') === AT && app.session.get('sol_admin_refresh') === RT && app.V('adminToken') === AT, `both admin tokens are kept (saw ${JSON.stringify([...app.session])})`);
+    ok(app.element('loginGate').style.display !== 'flex', 'the login gate is not shown');
+    const again = await app.V("api('/admin/users')").then(() => 'resolved', e => 'rejected: ' + e.message);
+    ok(again === 'resolved' && app.session.get('sol_admin_refresh') === RT2, `the next request refreshes and succeeds (${again})`);
+  });
+}
+
+await scenario('[A21] a duplicated admin tab (a copy of the session) is signed out too (RV3-N8)', async () => {
+  const hub = makeHub();
+  const route = call => (call.url === API + '/auth/logout' ? res(204) : call.url === API + '/auth/me' ? res(200, { email: 'admin@example.invalid' }) : res(200, {}));
+  const one = makeAdmin(route, {}, { hub });
+  one.V(`_adminStartSession('${AT}', '${RT}')`);
+  const two = makeAdmin(route, Object.fromEntries(one.session), { hub });   // Duplicate Tab copies sessionStorage
+  ok(two.V('adminToken') === AT, 'the duplicated tab starts signed in with the copy');
+  one.V('adminLogout()');
+  await tick(); await tick(); await tick();
+  ok(!two.session.has('sol_admin_token') && !two.session.has('sol_admin_refresh') && two.V('adminToken') === null, `the duplicated tab dropped its copy (saw ${JSON.stringify([...two.session])})`);
+  ok(two.element('loginGate').style.display === 'flex', 'and shows the login gate');
+  const other = makeAdmin(route, {}, { hub });   // a separate admin tab with its own sign-in is left alone
+  other.V(`_adminStartSession('${AT2}', '${RT2}')`);
+  one.V(`_adminStartSession('${AT}', '${RT}')`); one.V('adminLogout()');
+  await tick(); await tick(); await tick();
+  ok(other.session.get('sol_admin_token') === AT2 && other.V('adminToken') === AT2, 'a tab with its own sign-in is not signed out');
+});
+
+await scenario('[A22] a request reports how its own session ended, not how the latest one did (RV3-N9)', async () => {
+  const AT3 = 'synthetic-admin-access-3', RT3 = 'synthetic-admin-refresh-3';
+  const gate = deferred();
+  const app = makeAdmin(call => (call.url === API + '/admin/users' ? gate.p : call.url === API + '/auth/refresh' ? res(401, { detail: 'Invalid or expired refresh token' }) : call.url === API + '/auth/logout' ? res(204) : res(401, { detail: 'Token expired' })));
+  app.signIn();
+  const old = app.V("api('/admin/users')").then(() => 'resolved', e => e.message);
+  await tick();
+  const expired = await app.V("api('/admin/groups')").then(() => 'resolved', e => e.message);
+  ok(expired === 'Session expired', `the session expired (${expired})`);
+  app.V(`_adminStartSession('${AT3}', '${RT3}')`);           // the next admin signs in through the form
+  gate.resolve(res(401, { detail: 'Token expired' }));
+  const outcome = await old;
+  ok(outcome === 'Session expired', `the old request says its session expired (saw ${JSON.stringify(outcome)})`);
 });
 
 await tick(); await tick();

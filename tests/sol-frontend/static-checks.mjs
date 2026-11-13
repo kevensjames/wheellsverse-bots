@@ -68,5 +68,29 @@ for (const rel of order) {
 if (dups.length) dups.forEach(d => fail(`duplicate top-level symbol: ${d}`));
 else ok(`no duplicate top-level symbols (${seen.size} unique)`);
 
+// 5. Member session storage (core/session.js). Every page that reads or writes the member
+// session loads core/session.js first, and nothing deletes a stored session except the
+// user's own sign-out (logout()) and a sign-in replacing it (_solWriteSession): a tab's
+// copy of localStorage can be behind the others', so a delete decided from it can remove
+// a newer session (review 3, RV3-N1).
+console.log('\n[4] member session storage');
+const sessionIdx = order.indexOf('core/session.js'), stateIdx = order.indexOf('core/state.js');
+if (sessionIdx === -1 || sessionIdx > stateIdx) fail(`app.html must load core/session.js before core/state.js (order: ${order.slice(0, 4).join(', ')})`);
+else ok('app.html loads core/session.js before core/state.js');
+const indexHtml = readFileSync(join(APP, '..', 'index.html'), 'utf8');
+const tagAt = indexHtml.indexOf('<script src="/sol/app/core/session.js"></script>'), finishAt = indexHtml.indexOf('function finishAuth(');
+if (tagAt === -1 || finishAt === -1 || tagAt > finishAt) fail('index.html must load core/session.js before the script with finishAuth()');
+else ok('index.html loads core/session.js before finishAuth()');
+const bodyOf = (src, name) => { const i = src.indexOf(`function ${name}(`); return i === -1 ? '' : src.slice(i, src.indexOf('\n}\n', i) + 2); };
+const allowed = { 'core/router.js': ['logout'], 'core/session.js': ['_solWriteSession'] };
+let deletes = 0;
+for (const rel of order) {
+  const src = readFileSync(join(APP, rel), 'utf8');
+  const all = (src.match(/removeItem\(\s*['"]sol_(?:token|refresh)['"]\s*\)/g) || []).length;
+  const inAllowed = (allowed[rel] || []).reduce((n, fn) => n + (bodyOf(src, fn).match(/removeItem\(\s*['"]sol_(?:token|refresh)['"]\s*\)/g) || []).length, 0);
+  if (all > inAllowed) { deletes++; fail(`${rel}: deletes a stored member token outside ${JSON.stringify(allowed[rel] || [])} (${all - inAllowed} place(s))`); }
+}
+if (!deletes) ok('stored member tokens are deleted only by logout() and when a sign-in replaces them');
+
 console.log(`\n${fails ? '✗ ' + fails + ' FAILURE(S)' : '✓ all static checks passed'}`);
 process.exit(fails ? 1 : 0);
