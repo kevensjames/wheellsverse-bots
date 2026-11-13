@@ -393,5 +393,13 @@ await scenario('[19b] init() fails with a 403 (no sign-out): it goes to the sign
   ok(app.calls.filter(c => c.url === API + '/auth/me').length === 1, 'no retry');
 });
 
+await scenario('[20] a refresh answer without tokens (malformed 200) stores nothing; the session is kept and the tab stays', async () => {
+  const app = makeApp(call => (call.url === API + '/auth/refresh' ? Promise.resolve(res(200, { detail: 'synthetic answer without tokens' }))
+    : call.url === API + '/groups' ? Promise.resolve(res(401, { detail: 'Token expired' })) : Promise.resolve(res(204))));
+  const out = await app.V("api('/groups')").then(() => 'ok', e => 'err:' + e.message);
+  ok(app.store.get('sol_token') === A && app.store.get('sol_refresh') === R, `the stored pair is unchanged (saw ${JSON.stringify([...app.store].filter(([k]) => k === 'sol_token' || k === 'sol_refresh'))})`);
+  ok(out.startsWith('err:') && app.hrefs.length === 0, `the request fails and the tab stays (${out}; redirects ${JSON.stringify(app.hrefs)})`);
+});
+
 console.log(`\nsign-out: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

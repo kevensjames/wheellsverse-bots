@@ -1054,6 +1054,18 @@ await scenario('[T47] the sign-out record can never be written (storage full): a
   ok(server.active().length === 0, 'no session is left active');
 });
 
+await scenario('[T48] a pair stored before this version (no commit tag) still counts; after X signs out here, a late pair of X written by a tab still on the earlier version does not', async () => {
+  const server = makeServer(), browser = makeBrowser();
+  const X = browser.rawSignIn(server, 'user-x');              // stored by the earlier landing page: two writes, no tag
+  const A = makeTab(browser, server, 'A');
+  ok(A.V('token') === X.access_token, 'a pair stored before this version is used as before');
+  await A.V('logout()'); await sleep(20);
+  const late = server.issue('user-x');                        // that tab rotated X's token and now stores the pair (two writes)
+  browser.write(null, 'sol_token', late.access_token); browser.write(null, 'sol_refresh', late.refresh_token);
+  const t = openNow(browser, server);
+  ok(t === null, `a tab opened now does not use the late pair (it got ${t ? userOf(t) : 'no session'})`);
+});
+
 // ── keepalive ───────────────────────────────────────────────────────────────
 await scenario('[T16] the sign-out revoke is sent with keepalive, so a navigation cannot cancel it (N5)', async () => {
   const server = makeServer(), browser = makeBrowser();
