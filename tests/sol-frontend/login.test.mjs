@@ -43,7 +43,7 @@ function makePage(stored = {}, fetchImpl = null) {
   const location = {};
   Object.defineProperty(location, 'href', { get: () => hrefs[hrefs.length - 1] || '/sol/', set: v => hrefs.push(v) });
   const sandbox = {
-    console, Promise, JSON, Date, Math, API, BroadcastChannel, setTimeout, clearTimeout,
+    console, Promise, JSON, Date, Math, API, BroadcastChannel, setTimeout, clearTimeout, atob, btoa,
     window: { location }, location,
     localStorage: {
       getItem: k => (store.has(k) ? store.get(k) : null),

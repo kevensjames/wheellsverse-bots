@@ -55,7 +55,7 @@ const FINISH_AUTH = INDEX.slice(FA_START, INDEX.indexOf('\n}\n', FA_START) + 2);
 // The commit tag a page of this version writes after a pair (core/session.js), or null
 // for a tree without core/session.js.
 const solTag = !SESSION_JS ? null : (() => {
-  const ctx = vm.createContext({ localStorage: { getItem: () => null } });
+  const ctx = vm.createContext({ localStorage: { getItem: () => null }, atob, btoa });
   vm.runInContext(SESSION_JS, ctx);
   return (t, r, signout) => vm.runInContext(`_solTag(${JSON.stringify(t)}, ${JSON.stringify(r)}, ${JSON.stringify(signout)})`, ctx);
 })();
@@ -224,7 +224,7 @@ function makeLanding(browser, server) {
   const area = () => (browser.lag ? page.view : browser.store);
   const localStorage = { getItem: k => (area().has(k) ? area().get(k) : null), setItem: (k, v) => browser.write(page, k, v), removeItem: k => browser.write(page, k, null) };
   const location = {}; Object.defineProperty(location, 'href', { get: () => '/sol/', set: v => hrefs.push(v) });
-  const sandbox = { console, Promise, JSON, Date, Math, API, localStorage, window: { location }, location, setTimeout, clearTimeout, BroadcastChannel: browser.BroadcastChannel,
+  const sandbox = { console, Promise, JSON, Date, Math, API, localStorage, window: { location }, location, setTimeout, clearTimeout, atob, btoa, BroadcastChannel: browser.BroadcastChannel,
     fetch: (url, opts = {}) => { const call = { tab: 'landing', url: String(url), method: (opts.method || 'GET').toUpperCase(), headers: opts.headers || {}, body: opts.body, keepalive: !!opts.keepalive }; calls.push(call); return server.handle(call); } };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
