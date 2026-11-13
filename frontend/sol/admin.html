@@ -353,6 +353,24 @@ function _adminEndSession(reason) {
 // sign-out announces its family on this channel, and every tab of that family
 // signs out too.
 const _adminChannel = (typeof BroadcastChannel === 'function') ? new BroadcastChannel('sol-admin-auth') : null;
+// The message only reaches admin pages open at that moment. A duplicated tab
+// that was on another page, or in the back/forward cache, checks this list of
+// ended session families (localStorage: shared by this browser's tabs, kept
+// across navigation) when it loads or is restored.
+const ADMIN_ENDED_KEY = 'sol_admin_ended';
+function _adminFamilyEnded(family) {
+  try { return !!family && (localStorage.getItem(ADMIN_ENDED_KEY) || '').split(' ').indexOf(family) !== -1; } catch { return false; }
+}
+function _adminNoteEnded(family) {
+  if (!family) return;
+  try {
+    const rest = (localStorage.getItem(ADMIN_ENDED_KEY) || '').split(' ').filter(x => x && x !== family);
+    localStorage.setItem(ADMIN_ENDED_KEY, [family].concat(rest).slice(0, 16).join(' '));
+  } catch {}
+}
+// True when the session in this tab's sessionStorage is a copy of one that was
+// signed out in another tab.
+function _adminCopyEnded() { return !!adminToken && _adminFamilyEnded(sessionStorage.getItem('sol_admin_family')); }
 let allUsers = [], allGroups = [];
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -372,7 +390,11 @@ function showApp() {
   refreshHaltBanner();
 }
 
+if (_adminCopyEnded()) _adminSignOutHere();
 if (adminToken) showApp();
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('pageshow', e => { if (e && e.persisted && _adminCopyEnded()) _adminSignOutHere(); });
+}
 
 async function adminLogin() {
   const btn = document.getElementById('loginBtn');
@@ -496,14 +518,17 @@ function _adminStartSession(access, refresh) {
 // _tryAdminRefresh), and a request that started before the sign-out neither
 // refreshes nor clears the session after it (see api()).
 // A duplicated tab of this session (same family) is told on _adminChannel and
-// signs out too.
+// signs out too; one that misses the message signs out when it next loads or
+// is restored (_adminCopyEnded).
 // Limits: an access token already issued stays valid at the API until it
 // expires; a 2xx is not proof of revocation (the backend also answers 204 for
-// an unknown token). A duplicated tab is reached only where BroadcastChannel
-// exists and only while it is open; the member app's session is not ended.
+// an unknown token). A duplicated tab is reached at once only where
+// BroadcastChannel exists and while it is open, otherwise when it next loads or
+// is restored; the member app's session is not ended.
 function adminLogout() {
   const family = sessionStorage.getItem('sol_admin_family');
   _adminSignOutHere();
+  _adminNoteEnded(family);
   if (family && _adminChannel) { try { _adminChannel.postMessage({ type: 'signed-out', family }); } catch {} }
 }
 function _adminSignOutHere() {
