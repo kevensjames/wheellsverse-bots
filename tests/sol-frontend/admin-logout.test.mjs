@@ -25,7 +25,9 @@
 //      refresh answer is still being read stores nothing; the revoke uses keepalive
 //  11. a refresh that fails for a passing reason (429, 5xx, network) keeps the session;
 //      a request reports how ITS session ended; a sign-out also ends the copy of the
-//      session in a duplicated tab (it shares the 'sol-admin-auth' BroadcastChannel)
+//      session in a duplicated tab (it shares the 'sol-admin-auth' BroadcastChannel),
+//      and a copy that missed the message (another page, or the back/forward cache)
+//      signs out when it loads or is restored (the ended session is noted in localStorage)
 //
 // Admin tokens live in sessionStorage (one tab); the only cross-tab case is a duplicated
 // tab, which starts with a copy of that sessionStorage.
@@ -63,7 +65,11 @@ function makeHub() {
   return { BroadcastChannel, channels };
 }
 
-function makeAdmin(route, initial = {}, { hub = null } = {}) {
+// local: a Map shared by admin pages of one browser as their localStorage (default: an
+// empty one per page). Pages get window.addEventListener; app.dispatch(type, ev) fires it.
+function makeAdmin(route, initial = {}, { hub = null, local = null } = {}) {
+  const localMap = local || new Map();
+  const winListeners = {};
   const session = new Map(Object.entries(initial));   // empty by default: `if (adminToken) showApp()` does not run at load
   const calls = [];
   const elements = new Map();
@@ -75,9 +81,9 @@ function makeAdmin(route, initial = {}, { hub = null } = {}) {
   const sandbox = {
     console, setTimeout, clearTimeout, Promise, JSON, URLSearchParams,
     ...(hub ? { BroadcastChannel: hub.BroadcastChannel } : {}),
-    window: { location: { href: '', search: '' } },
+    window: { location: { href: '', search: '' }, addEventListener: (t, fn) => { (winListeners[t] = winListeners[t] || []).push(fn); }, removeEventListener() {} },
     sessionStorage: { getItem: k => (session.has(k) ? session.get(k) : null), setItem: (k, v) => session.set(k, String(v)), removeItem: k => session.delete(k) },
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    localStorage: { getItem: k => (localMap.has(k) ? localMap.get(k) : null), setItem: (k, v) => localMap.set(k, String(v)), removeItem: k => localMap.delete(k) },
     document: { getElementById: element, querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, createElement: () => element('created') },
     fetch: (url, opts = {}) => {
       const call = { url: String(url), method: (opts.method || 'GET').toUpperCase(), headers: opts.headers || {}, body: opts.body, keepalive: !!opts.keepalive };
@@ -92,7 +98,8 @@ function makeAdmin(route, initial = {}, { hub = null } = {}) {
   const signIn = () => { session.set('sol_admin_token', AT); session.set('sol_admin_refresh', RT); V(`adminToken = '${AT}'`); };
   const revokes = () => calls.filter(c => c.method === 'POST' && c.url === API + '/auth/logout');
   const refreshes = () => calls.filter(c => c.method === 'POST' && c.url === API + '/auth/refresh');
-  return { session, calls, element, V, signIn, revokes, refreshes, rejections };
+  const dispatch = (type, ev) => { for (const fn of winListeners[type] || []) fn(ev); };
+  return { session, calls, element, V, signIn, revokes, refreshes, rejections, dispatch, local: localMap };
 }
 
 let pass = 0, fail = 0;
@@ -446,6 +453,39 @@ await scenario('[A22] a request reports how its own session ended, not how the l
   gate.resolve(res(401, { detail: 'Token expired' }));
   const outcome = await old;
   ok(outcome === 'Session expired', `the old request says its session expired (saw ${JSON.stringify(outcome)})`);
+});
+
+await scenario('[A23] a duplicated tab that was not on the admin page during the sign-out (no message reached it) is signed out when it loads again (review 4, E7)', async () => {
+  const hub = makeHub(), local = new Map();
+  const route = call => (call.url === API + '/auth/logout' ? res(204) : call.url === API + '/auth/me' ? res(200, { email: 'admin@example.invalid' }) : res(200, {}));
+  const one = makeAdmin(route, {}, { hub, local });
+  one.V(`_adminStartSession('${AT}', '${RT}')`);
+  const copy = Object.fromEntries(one.session);                // the duplicated tab's sessionStorage
+  one.V('adminLogout()');
+  await tick(); await tick();
+  const two = makeAdmin(route, copy, { hub, local });           // it comes back to the admin page later
+  await tick(); await tick();
+  ok(!two.session.has('sol_admin_token') && !two.session.has('sol_admin_refresh') && two.V('adminToken') === null, `the copy is dropped (saw ${JSON.stringify([...two.session])})`);
+  ok(two.element('loginGate').style.display === 'flex', 'and the login gate shows');
+  ok(!two.calls.some(c => c.headers && c.headers.Authorization === 'Bearer ' + AT && c.url !== API + '/auth/logout'), 'no request is sent with the copied access token');
+  const other = makeAdmin(route, {}, { hub, local });
+  other.V(`_adminStartSession('${AT2}', '${RT2}')`);
+  const three = makeAdmin(route, Object.fromEntries(other.session), { hub, local });   // a copy of a session that did not end
+  ok(three.V('adminToken') === AT2, 'a copy of a session that was not signed out still loads');
+});
+
+await scenario('[A24] a duplicated tab restored from the back/forward cache after the sign-out (it missed the message) signs out', async () => {
+  const hub = makeHub(), local = new Map();
+  const route = call => (call.url === API + '/auth/logout' ? res(204) : res(200, {}));
+  const one = makeAdmin(route, {}, { hub, local });
+  one.V(`_adminStartSession('${AT}', '${RT}')`);
+  const two = makeAdmin(route, Object.fromEntries(one.session), { local });   // no hub: in the cache, it receives no message
+  ok(two.V('adminToken') === AT, 'the copy is signed in before');
+  one.V('adminLogout()');
+  await tick();
+  two.dispatch('pageshow', { persisted: true });
+  await tick();
+  ok(!two.session.has('sol_admin_token') && two.V('adminToken') === null && two.element('loginGate').style.display === 'flex', `restored, it signs out (saw ${JSON.stringify([...two.session])})`);
 });
 
 await tick(); await tick();
