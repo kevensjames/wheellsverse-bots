@@ -346,8 +346,26 @@ function finishAuth(data) {
   if (!data || !data.access_token) {
     throw new Error('Unexpected response from the server. Please try again.');
   }
+  // A session already stored in this browser is being replaced (another account,
+  // or this one again). Record a sign-out first, so app tabs still open on it
+  // leave (and drop or revoke any late session of theirs) instead of acting on
+  // it, then ask the backend to revoke it. keepalive: this page navigates at
+  // once. Best effort: neither can block the sign-in.
+  const replaced = localStorage.getItem('sol_refresh');
+  if (replaced && replaced !== data.refresh_token) {
+    try { localStorage.setItem('sol_signout', Date.now() + '-' + Math.random().toString(36).slice(2)); } catch {}
+    try {
+      fetch(API + '/auth/logout', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ refresh_token: replaced }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {}
+  }
   localStorage.setItem('sol_token', data.access_token);
   if (data.refresh_token) localStorage.setItem('sol_refresh', data.refresh_token);
+  else localStorage.removeItem('sol_refresh');
   window.location.href = '/sol/app';
 }
 

@@ -340,8 +340,10 @@ tr:hover td{background:var(--surface-2)}
 const API = 'https://sol-api-production.up.railway.app';
 let adminToken = sessionStorage.getItem('sol_admin_token');
 // Counts admin sign-outs on this page. Declared here, before showApp() can run
-// below, because api() reads it synchronously. See adminLogout().
+// below, because api() reads it synchronously. See adminLogout(). The reason
+// the last session ended decides the error old requests report.
 let _adminAuthEpoch = 0;
+let _adminEndReason = null;   // 'signed-out' | 'signed-in' | 'expired'
 let allUsers = [], allGroups = [];
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -464,31 +466,33 @@ function togglePw() {
   else { i.type = 'password'; b.textContent = 'show'; }
 }
 
-// Sign out of the admin portal. Clears BOTH admin tokens first, so nothing on
-// this page can reuse them, then asks the backend to revoke the refresh session
-// (POST /auth/logout). Best effort: the page does not navigate, so nothing here
-// cancels that request, and a failed revoke never keeps the admin signed in.
-// Bumping _adminAuthEpoch stops a refresh already in flight from storing new
-// tokens afterwards (it revokes them instead, see _tryAdminRefresh), and a
-// request that started before the sign-out neither refreshes nor clears the
-// session after it (see api()).
-// Limits: an access token already issued stays valid at the API until it
-// expires; a 2xx is not proof of revocation (the backend also answers 204 for
-// an unknown token); closing the tab at once can still cancel the request.
 // Store a new admin session from a sign-in. Bumping _adminAuthEpoch ends the
 // earlier session for any request still in flight: it will not refresh or be
 // re-sent under this one (it may be a different admin). A refresh token left by
 // an earlier session is not kept.
 function _adminStartSession(access, refresh) {
   _adminAuthEpoch++;
+  _adminEndReason = 'signed-in';
   sessionStorage.setItem('sol_admin_token', access);
   if (refresh) sessionStorage.setItem('sol_admin_refresh', refresh);
   else sessionStorage.removeItem('sol_admin_refresh');
   adminToken = access;
 }
 
+// Sign out of the admin portal. Clears BOTH admin tokens first, so nothing on
+// this page can reuse them, then asks the backend to revoke the refresh session
+// (POST /auth/logout, keepalive). Best effort: a failed revoke never keeps the
+// admin signed in. Bumping _adminAuthEpoch stops a refresh already in flight
+// from storing new tokens afterwards (it revokes them instead, see
+// _tryAdminRefresh), and a request that started before the sign-out neither
+// refreshes nor clears the session after it (see api()).
+// Limits: an access token already issued stays valid at the API until it
+// expires; a 2xx is not proof of revocation (the backend also answers 204 for
+// an unknown token). A duplicated tab copies sessionStorage, so its copy of the
+// session is not signed out here.
 function adminLogout() {
   _adminAuthEpoch++;
+  _adminEndReason = 'signed-out';
   const refresh = sessionStorage.getItem('sol_admin_refresh');
   sessionStorage.removeItem('sol_admin_token');
   sessionStorage.removeItem('sol_admin_refresh');
@@ -860,12 +864,14 @@ async function api(path, opts = {}) {
     if (refreshed) {
       return api(path, { ...opts, _retry: true });
     }
-    // Signed out since this request started (and maybe signed in again): its
-    // 401 belongs to the old session, so leave the current state alone.
-    if (epoch !== _adminAuthEpoch) throw new Error('Signed out');
+    // The session this request belonged to has ended (sign-out, expiry, or a new
+    // sign-in): its 401 belongs to the old session, so leave the current state
+    // alone.
+    if (epoch !== _adminAuthEpoch) throw new Error(_adminEndReason === 'expired' ? 'Session expired' : 'Signed out');
     // The session is over (its refresh was rejected). End it for every request
     // still in flight, so none refreshes or is re-sent under the next sign-in.
     _adminAuthEpoch++;
+    _adminEndReason = 'expired';
     sessionStorage.removeItem('sol_admin_token');
     sessionStorage.removeItem('sol_admin_refresh');
     adminToken = null;

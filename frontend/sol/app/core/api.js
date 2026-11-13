@@ -28,24 +28,30 @@ async function api(path, opts = {}) {
   // 401 = access token expired. Try silently refreshing via the refresh token
   // (valid 30 days) before giving up and bouncing the user to login. This
   // keeps long-running tabs alive past the 60-min access-token TTL.
-  if (r.status === 401 && !opts._retry) {
+  // A request re-sent with another tab's newer access token ('adopted') may still
+  // get a 401 (e.g. this device's clock is behind); it then gets one real refresh.
+  if (r.status === 401 && (!opts._retry || opts._retry === 'adopted')) {
     // This page signed out (it may be back from the back/forward cache): never
     // refresh from here; let the sign-out finish.
     if (_logoutPromise) { await _logoutPromise; throw new Error('Signed out'); }
     const refreshed = await _tryRefresh();
     if (refreshed) {
-      return api(path, { ...opts, _retry: true });
+      return api(path, { ...opts, _retry: (_refreshAdopted && !opts._retry) ? 'adopted' : true });
     }
     // Signing out (core/router.js logout()): let it finish revoking and redirect.
     // Navigating away here first would cancel its revoke request. (During a
     // sign-out _tryRefresh() always returns false.)
     if (_logoutPromise) { await _logoutPromise; throw new Error('Signed out'); }
+    // The refresh could not be done right now (429, 5xx, network, or another
+    // tab's refresh still holds the lock): the session may still be valid, so
+    // keep it and fail only this request.
+    if (_refreshOutcome === 'transient') throw new Error('Could not renew your session right now. Please try again.');
     // A different session is stored now (another user's, or one stored after a
     // sign-out): this page belongs to the old one, so reload it. The request is
-    // not re-sent under that session.
-    if (_refreshOutcome === 'stale') { _leave(true); throw new Error('Session changed in another tab'); }
-    _leave(false);
-    throw new Error('Session expired');
+    // not re-sent under that session. Otherwise this tab's session is over.
+    const stale = _refreshOutcome === 'stale';
+    _leaveAfterRefresh(stale);
+    throw new Error(stale ? 'Session changed in another tab' : 'Session expired');
   }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(formatApiError(d, r.statusText));
@@ -54,17 +60,26 @@ async function api(path, opts = {}) {
 
 // Get a usable access token after a 401. Returns true when this tab may re-send
 // its request with `token`; never throws. When it returns false, _refreshOutcome
-// says why: 'signed-out' (this tab's session is over) or 'stale' (a different
-// session is stored now: another user's, or one stored after a sign-out), and
-// api() leaves or reloads the tab. See the comment above _authEpoch in
-// core/router.js for what this guards against.
+// says why: 'signed-out' (this tab's session is over), 'stale' (a different
+// session is stored now: another user's, or one stored after a sign-out) or
+// 'transient' (the refresh could not be done now; the session is kept), and
+// api() leaves, reloads or just fails the request. See the comment above
+// _authEpoch in core/router.js for what this guards against.
 let _refreshPromise = null;
 let _refreshOutcome = null;
+let _refreshAdopted = false;   // the last successful call used another tab's newer token
 const REFRESH_LOCK_WAIT_MS = 10000;
+// Written by a tab whose refresh was rejected and that cleared the session: the
+// only case in which another tab's late refresh of the same token may store its
+// pair into empty storage (see the end of _refreshSession).
+const REFRESH_FAILED_KEY = 'sol_refresh_failed';
+function _refreshFingerprint(t) { return t ? t.length + ':' + String(t).slice(-12) : ''; }
+
 async function _tryRefresh() {
-  if (!localStorage.getItem('sol_refresh')) { _refreshOutcome = 'signed-out'; return false; }
-  // One refresh per tab at a time; concurrent 401s share it.
+  // One refresh per tab at a time; concurrent 401s share it (also while another
+  // tab's sign-out is emptying the storage, so it can revoke its late session).
   if (_refreshPromise) return _refreshPromise;
+  if (!localStorage.getItem('sol_refresh')) { _refreshOutcome = 'signed-out'; return false; }
   const epoch = _authEpoch;
   const sentWith = token;
   const p = _withRefreshLock(() => _refreshSession(epoch, sentWith));
@@ -74,18 +89,29 @@ async function _tryRefresh() {
 }
 
 // Runs fn holding a lock shared by every tab of this origin (Web Locks API), so
-// two tabs never rotate the same refresh token at once. Without the API, or if
-// the lock is not granted within REFRESH_LOCK_WAIT_MS, fn runs without it.
+// two tabs do not rotate the same refresh token at once. Without the API, fn
+// runs without it. If the lock is not granted within REFRESH_LOCK_WAIT_MS
+// (another tab's refresh is hung or frozen), fn does NOT run: refreshing then
+// could rotate the token under that tab, so the request fails ('transient') and
+// the session is kept. The wait has its own timer (no AbortSignal.timeout).
 async function _withRefreshLock(fn) {
   const locks = (typeof navigator !== 'undefined' && navigator && navigator.locks) || null;
   if (!locks || typeof locks.request !== 'function') return fn();
+  const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), REFRESH_LOCK_WAIT_MS) : null;
   let started = false;
   try {
-    const opts = (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function')
-      ? { signal: AbortSignal.timeout(REFRESH_LOCK_WAIT_MS) } : {};
-    return await locks.request('sol-auth-refresh', opts, () => { started = true; return fn(); });
+    return await locks.request('sol-auth-refresh', ctrl ? { signal: ctrl.signal } : {}, () => {
+      started = true;
+      if (timer) clearTimeout(timer);
+      return fn();
+    });
   } catch {
-    return started ? false : fn();
+    if (started) return false;
+    _refreshOutcome = 'transient';
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -99,21 +125,38 @@ async function _refreshSession(epoch, sentWith) {
     return (ended() || (t && _isOtherUser(t))) ? 'stale' : 'mine';
   };
   const fail = outcome => { _refreshOutcome = outcome; return false; };
+  const adopt = t => { token = t; _refreshAdopted = true; return true; };
   const refresh = localStorage.getItem('sol_refresh');
-  // Clear the stored session only if it is still the one this refresh used.
-  const clearMine = () => { if (localStorage.getItem('sol_refresh') === refresh) { localStorage.removeItem('sol_token'); localStorage.removeItem('sol_refresh'); } };
-  // The refresh was rejected or did not complete. If another tab stored a newer
-  // session of this user meanwhile (it rotated this token first, without the
-  // lock), use it; otherwise this tab's session is over.
-  const afterFailure = () => {
+  _refreshAdopted = false;
+  // A newer, still usable access token of this tab's user that another tab
+  // stored (it refreshed first), or null.
+  const newerStored = () => {
+    const t = localStorage.getItem('sol_token');
+    return (stored() === 'mine' && localStorage.getItem('sol_refresh') !== refresh && t && !_expiresSoon(t)) ? t : null;
+  };
+  // The refresh token was rejected: clear the session if it is still the one
+  // this refresh used, and leave a note for a concurrent refresh of the same
+  // token in another tab.
+  const clearMine = () => {
+    if (localStorage.getItem('sol_refresh') !== refresh) return;
+    localStorage.removeItem('sol_token');
+    localStorage.removeItem('sol_refresh');
+    try { localStorage.setItem(REFRESH_FAILED_KEY, _refreshFingerprint(refresh)); } catch {}
+  };
+  // 401/403: this refresh token is not valid any more.
+  const afterRejected = () => {
+    const t = newerStored(); if (t) return adopt(t);
     const now = stored();
-    if (now === 'mine' && localStorage.getItem('sol_refresh') !== refresh && localStorage.getItem('sol_token')) {
-      token = localStorage.getItem('sol_token');
-      return true;
-    }
     if (now === 'stale') return fail('stale');
+    if (now === 'mine' && localStorage.getItem('sol_refresh') !== refresh) return fail('transient');   // newer session, access token not usable yet
     clearMine();
     return fail('signed-out');
+  };
+  // 429, 5xx, network: the session may well still be valid; keep it.
+  const afterTransient = () => {
+    const t = newerStored(); if (t) return adopt(t);
+    const now = stored();
+    return fail(now === 'stale' ? 'stale' : now === 'none' ? 'signed-out' : 'transient');
   };
   try {
     const before = stored();
@@ -121,14 +164,21 @@ async function _refreshSession(epoch, sentWith) {
     // Another tab already refreshed this session: use its access token rather
     // than rotating the refresh token again.
     const storedToken = localStorage.getItem('sol_token');
-    if (storedToken && storedToken !== sentWith && !_expiresSoon(storedToken)) { token = storedToken; return true; }
-    const r = await fetch(API + '/auth/refresh', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ refresh_token: refresh }),
-    });
-    if (!r.ok) return afterFailure();
-    const d = await r.json();
+    if (storedToken && storedToken !== sentWith && !_expiresSoon(storedToken)) return adopt(storedToken);
+    let r;
+    try {
+      r = await fetch(API + '/auth/refresh', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+    } catch {
+      return afterTransient();
+    }
+    if (r.status === 401 || r.status === 403) return afterRejected();
+    if (!r.ok) return afterTransient();
+    let d;
+    try { d = await r.json(); } catch { return afterTransient(); }
     const late = d && d.refresh_token;
     if (ended()) {
       // Signed out (here or in another tab) while this refresh was in flight:
@@ -151,21 +201,39 @@ async function _refreshSession(epoch, sentWith) {
     const storedRefresh = localStorage.getItem('sol_refresh');
     if (storedRefresh && storedRefresh !== refresh) {
       // Another tab stored a newer session meanwhile. Ours is redundant: revoke
-      // it without waiting (keepalive; nothing depends on the answer) and use
-      // the stored one if it is this tab's user's.
+      // it without waiting (keepalive; nothing depends on the answer). Use the
+      // stored session if it is this tab's user's and its access token is
+      // usable; otherwise keep using our own fresh access token in memory.
       _revokeRefresh(late);
       if (stored() !== 'mine') return fail('stale');
-      token = localStorage.getItem('sol_token') || d.access_token;
+      const t = localStorage.getItem('sol_token');
+      if (t && !_expiresSoon(t)) return adopt(t);
+      token = d.access_token;
       return true;
     }
-    // Storage holds the token we sent, or is empty without any sign-out (another
-    // tab's failed refresh cleared it): keep the new pair.
+    if (stored() === 'stale') {
+      // Another user's access token next to the refresh token we sent (a
+      // sign-in elsewhere half written): do not write over it.
+      _revokeRefresh(late);
+      return fail('stale');
+    }
+    if (!storedRefresh && localStorage.getItem(REFRESH_FAILED_KEY) !== _refreshFingerprint(refresh)) {
+      // Storage was emptied with no note of a rejected refresh of this token
+      // in another tab: most likely a sign-out whose record could not be
+      // written. Fail closed: store nothing and revoke what we were given.
+      await _withTimeout(_revokeRefresh(late), REVOKE_TIMEOUT_MS);
+      return fail('signed-out');
+    }
+    // Storage holds the token we sent, or was emptied by another tab whose
+    // refresh of the same token was rejected (it left the note): keep the pair.
     localStorage.setItem('sol_token', d.access_token);
     localStorage.setItem('sol_refresh', late);
+    _myToken = d.access_token;
+    _myRefresh = late;
     token = d.access_token;
     return true;
   } catch {
-    return afterFailure();
+    return afterTransient();
   }
 }
 
@@ -264,7 +332,7 @@ async function init() {
     if (_logoutPromise) { await _logoutPromise; return; }
     // api() is already leaving or reloading this tab (another session is stored,
     // or none): do not remove a token that may be another session's.
-    if (_leaving) return;
+    if (_leavePending()) return;
     localStorage.removeItem('sol_token');
     window.location.href = '/sol/';
   }
