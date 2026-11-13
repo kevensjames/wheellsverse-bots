@@ -119,7 +119,8 @@ scenario('[L7] the sign-in ends with the commit tag, after both tokens, and the 
     const label = stored.sol_token ? 'replacing a session' : 'nothing stored before';
     const p = makePage(stored);
     p.V(`finishAuth(${answer('synthetic-access-y', 'synthetic-refresh-y')})`);
-    const last = p.writes[p.writes.length - 1];
+    const storageWrites = p.writes.filter(w => w[0] !== 'post');   // (L9 also logs announcements here)
+    const last = storageWrites[storageWrites.length - 1];
     const t = p.writes.findIndex(w => w[1] === 'sol_token'), r = p.writes.findIndex(w => w[1] === 'sol_refresh');
     ok(last && last[0] === 'set' && last[1] === 'sol_session' && t !== -1 && r !== -1, `${label}: the last write is the commit tag, after both tokens (writes ${JSON.stringify(p.writes)})`);
     const accepted = p.V("typeof _solStoredSession === 'function' ? _solStoredSession() : null");

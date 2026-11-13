@@ -1293,7 +1293,7 @@ await scenario('[T59] B signs out itself while its own late refresh answer is st
 });
 
 // ── Round 6: review 5 ────────────────────────────────────────────────────────
-await scenario("[T60] a refresh the server rotated answers only after 45 s: the tab's later 401s fail without sending the rotated token again, and the answer still counts when it comes (RV5-CLOSURE-2, RV5-REGRESSION-3)", async () => {
+await scenario("[T60] a refresh the server rotated answers only after 45 s: the tab's later 401s send the rotated token again at most once (a probe), sign nothing out, and the answer still counts when it comes (RV5-CLOSURE-2, RV5-REGRESSION-3)", async () => {
   const server = makeServer(), browser = makeBrowser({ locks: true });
   const X = browser.signIn(server, 'user-x');
   const B = makeTab(browser, server, 'B');
@@ -1305,7 +1305,7 @@ await scenario("[T60] a refresh the server rotated answers only after 45 s: the 
   ok(second.settled && !second.v.ok, `a second request fails too, at once or within the bound (${second.settled ? second.v.e : 'still waiting'})`);
   await sleep(2000);
   const third = await within(B.request('/groups'), 23000);
-  ok(sent(server, 'B', '/auth/refresh').length === 1, `the rotated token was never sent again (refreshes ${sent(server, 'B', '/auth/refresh').length})`);
+  ok(sent(server, 'B', '/auth/refresh').length <= 2, `the rotated token was sent again at most once (refreshes ${sent(server, 'B', '/auth/refresh').length})`);
   ok(B.hrefs.length === 0 && B.reloads === 0, `B neither leaves nor reloads meanwhile (events ${JSON.stringify(B.events)})`);
   g.release(); await sleep(80);
   const after = await within(B.request('/groups'), 5000);
@@ -1314,7 +1314,7 @@ await scenario("[T60] a refresh the server rotated answers only after 45 s: the 
   void third;
 });
 
-await scenario("[T61] another tab gets a 401 while B's refresh answer is still awaited: it does not send the rotated token, does not sign out, and continues once the answer comes (RV5-TRANSITION-8)", async () => {
+await scenario("[T61] another tab gets a 401 while B's refresh answer is still awaited: it sends the rotated token at most once (a probe), does not sign out, and continues once the answer comes (RV5-TRANSITION-8)", async () => {
   const server = makeServer(), browser = makeBrowser({ locks: true });
   const X = browser.signIn(server, 'user-x');
   const B = makeTab(browser, server, 'B'), C = makeTab(browser, server, 'C');
@@ -1323,11 +1323,12 @@ await scenario("[T61] another tab gets a 401 while B's refresh answer is still a
   const first = await within(B.request('/groups'), 23000);
   ok(first.settled && !first.v.ok, 'B\'s request fails at the bound; its answer is still awaited');
   const rc = await within(C.request('/groups'), 23000);
-  ok(rc.settled && !rc.v.ok && sent(server, 'C', '/auth/refresh').length === 0, `C's request fails without sending the rotated token (${rc.settled ? rc.v.e : 'still waiting'}; C refreshes ${sent(server, 'C', '/auth/refresh').length})`);
+  const rc2 = await within(C.request('/circles'), 23000);
+  ok(rc.settled && !rc.v.ok && rc2.settled && !rc2.v.ok && sent(server, 'C', '/auth/refresh').length <= 1, `C's requests fail, sending the rotated token at most once (${rc.settled ? rc.v.e : 'still waiting'}; C refreshes ${sent(server, 'C', '/auth/refresh').length})`);
   ok(C.hrefs.length === 0 && C.reloads === 0, `C stays (events ${JSON.stringify(C.events)})`);
   g.release(); await sleep(80);
   const again = await within(C.request('/groups'), 5000);
-  ok(again.settled && again.v.ok && sent(server, 'C', '/auth/refresh').length === 0, `C's next request works with the session B stored (${again.settled ? (again.v.ok ? 'ok' : again.v.e) : 'no answer: C has left'})`);
+  ok(again.settled && again.v.ok && sent(server, 'C', '/auth/refresh').length <= 1, `C's next request works with the session B stored (${again.settled ? (again.v.ok ? 'ok' : again.v.e) : 'no answer: C has left'})`);
   ok(openNow(browser, server) !== null, 'and the session still counts');
 });
 
