@@ -529,6 +529,18 @@ await scenario('[T23] a page restored from the cache with its session unchanged 
   ok(A.reloads === 0 && A.hrefs.length === 0, `no reload, no redirect (events ${JSON.stringify(A.events)})`);
 });
 
+await scenario('[T24] a page in the back/forward cache misses another tab\'s sign-out (no storage events there): restored, it reloads', async () => {
+  for (const [label, after] of [['X signs out in tab B', null], ['X signs out in tab B and Y signs in', 'user-y']]) {
+    const server = makeServer(), browser = makeBrowser({ storageEvents: false });   // a cached page runs no JS, so it gets no events
+    browser.signIn(server, 'user-x');
+    const A = makeTab(browser, server, 'A'), B = makeTab(browser, server, 'B');
+    await B.V('logout()');
+    if (after) browser.signIn(server, after);
+    A.dispatch('pageshow', { persisted: true });
+    ok(A.reloads === 1, `${label}: the restored page reloads (reloads ${A.reloads})`);
+  }
+});
+
 // ── keepalive ───────────────────────────────────────────────────────────────
 await scenario('[T16] the sign-out revoke is sent with keepalive, so a navigation cannot cancel it (N5)', async () => {
   const server = makeServer(), browser = makeBrowser();
