@@ -39,7 +39,7 @@ function makePage(stored = {}, fetchImpl = null) {
   const calls = [];
   const hrefs = [];
   const posted = [];
-  class BroadcastChannel { constructor(name) { this.name = name; } postMessage(data) { posted.push({ name: this.name, data }); } close() {} }
+  class BroadcastChannel { constructor(name) { this.name = name; } postMessage(data) { posted.push({ name: this.name, data }); writes.push(['post', this.name]); } close() {} }
   const location = {};
   Object.defineProperty(location, 'href', { get: () => hrefs[hrefs.length - 1] || '/sol/', set: v => hrefs.push(v) });
   const sandbox = {
@@ -134,6 +134,14 @@ scenario('[L8] replacing a session is also announced on the sol-auth BroadcastCh
   const q = makePage();
   q.V(`finishAuth(${answer('synthetic-access-y', 'synthetic-refresh-y')})`);
   ok(q.posted.length === 0, 'none when nothing was replaced');
+});
+
+scenario('[L9] replacing a session: the record first, then the new pair and its tag, and only then the announcement, so a tab that hears it finds the new session (review 5, RV3-2)', () => {
+  const p = makePage({ sol_token: 'synthetic-access-x', sol_refresh: 'synthetic-refresh-x' });
+  p.V(`finishAuth(${answer('synthetic-access-y', 'synthetic-refresh-y')})`);
+  const order = p.writes.map(w => w[1]);
+  const at = k => order.indexOf(k);
+  ok(at('sol_signout') !== -1 && at('sol_signout') < at('sol_token') && at('sol_session') < at('sol-auth') && at('sol-auth') !== -1, `order: ${JSON.stringify(order)}`);
 });
 
 console.log(`\nlanding sign-in: ${pass} passed, ${fail} failed`);

@@ -361,7 +361,7 @@ await scenario('[18] init() fails during a sign-out: it waits for the sign-out',
 
 // init() as main.js runs it, with the page functions it calls stubbed.
 const PAGE_STUBS = 'function applyFeatureFlags() {} function loadDashboard() {} function consumePendingInvite() {} function featureOn() { return false; }';
-const withPage = app => { app.V(PAGE_STUBS); app.V("document.getElementById = () => ({ textContent: '', style: {} })"); return app; };
+const withPage = app => { app.V(PAGE_STUBS); app.V("globalThis.__userEmail = { textContent: '', style: {} }; document.getElementById = id => (id === 'userEmail' ? __userEmail : { textContent: '', style: {} })"); return app; };
 const INIT_RETRY_WAIT_MS = 2300;   // the first retry is due 2 s after the failure
 
 // A server error, a rate limit, a network error, or a refresh that could not be done right
@@ -378,9 +378,11 @@ for (const [label, route] of [
     await app.V('init()'); await tick();
     ok(app.hrefs.length === 0, `no redirect (saw ${JSON.stringify(app.hrefs)})`);
     ok(app.store.get('sol_token') === A && app.store.get('sol_refresh') === R, 'both tokens are still stored');
+    ok(app.V('__userEmail.textContent') === 'Reconnecting…', `the page says it is reconnecting rather than sitting on Loading… (saw ${JSON.stringify(app.V('__userEmail.textContent'))}) (RV5-CRITIC-1)`);
     await new Promise(r => setTimeout(r, INIT_RETRY_WAIT_MS));
     ok(me === 2, `init() asked /auth/me again (${me} request(s))`);
     ok(app.hrefs.length === 0 && app.V('me && me.email') === 'member@example.invalid', 'the retry loaded the account; still no redirect');
+    ok(app.V('__userEmail.textContent') === 'member@example.invalid', 'and shows the account again');
   });
 }
 

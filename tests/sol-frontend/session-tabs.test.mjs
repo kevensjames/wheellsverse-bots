@@ -153,14 +153,22 @@ function makeBrowser({ locks = false, storageEvents = true, lag = false } = {}) 
   };
   let holding = false;
   const queue = [];
+  // A storage write reaches one tab: its view takes the browser's current value for that
+  // key (views converge) and the event carries the value that write stored.
+  const applyTo = (t, m) => {
+    if (lag) { if (store.has(m.key)) t.view.set(m.key, store.get(m.key)); else t.view.delete(m.key); }
+    if (storageEvents && m.oldValue !== m.newValue) t.dispatchStorage({ key: m.key, oldValue: m.oldValue, newValue: m.newValue });
+  };
   const deliver = m => {
-    if (m.broadcast) return m.broadcast();
+    if (m.broadcast) { if (m.to && m.to.held) m.to.pending.push(m); else m.broadcast(); return; }
     for (const t of tabs) {
       if (t === m.from) continue;
-      if (lag) { if (store.has(m.key)) t.view.set(m.key, store.get(m.key)); else t.view.delete(m.key); }
-      if (storageEvents && m.oldValue !== m.newValue) t.dispatchStorage({ key: m.key, oldValue: m.oldValue, newValue: m.newValue });
+      if (t.held) t.pending.push(m); else applyTo(t, m);
     }
   };
+  // One tab's renderer is busy: nothing reaches it until releaseTab(), in order.
+  const holdTab = t => { t.held = true; t.pending = t.pending || []; };
+  const releaseTab = t => { t.held = false; for (const m of (t.pending || []).splice(0)) { if (m.broadcast) m.broadcast(); else applyTo(t, m); } };
   const write = (from, k, v) => {
     const oldValue = store.has(k) ? store.get(k) : null;
     if (v === null) store.delete(k); else store.set(k, String(v));
@@ -174,7 +182,7 @@ function makeBrowser({ locks = false, storageEvents = true, lag = false } = {}) 
   const deliverFirst = n => { for (const m of queue.splice(0, n)) deliver(m); };
   const queued = () => queue.map(m => (m.broadcast ? 'broadcast' : m.key));
   // Deliver only the held BroadcastChannel messages (storage events stay held).
-  const deliverBroadcasts = () => { for (let i = 0; i < queue.length;) { if (queue[i].broadcast) queue.splice(i, 1)[0].broadcast(); else i++; } };
+  const deliverBroadcasts = () => { for (let i = 0; i < queue.length;) { if (queue[i].broadcast) deliver(queue.splice(i, 1)[0]); else i++; } };
   const release = () => { holding = false; const q = queue.splice(0); setTimeout(() => { for (const m of q) deliver(m); }, 0); };
   // Deliver held writes synchronously now (e.g. between two of a page's scripts).
   const deliverNow = () => { holding = false; for (const m of queue.splice(0)) deliver(m); };
@@ -199,20 +207,22 @@ function makeBrowser({ locks = false, storageEvents = true, lag = false } = {}) 
   // the same name (asynchronously), as in browsers. While held, messages wait with the
   // storage events (a busy tab receives nothing), in the order they were sent.
   const channels = [];
+  const channelFor = owner => class extends BroadcastChannelStub { constructor(name) { super(name); this.owner = owner; } };
   class BroadcastChannelStub {
     constructor(name) { this.name = name; this.onmessage = null; this.listeners = []; channels.push(this); }
     postMessage(data) {
+      if (this.owner && this.owner.navigated) return;           // a page that has gone posts nothing
       for (const c of channels) {
-        if (c === this || c.name !== this.name || c.closed) continue;
-        const broadcast = () => { const ev = { data }; if (c.onmessage) c.onmessage(ev); for (const fn of c.listeners) fn(ev); };
-        if (holding) queue.push({ broadcast }); else setTimeout(broadcast, 0);
+        if (c === this || c.name !== this.name || c.closed || (c.owner && c.owner.navigated)) continue;
+        const m = { to: c.owner, broadcast: () => { const ev = { data }; if (c.onmessage) c.onmessage(ev); for (const fn of c.listeners) fn(ev); } };
+        if (holding) queue.push(m); else setTimeout(() => deliver(m), 0);
       }
     }
     addEventListener(t, fn) { if (t === 'message') this.listeners.push(fn); }
     removeEventListener() {}
     close() { this.closed = true; }
   }
-  const browser = { store, tabs, locksApi, write, storePair, signIn, rawSignIn, hold, release, deliverNow, deliverFirst, queued, deliverBroadcasts, lag, BroadcastChannel: BroadcastChannelStub, get landing() { return landing; } };
+  const browser = { store, tabs, locksApi, write, storePair, signIn, rawSignIn, hold, release, deliverNow, deliverFirst, queued, deliverBroadcasts, holdTab, releaseTab, lag, BroadcastChannel: BroadcastChannelStub, channelFor, get landing() { return landing; } };
   return browser;
 }
 
@@ -224,7 +234,7 @@ function makeLanding(browser, server) {
   const area = () => (browser.lag ? page.view : browser.store);
   const localStorage = { getItem: k => (area().has(k) ? area().get(k) : null), setItem: (k, v) => browser.write(page, k, v), removeItem: k => browser.write(page, k, null) };
   const location = {}; Object.defineProperty(location, 'href', { get: () => '/sol/', set: v => hrefs.push(v) });
-  const sandbox = { console, Promise, JSON, Date, Math, API, localStorage, window: { location }, location, setTimeout, clearTimeout, atob, btoa, BroadcastChannel: browser.BroadcastChannel,
+  const sandbox = { console, Promise, JSON, Date, Math, API, localStorage, window: { location }, location, setTimeout, clearTimeout, atob, btoa, BroadcastChannel: browser.channelFor(page),
     fetch: (url, opts = {}) => { const call = { tab: 'landing', url: String(url), method: (opts.method || 'GET').toUpperCase(), headers: opts.headers || {}, body: opts.body, keepalive: !!opts.keepalive }; calls.push(call); return server.handle(call); } };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
@@ -246,9 +256,13 @@ function makeLanding(browser, server) {
 function makeTab(browser, server, label, { blockRevokes = false, throwOnSet = null, noAbortSignalTimeout = false, between = null, noSessionJs = false } = {}) {
   const calls = [], hrefs = [], events = [], listeners = { storage: [] };
   let reloads = 0;
-  const location = { search: '', reload: () => { reloads++; events.push('reload'); } };
-  Object.defineProperty(location, 'href', { get: () => hrefs[hrefs.length - 1] || '/sol/app', set: v => { hrefs.push(v); events.push('redirect:' + v); } });
-  const tab = { label, calls, hrefs, events, get reloads() { return reloads; } };
+  // Navigating (href set, reload) ends the page as in a browser: its pending fetches are
+  // cancelled, except keepalive ones already sent, and it sends nothing new.
+  const pending = new Set();
+  const navigate = () => { if (tab.navigated) return; tab.navigated = true; for (const p of [...pending]) if (!p.keepalive) p.cancel(); };
+  const location = { search: '', reload: () => { reloads++; events.push('reload'); navigate(); } };
+  Object.defineProperty(location, 'href', { get: () => hrefs[hrefs.length - 1] || '/sol/app', set: v => { hrefs.push(v); events.push('redirect:' + v); navigate(); } });
+  const tab = { label, calls, hrefs, events, get reloads() { return reloads; }, navigated: false, held: false, pending: [] };
   tab.view = new Map(browser.store);   // this tab's own copy (used when browser.lag)
   const sets = new Map();
   const area = () => (browser.lag ? tab.view : browser.store);
@@ -267,24 +281,30 @@ function makeTab(browser, server, label, { blockRevokes = false, throwOnSet = nu
     AbortSignal: noAbortSignalTimeout ? { abort: AbortSignal.abort } : AbortSignal,
     window, location, localStorage,
     navigator: browser.locksApi ? { locks: browser.locksApi } : {},
-    BroadcastChannel: browser.BroadcastChannel,
+    BroadcastChannel: browser.channelFor(tab),
     document: { querySelectorAll: () => [], querySelector: () => null, getElementById: () => null },
     fetch: (url, opts = {}) => {
       const call = { tab: label, url: String(url), method: (opts.method || 'GET').toUpperCase(), headers: opts.headers || {}, body: opts.body, keepalive: !!opts.keepalive };
+      if (tab.navigated) { events.push('after-navigation:' + call.url.slice(API.length)); return new Promise(() => {}); }   // the page has gone
       calls.push(call);
+      let answer;
       if (call.url === API + '/auth/logout') {
         if (blockRevokes) return new Promise(() => {});
         let tok = null; try { tok = JSON.parse(call.body).refresh_token; } catch {}
-        return server.handle(call).then(r => { events.push('revoke-answered:' + tok); return r; });
+        answer = server.handle(call).then(r => { events.push('revoke-answered:' + tok); return r; });
+      } else {
+        answer = server.handle(call);
       }
-      const answer = server.handle(call);
-      const signal = opts.signal;
-      if (!signal) return answer;
       return new Promise((resolve, reject) => {
-        const aborted = () => { events.push('aborted:' + call.url.slice(API.length)); reject(new DOMException('The operation was aborted.', 'AbortError')); };
-        if (signal.aborted) return aborted();
-        signal.addEventListener('abort', aborted);
-        answer.then(resolve, reject);
+        const entry = { keepalive: call.keepalive, cancel: () => { pending.delete(entry); events.push('cancelled:' + call.url.slice(API.length)); reject(new DOMException('The operation was aborted.', 'AbortError')); } };
+        pending.add(entry);
+        const signal = opts.signal;
+        if (signal) {
+          const aborted = () => { pending.delete(entry); events.push('aborted:' + call.url.slice(API.length)); reject(new DOMException('The operation was aborted.', 'AbortError')); };
+          if (signal.aborted) return aborted();
+          signal.addEventListener('abort', aborted);
+        }
+        answer.then(v => { if (pending.delete(entry)) resolve(v); }, e => { if (pending.delete(entry)) reject(e); });
       });
     },
   };
@@ -298,7 +318,8 @@ function makeTab(browser, server, label, { blockRevokes = false, throwOnSet = nu
   vm.runInContext(SRC['state.js'], sandbox);
   if (between) between(tab);
   for (const f of ['router.js', 'api.js']) vm.runInContext(SRC[f], sandbox);
-  tab.dispatch = (type, ev) => { for (const fn of listeners[type] || []) fn(ev); };
+  // A page restored from the back/forward cache is alive again (it navigated away before).
+  tab.dispatch = (type, ev) => { if (type === 'pageshow' && ev && ev.persisted) tab.navigated = false; for (const fn of listeners[type] || []) fn(ev); };
   tab.revokes = () => calls.filter(c => c.method === 'POST' && c.url === API + '/auth/logout');
   tab.request = (path, opts) => tab.V(`api(${JSON.stringify(path)}, ${JSON.stringify(opts || {})})`).then(v => ({ ok: true, v }), e => ({ ok: false, e: String(e && e.message) }));
   return tab;
@@ -648,6 +669,7 @@ await scenario('[T21] X signs out, Y signs in, X presses Back (page restored fro
   await A.V('logout()');
   const Y = browser.signIn(server, 'user-y');
   server.expire(X.access_token);
+  A.navigated = false;                                      // the page is back from the cache (its pageshow handler runs below)
   const out = await A.request(...PAY); await settle();      // a request from the restored page's old code
   ok(!server.log.some(l => l.tab === 'A' && (l.as === 'user-y' || (l.path === '/auth/refresh'))), "the signed-out page neither refreshes Y's session nor sends anything as Y");
   ok(!out.ok, 'its request fails');
@@ -970,6 +992,8 @@ await scenario("[T41] B's refresh is rejected because another tab rotated first,
   ok(g.hit && server.log.find(l => l.tab === 'B' && l.path === '/auth/refresh').status === 401, "B's refresh was rejected (401)");
   ok(!server.log.some(l => l.tab === 'B' && l.bearer === stale.access_token), 'B did not send the expired token');
   ok(browser.store.get('sol_refresh') === stale.refresh_token && B.hrefs.length === 0, `the newer session is kept and B stays (${r.ok ? 'ok' : r.e})`);
+  await sleep(REVOKE_BOUND_MS + 200);
+  ok(B.hrefs.length === 0 && B.reloads === 0, `B neither leaves nor reloads (events ${JSON.stringify(B.events)})`);
 });
 
 for (const legacy of [false, true]) await scenario(`[T42] B's refresh answers while another user's sign-in is half written (Y's access token, still X's refresh token): B writes nothing over it${legacy ? ' (storage from before this version, no commit tag)' : ''}`, async () => {
@@ -1118,23 +1142,28 @@ await scenario("[T50] a page restored from the back/forward cache while the stor
   ok(P.reloads === 1, `the restored page reloads (saw ${P.reloads})`);
 });
 
-await scenario("[T51] lagging views and the old landing page (no record): B's late pair of X is listed dead; another tab's rejected refresh later does not bring it back", async () => {
+await scenario("[T51] the old landing page (no record): B's late pair of X is listed dead; tab C, still behind, then gets its stale refresh rejected and lists that too: X's pair stays dead (review 5, RV5-TESTS-1/2)", async () => {
   const server = makeServer(), browser = makeBrowser({ lag: true });
   const X = browser.signIn(server, 'user-x');
   await settle();
   const B = makeTab(browser, server, 'B'), C = makeTab(browser, server, 'C');
+  browser.holdTab(C);                                         // C's renderer is busy: it sees nothing of what follows
   server.expire(X.access_token);
   const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');
   const p = B.request('/groups');
   await settle();
   browser.hold();
   browser.rawSignIn(server, 'user-y');                        // the old landing page: two writes, no record
-  g.release(); await settle();
-  browser.release(); await p; await sleep(80);
+  g.release(); await settle();                                // B stores its late pair of X last
+  browser.release(); await p; await sleep(80);               // B sees Y's token, lists its own pair dead, revokes it, leaves
+  const late = browser.store.get('sol_refresh');
+  ok(late && late !== X.refresh_token && /user-x/.test(late), 'the race happened: B\'s late pair of X is the stored one');
   ok(userOf(openNow(browser, server)) !== 'user-x', 'a tab opened now does not run as X');
-  await C.request('/groups'); await sleep(40);               // C still holds X's first refresh token: rejected, listed dead too
+  const rc = await C.request('/groups'); await sleep(40);    // C still sends X's first refresh token: rejected, and C lists it dead
+  ok(sent(server, 'C', '/auth/refresh').some(l => l.status === 401), `C sent its stale refresh and it was rejected (${rc.ok ? 'ok' : rc.e})`);
   const t = openNow(browser, server);
-  ok(userOf(t) !== 'user-x', `after that, a tab opened now still does not run as X (it got ${t ? userOf(t) : 'no session'})`);
+  ok(userOf(t) !== 'user-x', `after C's listing, a tab opened now still does not run as X (it got ${t ? userOf(t) : 'no session'})`);
+  browser.releaseTab(C);
 });
 
 // ── Round 5: findings of the interrupted review 4 (regression lens) ───────────
@@ -1194,6 +1223,7 @@ await scenario('[T55] an app.html from before core/session.js, served with this 
   await P.V('init()').catch(() => {});                      // main.js runs init() after the scripts
   await settle();
   ok(P.calls.length === 0, `init() sends nothing without a session (saw ${JSON.stringify(P.calls.map(c => c.url.slice(API.length)))})`);
+  P.navigated = false;                                        // if the page were still showing, its Sign out must work
   let out = null; try { await P.V('logout()'); out = 'ok'; } catch (e) { out = String(e).split('\n')[0]; }
   ok(out === 'ok' && server.active('user-x').length === 0 && !browser.store.has('sol_refresh'), `logout() still works: tokens removed and the session revoked (${out}; active ${JSON.stringify(server.active('user-x'))})`);
   void X;
@@ -1242,6 +1272,8 @@ await scenario('[T58] X signs out while that late answer is still awaited: when 
   g.release(); await sleep(80);
   ok(openNow(browser, server) === null, 'nothing counts afterwards');
   ok(server.active('user-x').length === 0, `the late session was revoked (active ${JSON.stringify(server.active('user-x'))})`);
+  const i = B.events.findIndex(e => e.startsWith('revoke-answered:synthetic-refresh-user-x-2')), j = B.events.findIndex(e => e.startsWith('redirect') || e === 'reload');
+  ok(i !== -1 && (j === -1 || i < j), `B revoked it before navigating (a navigation cancels B's pending answer) (events ${JSON.stringify(B.events)})`);
 });
 
 await scenario('[T59] B signs out itself while its own late refresh answer is still awaited: the answer is revoked before B leaves', async () => {
@@ -1258,6 +1290,133 @@ await scenario('[T59] B signs out itself while its own late refresh answer is st
   const i = B.events.findIndex(e => e.startsWith('revoke-answered:synthetic-refresh-user-x-2')), j = B.events.findIndex(e => e.startsWith('redirect'));
   ok(i !== -1 && j !== -1 && i < j, `the late session was revoked before B navigated (events ${JSON.stringify(B.events)})`);
   ok(server.active('user-x').length === 0 && openNow(browser, server) === null, `nothing is left active or counts (active ${JSON.stringify(server.active('user-x'))})`);
+});
+
+// ── Round 6: review 5 ────────────────────────────────────────────────────────
+await scenario("[T60] a refresh the server rotated answers only after 45 s: the tab's later 401s fail without sending the rotated token again, and the answer still counts when it comes (RV5-CLOSURE-2, RV5-REGRESSION-3)", async () => {
+  const server = makeServer(), browser = makeBrowser({ locks: true });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B');
+  server.expire(X.access_token);
+  const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');
+  const first = await within(B.request('/groups'), 23000);
+  ok(first.settled && !first.v.ok, `the first request fails at the 20 s bound (${first.settled ? first.v.e : 'still waiting'})`);
+  const second = await within(B.request('/circles'), 23000);   // its 401 comes while the answer is still awaited
+  ok(second.settled && !second.v.ok, `a second request fails too, at once or within the bound (${second.settled ? second.v.e : 'still waiting'})`);
+  await sleep(2000);
+  const third = await within(B.request('/groups'), 23000);
+  ok(sent(server, 'B', '/auth/refresh').length === 1, `the rotated token was never sent again (refreshes ${sent(server, 'B', '/auth/refresh').length})`);
+  ok(B.hrefs.length === 0 && B.reloads === 0, `B neither leaves nor reloads meanwhile (events ${JSON.stringify(B.events)})`);
+  g.release(); await sleep(80);
+  const after = await within(B.request('/groups'), 5000);
+  ok(after.settled && after.v.ok, `once the answer comes, the next request works (${after.settled ? (after.v.ok ? 'ok' : after.v.e) : 'no answer: B has left'})`);
+  ok(userOf(openNow(browser, server)) === 'user-x' && server.active('user-x').length === 1, 'the rotated session is the stored one and the only one active');
+  void third;
+});
+
+await scenario("[T61] another tab gets a 401 while B's refresh answer is still awaited: it does not send the rotated token, does not sign out, and continues once the answer comes (RV5-TRANSITION-8)", async () => {
+  const server = makeServer(), browser = makeBrowser({ locks: true });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B'), C = makeTab(browser, server, 'C');
+  server.expire(X.access_token);
+  const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');
+  const first = await within(B.request('/groups'), 23000);
+  ok(first.settled && !first.v.ok, 'B\'s request fails at the bound; its answer is still awaited');
+  const rc = await within(C.request('/groups'), 23000);
+  ok(rc.settled && !rc.v.ok && sent(server, 'C', '/auth/refresh').length === 0, `C's request fails without sending the rotated token (${rc.settled ? rc.v.e : 'still waiting'}; C refreshes ${sent(server, 'C', '/auth/refresh').length})`);
+  ok(C.hrefs.length === 0 && C.reloads === 0, `C stays (events ${JSON.stringify(C.events)})`);
+  g.release(); await sleep(80);
+  const again = await within(C.request('/groups'), 5000);
+  ok(again.settled && again.v.ok && sent(server, 'C', '/auth/refresh').length === 0, `C's next request works with the session B stored (${again.settled ? (again.v.ok ? 'ok' : again.v.e) : 'no answer: C has left'})`);
+  ok(openNow(browser, server) !== null, 'and the session still counts');
+});
+
+await scenario("[T62] while B's own answer is still awaited, another tab stores a newer usable session: B's next 401 uses it at once (RV5-CLOSURE-4)", async () => {
+  const server = makeServer(), browser = makeBrowser({ locks: true });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B'), C = makeTab(browser, server, 'C');
+  server.expire(X.access_token);
+  server.gate(e => e.tab === 'B' && e.path === '/auth/refresh', { before: true });   // B's request never gets through
+  const first = await within(B.request('/groups'), 23000);
+  ok(first.settled && !first.v.ok, 'B\'s request fails at the bound');
+  const newer = server.issue('user-x'); server.sessions.get(X.refresh_token).active = false;
+  browser.storePair(C, newer);                                // another tab refreshed meanwhile
+  await settle();
+  const t0 = Date.now();
+  const r = await within(B.request('/groups'), 23000);
+  ok(r.settled && r.v.ok && Date.now() - t0 < 2000, `B continues with the newer session without waiting (${r.settled ? (r.v.ok ? 'ok' : r.v.e) : 'still waiting'} after ${Date.now() - t0} ms)`);
+});
+
+await scenario("[T63] lagging views: after a sign-in elsewhere, the sign-out record and the announcement reach B before the new pair: B reloads into the new session instead of going to the sign-in page (RV3-2, RV5-CLOSURE-1)", async () => {
+  for (const user of ['user-y', 'user-x']) {
+    const server = makeServer(), browser = makeBrowser({ lag: true });
+    browser.signIn(server, 'user-x');
+    await settle();
+    const B = makeTab(browser, server, 'B');
+    browser.hold();
+    browser.signIn(server, user);                             // the landing page replaces the session
+    const q = browser.queued();
+    const firstPair = q.indexOf('sol_token');
+    browser.deliverFirst(firstPair);                          // B sees the record (and announcement) first ...
+    await sleep(0);
+    setTimeout(() => browser.release(), 120);                 // ... and the new pair 120 ms later
+    await sleep(REVOKE_BOUND_MS + 900);
+    ok(B.reloads === 1 && B.hrefs.length === 0, `${user}: B reloads once and is not sent to the sign-in page (events ${JSON.stringify(B.events)}; queued first ${JSON.stringify(q.slice(0, firstPair))})`);
+  }
+});
+
+await scenario('[T64] two tabs list their own dead refresh tokens at the same moment (lagging views): both stay listed (RV5-TESTS-1)', async () => {
+  const server = makeServer(), browser = makeBrowser({ lag: true });
+  browser.signIn(server, 'user-x');
+  await settle();
+  const B = makeTab(browser, server, 'B'), D = makeTab(browser, server, 'D');
+  const rb = server.issue('user-x').refresh_token, rd = server.issue('user-x').refresh_token;
+  browser.hold();                                             // neither sees the other's write before its own
+  B.V(`_solMarkDead(${JSON.stringify(rb)})`);
+  D.V(`_solMarkDead(${JSON.stringify(rd)})`);
+  browser.release(); await sleep(40);
+  const F = makeTab(browser, server, 'F');
+  ok(F.V(`_solIsDead(${JSON.stringify(rb)})`) === true && F.V(`_solIsDead(${JSON.stringify(rd)})`) === true, 'both refresh tokens are listed dead');
+});
+
+await scenario("[T65] a page restored from the back/forward cache after a sign-out ends the pair it stored itself (RV5-CLOSURE-7, M13)", async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  const X = browser.signIn(server, 'user-x');
+  const P = makeTab(browser, server, 'P'), A = makeTab(browser, server, 'A');
+  server.expire(X.access_token);
+  const r = await P.request('/groups'); await settle();      // P refreshed: its own pair is stored
+  const mine = P.V('_myRefresh');
+  ok(r.ok && mine, 'P stored its own pair');
+  P.navigated = true;                                         // P is in the back/forward cache (it misses the sign-out)
+  await A.V('logout()'); await sleep(20);
+  P.dispatch('pageshow', { persisted: true }); await sleep(40);
+  ok(!server.sessions.get(mine).active, `restored, P revokes its own pair (active ${JSON.stringify(server.active('user-x'))})`);
+  ok(P.reloads === 1, 'and reloads');
+});
+
+await scenario('[T66] another tab stored a newer pair while B\'s refresh was in flight: B uses the newer one and revokes the session its own refresh created (RV5-TESTS-4, M21)', async () => {
+  const server = makeServer(), browser = makeBrowser({ storageEvents: false });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B'), C = makeTab(browser, server, 'C');
+  server.expire(X.access_token);
+  const gB = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');
+  const pb = B.request('/groups');
+  await settle();
+  const newer = server.issue('user-x');
+  browser.storePair(C, newer);
+  gB.release();
+  const r = await pb; await sleep(40);
+  ok(r.ok, `B's request succeeds (${r.ok ? 'ok' : r.e})`);
+  ok(JSON.stringify(server.active('user-x')) === JSON.stringify([newer.refresh_token]), `only the stored session is active; B's redundant one was revoked (active ${JSON.stringify(server.active('user-x'))})`);
+});
+
+await scenario('[T67] storage from before this version: another user signs in on the old landing page while B is still loading: B reloads (RV5-TESTS-4, M12)', async () => {
+  const server = makeServer(), browser = makeBrowser();
+  browser.rawSignIn(server, 'user-x');                        // no tag anywhere
+  const B = makeTab(browser, server, 'B', { between: () => { browser.rawSignIn(server, 'user-y'); } });
+  await sleep(REVOKE_BOUND_MS + 300);
+  ok(B.reloads === 1 && B.hrefs.length === 0, `B reloads (events ${JSON.stringify(B.events)})`);
+  ok(!server.log.some(l => l.tab === 'B' && l.as === 'user-y'), 'and sends nothing as Y');
 });
 
 // ── keepalive ───────────────────────────────────────────────────────────────

@@ -70,6 +70,7 @@ function makeHub() {
 function makeAdmin(route, initial = {}, { hub = null, local = null } = {}) {
   const localMap = local || new Map();
   const winListeners = {};
+  const navs = [];   // window.location.replace()/reload() calls
   const session = new Map(Object.entries(initial));   // empty by default: `if (adminToken) showApp()` does not run at load
   const calls = [];
   const elements = new Map();
@@ -81,7 +82,7 @@ function makeAdmin(route, initial = {}, { hub = null, local = null } = {}) {
   const sandbox = {
     console, setTimeout, clearTimeout, Promise, JSON, URLSearchParams,
     ...(hub ? { BroadcastChannel: hub.BroadcastChannel } : {}),
-    window: { location: { href: '', search: '' }, addEventListener: (t, fn) => { (winListeners[t] = winListeners[t] || []).push(fn); }, removeEventListener() {} },
+    window: { location: { href: '', search: '', pathname: '/sol/admin', replace: u => navs.push('replace:' + u), reload: () => navs.push('reload') }, addEventListener: (t, fn) => { (winListeners[t] = winListeners[t] || []).push(fn); }, removeEventListener() {} },
     sessionStorage: { getItem: k => (session.has(k) ? session.get(k) : null), setItem: (k, v) => session.set(k, String(v)), removeItem: k => session.delete(k) },
     localStorage: { getItem: k => (localMap.has(k) ? localMap.get(k) : null), setItem: (k, v) => localMap.set(k, String(v)), removeItem: k => localMap.delete(k) },
     document: { getElementById: element, querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, createElement: () => element('created') },
@@ -99,7 +100,7 @@ function makeAdmin(route, initial = {}, { hub = null, local = null } = {}) {
   const revokes = () => calls.filter(c => c.method === 'POST' && c.url === API + '/auth/logout');
   const refreshes = () => calls.filter(c => c.method === 'POST' && c.url === API + '/auth/refresh');
   const dispatch = (type, ev) => { for (const fn of winListeners[type] || []) fn(ev); };
-  return { session, calls, element, V, signIn, revokes, refreshes, rejections, dispatch, local: localMap };
+  return { session, calls, element, V, signIn, revokes, refreshes, rejections, dispatch, local: localMap, navs };
 }
 
 let pass = 0, fail = 0;
@@ -404,7 +405,8 @@ await scenario('[A19] two requests get a 401 together and the session expires: b
 });
 
 // ── Round 4: third independent review (review 3) ────────────────────────────
-for (const [label, refreshAnswer] of [['429', () => res(429, { detail: 'Rate limit exceeded' })], ['503', () => res(503, { detail: 'Service unavailable' })], ['network error', () => { throw new TypeError('Failed to fetch'); }]]) {
+for (const [label, refreshAnswer] of [['429', () => res(429, { detail: 'Rate limit exceeded' })], ['503', () => res(503, { detail: 'Service unavailable' })], ['500', () => res(500, { detail: 'Internal error' })], ['network error', () => { throw new TypeError('Failed to fetch'); }],
+  ['a 200 without tokens', () => res(200, { detail: 'synthetic answer without tokens' })], ['a 200 whose body cannot be read', () => ({ status: 200, ok: true, statusText: '', json: async () => { throw new SyntaxError('Unexpected end of JSON input'); } })]]) {
   await scenario(`[A20] the refresh fails for a passing reason (${label}): the admin stays signed in and the next request works (RV3-N3)`, async () => {
     let refreshes = 0;
     const app = makeAdmin(call => {
@@ -486,6 +488,61 @@ await scenario('[A24] a duplicated tab restored from the back/forward cache afte
   two.dispatch('pageshow', { persisted: true });
   await tick();
   ok(!two.session.has('sol_admin_token') && two.V('adminToken') === null && two.element('loginGate').style.display === 'flex', `restored, it signs out (saw ${JSON.stringify([...two.session])})`);
+});
+
+// ── Round 6: review 5 ────────────────────────────────────────────────────────
+await scenario('[A25] a duplicated copy that refreshed on its own revokes its rotated token when the sign-out message reaches it (RV5-TESTS-5)', async () => {
+  const hub = makeHub(), local = new Map();
+  const route = call => (call.url === API + '/auth/logout' ? res(204) : call.url === API + '/auth/refresh' ? res(200, { access_token: AT2, refresh_token: RT2 }) : res(200, {}));
+  const one = makeAdmin(route, {}, { hub, local });
+  one.V(`_adminStartSession('${AT}', '${RT}')`);
+  const two = makeAdmin(route, Object.fromEntries(one.session), { hub, local });
+  ok(await two.V('_tryAdminRefresh()') === true && two.session.get('sol_admin_refresh') === RT2, 'the copy rotated its refresh token');
+  one.V('adminLogout()');
+  await tick(); await tick(); await tick();
+  ok(two.revokes().some(c => JSON.parse(c.body).refresh_token === RT2), `the copy revoked its own rotated token (revokes ${JSON.stringify(two.revokes().map(c => JSON.parse(c.body).refresh_token))})`);
+});
+
+await scenario('[A26] without BroadcastChannel, the ended session is still noted, so a copy that loads later signs out (RV5-TESTS-5)', async () => {
+  const local = new Map();
+  const route = call => (call.url === API + '/auth/logout' ? res(204) : res(200, {}));
+  const one = makeAdmin(route, {}, { local });               // no hub: typeof BroadcastChannel === 'undefined'
+  one.V(`_adminStartSession('${AT}', '${RT}')`);
+  const copy = Object.fromEntries(one.session);
+  one.V('adminLogout()');
+  await tick();
+  const two = makeAdmin(route, copy, { local });
+  ok(two.V('adminToken') === null && !two.session.has('sol_admin_token'), 'the copy signs out when it loads');
+});
+
+await scenario('[A27] signing out clears the page: the admin portal reloads, so member data and the admin identity do not stay in the document (RV5-SECURITY-4)', async () => {
+  const hub = makeHub(), local = new Map();
+  const route = call => (call.url === API + '/auth/logout' ? res(204) : res(200, {}));
+  const one = makeAdmin(route, {}, { hub, local });
+  one.V(`_adminStartSession('${AT}', '${RT}')`);
+  const copy = Object.fromEntries(one.session);
+  const two = makeAdmin(route, copy, { hub, local });
+  one.V('adminLogout()');
+  await tick(); await tick(); await tick();
+  ok(one.navs.length === 1, `the page that signed out reloads once (saw ${JSON.stringify(one.navs)})`);
+  ok(two.navs.length === 1, `a duplicated copy signed out by the message reloads too (saw ${JSON.stringify(two.navs)})`);
+  ok(one.revokes().length === 1, 'the revoke was sent first (keepalive)');
+  const three = makeAdmin(route, copy, { local });             // another copy, loading after the sign-out
+  ok(three.V('adminToken') === null && three.navs.length === 0, `a copy signed out while it loads shows the login gate without reloading again (saw ${JSON.stringify(three.navs)})`);
+});
+
+await scenario("[A28] a page restored from the back/forward cache checks its OWN session: if a later page of this tab replaced it, the restored page reloads and leaves the newer session alone (RV5-REGRESSION-4)", async () => {
+  const local = new Map();
+  const route = call => (call.url === API + '/auth/logout' ? res(204) : res(200, {}));
+  const app = makeAdmin(route, {}, { local });
+  app.V(`_adminStartSession('${AT}', '${RT}')`);
+  // A later document of this tab signed out and another admin signed in: sessionStorage now holds that session.
+  app.session.set('sol_admin_token', AT2); app.session.set('sol_admin_refresh', RT2); app.session.set('sol_admin_family', 'later-family');
+  app.dispatch('pageshow', { persisted: true });
+  await tick();
+  ok(app.navs.length === 1, `the restored page reloads (saw ${JSON.stringify(app.navs)})`);
+  ok(app.session.get('sol_admin_token') === AT2 && app.session.get('sol_admin_refresh') === RT2, 'the newer session is untouched');
+  ok(app.revokes().length === 0, 'and nothing is revoked');
 });
 
 await tick(); await tick();
