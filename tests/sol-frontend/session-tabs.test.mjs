@@ -427,6 +427,28 @@ await scenario("[T15] sign-out in tab A while tab B's refresh is in flight: B's 
   ok(j !== -1 && (i === -1 ? false : i < j), `tab B revoked its late session and then left (events ${JSON.stringify(B.events)})`);
 });
 
+await scenario("[T17] with storage events: tab B refreshing when X signs out and Y signs in elsewhere: B's late session is revoked before it reloads", async () => {
+  const server = makeServer(), browser = makeBrowser();
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B'), A = makeTab(browser, server, 'A');
+  server.expire(X.access_token);
+  const g = server.gate(e => e.path === '/auth/refresh');
+  const pay = B.request(...PAY);
+  await settle();
+  await A.V('logout()');
+  const Y = browser.signIn(server, 'user-y');
+  await sleep(50);                                     // B has seen both storage events
+  ok(B.reloads === 0 && B.hrefs.length === 0, `B waits for its refresh in flight before leaving (saw ${JSON.stringify(B.events)})`);
+  g.release();
+  await pay; await sleep(50);
+  ok(server.active('user-x').length === 0, `no session of X is left active (saw ${JSON.stringify(server.active('user-x'))})`);
+  ok(sent(server, 'B', PAY[0]).length === 1 && !server.log.some(l => l.tab === 'B' && l.as === 'user-y'), 'the POST was sent once and nothing as Y');
+  ok(browser.store.get('sol_refresh') === Y.refresh_token, "Y's session stays stored");
+  const i = B.events.findIndex(e => e.startsWith('revoke-answered:'));
+  const j = B.events.findIndex(e => e === 'reload' || e.startsWith('redirect'));
+  ok(i !== -1 && j !== -1 && i < j && B.events.filter(e => e === 'reload' || e.startsWith('redirect')).length === 1, `B revoked its late session, then left once (events ${JSON.stringify(B.events)})`);
+});
+
 // ── keepalive ───────────────────────────────────────────────────────────────
 await scenario('[T16] the sign-out revoke is sent with keepalive, so a navigation cannot cancel it (N5)', async () => {
   const server = makeServer(), browser = makeBrowser();
