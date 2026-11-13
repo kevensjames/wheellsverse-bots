@@ -152,6 +152,20 @@ function logout() {
   return _logoutPromise;
 }
 
+// Leave once a refresh in flight in this tab has finished (bounded): it sees
+// that the session changed, stores nothing and revokes the session it was
+// given, and leaving first would cancel that. Several events while waiting
+// share one wait; a reload wins over the sign-in page.
+let _leaveWantReload = null;
+function _leaveAfterRefresh(reload) {
+  const first = _leaveWantReload === null;
+  _leaveWantReload = !!reload || _leaveWantReload === true;
+  if (!first) return;
+  token = null;
+  const inflight = (typeof _refreshPromise !== 'undefined') ? _refreshPromise : null;
+  _withTimeout(inflight, REVOKE_TIMEOUT_MS).then(() => _leave(_leaveWantReload));
+}
+
 // Follow the other tabs at once instead of acting with this tab's in-memory
 // access token until it expires: a sign-out elsewhere signs this tab out, and
 // another user signing in reloads it. Other changes (a refresh by another tab,
@@ -159,15 +173,8 @@ function logout() {
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('storage', e => {
     if (_leaving || _logoutPromise) return;
-    if (e.key === null || e.key === SIGNOUT_KEY) {
-      token = null;
-      // A refresh in flight sees the sign-out, stores nothing and revokes its
-      // late session; wait for it (bounded) so leaving does not cancel that.
-      const inflight = (typeof _refreshPromise !== 'undefined') ? _refreshPromise : null;
-      _withTimeout(inflight, REVOKE_TIMEOUT_MS).then(() => _leave(false));
-    } else if (e.key === 'sol_token' && e.newValue && _isOtherUser(e.newValue)) {
-      _leave(true);
-    }
+    if (e.key === null || e.key === SIGNOUT_KEY) _leaveAfterRefresh(false);
+    else if (e.key === 'sol_token' && e.newValue && _isOtherUser(e.newValue)) _leaveAfterRefresh(true);
   });
 }
 
