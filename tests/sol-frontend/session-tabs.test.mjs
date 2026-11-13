@@ -1062,6 +1062,8 @@ await scenario('[T46] a refresh that never answers is given up after a bound: th
   ok(browser.store.get('sol_refresh') === X.refresh_token, 'the session stays stored');
   const rb = await within(B.request('/groups'), 5000);
   ok(rb.settled && rb.v.ok, `B's next request gets the lock, refreshes and succeeds (${rb.settled ? (rb.v.ok ? 'ok' : rb.v.e) : 'still waiting after 5 s'})`);
+  await sleep(REVOKE_BOUND_MS + 300);
+  ok(C.hrefs.length === 0 && C.reloads === 0, `C still stays after the leave bound: a request that gave up waiting is not a sign-out (events ${JSON.stringify(C.events)})`);
 });
 
 await scenario('[T47] the sign-out record can never be written (storage full): an idle tab is still signed out (RV3-N6)', async () => {
@@ -1189,6 +1191,9 @@ await scenario('[T55] an app.html from before core/session.js, served with this 
   ok(threw === null, `state.js, router.js and api.js load without core/session.js${threw ? ' (' + String(threw).split('\n')[0] + ')' : ''}`);
   if (!P) return;
   ok(P.V('token') === null && P.hrefs[0] === '/sol/', `no session is taken; the page goes to the sign-in page (saw ${JSON.stringify(P.hrefs)})`);
+  await P.V('init()').catch(() => {});                      // main.js runs init() after the scripts
+  await settle();
+  ok(P.calls.length === 0, `init() sends nothing without a session (saw ${JSON.stringify(P.calls.map(c => c.url.slice(API.length)))})`);
   let out = null; try { await P.V('logout()'); out = 'ok'; } catch (e) { out = String(e).split('\n')[0]; }
   ok(out === 'ok' && server.active('user-x').length === 0 && !browser.store.has('sol_refresh'), `logout() still works: tokens removed and the session revoked (${out}; active ${JSON.stringify(server.active('user-x'))})`);
   void X;
@@ -1237,6 +1242,22 @@ await scenario('[T58] X signs out while that late answer is still awaited: when 
   g.release(); await sleep(80);
   ok(openNow(browser, server) === null, 'nothing counts afterwards');
   ok(server.active('user-x').length === 0, `the late session was revoked (active ${JSON.stringify(server.active('user-x'))})`);
+});
+
+await scenario('[T59] B signs out itself while its own late refresh answer is still awaited: the answer is revoked before B leaves', async () => {
+  const server = makeServer(), browser = makeBrowser({ locks: true });
+  const X = browser.signIn(server, 'user-x');
+  const B = makeTab(browser, server, 'B');
+  server.expire(X.access_token);
+  const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');   // received and rotated; the answer waits
+  const first = await within(B.request('/groups'), 23000);
+  ok(first.settled && !first.v.ok, 'the request failed at the bound');
+  const out = B.V('logout()');
+  setTimeout(() => g.release(), 400);                         // the answer comes within the sign-out's bound
+  await out; await sleep(60);
+  const i = B.events.findIndex(e => e.startsWith('revoke-answered:synthetic-refresh-user-x-2')), j = B.events.findIndex(e => e.startsWith('redirect'));
+  ok(i !== -1 && j !== -1 && i < j, `the late session was revoked before B navigated (events ${JSON.stringify(B.events)})`);
+  ok(server.active('user-x').length === 0 && openNow(browser, server) === null, `nothing is left active or counts (active ${JSON.stringify(server.active('user-x'))})`);
 });
 
 // ── keepalive ───────────────────────────────────────────────────────────────
