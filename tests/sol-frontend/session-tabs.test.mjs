@@ -52,6 +52,13 @@ const INDEX = readFileSync(join(CORE, '..', '..', 'index.html'), 'utf8');
 const FA_START = INDEX.indexOf('function finishAuth(data)');
 if (FA_START < 0) throw new Error('finishAuth() not found in index.html');
 const FINISH_AUTH = INDEX.slice(FA_START, INDEX.indexOf('\n}\n', FA_START) + 2);
+// The commit tag a page of this version writes after a pair (core/session.js), or null
+// for a tree without core/session.js.
+const solTag = !SESSION_JS ? null : (() => {
+  const ctx = vm.createContext({ localStorage: { getItem: () => null } });
+  vm.runInContext(SESSION_JS, ctx);
+  return (t, r, signout) => vm.runInContext(`_solTag(${JSON.stringify(t)}, ${JSON.stringify(r)}, ${JSON.stringify(signout)})`, ctx);
+})();
 const REVOKE_BOUND_MS = 3000;   // REVOKE_TIMEOUT_MS in core/router.js
 
 const tick = () => new Promise(r => setTimeout(r, 0));
@@ -165,6 +172,13 @@ function makeBrowser({ locks = false, storageEvents = true, lag = false } = {}) 
   const release = () => { holding = false; const q = queue.splice(0); setTimeout(() => { for (const m of q) deliver(m); }, 0); };
   // Deliver held writes synchronously now (e.g. between two of a page's scripts).
   const deliverNow = () => { holding = false; for (const m of queue.splice(0)) deliver(m); };
+  // A pair stored by another page of this version (e.g. a tab that refreshed): both tokens,
+  // then the commit tag naming them and the sign-out record the writer sees; for a tree
+  // without core/session.js, the two tokens.
+  const storePair = (from, s) => {
+    write(from, 'sol_token', s.access_token); write(from, 'sol_refresh', s.refresh_token);
+    if (solTag) { const view = lag && from ? from.view : store; write(from, 'sol_session', solTag(s.access_token, s.refresh_token, view.has('sol_signout') ? view.get('sol_signout') : null)); }
+  };
   // The old landing page (and a sign-in half written): two writes, nothing else.
   const rawSignIn = (server, user) => { const s = server.issue(user); write(null, 'sol_token', s.access_token); write(null, 'sol_refresh', s.refresh_token); return s; };
   // A sign-in through the landing page's real finishAuth(), on a newly loaded landing page
@@ -185,7 +199,7 @@ function makeBrowser({ locks = false, storageEvents = true, lag = false } = {}) 
     removeEventListener() {}
     close() { this.closed = true; }
   }
-  const browser = { store, tabs, locksApi, write, signIn, rawSignIn, hold, release, deliverNow, lag, BroadcastChannel: BroadcastChannelStub, get landing() { return landing; } };
+  const browser = { store, tabs, locksApi, write, storePair, signIn, rawSignIn, hold, release, deliverNow, lag, BroadcastChannel: BroadcastChannelStub, get landing() { return landing; } };
   return browser;
 }
 
@@ -415,7 +429,7 @@ await scenario('[T7] another tab refreshed meanwhile and revoking the redundant 
   // B's refresh has been processed (X's first refresh token is rotated); before its
   // answer arrives, another tab stores a newer pair for the same user X.
   const newer = server.issue('user-x');
-  browser.write(C, 'sol_token', newer.access_token); browser.write(C, 'sol_refresh', newer.refresh_token);
+  browser.storePair(C, newer);
   gB.release();
   const r = await within(pb, REVOKE_BOUND_MS + 1500);
   ok(r.settled, `tab B's request settled within the revoke bound (${r.settled ? 'yes' : 'still pending after ' + (REVOKE_BOUND_MS + 1500) + ' ms'})`);
@@ -575,7 +589,7 @@ await scenario("[T18] another tab stored a newer access token that is already ex
   const stale = server.issue('user-x', 1000);           // exp in 1970: already expired
   server.expire(stale.access_token);
   server.sessions.get(X.refresh_token).active = false;  // the other tab rotated X's first token into `stale`
-  browser.write(null, 'sol_token', stale.access_token); browser.write(null, 'sol_refresh', stale.refresh_token);
+  browser.storePair(null, stale);
   const r = await B.request('/groups'); await settle();
   ok(r.ok, `tab B's request succeeds after a real refresh (${r.ok ? 'ok' : r.e})`);
   ok(sent(server, 'B', '/auth/refresh').length === 1, 'tab B refreshed the stored session');
@@ -591,7 +605,7 @@ await scenario("[T19] tab B's refresh fails with a network error while another t
   const p = B.request('/groups');
   await settle();
   const newer = server.issue('user-x');
-  browser.write(C, 'sol_token', newer.access_token); browser.write(C, 'sol_refresh', newer.refresh_token);
+  browser.storePair(C, newer);
   g.release();
   const r = await p; await settle();
   ok(g.hit, "B's refresh reached the network-error gate");
@@ -802,7 +816,7 @@ await scenario('[T33] never adopt an expired stored token; a token adopted on a 
     const p = B.request('/groups');
     await settle();
     const stale = server.issue('user-x', 1000); server.expire(stale.access_token);   // C stored a pair whose access token is already expired
-    browser.write(C, 'sol_token', stale.access_token); browser.write(C, 'sol_refresh', stale.refresh_token);
+    browser.storePair(C, stale);
     g.release();
     const r = await p; await settle();
     ok(!server.log.some(l => l.tab === 'B' && l.bearer === stale.access_token), 'B did not send the expired token');
@@ -815,7 +829,7 @@ await scenario('[T33] never adopt an expired stored token; a token adopted on a 
     server.expire(X.access_token);
     const skewed = server.issue('user-x'); server.expire(skewed.access_token);        // valid by the JWT exp, expired at the server
     server.sessions.get(X.refresh_token).active = false;
-    browser.write(null, 'sol_token', skewed.access_token); browser.write(null, 'sol_refresh', skewed.refresh_token);
+    browser.storePair(null, skewed);
     const r = await B.request('/groups'); await settle();
     ok(r.ok, `after the adopted token is rejected, one real refresh makes the request succeed (${r.ok ? 'ok' : r.e})`);
   }
@@ -827,7 +841,7 @@ await scenario('[T34] a stored token whose user claim is not readable as a strin
   const B = makeTab(browser, server, 'B');
   server.expire(X.access_token);
   const odd = server.issue('user-z', 4102444800, 12345);   // readable JWT, numeric sub
-  browser.write(null, 'sol_token', odd.access_token); browser.write(null, 'sol_refresh', odd.refresh_token);
+  browser.storePair(null, odd);
   await B.request(...PAY); await settle();
   ok(!server.log.some(l => l.tab === 'B' && (l.bearer === odd.access_token || l.path === '/auth/refresh')), 'B neither adopts nor refreshes that session');
   ok(B.reloads === 1, `B reloads (saw ${B.reloads})`);
@@ -845,14 +859,14 @@ await scenario('[T35] a page restored from the cache, then the storage events it
   ok(A.reloads === 1 && A.hrefs.length === 0, `one reload, no redirect (events ${JSON.stringify(A.events)})`);
 });
 
-await scenario("[T36] one tab, the refresh is rejected (401, session revoked elsewhere): the tab clears its session and goes to the sign-in page, once", async () => {
+await scenario("[T36] one tab, the refresh is rejected (401, session revoked elsewhere): the session is not used again and the tab goes to the sign-in page, once", async () => {
   const server = makeServer(), browser = makeBrowser();
   const X = browser.signIn(server, 'user-x');
   const B = makeTab(browser, server, 'B');
   server.expire(X.access_token);
   server.sessions.get(X.refresh_token).active = false;
   const r = await B.request('/groups'); await settle();
-  ok(!r.ok && !browser.store.has('sol_token') && !browser.store.has('sol_refresh'), 'the dead session is cleared');
+  ok(!r.ok && openNow(browser, server) === null, 'the dead session is not used again (a tab opened now goes to the sign-in page)');
   ok(B.hrefs.length === 1 && B.hrefs[0] === '/sol/' && B.reloads === 0, `the tab goes to the sign-in page once (events ${JSON.stringify(B.events)})`);
   ok(sent(server, 'B', '/auth/refresh').length === 1, 'one refresh attempt, no loop');
 });
@@ -903,7 +917,7 @@ await scenario('[T39] a storage clear event (key null) signs the tab out; a relo
     const p = B.request('/groups');
     await settle();
     const Y = server.issue('user-y');
-    browser.write(null, 'sol_token', Y.access_token); browser.write(null, 'sol_refresh', Y.refresh_token);   // another user: B wants a reload
+    browser.storePair(null, Y);   // another user: B wants a reload
     await sleep(20);
     await A.V('logout()'); await sleep(20);              // then a sign-out event
     g.release(); await p; await sleep(50);
@@ -931,7 +945,7 @@ await scenario("[T41] B's refresh is rejected because another tab rotated first,
   const p = B.request('/groups');
   await settle();
   const stale = server.issue('user-x', 1000); server.expire(stale.access_token);   // ... which stored a pair whose access token is expired
-  browser.write(null, 'sol_token', stale.access_token); browser.write(null, 'sol_refresh', stale.refresh_token);
+  browser.storePair(null, stale);
   g.release();
   const r = await p; await settle();
   ok(g.hit && server.log.find(l => l.tab === 'B' && l.path === '/auth/refresh').status === 401, "B's refresh was rejected (401)");
