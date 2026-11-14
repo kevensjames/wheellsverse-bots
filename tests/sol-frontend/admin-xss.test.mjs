@@ -79,9 +79,9 @@ const decode = s => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#
 // argument-less call (approveKYC("…");closeUserModal()).
 const STR = `(?:"(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*')`;
 const HANDLER = new RegExp(`^[A-Za-z_$][\\w$]*\\((?:event, ?)?(?:${STR}(?:, ?${STR})*)?\\)(?:;[A-Za-z_$][\\w$]*\\(\\))?$`);
-function checkHtml(html, label, { shown = true } = {}) {
+function checkHtml(html, label, { shown = true, shownText = TAG_ESC } = {}) {
   ok(!html.includes('<img src=x') && !html.includes('<svg onload'), `${label}: no payload markup survives as markup`);
-  if (shown) ok(html.includes(TAG_ESC), `${label}: the data is still shown, escaped`);
+  if (shown) ok(html.includes(shownText), `${label}: the data is still shown, escaped`);
   const handlers = [...html.matchAll(/onclick="([^"]*)"/g)].map(m => decode(m[1]));
   const bad = handlers.filter(h => !HANDLER.test(h));
   ok(bad.length === 0, `${label}: every inline handler is one call with string-literal arguments${bad.length ? ' (bad: ' + JSON.stringify(bad.slice(0, 2)) + ')' : ''}`);
@@ -152,7 +152,8 @@ await scenario('[X8] payouts table: provider transfer id and the retry handler',
   const app = makeAdmin(path => (path.startsWith('/admin/payouts') ? res(200, [{ id: JSID, status: 'FAILED', net_cents: 100, fee_cents: 0, attempt_count: 1, ach_transfer_id: TAG, created_at: '2026-11-01T00:00:00Z' }]) : res(200, [])));
   app.V('loadPayoutsData()');
   await settle();
-  checkHtml(app.element('payoutsTable').innerHTML, 'payouts table');
+  // The table shows only the first 16 characters of the transfer id.
+  checkHtml(app.element('payoutsTable').innerHTML, 'payouts table', { shownText: '&lt;img src=x' });
 });
 
 await scenario('[X9] audit log: actor, action, target and payload', async () => {
