@@ -259,7 +259,8 @@ function makeTab(browser, server, label, { blockRevokes = false, throwOnSet = nu
   // Navigating (href set, reload) ends the page as in a browser: its pending fetches are
   // cancelled, except keepalive ones already sent, and it sends nothing new.
   const pending = new Set();
-  const navigate = () => { if (tab.navigated) return; tab.navigated = true; for (const p of [...pending]) if (!p.keepalive) p.cancel(); };
+  const navWaiters = [];
+  const navigate = () => { if (tab.navigated) return; tab.navigated = true; for (const p of [...pending]) if (!p.keepalive) p.cancel(); for (const w of navWaiters.splice(0)) w(); };
   const location = { search: '', reload: () => { reloads++; events.push('reload'); navigate(); } };
   Object.defineProperty(location, 'href', { get: () => hrefs[hrefs.length - 1] || '/sol/app', set: v => { hrefs.push(v); events.push('redirect:' + v); navigate(); } });
   const tab = { label, calls, hrefs, events, get reloads() { return reloads; }, navigated: false, held: false, pending: [] };
@@ -274,6 +275,8 @@ function makeTab(browser, server, label, { blockRevokes = false, throwOnSet = nu
       browser.write(tab, k, v);
     },
     removeItem: k => browser.write(tab, k, null),
+    key: i => ([...area().keys()][i] ?? null),          // as in browsers (core/session.js prunes dead marks by key)
+    get length() { return area().size; },
   };
   const window = { location, addEventListener: (t, fn) => { (listeners[t] = listeners[t] || []).push(fn); }, removeEventListener() {} };
   const sandbox = {
@@ -321,7 +324,12 @@ function makeTab(browser, server, label, { blockRevokes = false, throwOnSet = nu
   // A page restored from the back/forward cache is alive again (it navigated away before).
   tab.dispatch = (type, ev) => { if (type === 'pageshow' && ev && ev.persisted) tab.navigated = false; for (const fn of listeners[type] || []) fn(ev); };
   tab.revokes = () => calls.filter(c => c.method === 'POST' && c.url === API + '/auth/logout');
-  tab.request = (path, opts) => tab.V(`api(${JSON.stringify(path)}, ${JSON.stringify(opts || {})})`).then(v => ({ ok: true, v }), e => ({ ok: false, e: String(e && e.message) }));
+  // A request from a page that has gone (or goes while it waits) ends as a failure.
+  tab.request = (path, opts) => {
+    if (tab.navigated) return Promise.resolve({ ok: false, e: 'the page has navigated away' });
+    const gone = new Promise(r => navWaiters.push(() => r({ ok: false, e: 'the page navigated away' })));
+    return Promise.race([tab.V(`api(${JSON.stringify(path)}, ${JSON.stringify(opts || {})})`).then(v => ({ ok: true, v }), e => ({ ok: false, e: String(e && e.message) })), gone]);
+  };
   return tab;
 }
 
@@ -1418,6 +1426,40 @@ await scenario('[T67] storage from before this version: another user signs in on
   await sleep(REVOKE_BOUND_MS + 300);
   ok(B.reloads === 1 && B.hrefs.length === 0, `B reloads (events ${JSON.stringify(B.events)})`);
   ok(!server.log.some(l => l.tab === 'B' && l.as === 'user-y'), 'and sends nothing as Y');
+});
+
+await scenario("[T68] lagging views: the sign-in elsewhere is announced to B before B's copy of storage gets the record or the new pair: B still waits for the pair and reloads into it", async () => {
+  const server = makeServer(), browser = makeBrowser({ lag: true });
+  browser.signIn(server, 'user-x');
+  await settle();
+  const B = makeTab(browser, server, 'B');
+  browser.hold();
+  browser.signIn(server, 'user-y');
+  browser.deliverBroadcasts();                                // only the announcement reaches B ...
+  await sleep(0);
+  setTimeout(() => browser.release(), 120);                   // ... the storage writes 120 ms later
+  await sleep(REVOKE_BOUND_MS + 900);
+  ok(B.reloads === 1 && B.hrefs.length === 0, `B reloads once and is not sent to the sign-in page (events ${JSON.stringify(B.events)})`);
+});
+
+await scenario("[T69] while B's own refresh answer is awaited, a lagging tab C (which has not seen the pending note) gets a 401 and marks the token dead: B's next 401 still waits, and B's late answer still counts", async () => {
+  const server = makeServer(), browser = makeBrowser({ lag: true });
+  const X = browser.signIn(server, 'user-x');
+  await settle();
+  const B = makeTab(browser, server, 'B'), C = makeTab(browser, server, 'C');
+  browser.holdTab(C);                                         // C sees nothing of B's note
+  server.expire(X.access_token);
+  const g = server.gate(e => e.tab === 'B' && e.path === '/auth/refresh');   // received and rotated; the answer waits
+  const first = await within(B.request('/groups'), 23000);
+  ok(first.settled && !first.v.ok, 'B\'s request failed at the bound; its answer is awaited');
+  const rc = await within(C.request('/groups'), 23000);      // C sends X's first token: rotated, 401, C marks it dead
+  ok(sent(server, 'C', '/auth/refresh').some(l => l.status === 401), `C's refresh was rejected (${rc.settled ? (rc.v.ok ? 'ok' : rc.v.e) : 'still waiting'})`);
+  await sleep(40);
+  const second = await within(B.request('/circles'), 23000);
+  ok(second.settled && !second.v.ok && B.hrefs.length === 0, `B's next request fails without B leaving (${second.settled ? second.v.e : 'still waiting'}; redirects ${JSON.stringify(B.hrefs)})`);
+  g.release(); await sleep(80);
+  ok(userOf(openNow(browser, server)) === 'user-x' && B.hrefs.length === 0 && B.reloads === 0, `B's late answer counts and B stayed (events ${JSON.stringify(B.events)})`);
+  browser.releaseTab(C);
 });
 
 // ── keepalive ───────────────────────────────────────────────────────────────
