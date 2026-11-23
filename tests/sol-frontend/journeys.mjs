@@ -446,6 +446,7 @@ async function accessibility(page) {
   // Focus ring: visible, 3:1 against the page.
   await page.evaluate(() => { window.nav('dashboard'); document.querySelector('.nav-item[data-page="goals"]').focus(); });
   await page.keyboard.press('Tab');   // keyboard focus, so :focus-visible applies
+  await page.waitForTimeout(400);     // .nav-item transitions every property (.15s): read the settled outline
   const ring = await page.evaluate(() => {
     const b = document.activeElement;
     const cs = getComputedStyle(b);
