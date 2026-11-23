@@ -300,7 +300,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
       <p class="ok-note" id="forgotMsg" role="status" aria-live="polite"></p>
       <p class="err" id="forgotErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="forgotBtn">Send reset link</button>
-      <button type="button" class="btn" id="forgotBack" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--ink-700)" onclick="switchTab('login')">← Back to sign in</button>
+      <button type="button" class="btn" id="forgotBack" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--ink-700)" onclick="backToSignIn()">← Back to sign in</button>
     </form>
 
     <!-- 2FA / TOTP step — shown when /auth/login returns totp_required -->
@@ -311,7 +311,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
         <input type="text" id="totpCode" autocomplete="one-time-code" maxlength="12" placeholder="123456" required></div>
       <p class="err" id="totpErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="totpBtn">Verify</button>
-      <button type="button" class="btn" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--muted)" onclick="switchTab('login')">← Back to sign in</button>
+      <button type="button" class="btn" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--muted)" onclick="backToSignIn()">← Back to sign in</button>
     </form>
   </div>
 </div>
@@ -352,6 +352,13 @@ function switchTab(tab) {
   document.getElementById('tabLogin').setAttribute('aria-pressed', tab === 'login' ? 'true' : 'false');
   document.getElementById('tabRegister').setAttribute('aria-pressed', tab === 'register' ? 'true' : 'false');
   if (tab === 'register' && LANDING_FEATURES.signup_consent === true) loadConsent();
+}
+// "Back to sign in" (forgot-password form and two-factor step): the sign-in form, with focus on its
+// email field. The button that had focus is hidden now, so focus would otherwise fall to the page.
+function backToSignIn() {
+  switchTab('login');
+  const le = document.getElementById('loginEmail');
+  if (le) le.focus();
 }
 document.getElementById('authModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
