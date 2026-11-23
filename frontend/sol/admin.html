@@ -325,7 +325,7 @@ tr:hover td{background:var(--surface-2)}
       <button type="button" class="btn btn-ghost btn-sm" onclick="loadEmailPreview('payment-failed')">Payment failed</button>
       <button type="button" class="btn btn-ghost btn-sm" onclick="loadEmailPreview('payout')">Payout sent</button>
     </div>
-    <iframe id="emailFrame" style="width:100%;height:720px;border:1px solid var(--border);border-radius:.6rem;background:var(--surface-2)" srcdoc="<div style='padding:2rem;font-family:sans-serif;color:#64748b'>Pick a template above to preview.</div>"></iframe>
+    <iframe id="emailFrame" sandbox="" style="width:100%;height:720px;border:1px solid var(--border);border-radius:.6rem;background:var(--surface-2)" srcdoc="<div style='padding:2rem;font-family:sans-serif;color:#64748b'>Pick a template above to preview.</div>"></iframe>
   </div>
 
   <div class="page" id="page-security">
@@ -511,17 +511,17 @@ async function loadAuditLog() {
     const rows = await api('/admin/audit' + qs) || [];
     if (!rows.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">No audit events yet</td></tr>'; return; }
     tb.innerHTML = rows.map(e => {
-      const payload = e.payload ? `<code style="font-size:.7rem;color:var(--muted)">${JSON.stringify(e.payload)}</code>` : '—';
+      const payload = e.payload ? `<code style="font-size:.7rem;color:var(--muted)">${esc(JSON.stringify(e.payload))}</code>` : '—';
       return `<tr>
         <td style="color:var(--muted);font-size:.75rem">${fmtDate(e.created_at)} ${new Date(e.created_at).toLocaleTimeString()}</td>
-        <td>${e.actor_email || '<span style="color:var(--muted)">—</span>'}</td>
-        <td><code style="color:var(--cyan);font-size:.75rem">${e.action}</code></td>
-        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${e.target_type || '—'} · ${(e.target_id || '').slice(0,8)}${e.target_id && e.target_id.length > 8 ? '…' : ''}</td>
+        <td>${e.actor_email ? esc(e.actor_email) : '<span style="color:var(--muted)">—</span>'}</td>
+        <td><code style="color:var(--cyan);font-size:.75rem">${esc(e.action)}</code></td>
+        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${esc(e.target_type || '—')} · ${esc((e.target_id || '').slice(0,8))}${e.target_id && e.target_id.length > 8 ? '…' : ''}</td>
         <td>${payload}</td>
       </tr>`;
     }).join('');
   } catch (e) {
-    tb.innerHTML = `<tr><td colspan="5" class="empty">${e.message}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="5" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -550,7 +550,7 @@ async function loadSecurity() {
           <span style="display:inline-block;padding:.35rem .65rem;border-radius:.4rem;background:rgba(211,58,58,.15);color:var(--red);font-size:.75rem;font-weight:600">🛑 HALTED</span>
         </div>
         <div style="font-size:.85rem;color:var(--muted);margin-bottom:.5rem">
-          <strong style="color:var(--text)">Reason:</strong> ${(halt.state && halt.state.reason || '—').replace(/</g,'&lt;')}<br>
+          <strong style="color:var(--text)">Reason:</strong> ${esc(halt.state && halt.state.reason || '—')}<br>
           <strong style="color:var(--text)">Since:</strong> ${halt.state && halt.state.halted_at ? new Date(halt.state.halted_at).toLocaleString() : '—'}
         </div>
         <p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">All new ACH debit/credit attempts are rejected with SOL_HALTED. Existing in-flight transfers at Dwolla continue.</p>
@@ -598,7 +598,7 @@ async function loadSecurity() {
       <button class="btn btn-primary" onclick="startTotp()">Start 2FA setup</button>`;
     el.innerHTML = twoFaHtml + haltHtml;
   } catch(e) {
-    el.innerHTML = `<div class="empty">${e.message}</div>`;
+    el.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
 
@@ -626,10 +626,10 @@ async function startTotp() {
     const s = await api('/auth/2fa/setup', { method: 'POST' });
     el.innerHTML = `
       <div style="font-weight:600;margin-bottom:.5rem">Step 1. Scan this QR code</div>
-      <img src="${s.qr_data_url}" style="width:220px;height:220px;background:#fff;padding:8px;border-radius:.5rem;display:block;margin-bottom:1rem">
+      <img src="${esc(s.qr_data_url)}" style="width:220px;height:220px;background:#fff;padding:8px;border-radius:.5rem;display:block;margin-bottom:1rem">
       <details style="margin-bottom:1rem">
         <summary style="cursor:pointer;font-size:.8rem;color:var(--muted)">Can't scan? Enter this secret manually</summary>
-        <code style="display:block;margin-top:.5rem;padding:.6rem;background:var(--surface-2);border:1px solid var(--border);border-radius:.4rem;font-family:monospace;word-break:break-all">${s.secret}</code>
+        <code style="display:block;margin-top:.5rem;padding:.6rem;background:var(--surface-2);border:1px solid var(--border);border-radius:.4rem;font-family:monospace;word-break:break-all">${esc(s.secret)}</code>
       </details>
       <div style="font-weight:600;margin-bottom:.5rem">Step 2. Enter the 6-digit code shown in your app</div>
       <div class="field"><input type="text" id="ta_code" maxlength="6" inputmode="numeric" placeholder="123456" style="letter-spacing:.3rem;text-align:center;font-size:1.2rem"></div>
@@ -791,7 +791,7 @@ async function loadEmailPreview(template) {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     iframe.srcdoc = await r.text();
   } catch (e) {
-    iframe.srcdoc = `<div style="padding:2rem;font-family:sans-serif;color:#f87171">Failed to load: ${e.message}</div>`;
+    iframe.srcdoc = `<div style="padding:2rem;font-family:sans-serif;color:#f87171">Failed to load: ${esc(e.message)}</div>`;
   }
 }
 
@@ -874,12 +874,21 @@ function formatApiError(d, fallback) {
   return d.detail.msg || JSON.stringify(d.detail);
 }
 
+// Text from the API (member names and e-mails, circle names, bank names, provider codes,
+// audit payloads, error messages) is untrusted: escape it before it goes into innerHTML.
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"'`]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]));
+}
+// A value passed to an inline onclick handler: a JSON string literal, escaped for the
+// double-quoted attribute it sits in, so it cannot end the string or add a statement.
+function jsArg(v) { return esc(JSON.stringify(String(v ?? ''))); }
+
 function badge(s) {
   const map = {ACTIVE:'badge-green',VERIFIED:'badge-green',SUCCESS:'badge-green',
     FORMING:'badge-yellow',PENDING:'badge-yellow',SUBMITTED:'badge-yellow',COLLECTING:'badge-cyan',
     SETTLING:'badge-purple',COMPLETED:'badge-gray',
     FAILED:'badge-red',DELINQUENT:'badge-red',SUSPENDED:'badge-red',CLOSED:'badge-gray'};
-  return `<span class="badge ${map[s]||'badge-gray'}">${s}</span>`;
+  return `<span class="badge ${map[s]||'badge-gray'}">${esc(s)}</span>`;
 }
 function fmt$(c) { return '$'+(c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
 function fmtDate(iso) { return iso ? new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'; }
@@ -925,11 +934,11 @@ async function loadOverview() {
     ra.innerHTML = `<table>
       <thead><tr><th>User</th><th>Account</th><th>KYC</th><th>Joined</th></tr></thead>
       <tbody>${recent.map(u=>`
-        <tr><td>${u.email}</td><td>${badge(u.account_status)}</td><td>${badge(u.kyc_status)}</td><td style="color:var(--muted)">${fmtDate(u.created_at)}</td></tr>
+        <tr><td>${esc(u.email)}</td><td>${badge(u.account_status)}</td><td>${badge(u.kyc_status)}</td><td style="color:var(--muted)">${fmtDate(u.created_at)}</td></tr>
       `).join('')}</tbody>
     </table>`;
   } catch(e) {
-    el.innerHTML = `<div class="empty">Could not load: ${e.message}</div>`;
+    el.innerHTML = `<div class="empty">Could not load: ${esc(e.message)}</div>`;
   }
 }
 
@@ -940,7 +949,7 @@ async function loadUsers() {
     renderUsers(null);
   } catch(e) {
     document.getElementById('userTable').innerHTML =
-      `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+      `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -956,12 +965,12 @@ function renderUsers(statusFilter) {
   const rows = allUsers
     .filter(u => !statusFilter || u.account_status === statusFilter)
     .filter(u => !q || u.email.toLowerCase().includes(q) || (u.full_name || '').toLowerCase().includes(q))
-    .map(u => `<tr style="cursor:pointer" onclick="openUserModal('${u.id}')">
-      <td>${u.email}</td>
-      <td>${u.full_name || '—'}</td>
+    .map(u => `<tr style="cursor:pointer" onclick="openUserModal(${jsArg(u.id)})">
+      <td>${esc(u.email)}</td>
+      <td>${esc(u.full_name || '—')}</td>
       <td>${badge(u.account_status)}</td>
       <td>${badge(u.kyc_status)}</td>
-      <td><span style="color:var(--green)">${u.successful_payments}</span> / <span style="color:var(--red)">${u.failed_payments}</span></td>
+      <td><span style="color:var(--green)">${esc(u.successful_payments)}</span> / <span style="color:var(--red)">${esc(u.failed_payments)}</span></td>
       <td style="color:var(--muted)">${fmtDate(u.created_at)}</td>
     </tr>`).join('');
   document.getElementById('userTable').innerHTML = rows ||
@@ -978,7 +987,7 @@ async function openUserModal(userId) {
     document.getElementById('umEmail').textContent = d.user.email;
     document.getElementById('userModalBody').innerHTML = renderUserDetail(d);
   } catch (e) {
-    document.getElementById('userModalBody').innerHTML = `<div class="empty">${e.message}</div>`;
+    document.getElementById('userModalBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
 
@@ -990,8 +999,8 @@ function renderUserDetail(d) {
   const banksHtml = d.bank_accounts.length ? d.bank_accounts.map(b => `
     <div style="display:flex;justify-content:space-between;padding:.5rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
       <div>
-        <div style="font-weight:600">${b.institution_name || b.provider} ···· ${b.account_last4}</div>
-        <div style="font-size:.75rem;color:var(--muted)">${b.account_type || '—'} · ${b.provider}</div>
+        <div style="font-weight:600">${esc(b.institution_name || b.provider)} ···· ${esc(b.account_last4)}</div>
+        <div style="font-size:.75rem;color:var(--muted)">${esc(b.account_type || '—')} · ${esc(b.provider)}</div>
       </div>
       <div style="display:flex;gap:.4rem;align-items:center">
         ${b.verified ? '<span class="badge badge-green">✓ Verified</span>' : '<span class="badge badge-yellow">Pending</span>'}
@@ -1003,8 +1012,8 @@ function renderUserDetail(d) {
   const groupsHtml = d.groups.length ? d.groups.map(g => `
     <div style="display:flex;justify-content:space-between;padding:.5rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
       <div>
-        <div style="font-weight:600">${g.name} ${g.is_private ? '🔒' : ''}</div>
-        <div style="font-size:.75rem;color:var(--muted)">Cycle ${g.current_cycle_number} · ${fmt$(g.contribution_cents)}/member</div>
+        <div style="font-weight:600">${esc(g.name)} ${g.is_private ? '🔒' : ''}</div>
+        <div style="font-size:.75rem;color:var(--muted)">Cycle ${esc(g.current_cycle_number)} · ${fmt$(g.contribution_cents)}/member</div>
       </div>
       ${badge(g.status)}
     </div>
@@ -1016,24 +1025,24 @@ function renderUserDetail(d) {
       <td style="color:var(--muted)">${fmtDate(p.created_at)}</td>
       <td>${fmt$(p.amount_cents)}</td>
       <td>${badge(p.status)}</td>
-      <td>${p.attempt_count}</td>
-      <td style="color:var(--red);font-size:.72rem">${p.ach_error_code || '—'}</td>
+      <td>${esc(p.attempt_count)}</td>
+      <td style="color:var(--red);font-size:.72rem">${esc(p.ach_error_code || '—')}</td>
     </tr>`).join('')}</tbody></table>
   ` : '<div class="empty" style="padding:1rem">No payments yet</div>';
 
   const kycActions = d.user.kyc_status !== 'VERIFIED' ? `
     <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
-      <button class="btn btn-sm btn-primary" onclick="approveKYC('${d.user.id}');closeUserModal()">Force-approve KYC</button>
-      ${d.user.kyc_status !== 'REJECTED' ? `<button class="btn btn-sm btn-ghost" onclick="rejectKYC('${d.user.id}');closeUserModal()" style="color:var(--red)">Reject KYC</button>` : ''}
+      <button class="btn btn-sm btn-primary" onclick="approveKYC(${jsArg(d.user.id)});closeUserModal()">Force-approve KYC</button>
+      ${d.user.kyc_status !== 'REJECTED' ? `<button class="btn btn-sm btn-ghost" onclick="rejectKYC(${jsArg(d.user.id)});closeUserModal()" style="color:var(--red)">Reject KYC</button>` : ''}
     </div>` : '';
 
   // Account-status actions: offer the inverse of the current status.
   const acctActions = `
     <div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap">
-      ${d.user.account_status !== 'ACTIVE' ? `<button class="btn btn-sm btn-primary" onclick="activateUser('${d.user.id}')">Activate account</button>` : ''}
-      ${d.user.account_status === 'ACTIVE' ? `<button class="btn btn-sm btn-ghost" onclick="suspendUser('${d.user.id}')" style="color:var(--red)">Suspend account</button>` : ''}
-      <button class="btn btn-sm btn-ghost" onclick="sendReminder('${d.user.id}')">✉ Send reminder email</button>
-      <a class="btn btn-sm btn-ghost" href="${API}/admin/users/${d.user.id}/payments.csv" onclick="downloadCsv(event, '${d.user.id}')">⬇ Download payments CSV</a>
+      ${d.user.account_status !== 'ACTIVE' ? `<button class="btn btn-sm btn-primary" onclick="activateUser(${jsArg(d.user.id)})">Activate account</button>` : ''}
+      ${d.user.account_status === 'ACTIVE' ? `<button class="btn btn-sm btn-ghost" onclick="suspendUser(${jsArg(d.user.id)})" style="color:var(--red)">Suspend account</button>` : ''}
+      <button class="btn btn-sm btn-ghost" onclick="sendReminder(${jsArg(d.user.id)})">✉ Send reminder email</button>
+      <a class="btn btn-sm btn-ghost" href="${esc(API + '/admin/users/' + encodeURIComponent(d.user.id) + '/payments.csv')}" onclick="downloadCsv(event, ${jsArg(d.user.id)})">⬇ Download payments CSV</a>
     </div>`;
 
   return `
@@ -1041,7 +1050,7 @@ function renderUserDetail(d) {
       <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Account</div>${badge(d.user.account_status)}</div>
       <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">KYC</div>${badge(d.user.kyc_status)}</div>
       <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Role</div>${badge(d.user.role)}</div>
-      <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Payments</div><span style="color:var(--green)">${d.user.successful_payments}</span> / <span style="color:var(--red)">${d.user.failed_payments}</span></div>
+      <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Payments</div><span style="color:var(--green)">${esc(d.user.successful_payments)}</span> / <span style="color:var(--red)">${esc(d.user.failed_payments)}</span></div>
     </div>
     ${kycActions}
     ${acctActions}
@@ -1078,21 +1087,21 @@ async function loadCyclesData() {
       if (!currentCycle) return '';
       const canInit = currentCycle.status === 'PENDING';
       const actionBtn = canInit
-        ? `<button class="btn btn-sm btn-primary" onclick="initiateCycleById('${currentCycle.id}')">Initiate →</button>`
-        : `<button class="btn btn-sm btn-ghost" onclick="checkCycleById('${currentCycle.id}')">Check completion</button>`;
+        ? `<button class="btn btn-sm btn-primary" onclick="initiateCycleById(${jsArg(currentCycle.id)})">Initiate →</button>`
+        : `<button class="btn btn-sm btn-ghost" onclick="checkCycleById(${jsArg(currentCycle.id)})">Check completion</button>`;
       const memberCount = d.members.filter(m => m.status === 'ACTIVE').length;
       return `<tr>
-        <td style="font-weight:500">${g.name}${g.is_private ? ' 🔒' : ''}</td>
-        <td>#${currentCycle.cycle_number}</td>
+        <td style="font-weight:500">${esc(g.name)}${g.is_private ? ' 🔒' : ''}</td>
+        <td>#${esc(currentCycle.cycle_number)}</td>
         <td>${badge(currentCycle.status)}</td>
-        <td>${memberCount} / ${g.max_members}</td>
+        <td>${memberCount} / ${esc(g.max_members)}</td>
         <td>${fmt$(g.contribution_cents)}</td>
         <td>${actionBtn}</td>
       </tr>`;
     }).join('');
     tb.innerHTML = rows || '<tr><td colspan="6" class="empty">No active cycles</td></tr>';
   } catch (e) {
-    tb.innerHTML = `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -1122,20 +1131,20 @@ async function loadPayoutsData() {
     if (!rows.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">No payouts yet</td></tr>'; return; }
     tb.innerHTML = rows.map(p => {
       const retryBtn = p.status === 'FAILED'
-        ? `<button class="btn btn-sm btn-primary" onclick="retryPayout('${p.id}')">Retry</button>`
+        ? `<button class="btn btn-sm btn-primary" onclick="retryPayout(${jsArg(p.id)})">Retry</button>`
         : '—';
       return `<tr>
         <td style="color:var(--muted);font-size:.75rem">${fmtDate(p.created_at)}</td>
         <td>${badge(p.status)}</td>
         <td style="color:var(--green);font-weight:500">${fmt$(p.net_cents || 0)}</td>
         <td style="color:var(--muted)">${fmt$(p.fee_cents || 0)}</td>
-        <td style="text-align:center">${p.attempt_count}</td>
-        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${(p.ach_transfer_id || '—').slice(0, 16)}${p.ach_transfer_id && p.ach_transfer_id.length > 16 ? '…' : ''}</td>
+        <td style="text-align:center">${esc(p.attempt_count)}</td>
+        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${esc((p.ach_transfer_id || '—').slice(0, 16))}${p.ach_transfer_id && p.ach_transfer_id.length > 16 ? '…' : ''}</td>
         <td>${retryBtn}</td>
       </tr>`;
     }).join('');
   } catch (e) {
-    tb.innerHTML = `<tr><td colspan="7" class="empty">${e.message}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="7" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -1165,7 +1174,7 @@ async function openGroupModal(groupId) {
       `${d.group.status} · Cycle ${d.group.current_cycle_number} · ${fmt$(d.group.contribution_cents)}/member · ${d.group.max_members} max`;
     document.getElementById('groupModalBody').innerHTML = renderGroupDetail(d);
   } catch (e) {
-    document.getElementById('groupModalBody').innerHTML = `<div class="empty">${e.message}</div>`;
+    document.getElementById('groupModalBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
 
@@ -1177,10 +1186,10 @@ function renderGroupDetail(d) {
   const membersHtml = d.members.length ? `
     <table style="width:100%;font-size:.8rem"><thead><tr><th>Pos</th><th>Email</th><th>Status</th><th>Payments</th><th>Payout</th></tr></thead><tbody>
     ${d.members.map(m => `<tr>
-      <td>${m.position ?? '—'}</td>
-      <td>${m.user_email}</td>
+      <td>${esc(m.position ?? '—')}</td>
+      <td>${esc(m.user_email)}</td>
       <td>${badge(m.status)}</td>
-      <td>${m.successful_payments_in_group}</td>
+      <td>${esc(m.successful_payments_in_group)}</td>
       <td>${m.has_received_payout ? '<span style="color:var(--green)">✓</span>' : '—'}</td>
     </tr>`).join('')}</tbody></table>
   ` : '<div class="empty" style="padding:1rem">No members yet</div>';
@@ -1188,7 +1197,7 @@ function renderGroupDetail(d) {
   const cyclesHtml = d.cycles.length ? d.cycles.map(c => `
     <div style="display:flex;justify-content:space-between;padding:.5rem .75rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
       <div>
-        <div style="font-weight:500">Cycle ${c.cycle_number}</div>
+        <div style="font-weight:500">Cycle ${esc(c.cycle_number)}</div>
         <div style="font-size:.72rem;color:var(--muted)">Collected ${fmt$(c.total_collected_cents)} · payout ${c.payout_cents ? fmt$(c.payout_cents) : '—'}</div>
       </div>
       ${badge(c.status)}
@@ -1198,23 +1207,23 @@ function renderGroupDetail(d) {
   const payoutsHtml = d.payouts.length ? `
     <table style="width:100%;font-size:.75rem"><thead><tr><th>Cycle</th><th>Net</th><th>Status</th><th>Transfer</th></tr></thead><tbody>
     ${d.payouts.map(p => `<tr>
-      <td>${d.cycles.find(c => c.id === p.cycle_id)?.cycle_number ?? '?'}</td>
+      <td>${esc(d.cycles.find(c => c.id === p.cycle_id)?.cycle_number ?? '?')}</td>
       <td>${fmt$(p.net_cents)}</td>
       <td>${badge(p.status)}</td>
-      <td style="font-family:monospace;font-size:.7rem">${(p.ach_transfer_id || '—').slice(0, 14)}</td>
+      <td style="font-family:monospace;font-size:.7rem">${esc((p.ach_transfer_id || '—').slice(0, 14))}</td>
     </tr>`).join('')}</tbody></table>
   ` : '<div class="empty" style="padding:1rem">No payouts yet</div>';
 
   const inviteBlock = d.group.invite_code ? `
     <div style="background:rgba(232,147,36,.05);border:1px solid rgba(232,147,36,.2);border-radius:.4rem;padding:.5rem .75rem;margin-bottom:1rem;font-size:.75rem">
       <span style="color:var(--muted)">Invite code:</span>
-      <code style="color:var(--cyan);font-family:monospace;margin-left:.25rem">${d.group.invite_code}</code>
-      <span style="color:var(--muted);margin-left:.5rem">· payout day ${d.group.payout_day_of_month}</span>
+      <code style="color:var(--cyan);font-family:monospace;margin-left:.25rem">${esc(d.group.invite_code)}</code>
+      <span style="color:var(--muted);margin-left:.5rem">· payout day ${esc(d.group.payout_day_of_month)}</span>
     </div>` : '';
 
   return `
     ${inviteBlock}
-    <h3 style="font-size:.9rem;margin:1rem 0 .5rem">Members (${d.members.filter(m=>m.status==='ACTIVE').length}/${d.group.max_members} active)</h3>
+    <h3 style="font-size:.9rem;margin:1rem 0 .5rem">Members (${d.members.filter(m=>m.status==='ACTIVE').length}/${esc(d.group.max_members)} active)</h3>
     <div class="table-wrap">${membersHtml}</div>
     <h3 style="font-size:.9rem;margin:1.25rem 0 .5rem">Cycles</h3>
     ${cyclesHtml}
@@ -1227,8 +1236,8 @@ function renderGroupDetail(d) {
           <td style="color:var(--muted)">${fmtDate(p.created_at)}</td>
           <td>${fmt$(p.amount_cents)}</td>
           <td>${badge(p.status)}</td>
-          <td>${p.attempt_count}</td>
-          <td style="color:var(--red);font-size:.7rem">${p.ach_error_code || '—'}</td>
+          <td>${esc(p.attempt_count)}</td>
+          <td style="color:var(--red);font-size:.7rem">${esc(p.ach_error_code || '—')}</td>
         </tr>`).join('')}</tbody></table>` : '<div class="empty" style="padding:1rem">No payments yet</div>'}
     </div>
   `;
@@ -1241,7 +1250,7 @@ async function loadGroupsData() {
     renderGroups(null);
   } catch(e) {
     document.getElementById('groupTable').innerHTML =
-      `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+      `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -1256,13 +1265,13 @@ function renderGroups(statusFilter) {
   const rows = allGroups
     .filter(g => !statusFilter || g.status === statusFilter)
     .filter(g => !q || g.name.toLowerCase().includes(q) || (g.invite_code || '').toLowerCase().includes(q))
-    .map(g => `<tr style="cursor:pointer" onclick="openGroupModal('${g.id}')">
-      <td style="font-weight:500">${g.name} ${g.is_private ? '<span style="color:var(--gold);font-size:.7rem">🔒</span>' : ''}</td>
+    .map(g => `<tr style="cursor:pointer" onclick="openGroupModal(${jsArg(g.id)})">
+      <td style="font-weight:500">${esc(g.name)} ${g.is_private ? '<span style="color:var(--gold);font-size:.7rem">🔒</span>' : ''}</td>
       <td>${badge(g.status)}</td>
-      <td>${g.member_count || 0} / ${g.max_members}</td>
+      <td>${esc(g.member_count || 0)} / ${esc(g.max_members)}</td>
       <td>${fmt$(g.contribution_cents)}</td>
-      <td>Cycle ${g.current_cycle_number} · day ${g.payout_day_of_month || 1}</td>
-      <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${g.invite_code || '—'}</td>
+      <td>Cycle ${esc(g.current_cycle_number)} · day ${esc(g.payout_day_of_month || 1)}</td>
+      <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${esc(g.invite_code || '—')}</td>
     </tr>`).join('');
   document.getElementById('groupTable').innerHTML = rows ||
     '<tr><td colspan="6" class="empty">No circles match</td></tr>';
@@ -1276,14 +1285,14 @@ async function loadRetries() {
     const retries = await api('/admin/payments/retries') || [];
     if (!retries.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No pending retries</td></tr>'; return; }
     tb.innerHTML = retries.map(p=>`<tr>
-      <td style="font-family:monospace;font-size:.75rem">${p.id.slice(0,8)}…</td>
-      <td style="font-family:monospace;font-size:.75rem">${p.group_id.slice(0,8)}…</td>
+      <td style="font-family:monospace;font-size:.75rem">${esc(p.id.slice(0,8))}…</td>
+      <td style="font-family:monospace;font-size:.75rem">${esc(p.group_id.slice(0,8))}…</td>
       <td>${fmt$(p.amount_cents)}</td>
-      <td>${p.attempt_count}</td>
+      <td>${esc(p.attempt_count)}</td>
       <td style="color:var(--gold)">${p.next_retry_at ? fmtDate(p.next_retry_at) : '—'}</td>
-      <td><button class="btn btn-sm btn-primary" onclick="triggerPayment('${p.id}')">Process</button></td>
+      <td><button class="btn btn-sm btn-primary" onclick="triggerPayment(${jsArg(p.id)})">Process</button></td>
     </tr>`).join('');
-  } catch(e) { tb.innerHTML = `<tr><td colspan="6" class="empty">${e.message}</td></tr>`; }
+  } catch(e) { tb.innerHTML = `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`; }
 }
 
 async function processPayment() {
@@ -1353,14 +1362,14 @@ function renderKYC() {
     ['PENDING', 'SUBMITTED', 'REJECTED'].includes(u.kyc_status)
   );
   const rows = actionable.map(u => `<tr>
-    <td>${u.email}</td>
-    <td>${u.full_name || '—'}</td>
+    <td>${esc(u.email)}</td>
+    <td>${esc(u.full_name || '—')}</td>
     <td>${badge(u.kyc_status)}</td>
     <td>${badge(u.account_status)}</td>
     <td style="color:var(--muted)">${fmtDate(u.created_at)}</td>
     <td style="display:flex;gap:.4rem">
-      <button class="btn btn-sm btn-primary" onclick="approveKYC('${u.id}')" ${u.kyc_status === 'VERIFIED' ? 'disabled' : ''}>Approve</button>
-      <button class="btn btn-sm btn-ghost" onclick="rejectKYC('${u.id}')" style="color:var(--red)">Reject</button>
+      <button class="btn btn-sm btn-primary" onclick="approveKYC(${jsArg(u.id)})" ${u.kyc_status === 'VERIFIED' ? 'disabled' : ''}>Approve</button>
+      <button class="btn btn-sm btn-ghost" onclick="rejectKYC(${jsArg(u.id)})" style="color:var(--red)">Reject</button>
     </td>
   </tr>`).join('');
   document.getElementById('kycTable').innerHTML = rows ||
@@ -1456,7 +1465,7 @@ async function runReconcile() {
 // of raw JSON. The service returns {balanced, total_debits, total_credits,
 // difference, currency, ...per-account breakdowns}.
 function formatReconcileReport(r) {
-  if (!r || typeof r !== 'object') return '✓ Done — ' + JSON.stringify(r);
+  if (!r || typeof r !== 'object') return '✓ Done — ' + esc(JSON.stringify(r));
   const balancedIcon = r.balanced ? '✅' : '⚠️';
   const balancedColor = r.balanced ? 'var(--green)' : 'var(--red)';
   const balancedText = r.balanced ? 'BALANCED' : 'UNBALANCED';
@@ -1469,7 +1478,7 @@ function formatReconcileReport(r) {
       <div style="background:rgba(0,0,0,.2);border-radius:.5rem;padding:.75rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Total debits</div><div style="font-size:1.1rem;font-weight:600">${fmt$(r.total_debits || 0)}</div></div>
       <div style="background:rgba(0,0,0,.2);border-radius:.5rem;padding:.75rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Total credits</div><div style="font-size:1.1rem;font-weight:600">${fmt$(r.total_credits || 0)}</div></div>
       <div style="background:rgba(0,0,0,.2);border-radius:.5rem;padding:.75rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Difference</div><div style="font-size:1.1rem;font-weight:600;color:${r.balanced ? 'var(--green)' : 'var(--red)'}">${fmt$(r.difference || 0)}</div></div>
-      <div style="background:rgba(0,0,0,.2);border-radius:.5rem;padding:.75rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Currency</div><div style="font-size:1.1rem;font-weight:600">${r.currency || 'USD'}</div></div>
+      <div style="background:rgba(0,0,0,.2);border-radius:.5rem;padding:.75rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Currency</div><div style="font-size:1.1rem;font-weight:600">${esc(r.currency || 'USD')}</div></div>
     </div>`;
 }
 </script>
