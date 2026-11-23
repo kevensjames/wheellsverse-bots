@@ -90,6 +90,8 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .more-item{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.7rem .3rem;border-radius:var(--r-md);background:var(--surface-2);border:none;color:var(--ink-700);font-size:.68rem;font-family:var(--font-display);cursor:pointer;min-height:66px;justify-content:center}
 .more-item:active{background:var(--sol-200)}
 .more-item .ic{width:20px;height:20px}
+.more-signout{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;min-height:44px;margin-top:.75rem;padding:.6rem 1rem;border:1px solid var(--line);border-radius:var(--r-md);background:transparent;color:var(--ink-700);font-size:.85rem;font-weight:600;font-family:var(--font-display);cursor:pointer}
+.more-signout:active{background:var(--surface-2)}
 /* ── Circles page ─────────────────────────────────────────────────────────── */
 .circles-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
 .circles-head .sub{margin-bottom:0}

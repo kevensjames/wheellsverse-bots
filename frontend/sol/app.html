@@ -625,8 +625,9 @@
   </div>
 </main>
 
-<!-- Mobile "More" sheet: secondary destinations -->
-<div class="more-sheet-backdrop" id="moreSheet" role="dialog" aria-modal="true" aria-label="More destinations" aria-hidden="true" onclick="if(event.target===this)closeMore()">
+<!-- Mobile "More" sheet: secondary destinations, and Sign out (the sidebar, with its Sign out, is
+     hidden at phone width). Sign out calls the same logout() as the sidebar's. -->
+<div class="more-sheet-backdrop" id="moreSheet" role="dialog" aria-modal="true" aria-label="More" aria-hidden="true" onclick="if(event.target===this)closeMore()">
   <div class="more-sheet">
     <h3>More</h3>
     <div class="more-grid">
@@ -642,6 +643,7 @@
       <button type="button" class="more-item" onclick="navMore('premium')"><svg class="ic" aria-hidden="true"><use href="#ic-premium"/></svg>Premium</button>
       <button type="button" class="more-item" onclick="navMore('settings')"><svg class="ic" aria-hidden="true"><use href="#ic-settings"/></svg>Settings</button>
     </div>
+    <button type="button" class="more-signout" onclick="closeMore(); logout()"><svg class="ic" aria-hidden="true"><use href="#ic-signout"/></svg>Sign out</button>
   </div>
 </div>
 
