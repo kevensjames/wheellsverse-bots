@@ -805,6 +805,8 @@ async function appShell(browser, leaks) {
     const page = await ctx.newPage();
     const perrs = [];
     page.on('pageerror', e => perrs.push(String(e)));
+    const recorded = [];
+    await page.exposeFunction('__recordReq', e => { recorded.push(e); });
     await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
     const shell = await ev(page, () => {
       const shown = e => { if (!e) return false; const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0 && r.top < window.innerHeight && r.bottom > 0; };
@@ -840,6 +842,27 @@ async function appShell(browser, leaks) {
       T(`A1 ${label}: no horizontal scroll on ${p}`, await ev(page, () => document.documentElement.scrollWidth <= window.innerWidth && document.body.scrollWidth <= window.innerWidth));
     }
     T(`A1 ${label}: no page errors`, perrs.length === 0 && (await ev(page, () => (window.__errs || []).length)) === 0);
+    // PHONE-1: Sign out stays in reach at every width. At phone width the sidebar, and the Sign out
+    // in it, is hidden, so the More sheet carries one. Choosing it runs the existing logout() (one
+    // POST /auth/logout, then the sign-in page); the sign-out logic itself is not changed.
+    const phone = width < 641;
+    if (phone) { await page.click('#mobileNav [aria-controls="moreSheet"]', { timeout: 2000 }).catch(() => {}); await page.waitForTimeout(450); }
+    const signOut = page.getByRole('button', { name: /^sign out$/i }).filter({ visible: true });
+    const outs = await signOut.count().catch(() => 0);
+    // On the desktop the sidebar's Sign out may sit below the fold (the page scrolls to it); in the
+    // phone's bottom sheet it must be on the screen.
+    T(`A1 ${label}: one visible Sign out control${phone ? ' (in the More sheet, on the screen)' : ''}`, outs === 1
+      && (!phone || await signOut.evaluate(e => { const r = e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight && r.left >= 0 && r.right <= window.innerWidth; }).catch(() => false)));
+    let byKey = false;
+    if (phone) {
+      for (let i = 0; outs === 1 && i < 20 && !byKey; i++) { byKey = await signOut.evaluate(e => document.activeElement === e).catch(() => false); if (!byKey) await page.keyboard.press('Tab'); }
+      T(`A1 ${label}: Tab reaches Sign out inside the open More sheet`, byKey);
+    }
+    if (byKey) await page.keyboard.press('Enter');
+    else if (outs === 1) await signOut.click({ timeout: 2000 }).catch(() => {});
+    await page.waitForURL(/\/sol\/$/, { timeout: 5000 }).catch(() => {});
+    T(`A1 ${label}: choosing Sign out runs the existing logout(): one POST /auth/logout, then the sign-in page`,
+      recorded.filter(r => r.url === '/auth/logout' && r.method === 'POST').length === 1 && /\/sol\/$/.test(page.url()));
     await ctx.close();
   }
 }
