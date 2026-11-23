@@ -117,6 +117,10 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 .ok-note{color:var(--ink-900);background:var(--sol-50);border:1px solid var(--sol-200);border-radius:var(--r-md);padding:.6rem .75rem;font-size:.85rem;margin-bottom:.75rem}
 .ok-note:empty{display:none}
 .forgot-row{margin:-.4rem 0 1rem}
+.consent-field{display:flex;gap:.55rem;align-items:flex-start;font-size:.85rem;color:var(--ink-800)}
+.consent-field[hidden]{display:none}
+.consent-field input{width:1.05rem;height:1.05rem;margin-top:.15rem;flex-shrink:0}
+.consent-field a{color:var(--sol-700);text-decoration:underline}
 
 @media (max-width:760px){
   .hero{grid-template-columns:1fr;padding-top:2.5rem}
@@ -264,6 +268,11 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
         <input type="email" id="regEmail" placeholder="you@example.com" required></div>
       <div class="field"><label for="regPassword">Password</label>
         <input type="password" id="regPassword" placeholder="Min 8 characters" minlength="8" required></div>
+      <!-- Consent at sign-up: shown only when LANDING_FEATURES.signup_consent is on. -->
+      <div class="field consent-field" id="regConsentField" hidden>
+        <input type="checkbox" id="regConsent">
+        <label for="regConsent">I agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>, and to get notices and records from MySol electronically.</label>
+      </div>
       <p class="err" id="regErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="regBtn">Create account</button>
     </form>
@@ -299,6 +308,10 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 <script src="/sol/app/core/account.js"></script>
 <script>
 const API = 'https://sol-api-production.up.railway.app';
+// Off by default, like SOL_FEATURES.signup_consent in core/features.js (the member app).
+// On: a required consent checkbox at sign-up, sent in the shape draft backend PR #34
+// expects. Turn both on together, only once the backend records consent.
+const LANDING_FEATURES = { signup_consent: false };
 
 // The modal is a SolDialog (core/dialog.js): focus moves into it and stays there on Tab,
 // Escape closes it, and focus returns to the button that opened it.
@@ -517,21 +530,48 @@ async function handleTotp(e) {
   } finally { btn.textContent = 'Verify'; btn.disabled = false; }
 }
 
+// Consent switch on: show the checkbox (required, unticked).
+if (LANDING_FEATURES.signup_consent === true) {
+  const field = document.getElementById('regConsentField'), box = document.getElementById('regConsent');
+  if (field && box) { field.hidden = false; box.required = true; }
+}
+
 async function handleRegister(e) {
   e.preventDefault();
   const btn = document.getElementById('regBtn');
   const err = document.getElementById('regErr');
   err.style.display = 'none';
+  const consentOn = LANDING_FEATURES.signup_consent === true;
+  const box = document.getElementById('regConsent');
+  if (consentOn && !(box && box.checked)) {
+    err.textContent = 'Please agree to the Terms and the Privacy Policy to create an account.'; err.style.display = 'block';
+    if (box) box.focus();
+    return;
+  }
   btn.textContent = 'Creating…'; btn.disabled = true;
   try {
-    const data = await apiPost('/auth/signup', {
+    // PR #34 records consent at the current document versions (GET /legal/documents,
+    // api/legal.py:13-16) through accepted_terms_version, accepted_privacy_version and
+    // esign_consent (schemas/auth.py:16-20). A backend without that route (404/405, the
+    // deployed one) forbids those fields, so sign-up then sends the plain body.
+    let versions = null;
+    if (consentOn) {
+      const r = await SolAccount.callPublic(API, '/legal/documents', { method: 'GET' });
+      if (r.ok) versions = SolAccount.consentVersions(r.data);
+      if ((r.ok && !versions) || (!r.ok && r.status !== 404 && r.status !== 405)) throw new Error("We couldn't load the current terms. Please try again.");
+    }
+    const data = await apiPost('/auth/signup', SolAccount.signupPayload({
       email: document.getElementById('regEmail').value,
       password: document.getElementById('regPassword').value,
-      full_name: document.getElementById('regName').value
-    });
+      fullName: document.getElementById('regName').value
+    }, versions));
     finishAuth(data);
   } catch(ex) {
-    err.textContent = ex.message; err.style.display = 'block';
+    const d = ex && ex.detail;
+    err.textContent = (ex && ex.status === 422 && d && d.code === 'consent_required')
+      ? 'The Terms or the Privacy Policy changed. Please review them and try again.'
+      : ex.message;
+    err.style.display = 'block';
   } finally { btn.textContent = 'Create account'; btn.disabled = false; }
 }
 </script>
