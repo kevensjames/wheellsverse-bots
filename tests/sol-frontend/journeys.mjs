@@ -276,7 +276,16 @@ async function memberPages(page) {
   T('3c banner: Resend sends one POST /auth/resend-verification with no body (a double click is dropped)', rs.length === 1 && rs[0].method === 'POST' && rs[0].body === null);
   T('3c banner (deployed base, 404): the button is hidden and the member is told to contact support', !(await vis('#verifyResend')) && /contact support/i.test(await text('#dashVerify')));
   T('3c banner (404): no error alert and no toast', (await alertText('#dashVerify')) === '' && !(await ev(page, () => !!document.querySelector('.toast'))));
-  await page.evaluate(() => { window.__mock.a33 = true; window.nav('dashboard'); });
+  // C4: the 404 is remembered for this page session. renderVerifyBanner runs on every dashboard
+  // load, so a later visit must not offer the button again (nor the Settings profile card).
+  await clearReqs();
+  await page.evaluate(() => window.nav('dashboard')); await wait(300);
+  T('C4 banner (404): a later dashboard visit shows the contact-support note and does not offer Resend again', await vis('#dashVerify .verify-banner') && !(await vis('#verifyResend')) && /contact support/i.test(await text('#dashVerify')));
+  await page.evaluate(() => window.nav('settings')); await wait(300);
+  T('C4 settings (404): the profile card does not offer Resend either, and says to contact support', !(await vis('#setResend')) && /resending is not available yet/i.test(await text('#setProfile')));
+  T('C4 (404): no further POST /auth/resend-verification', countOf(await reqs(), '/auth/resend-verification') === 0);
+  // A new page session starts without that memory (setState.resendNA, pages/settings.js).
+  await page.evaluate(() => { setState.resendNA = false; window.__mock.a33 = true; window.nav('dashboard'); });
   await wait(300);
   await click('#verifyResend'); await wait(200);
   T('3c banner (PR #33, 202): "sent" is announced', /sent/i.test(await text('#dashVerify')) && /sent/i.test(await ev(page, () => [...document.querySelectorAll('#dashVerify [role=status], #dashVerify [aria-live]')].map(e => e.textContent).join(' '))));
@@ -541,7 +550,8 @@ async function memberPages(page) {
   focusOk('Close my account (refused)', await focusAfter('#closeConfirm', 'Enter', '#closeAccountDialog'));
   T('A11Y-2 close (409): the refusal reasons are inside the alert region', await ev(page, () => !!document.querySelector('#closeAccountDialog [role=alert] #closeReasons li')));
   await page.evaluate(() => { window.__mock.delay = 0; }); await page.keyboard.press('Escape'); await wait(120);
-  await page.evaluate(() => window.nav('dashboard')); await wait(400);
+  // (The Settings resend just answered 404, which this page session remembers; start afresh.)
+  await page.evaluate(() => { setState.resendNA = false; window.nav('dashboard'); }); await wait(400);
   await page.evaluate(() => { window.__mock.delay = 150; });
   focusOk('Resend email on the dashboard banner (not available yet, the button is hidden)', await focusAfter('#verifyResend', 'Enter', '#page-dashboard'));
   await page.evaluate(async () => { window.__mockClear(); SEED.user.email_verified_at = '2026-01-02T00:00:00Z'; me = await api('/auth/me'); });
@@ -951,26 +961,59 @@ async function publicPages(browser, leaks) {
   await rm.page.close();
 
   // ── [3c] verify email page (APP_BASE_URL/verify?token=, BASE services/email.py:129; POST /auth/verify-email?token=) ──
-  const vp = await open(`/sol/verify.html?token=${VERIFY_TOKEN}`);
-  await vp.wait(200);
-  const vr = vp.recorded.filter(r => r.url.startsWith('/auth/verify-email'));
-  T('3c verify: calls POST /auth/verify-email?token=… with the token in the query and no body', vr.length === 1 && vr[0].method === 'POST' && vr[0].url === '/auth/verify-email?token=' + VERIFY_TOKEN && vr[0].body === null);
-  T('3c verify: the token is removed from the address bar and not stored', !vp.page.url().includes(VERIFY_TOKEN) && !(await storageHas(vp.page, VERIFY_TOKEN)));
+  // SEC-5: nothing is sent on load (a mail scanner that runs scripts would use up the one-time
+  // token); the page shows one "Verify my email" button and sends the POST on its click only.
+  const verifyPosts = o => o.recorded.filter(r => r.url.startsWith('/auth/verify-email'));
+  const vp = await open(`/sol/verify.html?token=${VERIFY_TOKEN}&from=mail`);
+  await vp.wait(500);
+  T('SEC-5 verify: no POST /auth/verify-email on load, before the click', verifyPosts(vp).length === 0);
+  T('3c verify: the token is removed from the address bar at once (other parameters kept) and not stored', !vp.page.url().includes(VERIFY_TOKEN) && !vp.page.url().includes('token=') && /from=mail/.test(vp.page.url()) && !(await storageHas(vp.page, VERIFY_TOKEN)));
+  T('SEC-5 verify: a short heading and one visible button, "Verify my email"', await ev(vp.page, () => {
+    const h = document.querySelector('h1'); const bs = [...document.querySelectorAll('main button')].filter(b => b.offsetParent !== null);
+    return !!h && /verify your email/i.test(h.textContent) && bs.length === 1 && /^verify my email$/i.test(bs[0].textContent.trim());
+  }));
+  reportAudit('6c a11y verify page (before the click): labels, names, one h1, landmarks, no positive tabindex, alt text', await vp.page.evaluate(auditPage, 'doc'));
+  await vp.click('#verifyGo'); await vp.wait(250);
+  const vr = verifyPosts(vp);
+  T('3c verify: the click sends POST /auth/verify-email?token=… with the token in the query and no body', vr.length === 1 && vr[0].method === 'POST' && vr[0].url === '/auth/verify-email?token=' + VERIFY_TOKEN && vr[0].body === null);
   T('3c verify: success says so and links to the app', await vp.vis('#verifyDone') && /verified/i.test(await vp.text('#verifyDone')) && await ev(vp.page, () => [...document.querySelectorAll('#verifyDone a[href]')].some(a => a.getAttribute('href') === '/sol/app')));
   T('3c verify: the token never reaches the console', !vp.logs.some(t => t.includes(VERIFY_TOKEN)));
   reportAudit('6c a11y verify page: labels, names, one h1, landmarks, no positive tabindex, alt text', await vp.page.evaluate(auditPage, 'doc'));
   await vp.page.close();
+  // A double click while the answer takes 150 ms: one POST.
+  const vd = await open(`/sol/verify.html?token=${VERIFY_TOKEN}`, { flags: { delay: 150 } });
+  await vd.wait(300);
+  const beforeClick = verifyPosts(vd).length;
+  await vd.page.dblclick('#verifyGo', { timeout: 2000 }).catch(() => {});
+  await vd.wait(600);
+  T('SEC-5 verify: no POST before the click, exactly one POST after a double click', beforeClick === 0 && verifyPosts(vd).length === 1 && await vd.vis('#verifyDone'));
+  await vd.page.close();
+  // Keyboard: Enter on the button keeps focus on the page while it runs, then the heading has it.
+  const vk = await open(`/sol/verify.html?token=${VERIFY_TOKEN}`, { flags: { delay: 150 } });
+  await vk.page.focus('#verifyGo', { timeout: 1000 }).catch(() => {});
+  await vk.page.keyboard.press('Enter'); await vk.wait(50);
+  const kMid = await ev(vk.page, () => !!document.activeElement && document.activeElement.id === 'verifyGo');
+  await vk.wait(400);
+  T('SEC-5 verify: Enter on the button keeps focus on it while it runs, then moves focus to the heading with the answer', kMid === true && await ev(vk.page, () => document.activeElement === document.querySelector('h1')) && verifyPosts(vk).length === 1);
+  await vk.page.close();
   const vi = await open(`/sol/verify.html?token=${VERIFY_TOKEN}`, { over: { 'POST /auth/verify-email': { status: 400, body: { detail: 'Invalid or expired token' } } } });
-  T('3c verify (400): an expired-link message that says how to get a new one', await vi.vis('#verifyInvalid') && /expired|already used/i.test(await vi.text('#verifyInvalid')) && /resend/i.test(await vi.text('#verifyInvalid')));
+  await vi.click('#verifyGo'); await vi.wait(250);
+  const viText = await vi.text('#verifyInvalid');
+  T('3c verify (400): an expired-link message that says how to get a new one', await vi.vis('#verifyInvalid') && /expired|already used/i.test(viText) && /resend/i.test(viText));
+  T('C4 verify (400): says a member who already verified can just sign in', /already verified/i.test(viText) && /sign in/i.test(viText));
+  T('C4 verify (400): a new link that works on the deployed base too: sign in and use the reminder on the dashboard, or contact support', /reminder on your dashboard/i.test(viText) && /contact support/i.test(viText));
   await vi.page.close();
   const vl = await open(`/sol/verify.html?token=${VERIFY_TOKEN}`, { over: { 'POST /auth/verify-email': { status: 429, body: { error: 'Rate limit exceeded: 10 per 1 minute' } } } });
+  await vl.click('#verifyGo'); await vl.wait(250);
   T('3c verify (429): says to try again later', /try again/i.test(await vl.text('main')));
   await vl.page.close();
   const vn = await open(`/sol/verify.html?token=${VERIFY_TOKEN}`, { over: { 'POST /auth/verify-email': { status: 405, body: { detail: 'Method Not Allowed' } } } });
+  await vn.click('#verifyGo'); await vn.wait(250);
   T('3c verify (405): says it is not available yet', /not available yet/i.test(await vn.text('main')));
   await vn.page.close();
   const vm2 = await open('/sol/verify.html');
   T('3c verify: without a token, no request and a clear message', vm2.recorded.filter(r => r.url.startsWith('/auth/verify-email')).length === 0 && await vm2.vis('#verifyInvalid'));
+  T('C4 verify: without a token, says the link is incomplete and offers no verify button', /incomplete/i.test(await vm2.text('#verifyInvalid')) && !(await vm2.vis('#verifyGo')));
   await keyboardOrder(vm2.page, 'verify page', 'header nav');
   await vm2.page.close();
   await ctx.close();
