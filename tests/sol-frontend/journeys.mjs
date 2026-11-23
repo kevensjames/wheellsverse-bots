@@ -142,6 +142,9 @@ async function main() {
   await phoneFilters(browser, leaks);
   await phoneFiltersToggle(browser, leaks);
   await keyboardPolish(browser, leaks);
+  await scriptFocusRings(browser, leaks);
+  await codesStaleStatus(browser, leaks);
+  await codesLoadAborted(browser, leaks);
   // Secrets shown on the Settings page (2FA secret, backup codes) never reach the console.
   T('no 2FA secret or backup code in the console', !allConsole.some(t => SECRETS.some(x => t.includes(x))));
   T('no console errors', consoleErrors.length === 0);
@@ -451,7 +454,7 @@ async function memberPages(page) {
 
   // ── B4a: new backup codes (POST /auth/2fa/backup-codes/regenerate {password, code}, BASE api/auth.py:162-164,
   // 205-218; services/auth.py:326-345). Re-authenticated like turning off: a wrong password or code is one
-  // POST and never a POST /auth/refresh. The new codes are shown until "I saved my codes" (SEC-R2-1) and never stored. ──
+  // POST and never a POST /auth/refresh. The new codes are shown once (round 3) and never stored. ──
   const codeCount = () => ev(page, () => document.querySelectorAll('#set2faCodes li').length);
   const regenPosts = rs => countOf(rs, '/auth/2fa/backup-codes/regenerate');
   T('B4a backup codes: not offered while two-factor sign-in is off', (await text('#set2faState')).trim() === 'Off' && !(await vis('#set2faNewCodes')));
@@ -525,11 +528,11 @@ async function memberPages(page) {
     T(`B4a backup codes (${st}): the note is shown once, in place of the button, and announced`, ((await text('#setTwoFactor')).match(/not available yet/gi) || []).length === 1 && !(await vis('#set2faNewCodes')) && /not available yet/i.test(await text('#settingsLive')));
   }
 
-  // ── SEC-R2-1: backup codes are kept until the member chooses "I saved my codes". The server
-  // replaces the codes when it answers (the old ones stop working), so codes that arrive while the
-  // member is on another page must be shown on the next Settings visit, and leaving Settings again
-  // must not lose them. While Settings is not on screen nothing is announced and focus stays where
-  // it is. Every text #settingsLive takes is logged, with whether Settings was the active page. ──
+  // ── SEC-R2-1 (round 3 rule): backup codes are shown once. The server replaces the codes when
+  // it answers (the old ones stop working), so codes that arrive while the member is on another page
+  // wait for the next Settings visit and are shown there; a later visit does not show them again.
+  // While Settings is not on screen nothing is announced and focus stays where it is. Every text
+  // #settingsLive takes is logged, with whether Settings was the active page. ──
   const settingsLive = () => page.evaluate(() => {
     if (!window.__setLiveOn) {
       window.__setLiveOn = true;
@@ -593,12 +596,12 @@ async function memberPages(page) {
     (await text('#set2faState')).trim() === 'On' && (await codeCount()) === 10 && /a1b2-c3d4-e5/.test(await text('#set2faCodes'))
     && await announcedOnScreen('two-factor sign-in is on') && await ev(page, () => !!document.activeElement && document.activeElement.id === 'set2faCodesH'));
   T('SEC-R2-1 turning two-factor on, back in Settings: the secret is not on the page', await ev(page, () => !document.getElementById('page-settings').innerHTML.includes('JBSWY3DPEHPK3PXP')));
-  // Two-factor turned off on another device while the codes wait: they no longer work. The next
-  // visit reads Off and drops them.
+  // Two-factor turned off on another device after the codes were shown: the next visit reads Off
+  // and no code is on the page. (Codes still waiting when it is turned off elsewhere: R3-C1.)
   await page.evaluate(() => window.nav('dashboard')); await wait(200);
   await page.evaluate(() => { SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; });
   await page.evaluate(() => window.nav('settings')); await wait(400);
-  T('SEC-R2-1 codes waiting, two-factor turned off elsewhere: the next visit reads Off and the codes are gone from the page',
+  T('SEC-R2-1 codes already shown, two-factor turned off elsewhere: the next visit reads Off and no code is on the page',
     (await text('#set2faState')).trim() === 'Off' && (await codeCount()) === 0 && await ev(page, () => !document.getElementById('page-settings').innerHTML.includes('a1b2-c3d4-e5')));
   T('SEC-R2-1 the codes are never stored or put in the address bar', await ev(page, s => { const all = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + location.href + JSON.stringify(history.state); return !s.some(x => all.includes(x)); }, SECRETS));
   await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; });
@@ -1602,6 +1605,172 @@ async function keyboardPolish(browser, leaks) {
 // B3: storage blocked in a new page session (its own context). The guide opens on the first
 // dashboard load, as the first-run guide should, and then not again in that page session: the
 // "seen" mark is also kept in memory, per member (storage stays the record across sessions).
+// R4-RING (round 3 critic, PHONE-A11Y-R3-PHONE-3): every heading the app focuses by script after a
+// keyboard action shows a ring set off from its letters, as D3c gives the page h1s. Before this, rules
+// in the Settings cards, the close-account dialog and the guide removed it, so a keyboard user could
+// not see where focus went (D3d made the close-account dialog open on such a title). Keyboard only:
+// focus a control, then Enter or typing. At 1280x720 and 390x844.
+const RING_PROBE = () => {
+  const a = document.activeElement;
+  if (!a || a === document.body) return null;
+  const cs = getComputedStyle(a);
+  return { id: a.id, visible: a.matches(':focus-visible'), style: cs.outlineStyle, width: parseFloat(cs.outlineWidth) || 0, offset: parseFloat(cs.outlineOffset) || 0 };
+};
+const ringOk = r => !!r && r.visible && r.style !== 'none' && r.width >= 2 && r.offset >= 2;
+async function scriptFocusRings(browser, leaks) {
+  for (const [label, width, height] of [['desktop 1280x720', 1280, 720], ['phone 390x844', 390, 844]]) {
+    const ctx = await safeContext(browser, leaks, { viewport: { width, height }, deviceScaleFactor: 1 });
+    const page = await ctx.newPage();
+    const perrs = [];
+    page.on('pageerror', e => perrs.push(String(e)));
+    await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+    const press = async (sel, ms = 300) => { await page.focus(sel, { timeout: 2000 }).catch(() => {}); await page.keyboard.press('Enter'); await page.waitForTimeout(ms); };
+    const type = async (sel, v) => { await page.focus(sel, { timeout: 2000 }).catch(() => {}); await page.keyboard.type(v); };
+    const check = async (what, id) => {
+      const r = await ev(page, RING_PROBE);
+      T(`R4-RING ${label}: ${what}: focus is on #${id} and shows a ring (an outline of at least 2px, at least 2px off the letters)`, !!r && r.id === id && ringOk(r));
+    };
+    // Two-factor on: new backup codes, then "I saved my codes".
+    await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = true; SEED.user.totp_backup_codes_remaining = 2; window.nav('settings'); }); await page.waitForTimeout(400);
+    await press('#set2faNewCodes', 200);
+    await check('"Get new backup codes" opens its form', 'set2faRegenH');
+    await type('#set2faRegenPw', 'synthetic-password'); await type('#set2faRegenCode', '123456');
+    await press('#set2faRegenGo', 400);
+    await check('the new backup codes are shown', 'set2faCodesH');
+    await press('#set2faSaved', 200);
+    await check('"I saved my codes"', 'setTwoFactorH');
+    // Two-factor off: "Turn on" opens the set-up steps.
+    await page.evaluate(() => { SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; window.nav('settings'); }); await page.waitForTimeout(400);
+    await press('#set2faStart', 300);
+    await check('"Turn on" opens the set-up steps', 'set2faSetupH');
+    await press('#set2faCancel', 150);
+    // The close-account dialog opens on its title (D3d).
+    await page.evaluate(() => { window.__mock.a33 = true; window.nav('settings'); }); await page.waitForTimeout(500);
+    await press('#setCloseOpen', 300);
+    await check('the close-account dialog opens', 'closeTitle');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    // The guide's last step has no Next button: focus goes to the step's title.
+    await press('#setGuide', 300);
+    for (let i = 0; i < 8 && await ev(page, () => { const n = document.getElementById('guideNext'); return !!n && !n.hidden && document.activeElement === n; }); i++) {
+      await page.keyboard.press('Enter'); await page.waitForTimeout(150);
+    }
+    await check('the guide\'s last step (it has no Next button)', 'guideTitle');
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    T(`R4-RING ${label}: no page errors`, perrs.length === 0 && (await ev(page, () => (window.__errs || []).length)) === 0);
+    await ctx.close();
+  }
+}
+
+// Slower routes on top of the harness mock, for the two checks below (runs in the journey page).
+// The activate POST answers after `activateMs`; a flagged GET /auth/me answers with the server state
+// read when it was sent (before two-factor was turned on); GET /account/settings answers after
+// `settingsMs`, and an abort (the member leaving) rejects it at once, like a real fetch.
+function SLOW_ROUTES() {
+  const orig = window.fetch;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  window.__t = { activateMs: 0, staleMe: false, settingsMs: 0 };
+  window.fetch = async (u, o) => {
+    const m = ((o && o.method) || 'GET').toUpperCase();
+    const p = String(u).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
+    if (m === 'POST' && p === '/auth/2fa/activate' && window.__t.activateMs) { await sleep(window.__t.activateMs); return orig(u, o); }
+    if (m === 'GET' && p === '/auth/me' && window.__t.staleMe) {
+      window.__t.staleMe = false;
+      const snap = JSON.parse(JSON.stringify(SEED.user));
+      return { ok: true, status: 200, statusText: 'OK', headers: { get: () => null }, json: async () => snap, text: async () => JSON.stringify(snap) };
+    }
+    if (m === 'GET' && p === '/account/settings' && window.__t.settingsMs) {
+      const ms = window.__t.settingsMs, sig = o && o.signal;
+      window.__t.settingsMs = 0;
+      await new Promise((ok, no) => {
+        const t = setTimeout(ok, ms);
+        if (sig) sig.addEventListener('abort', () => { clearTimeout(t); no(new DOMException('The user aborted a request.', 'AbortError')); }, { once: true });
+      });
+      return orig(u, o);
+    }
+    return orig(u, o);
+  };
+}
+const CODES_STATE = () => ({
+  page: (document.querySelector('.page.active') || {}).id,
+  waiting: Array.isArray(setState.codes) ? setState.codes.length : 0,
+  shown: document.getElementById('page-settings').classList.contains('active') ? document.querySelectorAll('#set2faCodes li').length : 0,
+  card: ((document.getElementById('set2faState') || {}).textContent || '').trim(),
+  notice: ((document.getElementById('codesNoticeText') || {}).textContent || '').trim(),
+  focus: document.activeElement && document.activeElement.id,
+});
+
+// R4-STALE (round 3 security review SEC-R3-2): the member turns two-factor on, leaves Settings and
+// comes back while the answer is still on its way. That visit's GET /auth/me was read before the
+// server turned two-factor on, but settles after the codes arrived, so it is older than they are.
+// Before this, it overwrote the state with "off" and dropped the codes before their one showing: the
+// member never saw them, and the card read Off while two-factor was on.
+async function codesStaleStatus(browser, leaks) {
+  const ctx = await safeContext(browser, leaks);
+  const page = await ctx.newPage();
+  const perrs = [];
+  page.on('pageerror', e => perrs.push(String(e)));
+  await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+  await page.evaluate(SLOW_ROUTES);
+  await page.evaluate(() => { SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; window.nav('settings'); }); await page.waitForTimeout(400);
+  await page.click('#set2faStart', { timeout: 2000 }).catch(() => {}); await page.waitForTimeout(300);
+  await page.fill('#set2faCode', '123456', { timeout: 2000 }).catch(() => {});
+  await page.evaluate(() => { window.__t.activateMs = 500; });
+  await page.click('#set2faConfirm', { timeout: 2000 }).catch(() => {}); await page.waitForTimeout(80);
+  await page.evaluate(() => window.nav('dashboard')); await page.waitForTimeout(80);
+  await page.evaluate(() => { window.__t.staleMe = true; window.__t.settingsMs = 900; window.nav('settings'); });
+  await page.waitForTimeout(1500);
+  const drawn = await ev(page, CODES_STATE);
+  T('R4-STALE two-factor turned on, Settings left and opened again before the answer, its GET /auth/me read before the server turned it on: the visit shows the 10 codes and reads On',
+    !!drawn && drawn.page === 'page-settings' && drawn.shown === 10 && drawn.card === 'On' && drawn.focus === 'set2faCodesH');
+  await page.evaluate(() => window.nav('dashboard')); await page.waitForTimeout(300);
+  await page.evaluate(() => window.nav('settings')); await page.waitForTimeout(500);
+  const next = await ev(page, CODES_STATE);
+  T('R4-STALE the next visit reads On and shows no codes (they were shown once)', !!next && next.card === 'On' && next.shown === 0 && next.waiting === 0);
+  T('R4-STALE no page errors', perrs.length === 0 && (await ev(page, () => (window.__errs || []).length)) === 0);
+  await ctx.close();
+}
+
+// R4-ABORT (round 3 critic, TC-R3-1): settings.js shows the notice when a Settings visit that was
+// loading is left before it draws, and the notice writes its text once. The codes from turning
+// two-factor on land while Settings is loading; the member leaves before it draws: the notice shows.
+// Opening Settings and leaving it again before it draws, while the notice shows, does not write
+// (announce) the same text again. Settings, opened at last, shows the codes once.
+async function codesLoadAborted(browser, leaks) {
+  const ctx = await safeContext(browser, leaks);
+  const page = await ctx.newPage();
+  const perrs = [];
+  page.on('pageerror', e => perrs.push(String(e)));
+  await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+  await page.evaluate(SLOW_ROUTES);
+  await page.evaluate(() => {
+    window.__noticeWrites = 0;
+    const el = document.getElementById('codesNoticeText');
+    if (el) new MutationObserver(ms => { window.__noticeWrites += ms.filter(m => m.type === 'childList' || m.type === 'characterData').length; }).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  await page.evaluate(() => { SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; window.nav('settings'); }); await page.waitForTimeout(400);
+  await page.click('#set2faStart', { timeout: 2000 }).catch(() => {}); await page.waitForTimeout(300);
+  await page.fill('#set2faCode', '123456', { timeout: 2000 }).catch(() => {});
+  await page.evaluate(() => { window.__t.activateMs = 400; });
+  await page.click('#set2faConfirm', { timeout: 2000 }).catch(() => {}); await page.waitForTimeout(80);
+  await page.evaluate(() => window.nav('dashboard')); await page.waitForTimeout(80);
+  await page.evaluate(() => { window.__t.settingsMs = 1500; window.nav('settings'); }); await page.waitForTimeout(500);
+  await page.evaluate(() => window.nav('payments')); await page.waitForTimeout(300);
+  const left = await ev(page, CODES_STATE);
+  const writes1 = await ev(page, () => window.__noticeWrites);
+  T('R4-ABORT codes that landed while Settings loaded, the member leaving before it drew: the notice says they wait; its text written once',
+    !!left && left.page === 'page-payments' && left.waiting === 10 && /backup codes are ready/i.test(left.notice) && writes1 === 1);
+  await page.evaluate(() => { window.__t.settingsMs = 1500; window.nav('settings'); }); await page.waitForTimeout(200);
+  await page.evaluate(() => window.nav('goals')); await page.waitForTimeout(300);
+  const again = await ev(page, CODES_STATE);
+  T('R4-ABORT Settings opened and left again before it drew, while the notice shows: the notice stays, and its text is not written (announced) a second time',
+    !!again && again.waiting === 10 && /backup codes are ready/i.test(again.notice) && (await ev(page, () => window.__noticeWrites)) === writes1);
+  await page.evaluate(() => window.nav('settings')); await page.waitForTimeout(500);
+  const shown = await ev(page, CODES_STATE);
+  T('R4-ABORT Settings, opened at last, shows the 10 codes once and the notice goes', !!shown && shown.shown === 10 && shown.notice === '' && shown.focus === 'set2faCodesH');
+  T('R4-ABORT no page errors', perrs.length === 0 && (await ev(page, () => (window.__errs || []).length)) === 0);
+  await ctx.close();
+}
+
 async function guideStorageBlocked(browser, leaks) {
   const ctx = await safeContext(browser, leaks);
   const page = await ctx.newPage();
@@ -1893,6 +2062,15 @@ async function publicPages(browser, leaks) {
   // SEC-5: nothing is sent on load (a mail scanner that runs scripts would use up the one-time
   // token); the page shows one "Verify my email" button and sends the POST on its click only.
   const verifyPosts = o => o.recorded.filter(r => r.url.startsWith('/auth/verify-email'));
+  // Keyboard: the password typed, Enter in the confirm field saves it; focus goes to the heading.
+  const rk = await open(`/sol/reset-password.html?token=${RESET_TOKEN}`);
+  await rk.page.focus('#resetPassword', { timeout: 1000 }).catch(() => {}); await rk.page.keyboard.type('synthetic-new-pass');
+  await rk.page.focus('#resetConfirm', { timeout: 1000 }).catch(() => {}); await rk.page.keyboard.type('synthetic-new-pass');
+  await rk.page.keyboard.press('Enter'); await rk.wait(300);
+  const rkr = await ev(rk.page, RING_PROBE);
+  T('R4-RING reset: after Enter saves the new password, focus is on the heading and it shows a ring (an outline of at least 2px, at least 2px off the letters)',
+    !!rkr && rkr.id === 'pageTitle' && ringOk(rkr) && rk.recorded.filter(r => r.url === '/auth/reset-password').length === 1);
+  await rk.page.close();
   const vp = await open(`/sol/verify.html?token=${VERIFY_TOKEN}&from=mail`);
   await vp.wait(500);
   T('SEC-5 verify: no POST /auth/verify-email on load, before the click', verifyPosts(vp).length === 0);
@@ -1924,6 +2102,7 @@ async function publicPages(browser, leaks) {
   const kMid = await ev(vk.page, () => !!document.activeElement && document.activeElement.id === 'verifyGo');
   await vk.wait(400);
   T('SEC-5 verify: Enter on the button keeps focus on it while it runs, then moves focus to the heading with the answer', kMid === true && await ev(vk.page, () => document.activeElement === document.querySelector('h1')) && verifyPosts(vk).length === 1);
+  T('R4-RING verify: the heading that takes focus after Enter on "Verify my email" shows a ring (an outline of at least 2px, at least 2px off the letters)', ringOk(await ev(vk.page, RING_PROBE)));
   await vk.page.close();
   const vi = await open(`/sol/verify.html?token=${VERIFY_TOKEN}`, { over: { 'POST /auth/verify-email': { status: 400, body: { detail: 'Invalid or expired token' } } } });
   await vi.click('#verifyGo'); await vi.wait(250);
