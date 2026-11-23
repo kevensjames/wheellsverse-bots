@@ -486,6 +486,7 @@ async function memberPages(page) {
     await click('#set2faNewCodes'); await wait(120);
     await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456'); await click('#set2faRegenGo'); await wait(300);
     T(`B4a backup codes (${st}): says getting new codes is not available yet, no error alert, no codes, focus on the page`, /not available yet/i.test(await text('#setTwoFactor')) && (await alertText('#setTwoFactor')) === '' && (await codeCount()) === 0 && await ev(page, () => !!document.activeElement && document.activeElement !== document.body && !!document.activeElement.closest('#page-settings')));
+    T(`B4a backup codes (${st}): the note is shown once, in place of the button, and announced`, ((await text('#setTwoFactor')).match(/not available yet/gi) || []).length === 1 && !(await vis('#set2faNewCodes')) && /not available yet/i.test(await text('#settingsLive')));
   }
   await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; });
   // Notifications: preferences.notifications (BASE api/account.py:95-125; shallow merge).
