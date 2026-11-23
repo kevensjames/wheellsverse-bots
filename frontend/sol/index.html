@@ -275,9 +275,9 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
     <!-- 2FA / TOTP step — shown when /auth/login returns totp_required -->
     <form id="totpForm" style="display:none" onsubmit="handleTotp(event)">
       <h2>Two-factor code</h2>
-      <p style="color:var(--muted);font-size:.9rem;margin:-.25rem 0 1rem">Enter the 6-digit code from your authenticator app to finish signing in.</p>
+      <p style="color:var(--muted);font-size:.9rem;margin:-.25rem 0 1rem">Enter the 6-digit code from your authenticator app to finish signing in. Lost your phone? Enter one of your backup codes instead.</p>
       <div class="field"><label>Authentication code</label>
-        <input type="text" id="totpCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="123456" required></div>
+        <input type="text" id="totpCode" autocomplete="one-time-code" maxlength="12" placeholder="123456" required></div>
       <p class="err" id="totpErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="totpBtn">Verify</button>
       <button type="button" class="btn" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--muted)" onclick="switchTab('login')">← Back to sign in</button>
@@ -339,7 +339,12 @@ async function apiPost(path, body) {
     body: JSON.stringify(body)
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(formatApiError(data, r.statusText));
+  if (!r.ok) {
+    const err = new Error(formatApiError(data, r.statusText));
+    err.status = r.status;
+    err.detail = data && data.detail;
+    throw err;
+  }
   return data;
 }
 
@@ -466,6 +471,14 @@ async function handleLogin(e) {
     }
     finishAuth(data);
   } catch(ex) {
+    // The backend asks for the second step with 428 {"detail": {"totp_required": true,
+    // "challenge_token": …}} (services/auth.py:176-182). Never show that answer.
+    const d = ex && ex.detail;
+    if (ex && ex.status === 428 && d && d.totp_required === true && typeof d.challenge_token === 'string') {
+      _totpChallenge = d.challenge_token;
+      showTotpStep();
+      return;
+    }
     err.textContent = ex.message; err.style.display = 'block';
   } finally { btn.textContent = 'Sign in'; btn.disabled = false; }
 }
