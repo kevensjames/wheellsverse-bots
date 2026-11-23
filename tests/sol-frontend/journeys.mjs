@@ -139,6 +139,7 @@ async function main() {
   await appShell(browser, leaks);
   await codesLeaveGuard(browser, leaks);
   await phoneFilters(browser, leaks);
+  await keyboardPolish(browser, leaks);
   // Secrets shown on the Settings page (2FA secret, backup codes) never reach the console.
   T('no 2FA secret or backup code in the console', !allConsole.some(t => SECRETS.some(x => t.includes(x))));
   T('no console errors', consoleErrors.length === 0);
@@ -916,7 +917,12 @@ async function memberPages(page) {
   T('6a guide: explains a sol, a cycle (same amount, one member receives, order set in the circle), the checks and what to do next', /sol/i.test(steps[0] || '') && /same amount/i.test(steps.join(' ')) && /order/i.test(steps.join(' ')) && /identity|ID check/i.test(steps.join(' ')) && /settle/i.test(steps.join(' ')));
   T('6a guide: the last step has buttons for email, ID check, bank and circles', await ev(page, () => ['settings', 'kyc', 'bank', 'discover'].every(p => !!document.querySelector(`#guideDialog [data-guide-go="${p}"]`))));
   await page.keyboard.press('Escape'); await wait(150);
-  T('6a guide: Escape closes it and focus returns to the page heading', await ev(page, () => !window.SolDialog.isOpen('guideDialog') && document.activeElement === document.querySelector('#page-dashboard h1')));
+  // D3b: the dashboard's h1 is for screen readers only, so focus there is invisible. The guide opened
+  // on its own, so focus goes to the first visible part at the top of the dashboard: the overview.
+  T('6a guide: opened on its own, Escape closes it and focus goes to a visible starting point at the top of the dashboard (the overview section), not the hidden heading', await ev(page, () => {
+    const a = document.activeElement, r = a ? a.getBoundingClientRect() : null;
+    return !window.SolDialog.isOpen('guideDialog') && a === document.getElementById('dashHero') && r.width > 2 && r.height > 2 && r.top >= 0 && r.top < innerHeight;
+  }));
   T('6a guide: "seen" is remembered for this member', await ev(page, () => localStorage.getItem('sol_guide_seen:' + SEED.user.id) !== null));
   await page.evaluate(() => window.nav('dashboard')); await wait(350);
   T('6a guide: not shown again on the next dashboard load', await ev(page, () => !window.SolDialog.isOpen('guideDialog')));
@@ -931,7 +937,7 @@ async function memberPages(page) {
   await page.evaluate(() => window.nav('settings')); await wait(250);
   await click('#setGuide'); await wait(120);
   await click('#guideClose'); await wait(120);
-  T('6a guide: the close button (with an accessible name) dismisses it, focus on the heading', await ev(page, () => !window.SolDialog.isOpen('guideDialog') && document.activeElement === document.querySelector('#page-settings h1')));
+  T('6a guide: the close button (with an accessible name) dismisses it, and focus returns to "Show the guide", which opened it', await ev(page, () => !window.SolDialog.isOpen('guideDialog') && document.activeElement === document.getElementById('setGuide')));
   // Storage blocked (B3): the guide was already shown in this page session (above), so it does not
   // open again, and nothing throws. Before, with storage throwing, every dashboard load reopened it.
   const blocked = await page.evaluate(async () => {
@@ -1259,6 +1265,98 @@ async function phoneFilters(browser, leaks) {
   await t.ctx.close();
 }
 
+// D3 (round 3), at 1280x720 and 390x844, each in its own context:
+// (b) the first-run guide opened on its own: closing it puts focus on a visible starting point at
+//     the top of the dashboard (the verify-email banner's heading when it shows), with a focus ring;
+// (c) a page h1 that navigation focuses (Settings, Payments) gets a ring clear of its letters: a
+//     solid outline set off from the text, and room above it when focus scrolls it into view;
+// (d) the close-account dialog opens with its title and first bullets in view; Tab then reaches
+//     the password, Shift+Tab stays in the dialog, and Escape returns focus to its button.
+async function keyboardPolish(browser, leaks) {
+  for (const [label, width, height] of [['desktop 1280x720', 1280, 720], ['phone 390x844', 390, 844]]) {
+    const phone = width < 641;
+    const ctx = await safeContext(browser, leaks, { viewport: { width, height }, deviceScaleFactor: 1 });
+    const page = await ctx.newPage();
+    const perrs = [];
+    page.on('pageerror', e => perrs.push(String(e)));
+    await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+    // The focused element: on the screen (above the bottom nav at phone width), and showing a ring.
+    const seen = () => ev(page, () => {
+      const a = document.activeElement;
+      if (!a || a === document.body) return null;
+      const r = a.getBoundingClientRect(), n = document.getElementById('mobileNav').getBoundingClientRect(), cs = getComputedStyle(a);
+      return { id: a.id, tag: a.tagName, onScreen: r.width > 2 && r.height > 2 && r.top >= 0 && r.top < (n.height ? n.top : innerHeight),
+        ring: a.matches(':focus-visible') && cs.outlineStyle === 'solid' && parseFloat(cs.outlineWidth) >= 2,
+        offset: parseFloat(cs.outlineOffset) || 0, width: parseFloat(cs.outlineWidth) || 0, top: r.top, margin: parseFloat(cs.scrollMarginTop) || 0 };
+    });
+
+    // (b) A new page session: the guide opens on its own on the first dashboard load (no banner, the
+    // email address is verified). Escape: focus on the overview section.
+    const opened = await ev(page, () => window.SolDialog.isOpen('guideDialog'));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    const gh = await seen();
+    T(`D3b ${label}: the guide opened on its own; Escape puts focus on the overview section at the top of the dashboard, on the screen, with a focus ring`,
+      opened === true && !!gh && gh.id === 'dashHero' && gh.onScreen && gh.ring);
+    // The same while the verify-email banner shows (the in-memory "seen" of this page session is
+    // cleared, as in a new one): focus on the banner's heading, the first visible part.
+    await page.evaluate(() => { _guideShownIds.clear(); localStorage.removeItem('sol_guide_seen:' + SEED.user.id); SEED.user.email_verified_at = null; me.email_verified_at = null; window.nav('dashboard'); });
+    await page.waitForTimeout(600);
+    const opened2 = await ev(page, () => window.SolDialog.isOpen('guideDialog'));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    const gb = await seen();
+    T(`D3b ${label}: with the verify-email banner showing, Escape puts focus on the banner's heading, at the top of the dashboard and on the screen, with a focus ring`,
+      opened2 === true && !!gb && gb.id === 'verifyBannerTitle' && gb.onScreen && gb.ring);
+    await page.evaluate(async () => { SEED.user.email_verified_at = '2026-01-02T00:00:00Z'; me = await api('/auth/me'); });
+
+    // (c) Settings and Payments by keyboard: the h1 that navigation focuses.
+    const viaKeys = async target => {
+      if (!phone) { await page.focus(`.nav-item[data-page="${target}"]`).catch(() => {}); await page.keyboard.press('Enter'); }
+      else if (target === 'payments') { await page.focus('.mn[data-mpage="payments"]').catch(() => {}); await page.keyboard.press('Enter'); }
+      else {
+        await page.focus('#mobileNav [aria-controls="moreSheet"]').catch(() => {}); await page.keyboard.press('Enter'); await page.waitForTimeout(450);
+        await page.evaluate(t => { const b = [...document.querySelectorAll('#moreSheet .more-item')].find(x => x.textContent.trim().toLowerCase() === t); if (b) b.focus(); }, target);
+        await page.keyboard.press('Enter');
+      }
+      await page.waitForTimeout(500);
+    };
+    for (const target of ['settings', 'payments']) {
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await viaKeys(target);
+      const h = await seen();
+      T(`D3c ${label}: chosen by keyboard, ${target === 'settings' ? 'Settings' : 'Payments'} puts focus on its h1 with a solid ring set off from the letters (outline-offset of at least 3px), the whole ring on the screen`,
+        !!h && h.tag === 'H1' && h.id === '' && h.ring && h.offset >= 3 && h.top - h.offset - h.width >= 0 && await ev(page, t => document.activeElement === document.querySelector('#page-' + t + ' h1'), target));
+      T(`D3c ${label}: ${target === 'settings' ? 'Settings' : 'Payments'}: the h1 keeps room above it when focus scrolls it into view (scroll-margin-top of at least 8px)`, !!h && h.margin >= 8);
+    }
+
+    // (d) The close-account dialog, opened by keyboard from Settings.
+    await page.evaluate(() => { window.__mock.a33 = true; window.nav('settings'); }); await page.waitForTimeout(500);
+    const openClose = async () => { await page.focus('#setCloseOpen').catch(() => {}); await page.keyboard.press('Enter'); await page.waitForTimeout(300); };
+    await openClose();
+    const view = await ev(page, () => {
+      const d = document.getElementById('closeAccountDialog'), m = d.querySelector('.modal'), mb = m.getBoundingClientRect();
+      const inView = el => { const b = el.getBoundingClientRect(); return b.height > 0 && b.top >= Math.max(0, mb.top) - 0.5 && b.bottom <= Math.min(innerHeight, mb.bottom) + 0.5; };
+      const lis = [...d.querySelectorAll('#closeIntro li')];
+      return { open: window.SolDialog.isOpen('closeAccountDialog'), title: inView(document.getElementById('closeTitle')), bullets: lis.length >= 2 && inView(lis[0]) && inView(lis[1]), focus: document.activeElement && document.activeElement.id };
+    });
+    T(`D3d ${label}: the close-account dialog opens with its title "Close your account?" and its first two bullets in view, focus on the title`,
+      !!view && view.open && view.title && view.bullets && view.focus === 'closeTitle');
+    await page.keyboard.press('Tab'); await page.waitForTimeout(80);
+    T(`D3d ${label}: the first Tab reaches the password field, on the screen`, await ev(page, () => {
+      const a = document.activeElement; if (!a || a.id !== 'closePw') return false;
+      const r = a.getBoundingClientRect(), hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return r.top >= 0 && r.bottom <= innerHeight && (hit === a || a.contains(hit));
+    }));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    T(`D3d ${label}: Escape closes it and focus returns to its button`, await ev(page, () => !window.SolDialog.isOpen('closeAccountDialog') && document.activeElement && document.activeElement.id === 'setCloseOpen'));
+    await openClose();
+    await page.keyboard.press('Shift+Tab'); await page.waitForTimeout(80);
+    T(`D3d ${label}: Shift+Tab from where it opens stays in the dialog (on its last control, "Keep my account")`, await ev(page, () => document.activeElement && document.activeElement.id === 'closeCancel'));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(150);
+    T(`D3 ${label}: no page errors`, perrs.length === 0 && (await ev(page, () => (window.__errs || []).length)) === 0);
+    await ctx.close();
+  }
+}
+
 // B3: storage blocked in a new page session (its own context). The guide opens on the first
 // dashboard load, as the first-run guide should, and then not again in that page session: the
 // "seen" mark is also kept in memory, per member (storage stays the record across sessions).
@@ -1411,6 +1509,17 @@ async function publicPages(browser, leaks) {
   const fq = await open('/sol/index.html?forgot=1');
   T('3a forgot: /sol/?forgot opens the forgot-password form (the reset page links here)', await fq.vis('#forgotForm'));
   await fq.page.close();
+  // D3a: Enter on "Back to sign in" hides the button that has focus. Focus moves to the sign-in
+  // form's email field, inside the modal, instead of falling to the page body.
+  const fb = await open('/sol/index.html');
+  await fb.page.click('header nav .btn-primary, nav .btn-primary', { timeout: 2000 }).catch(() => {}); await fb.wait(150);
+  await fb.click('#forgotLink'); await fb.wait(120);
+  await fb.page.focus('#forgotBack').catch(() => {}); await fb.page.keyboard.press('Enter'); await fb.wait(150);
+  T('D3a landing: Enter on "Back to sign in" in the forgot-password form shows the sign-in form with focus on its email field',
+    await ev(fb.page, () => !!document.activeElement && document.activeElement.id === 'loginEmail' && document.getElementById('loginForm').offsetParent !== null && document.getElementById('forgotForm').offsetParent === null));
+  await fb.page.keyboard.press('Tab');
+  T('D3a landing: Tab from there goes on to the password field', await ev(fb.page, () => !!document.activeElement && document.activeElement.id === 'loginPassword'));
+  await fb.page.close();
   // Keyboard order on the landing page.
   const kl = await open('/sol/index.html');
   await keyboardOrder(kl.page, 'landing page', 'header nav');
@@ -1430,6 +1539,15 @@ async function publicPages(browser, leaks) {
   const tt = tl.recorded.filter(r => r.url === '/auth/login/totp');
   T('sign-in: the code goes to POST /auth/login/totp with the challenge, then the app opens', tt.length === 1 && exactKeys(tt[0].body, ['challenge_token', 'code']) && tt[0].body.challenge_token === 'synthetic-challenge-token' && /\/sol\/app$/.test(tl.page.url()));
   await tl.page.close();
+  // D3a: the code step's "Back to sign in" has the same focus problem as the forgot form's.
+  const tb = await open('/sol/index.html');
+  await tb.page.click('header nav .btn-primary, nav .btn-primary', { timeout: 2000 }).catch(() => {});
+  await tb.fill('#loginEmail', 'totp-member@example.invalid'); await tb.fill('#loginPassword', 'synthetic-password');
+  await tb.page.click('#loginBtn').catch(() => {}); await tb.wait(250);
+  await tb.page.focus('#totpForm button[type="button"]').catch(() => {}); await tb.page.keyboard.press('Enter'); await tb.wait(150);
+  T('D3a landing: Enter on "Back to sign in" in the two-factor code step shows the sign-in form with focus on its email field',
+    await ev(tb.page, () => !!document.activeElement && document.activeElement.id === 'loginEmail' && document.getElementById('loginForm').offsetParent !== null && document.getElementById('totpForm').offsetParent === null));
+  await tb.page.close();
 
   // ── [3e] consent at sign-up (off by default; PR #34 shape when on) ──
   const signup = async (opts, tick, beforeSubmit) => {
