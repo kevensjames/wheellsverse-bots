@@ -87,6 +87,9 @@ async function reauthPost(path, body) {
   }
 }
 
+// Counts backup-code answers (turning two-factor on, new codes). A Settings visit compares it
+// before and after its GET /auth/me, to tell whether codes arrived while that read was on its way.
+let _codesGen = 0;
 // again: the Retry of a section that did not load, on the same visit (codes on screen stay).
 async function loadSettings(again) {
   const body = document.getElementById('settingsBody');
@@ -96,13 +99,21 @@ async function loadSettings(again) {
   setState.enroll = null; setState.regen = false;
   if (!again && setState.codes && setState.codesSeen) _dropBackupCodes();
   body.innerHTML = '<div class="spinner"></div>';
+  const codesGen = _codesGen;
   const [meR, stR] = await Promise.allSettled([api('/auth/me'), api('/account/settings')]);
   if ((meR.status === 'rejected' && _aborted(meR.reason)) || (stR.status === 'rejected' && _aborted(stR.reason))) {
     // The member left while this visit loaded: codes that arrived meanwhile still wait.
     if (setState.codesNews && setState.codes && !_settingsActive()) _codesNotice(setState.codesNews.notice);
     return;
   }
-  if (meR.status === 'fulfilled' && meR.value && typeof meR.value === 'object') me = meR.value;
+  if (meR.status === 'fulfilled' && meR.value && typeof meR.value === 'object') {
+    // Codes that arrived while this GET /auth/me was on its way came with a newer answer: two-factor
+    // is on. The read may predate it, so it does not turn the state back off or drop the codes
+    // before their one showing. The next visit reads the state again.
+    me = _codesGen !== codesGen && setState.codes && me && me.totp_enabled
+      ? Object.assign({}, meR.value, { totp_enabled: true, totp_backup_codes_remaining: me.totp_backup_codes_remaining })
+      : meR.value;
+  }
   // Two-factor turned off elsewhere since the codes arrived: they no longer work.
   if (setState.codes && meR.status === 'fulfilled' && me && !me.totp_enabled) _dropBackupCodes();
   setState.settingsOk = stR.status === 'fulfilled' && !!stR.value && typeof stR.value === 'object';
@@ -334,7 +345,7 @@ async function confirmTwoFactor() {
     const d = await reauthPost('/auth/2fa/activate', { code });
     const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
     setState.enroll = null;   // the secret leaves the page
-    setState.codes = codes.length ? codes : null; setState.codesReplaced = false; setState.codesSeen = false;
+    setState.codes = codes.length ? codes : null; setState.codesReplaced = false; setState.codesSeen = false; _codesGen++;
     if (me) { me.totp_enabled = true; me.totp_backup_codes_remaining = codes.length; }
     // PR #35 ends every other session when two-factor is turned on (harmless to say on the base).
     _showTwoFactorNews('Two-factor sign-in is on.', 'Your other devices may need to sign in again.', setState.codes ? 'set2faCodesH' : 'setTwoFactorH',
@@ -480,8 +491,7 @@ async function twoFactorAlreadyOff() {
 // ── New backup codes: POST /auth/2fa/backup-codes/regenerate {password, code} (BASE api/auth.py:
 // 162-164, 205-218; services/auth.py:326-345). 200 {backup_codes: [10]}: the old codes stop working.
 // 401 "Invalid password" / "Invalid code" (re-authenticated like turning off: never a refresh).
-// The new codes are shown, like at activation, until the member chooses "I saved my codes", and
-// are never stored or logged.
+// The new codes are shown once, like at activation, and are never stored or logged.
 const REGEN_NA_TEXT = 'Getting new backup codes here is not available yet.';
 function startNewBackupCodes() {
   setState.regen = true;
@@ -507,7 +517,7 @@ async function getNewBackupCodes() {
     const d = await reauthPost('/auth/2fa/backup-codes/regenerate', { password, code });
     const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
     setState.regen = false;
-    setState.codes = codes.length ? codes : null; setState.codesReplaced = !!setState.codes; setState.codesSeen = false;
+    setState.codes = codes.length ? codes : null; setState.codesReplaced = !!setState.codes; setState.codesSeen = false; _codesGen++;
     if (me && codes.length) me.totp_backup_codes_remaining = codes.length;
     if (setState.codes) _showTwoFactorNews('Your new backup codes are ready. Your old codes no longer work.', null, 'set2faCodesH',
       'Your new backup codes are ready. Open Settings to see and save them.');

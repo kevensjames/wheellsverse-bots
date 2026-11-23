@@ -39,7 +39,7 @@ h1{font-family:var(--font-display);font-size:1.5rem;font-weight:700;margin:0 0 .
 /* Headings and sections that script focuses (tabindex -1: a page's h1 after navigation, the
    dashboard's starting point after the guide): a ring set off from the letters instead of the
    browser's default one, which cuts through their tops, and room above it when focus scrolls it
-   into view. Rules further down that remove it (in cards and dialogs) still win. */
+   into view. Rules further down remove the outline only for a focus that is not keyboard focus. */
 :where(h1,h2,h3,section)[tabindex="-1"]:focus-visible{outline:2px solid var(--focus-ring);outline-offset:4px}
 :where(h1,h2,h3,section)[tabindex="-1"]{scroll-margin-top:1rem}
 .sub{color:var(--ink-500);font-size:.9rem;margin-bottom:2rem}
@@ -726,7 +726,9 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .set-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.25rem 1.35rem;box-shadow:var(--shadow-1)}
 .set-card h2{font-size:1.1rem;margin:0 0 .75rem}
 .set-card h3{font-size:.98rem;margin:.25rem 0 .5rem}
-.set-card h2:focus,.set-card h3:focus{outline:none}
+/* Headings that take focus after an action keep the ring of the rule near the top (keyboard);
+   only a focus that is not keyboard focus drops the outline. */
+.set-card h2:focus:not(:focus-visible),.set-card h3:focus:not(:focus-visible){outline:none}
 .set-card .field{max-width:26rem}
 .set-row{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin:.9rem 0 .4rem}
 .set-label{font-size:.8rem;color:var(--ink-700);min-width:4.5rem}
@@ -750,7 +752,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .set-card .btn,.bank-modal #closeForm .btn,#closeDone .btn{min-height:44px}
 /* The close-account dialog is long: it scrolls inside the screen, so its buttons stay reachable. */
 #closeAccountDialog .modal{max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem);overflow-y:auto}
-#closeAccountDialog h3:focus{outline:none}
+#closeAccountDialog h3:focus:not(:focus-visible){outline:none}
 #closeDone h4{font-size:.95rem;margin:.9rem 0 .35rem}
 .verify-banner{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border:1px solid var(--sol-300);background:var(--sol-50);border-radius:var(--r-lg);padding:.9rem 1.1rem;margin-bottom:1rem}
 .verify-banner__title{font-size:1rem;margin:0 0 .25rem}
@@ -778,7 +780,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .guide__close:hover{background:var(--surface-2)}
 .guide__count{font-size:.78rem;color:var(--ink-700);margin:0 0 .25rem;font-weight:600}
 .guide__title{font-size:1.3rem;margin:0 0 .75rem}
-.guide__title:focus{outline:none}
+.guide__title:focus:not(:focus-visible){outline:none}
 .guide__body p,.guide__list li{font-size:.92rem;color:var(--ink-800)}
 .guide__list{padding-left:1.1rem;margin:0 0 .5rem}
 .guide__list li{margin-bottom:.35rem}

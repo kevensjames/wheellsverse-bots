@@ -10,7 +10,9 @@ body{background:var(--paper);color:var(--ink-900);min-height:100vh;display:flex;
 .auth-main:focus{outline:none}
 .auth-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:2rem;width:100%;max-width:26rem;box-shadow:var(--shadow-1)}
 .auth-card h1{font-size:var(--step-3);margin-bottom:var(--s-4)}
-.auth-card h1:focus{outline:none}
+/* The heading takes focus after an answer: a ring set off from the letters for keyboard focus. */
+.auth-card h1:focus:not(:focus-visible){outline:none}
+.auth-card h1:focus-visible{outline:2px solid var(--focus-ring);outline-offset:4px}
 .auth-lede{color:var(--ink-700)}
 .auth-err{color:var(--danger-700);font-size:var(--step--1);min-height:1.2em;margin:.25rem 0 .75rem}
 .auth-wide{width:100%}
