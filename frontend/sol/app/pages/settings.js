@@ -614,9 +614,11 @@ function openCloseDialog() {
   const field = document.getElementById('closeCodeField');
   if (field) field.hidden = !(me && me.totp_enabled);
   closeFormReset();
+  // Focus starts on the title, so the dialog opens at its top (focus on the password field
+  // scrolled the title and the first points out of view); the first Tab reaches the password.
   SolDialog.open('closeAccountDialog', {
     opener: document.getElementById('setCloseOpen'),
-    initialFocus: '#closePw',
+    initialFocus: '#closeTitle',
     canClose: () => !SolGuard.isLocked('settings:close'),
     // Once the account is closed, every way out of the dialog signs out.
     onClose: () => { if (setState.closed) logout(); else closeFormReset(); },
