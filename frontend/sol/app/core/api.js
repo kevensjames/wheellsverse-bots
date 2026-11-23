@@ -70,6 +70,7 @@ async function api(path, opts = {}) {
   if (!r.ok) {
     const err = new Error(formatApiError(d, r.statusText));
     err.status = r.status;
+    err.detail = d ? d.detail : undefined;   // the raw detail (an object for some refusals, e.g. 409 reasons)
     throw err;
   }
   return d;

@@ -685,3 +685,36 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .admin-fld--check{display:flex;align-items:center;gap:.5rem}
 .admin-fld--check input{width:auto}
 .admin-fld--check>span{margin:0;font-size:.85rem;color:var(--ink-900)}
+/* The hidden attribute always hides, also on elements whose class sets display
+   (e.g. .nav-item, .btn): flag-gated nav entries and Settings controls rely on it. */
+[hidden]{display:none!important}
+/* ═══ Settings (pages/settings.js) and the dashboard verify-email banner ═══ */
+.set-grid{display:grid;gap:1rem;max-width:46rem}
+.set-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.25rem 1.35rem;box-shadow:var(--shadow-1)}
+.set-card h2{font-size:1.1rem;margin:0 0 .75rem}
+.set-card h3{font-size:.98rem;margin:.25rem 0 .5rem}
+.set-card h3:focus{outline:none}
+.set-card .field{max-width:26rem}
+.set-row{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin:.9rem 0 .4rem}
+.set-label{font-size:.8rem;color:var(--ink-700);min-width:4.5rem}
+.set-value{font-weight:600;word-break:break-all}
+.set-inline{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin:.6rem 0}
+.set-na{font-size:.85rem;color:var(--ink-700);margin:.5rem 0}
+.set-na:empty{display:none}
+.set-check{display:flex;align-items:flex-start;gap:.55rem}
+.set-check input{width:1.1rem;height:1.1rem;margin-top:.15rem;flex-shrink:0}
+.set-check label{font-size:.9rem}
+.set-steps{padding-left:1.2rem;margin:.4rem 0 .6rem}
+.set-steps li{margin-bottom:.8rem}
+.set-qr{display:block;margin:.6rem 0;border:1px solid var(--line);border-radius:var(--r-sm);image-rendering:pixelated}
+.set-secret{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1rem;letter-spacing:.06em;background:var(--surface-2);padding:.35rem .6rem;border-radius:var(--r-sm);margin-right:.4rem;word-break:break-all}
+.set-code{max-width:9rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em}
+.set-warn{border:1px solid var(--sol-300);background:var(--sol-50);border-radius:var(--r-md);padding:.9rem 1rem;margin-top:.6rem}
+.set-codes{list-style:none;padding:0;margin:.6rem 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem .8rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.set-danger{border-top:1px solid var(--line);margin-top:1rem;padding-top:.9rem}
+.set-card .btn,.bank-modal #closeForm .btn{min-height:44px}
+.verify-banner{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border:1px solid var(--sol-300);background:var(--sol-50);border-radius:var(--r-lg);padding:.9rem 1.1rem;margin-bottom:1rem}
+.verify-banner__title{font-size:1rem;margin:0 0 .25rem}
+.verify-banner p{margin:0;font-size:.88rem;color:var(--ink-800)}
+.verify-banner .btn{min-height:44px}
+@media(max-width:560px){.set-codes{grid-template-columns:1fr}.set-card{padding:1rem}}

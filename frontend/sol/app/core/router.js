@@ -34,6 +34,7 @@ function nav(page) {
   if (page === 'notifications') loadNotifications();
   if (page === 'community') loadCommunity();
   if (page === 'goals') loadGoals();
+  if (page === 'settings') loadSettings();
   if (page === 'dashboard') loadDashboard();   // revalidate summary cards on return (they change after money/goal mutations elsewhere)
   try { if (typeof SolOrb !== 'undefined') { page === 'dashboard' ? SolOrb.resume() : SolOrb.stop(); } } catch (e) {}
 }

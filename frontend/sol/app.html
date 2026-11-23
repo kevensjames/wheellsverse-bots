@@ -28,6 +28,7 @@
   <symbol id="ic-premium" viewBox="0 0 24 24"><path d="M5 8l3-4h8l3 4-7 12z"/><path d="M5 8h14M9.5 4l-1.5 4 4 12 4-12-1.5-4"/></symbol>
   <symbol id="ic-signout" viewBox="0 0 24 24"><path d="M15 17l5-5-5-5M20 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></symbol>
   <symbol id="ic-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="ic-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
 </defs></svg>
 
 <aside class="sidebar">
@@ -58,6 +59,7 @@
 
     <div class="nav-section">Account</div>
     <button type="button" class="nav-item" data-page="premium" onclick="nav('premium')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-premium"/></svg> Premium</button>
+    <button type="button" class="nav-item" data-page="settings" onclick="nav('settings')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-settings"/></svg> Settings</button>
     <button type="button" class="nav-item" data-page="admin" data-feature="catalog" data-admin hidden onclick="nav('admin')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-circles"/></svg> Circle admin</button>
     <button type="button" class="nav-item logout" onclick="logout()"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-signout"/></svg> Sign out</button>
   </nav>
@@ -67,6 +69,7 @@
   <!-- Dashboard -->
   <div class="page active" id="page-dashboard">
     <h1 class="sr-only">Dashboard</h1>
+    <div id="dashVerify"></div>
     <section class="dash-hero" id="dashHero" aria-label="Overview"></section>
     <div id="dashAttention"></div>
     <div class="dash-summary" id="dashSummary" aria-label="Financial summary"></div>
@@ -551,6 +554,48 @@
       </div>
     </div>
   </div>
+
+  <!-- Settings (pages/settings.js) -->
+  <div class="page" id="page-settings">
+    <div id="settingsLive" class="sr-only" role="status" aria-live="polite"></div>
+    <div class="kyc-head">
+      <h1>Settings</h1>
+      <p class="sub">Your profile, sign-in security, notifications and data.</p>
+    </div>
+    <div id="settingsBody" class="set-grid"><div class="spinner"></div></div>
+    <!-- Close-account confirmation (lives in #page-settings so it shows while Settings is active).
+         POST /account/close exists only in draft backend PR #33; what is removed and kept, and
+         for how long, follows that PR's own description (services/account_lifecycle.py:491-555). -->
+    <div class="bank-modal" id="closeAccountDialog" role="dialog" aria-modal="true" aria-labelledby="closeTitle" aria-describedby="closeIntro">
+      <div class="modal">
+        <h3 id="closeTitle">Close your account?</h3>
+        <div id="closeIntro" class="bank-remove-body">
+          <p>This can't be undone. Download your data first if you want a copy.</p>
+          <ul class="bank-remove-list">
+            <li>You can't sign in again, and every session ends.</li>
+            <li>We remove your name, email address, phone number, password, two-factor settings, saved bank links, devices, alerts and savings goals.</li>
+            <li>We keep money records for financial record-keeping: your contributions and payouts, ledger entries, the circles you were in, the bank name, account type and last 4 digits, your ID check status, plan and invoice history, and posts you wrote in circle spaces. We keep them for 5 years by default; that period is still under legal review.</li>
+            <li>You can't close your account while a circle you belong to hasn't finished, a contribution or payout is in progress, or a plan is active.</li>
+          </ul>
+        </div>
+        <form id="closeForm" onsubmit="confirmCloseAccount(event)" novalidate>
+          <div class="field"><label for="closePw">Password</label>
+            <input id="closePw" class="input" type="password" autocomplete="current-password" oninput="closeFormChanged()"></div>
+          <div class="field" id="closeCodeField" hidden><label for="closeCode">6-digit code from your authenticator app</label>
+            <input id="closeCode" class="input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" oninput="closeFormChanged()"></div>
+          <div class="field"><label for="closePhrase">Type DELETE to confirm</label>
+            <input id="closePhrase" class="input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="closeFormChanged()"></div>
+          <p class="set-na" id="closeNote" role="status" aria-live="polite"></p>
+          <p class="err" id="closeErr" role="alert" style="display:none"></p>
+          <ul class="bank-remove-list" id="closeReasons"></ul>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" id="closeCancel" onclick="closeCloseDialog()">Keep my account</button>
+            <button type="submit" class="btn btn-danger" id="closeConfirm" disabled>Close my account</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </main>
 
 <!-- Mobile bottom nav (hidden on desktop via media query) -->
@@ -577,6 +622,7 @@
       <button type="button" class="more-item" onclick="navMore('trust')"><svg class="ic" aria-hidden="true"><use href="#ic-score"/></svg>SOL Score</button>
       <button type="button" class="more-item" onclick="navMore('community')"><svg class="ic" aria-hidden="true"><use href="#ic-community"/></svg>Community</button>
       <button type="button" class="more-item" onclick="navMore('premium')"><svg class="ic" aria-hidden="true"><use href="#ic-premium"/></svg>Premium</button>
+      <button type="button" class="more-item" onclick="navMore('settings')"><svg class="ic" aria-hidden="true"><use href="#ic-settings"/></svg>Settings</button>
     </div>
   </div>
 </div>
@@ -588,6 +634,7 @@
 <script src="/sol/app/core/api.js"></script>
 <script src="/sol/app/core/dialog.js"></script>
 <script src="/sol/app/core/guard.js"></script>
+<script src="/sol/app/core/account.js"></script>
 <script src="/sol/app/pages/dashboard.js"></script>
 <script src="/sol/app/pages/circles.js"></script>
 <script src="/sol/app/pages/circle-detail.js"></script>
@@ -603,6 +650,7 @@
 <script src="/sol/app/pages/notifications.js"></script>
 <script src="/sol/app/pages/community.js"></script>
 <script src="/sol/app/pages/goals.js"></script>
+<script src="/sol/app/pages/settings.js"></script>
 <script src="/sol/app/main.js"></script>
 </body>
 </html>

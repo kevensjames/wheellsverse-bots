@@ -8,6 +8,7 @@
 const DASH_ACTIVE = ['ACTIVE', 'COLLECTING', 'SETTLING'];
 
 async function loadDashboard() {
+  renderVerifyBanner();   // pages/settings.js: shown while me.email_verified_at is empty
   renderDashSkeletons();
   const R = await Promise.allSettled([
     api('/subscriptions/me'), api('/groups'), api('/trust/me'),
