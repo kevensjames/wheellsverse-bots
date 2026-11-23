@@ -339,6 +339,41 @@ tr:hover td{background:var(--surface-2)}
 <script>
 const API = 'https://sol-api-production.up.railway.app';
 let adminToken = sessionStorage.getItem('sol_admin_token');
+// Counts admin sessions ended on this page. Declared here, before showApp() can
+// run below, because api() reads it synchronously. See adminLogout(). How each
+// session ended (by its epoch) decides the error its old requests report.
+let _adminAuthEpoch = 0;
+const _adminEndReasons = {};   // epoch -> 'signed-out' | 'signed-in' | 'expired'
+function _adminEndSession(reason) {
+  _adminEndReasons[_adminAuthEpoch] = reason;
+  _adminAuthEpoch++;
+}
+// A duplicated tab starts with a copy of this tab's sessionStorage, so it holds
+// the same session. Each sign-in gets a session family id (copied with it); a
+// sign-out announces its family on this channel, and every tab of that family
+// signs out too.
+const _adminChannel = (typeof BroadcastChannel === 'function') ? new BroadcastChannel('sol-admin-auth') : null;
+// The message only reaches admin pages open at that moment. A duplicated tab
+// that was on another page, or in the back/forward cache, checks this list of
+// ended session families (localStorage: shared by this browser's tabs, kept
+// across navigation) when it loads or is restored.
+const ADMIN_ENDED_KEY = 'sol_admin_ended';
+function _adminFamilyEnded(family) {
+  try { return !!family && (localStorage.getItem(ADMIN_ENDED_KEY) || '').split(' ').indexOf(family) !== -1; } catch { return false; }
+}
+function _adminNoteEnded(family) {
+  if (!family) return;
+  try {
+    const rest = (localStorage.getItem(ADMIN_ENDED_KEY) || '').split(' ').filter(x => x && x !== family);
+    localStorage.setItem(ADMIN_ENDED_KEY, [family].concat(rest).slice(0, 16).join(' '));
+  } catch {}
+}
+// True when the session in this tab's sessionStorage is a copy of one that was
+// signed out in another tab.
+function _adminCopyEnded() { return !!adminToken && _adminFamilyEnded(sessionStorage.getItem('sol_admin_family')); }
+// The session family this page itself runs on (set at load and at sign-in). A
+// page restored from the back/forward cache compares it with sessionStorage,
+// which a later page of this tab may have changed.
 let allUsers = [], allGroups = [];
 
 // ── Login gate ────────────────────────────────────────────────────────────────
@@ -358,7 +393,21 @@ function showApp() {
   refreshHaltBanner();
 }
 
+let _adminFamily = adminToken ? sessionStorage.getItem('sol_admin_family') : null;
+if (_adminCopyEnded()) _adminSignOutHere(false);
 if (adminToken) showApp();
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  // Restored from the back/forward cache: if this page's own session ended, or
+  // a later page of this tab replaced it, reload (and sign out first if the
+  // ended session is still the one in sessionStorage).
+  window.addEventListener('pageshow', e => {
+    if (!e || !e.persisted || !adminToken || !_adminFamily) return;
+    const current = sessionStorage.getItem('sol_admin_family');
+    if (current === _adminFamily && !_adminFamilyEnded(_adminFamily)) return;
+    if (current === _adminFamily) _adminSignOutHere(false);
+    _adminReloadPage();
+  });
+}
 
 async function adminLogin() {
   const btn = document.getElementById('loginBtn');
@@ -400,9 +449,7 @@ async function adminLogin() {
     });
     if (chk.status === 403) throw new Error('Not an admin account (login OK, role missing)');
     if (!chk.ok && chk.status !== 200) throw new Error(`Admin check failed: [${chk.status}]`);
-    sessionStorage.setItem('sol_admin_token', d.access_token);
-    if (d.refresh_token) sessionStorage.setItem('sol_admin_refresh', d.refresh_token);
-    adminToken = d.access_token;
+    _adminStartSession(d.access_token, d.refresh_token);
     showApp();
   } catch(e) {
     hint.textContent = e.message;
@@ -433,9 +480,7 @@ async function adminLoginTotp() {
     const chk = await fetch(API + '/admin/reconcile', { headers:{'Authorization':'Bearer ' + d.access_token} });
     if (chk.status === 403) throw new Error('Not an admin account');
     if (!chk.ok) throw new Error(`Admin check failed: [${chk.status}]`);
-    sessionStorage.setItem('sol_admin_token', d.access_token);
-    if (d.refresh_token) sessionStorage.setItem('sol_admin_refresh', d.refresh_token);
-    adminToken = d.access_token;
+    _adminStartSession(d.access_token, d.refresh_token);
     delete window._pendingTotpChallenge;
     showApp();
   } catch(e) {
@@ -465,11 +510,87 @@ function togglePw() {
   else { i.type = 'password'; b.textContent = 'show'; }
 }
 
+// Store a new admin session from a sign-in. Bumping _adminAuthEpoch ends the
+// earlier session for any request still in flight: it will not refresh or be
+// re-sent under this one (it may be a different admin). A refresh token left by
+// an earlier session is not kept. The session gets a new family id.
+function _adminStartSession(access, refresh) {
+  _adminEndSession('signed-in');
+  sessionStorage.setItem('sol_admin_token', access);
+  if (refresh) sessionStorage.setItem('sol_admin_refresh', refresh);
+  else sessionStorage.removeItem('sol_admin_refresh');
+  _adminFamily = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  sessionStorage.setItem('sol_admin_family', _adminFamily);
+  adminToken = access;
+}
+
+// Sign out of the admin portal. Clears BOTH admin tokens first, so nothing on
+// this page can reuse them, then asks the backend to revoke the refresh session
+// (POST /auth/logout, keepalive). Best effort: a failed revoke never keeps the
+// admin signed in. Bumping _adminAuthEpoch stops a refresh already in flight
+// from storing new tokens afterwards (it revokes them instead, see
+// _tryAdminRefresh), and a request that started before the sign-out neither
+// refreshes nor clears the session after it (see api()).
+// A duplicated tab of this session (same family) is told on _adminChannel and
+// signs out too; one that misses the message signs out when it next loads or
+// is restored (_adminCopyEnded).
+// Limits: an access token already issued stays valid at the API until it
+// expires; a 2xx is not proof of revocation (the backend also answers 204 for
+// an unknown token). A duplicated tab is reached at once only where
+// BroadcastChannel exists and while it is open, otherwise when it next loads or
+// is restored; the member app's session is not ended.
+// The page then reloads (after the keepalive revoke is sent), so member data
+// and the admin's identity loaded under the ended session do not stay in the
+// document.
 function adminLogout() {
+  const family = sessionStorage.getItem('sol_admin_family');
+  _adminSignOutHere(false);
+  _adminNoteEnded(family);
+  if (family && _adminChannel) { try { _adminChannel.postMessage({ type: 'signed-out', family }); } catch {} }
+  _adminReloadPage();
+}
+// End this page's session: tokens gone, login gate shown, refresh revoked.
+// `clearPage`: reload afterwards (the page showed data of that session).
+function _adminSignOutHere(clearPage) {
+  _adminEndSession('signed-out');
+  const refresh = sessionStorage.getItem('sol_admin_refresh');
   sessionStorage.removeItem('sol_admin_token');
+  sessionStorage.removeItem('sol_admin_refresh');
+  sessionStorage.removeItem('sol_admin_family');
   adminToken = null;
+  _adminFamily = null;
   document.getElementById('loginGate').style.display = 'flex';
   document.getElementById('appShell').style.display = 'none';
+  _adminRevokeRefresh(refresh);
+  if (clearPage) _adminReloadPage();
+}
+function _adminReloadPage() {
+  try { if (window.location && typeof window.location.reload === 'function') window.location.reload(); } catch {}
+}
+if (_adminChannel) {
+  _adminChannel.addEventListener('message', e => {
+    const d = e && e.data;
+    if (!d || d.type !== 'signed-out' || !d.family || d.family !== sessionStorage.getItem('sol_admin_family')) return;
+    _adminSignOutHere(true);
+  });
+}
+
+// Best-effort revoke of one refresh token (POST /auth/logout, body exactly
+// {refresh_token}: the backend rejects extra fields). keepalive lets the request
+// outlive a closed tab. Resolves true only on a 2xx answer; never throws.
+async function _adminRevokeRefresh(refreshToken) {
+  if (!refreshToken) return false;
+  try {
+    const r = await fetch(API + '/auth/logout', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      keepalive: true,
+    });
+    return !!(r && r.ok);
+  } catch {
+    return false;
+  }
 }
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
@@ -797,6 +918,7 @@ async function loadEmailPreview(template) {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
+  const epoch = _adminAuthEpoch;
   const r = await fetch(API + path, {
     ...opts,
     headers: {
@@ -807,14 +929,25 @@ async function api(path, opts = {}) {
   });
   if (r.status === 204) return null;
   // 401 = access token expired. Try a silent refresh first; only bounce
-  // to the login gate if the refresh also fails (refresh token revoked,
-  // server restart, etc.). Prevents the admin from being kicked out
-  // every 60 min during a long triage session.
+  // to the login gate if the refresh is rejected (refresh token revoked or
+  // expired). Prevents the admin from being kicked out each time the access
+  // token expires (15 minutes by default at the backend) during a long triage
+  // session.
   if (r.status === 401 && !opts._retry) {
-    const refreshed = await _tryAdminRefresh();
+    const refreshed = epoch === _adminAuthEpoch && await _tryAdminRefresh();
     if (refreshed) {
       return api(path, { ...opts, _retry: true });
     }
+    // The session this request belonged to has ended (sign-out, expiry, or a new
+    // sign-in): its 401 belongs to the old session, so leave the current state
+    // alone, and report how that session ended.
+    if (epoch !== _adminAuthEpoch) throw new Error(_adminEndReasons[epoch] === 'expired' ? 'Session expired' : 'Signed out');
+    // The refresh could not be done right now (429, 5xx, network error): the
+    // session may well still be valid, so keep it and fail only this request.
+    if (_adminRefreshOutcome === 'transient') throw new Error('Could not renew your session right now. Please try again.');
+    // The session is over (its refresh was rejected). End it for every request
+    // still in flight, so none refreshes or is re-sent under the next sign-in.
+    _adminEndSession('expired');
     sessionStorage.removeItem('sol_admin_token');
     sessionStorage.removeItem('sol_admin_refresh');
     adminToken = null;
@@ -829,33 +962,58 @@ async function api(path, opts = {}) {
   return d;
 }
 
-// Silent refresh for the admin session. Dedupes concurrent 401s so we only
-// rotate the refresh token once per wave of failures. Returns true on success.
-let _adminRefreshPromise = null;
+// Silent refresh for the admin session. Dedupes concurrent 401s of the SAME
+// session so we only rotate the refresh token once per wave of failures; a
+// refresh started by an earlier session is never shared with a later one.
+// Returns true on success. When it returns false, _adminRefreshOutcome says
+// why: 'rejected' (401, 403 or another 4xx: the session is over), 'transient'
+// (429, 5xx, a network error or an unreadable answer: the session is kept) or
+// 'ended' (the session ended here meanwhile).
+let _adminRefreshPromise = null, _adminRefreshEpoch = -1;
+let _adminRefreshOutcome = null;
 async function _tryAdminRefresh() {
   const refresh = sessionStorage.getItem('sol_admin_refresh');
-  if (!refresh) return false;
-  if (_adminRefreshPromise) return _adminRefreshPromise;
-  _adminRefreshPromise = (async () => {
+  if (!refresh) { _adminRefreshOutcome = 'rejected'; return false; }
+  if (_adminRefreshPromise && _adminRefreshEpoch === _adminAuthEpoch) return _adminRefreshPromise;
+  const epoch = _adminAuthEpoch;
+  const p = (async () => {
+    const fail = outcome => { _adminRefreshOutcome = outcome; return false; };
     try {
-      const r = await fetch(API + '/auth/refresh', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ refresh_token: refresh }),
-      });
-      if (!r.ok) return false;
-      const d = await r.json();
+      let r;
+      try {
+        r = await fetch(API + '/auth/refresh', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ refresh_token: refresh }),
+        });
+      } catch {
+        return fail('transient');
+      }
+      if (r.status === 429 || r.status >= 500) return fail('transient');
+      if (!r.ok) return fail('rejected');
+      let d;
+      try { d = await r.json(); } catch { return fail('transient'); }
+      if (!d || !d.access_token || !d.refresh_token) return fail('transient');
+      if (epoch !== _adminAuthEpoch) {
+        // Signed out while this refresh was in flight: do not sign the page
+        // back in; revoke the session the server just created (without
+        // waiting: keepalive, and nothing depends on the answer).
+        _adminRevokeRefresh(d.refresh_token);
+        return fail('ended');
+      }
       sessionStorage.setItem('sol_admin_token', d.access_token);
       sessionStorage.setItem('sol_admin_refresh', d.refresh_token);
       adminToken = d.access_token;
       return true;
     } catch {
-      return false;
+      return fail('transient');
     } finally {
-      _adminRefreshPromise = null;
+      if (_adminRefreshPromise === p) _adminRefreshPromise = null;
     }
   })();
-  return _adminRefreshPromise;
+  _adminRefreshPromise = p;
+  _adminRefreshEpoch = epoch;
+  return p;
 }
 
 // FastAPI returns 422 validation errors as detail=[{loc,msg,type}, ...]; without

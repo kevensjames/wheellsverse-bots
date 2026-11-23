@@ -8,7 +8,7 @@
 //   • a mutation (POST/PATCH/DELETE) NEVER carries it — so navigating away can
 //     never cancel a payment / join / subscribe / cancel (money-safety)
 //   • a GET can opt out with { noAbort: true } (the background unread badge)
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
@@ -37,6 +37,8 @@ for (const fn of ['loadGroups', 'loadKYC', 'loadBank', 'loadMyPayments', 'loadDi
   'consumePendingInvite', 'refreshUnread', 'init']) sandbox[fn] = noop;
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
+// core/session.js (app.html loads it before state.js) when the tree has it.
+if (existsSync(join(CORE, 'session.js'))) vm.runInContext(readFileSync(join(CORE, 'session.js'), 'utf8'), sandbox);
 vm.runInContext(readFileSync(join(CORE, 'router.js'), 'utf8'), sandbox);
 vm.runInContext(readFileSync(join(CORE, 'api.js'), 'utf8'), sandbox);
 

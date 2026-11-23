@@ -23,18 +23,26 @@
 //      revoke request in a browser)
 //   9. sign-out works before core/api.js has loaded (the button is clickable
 //      before the scripts at the end of app.html have run)
+//  10. another tab cannot restore the session: a refresh that started in tab B
+//      before tab A signed out stores nothing and revokes what it was given;
+//      if tab A has meanwhile signed in again, tab B leaves tab A's new session
+//      stored but does not adopt it (more multi-tab cases: session-tabs.test.mjs)
+//  11. init() failing during a sign-out waits for the sign-out instead of
+//      navigating first
 //
 // What it does NOT prove: that the server revoked anything (the backend is not
 // run here), or anything about the deployed frontend. Revoking the refresh
 // session also does not end an access token already issued: the backend accepts
 // that JWT until it expires.
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 
 const CORE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'sol', 'app', 'core');
 const SRC = Object.fromEntries(['router.js', 'api.js'].map(f => [f, readFileSync(join(CORE, f), 'utf8')]));
+// core/session.js (app.html loads it before state.js) when the tree has it.
+const SESSION_JS = existsSync(join(CORE, 'session.js')) ? readFileSync(join(CORE, 'session.js'), 'utf8') : null;
 const API = 'https://sol-api.invalid';
 const A = 'synthetic-access-1', R = 'synthetic-refresh-1';
 const A2 = 'synthetic-access-2', R2 = 'synthetic-refresh-2';
@@ -46,7 +54,8 @@ const deferred = () => { let resolve, reject; const p = new Promise((a, b) => { 
 // `files` picks which core scripts have loaded (app.html order: router.js, api.js).
 // `events` records the order of revoke answers and redirects.
 function makeApp(route, stored = { sol_token: A, sol_refresh: R }, files = ['router.js', 'api.js']) {
-  const store = new Map(Object.entries(stored));
+  // A Map is shared storage: two apps given the same Map are two tabs of one origin.
+  const store = stored instanceof Map ? stored : new Map(Object.entries(stored));
   const calls = [];
   const hrefs = [];
   const events = [];
@@ -76,6 +85,7 @@ function makeApp(route, stored = { sol_token: A, sol_refresh: R }, files = ['rou
   };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
+  if (SESSION_JS) vm.runInContext(SESSION_JS, sandbox);
   for (const f of files) vm.runInContext(SRC[f], sandbox);
   const V = expr => vm.runInContext(expr, sandbox);
   const revokes = () => calls.filter(c => c.method === 'POST' && c.url === API + '/auth/logout');
@@ -294,6 +304,103 @@ await scenario('[15] a refresh in flight answers 50 ms after sign-out (within th
   const iR2 = app.events.indexOf('revoke-answered:' + R2), iNav = app.events.indexOf('redirect');
   ok(iR2 !== -1 && iR2 < iNav, 'the session the late refresh created was revoked before the redirect: ' + JSON.stringify(app.events));
   ok(!app.store.has('sol_token') && !app.store.has('sol_refresh'), 'nothing stored');
+});
+
+await scenario('[16] two tabs: tab A signs out while tab B refreshes', async () => {
+  const shared = new Map([['sol_token', A], ['sol_refresh', R]]);
+  const refreshGate = deferred();
+  const tabB = makeApp(call => (call.url === API + '/auth/refresh' ? refreshGate.p : Promise.resolve(res(204))), shared);
+  const tabA = makeApp(() => Promise.resolve(res(204)), shared);
+  const refreshing = tabB.V('_tryRefresh()');
+  await tick();
+  await tabA.V('logout()');
+  refreshGate.resolve(res(200, { access_token: A2, refresh_token: R2, token_type: 'bearer' }));
+  const got = await refreshing; await tick();
+  ok(!shared.has('sol_token') && !shared.has('sol_refresh'), `tab B stored nothing after tab A signed out (saw ${JSON.stringify([...shared])})`);
+  ok(got === false, 'tab B reports the refresh as failed');
+  ok(tabB.V('token') !== A2, "tab B's in-memory access token was not replaced");
+  ok(tabB.revokes().some(c => JSON.parse(c.body).refresh_token === R2), 'tab B revoked the session its late refresh created');
+  ok(tabA.revokes().some(c => JSON.parse(c.body).refresh_token === R), 'tab A revoked the stored refresh token');
+});
+
+await scenario('[17] two tabs: tab A signs out and signs in again while tab B refreshes: B keeps the new session but does not adopt it', async () => {
+  const A3 = 'synthetic-access-3', R3 = 'synthetic-refresh-3';
+  const shared = new Map([['sol_token', A], ['sol_refresh', R]]);
+  const refreshGate = deferred();
+  const tabB = makeApp(call => (call.url === API + '/auth/refresh' ? refreshGate.p : Promise.resolve(res(204))), shared);
+  const tabA = makeApp(() => Promise.resolve(res(204)), shared);
+  const refreshing = tabB.V('_tryRefresh()');
+  await tick();
+  await tabA.V('logout()');
+  shared.set('sol_token', A3); shared.set('sol_refresh', R3);   // the login page stores a new session
+  refreshGate.resolve(res(200, { access_token: A2, refresh_token: R2, token_type: 'bearer' }));
+  const got = await refreshing; await tick();
+  ok(shared.get('sol_token') === A3 && shared.get('sol_refresh') === R3, `tab A's new session is kept (saw ${JSON.stringify([...shared])})`);
+  ok(tabB.revokes().some(c => JSON.parse(c.body).refresh_token === R2), 'tab B revoked the session its late refresh created');
+  // A request from before a sign-out is never re-sent under a session stored after it,
+  // even for the same user (it may be another user: see session-tabs.test.mjs [T1], [T3]).
+  ok(got === false && tabB.V('token') !== A3, 'tab B does not adopt the session stored after the sign-out');
+});
+
+await scenario('[18] init() fails during a sign-out: it waits for the sign-out', async () => {
+  const meGate = deferred(), revokeGate = deferred();
+  const app = makeApp(call => (call.url === API + '/auth/me' ? meGate.p
+    : call.url === API + '/auth/logout' ? revokeGate.p
+    : Promise.resolve(res(204))));
+  const starting = app.V('init()');
+  await tick();
+  const out = app.V('logout()');
+  meGate.resolve(res(500, { detail: 'synthetic server error' }));
+  await new Promise(r => setTimeout(r, 100));
+  ok(app.hrefs.length === 0, `no redirect while the revoke is pending (saw ${JSON.stringify(app.hrefs)})`);
+  revokeGate.resolve(res(204));
+  await out; await starting; await tick();
+  ok(app.hrefs.length === 1 && app.hrefs[0] === '/sol/', `exactly one redirect, by the sign-out (saw ${JSON.stringify(app.hrefs)})`);
+  ok(app.events.indexOf('revoke-answered:' + R) !== -1 && app.events.indexOf('revoke-answered:' + R) < app.events.indexOf('redirect'), 'revoke answered before the redirect');
+});
+
+// init() as main.js runs it, with the page functions it calls stubbed.
+const PAGE_STUBS = 'function applyFeatureFlags() {} function loadDashboard() {} function consumePendingInvite() {} function featureOn() { return false; }';
+const withPage = app => { app.V(PAGE_STUBS); app.V("globalThis.__userEmail = { textContent: '', style: {} }; document.getElementById = id => (id === 'userEmail' ? __userEmail : { textContent: '', style: {} })"); return app; };
+const INIT_RETRY_WAIT_MS = 2300;   // the first retry is due 2 s after the failure
+
+// A server error, a rate limit, a network error, or a refresh that could not be done right
+// now does not end the session: init() tries again later and the tab stays (RV3-N2).
+for (const [label, route] of [
+  ['GET /auth/me answers 500', (call, n) => (call.url === API + '/auth/me' ? Promise.resolve(n === 1 ? res(500, { detail: 'synthetic server error' }) : res(200, { email: 'member@example.invalid' })) : Promise.resolve(res(204)))],
+  ['GET /auth/me answers 429', (call, n) => (call.url === API + '/auth/me' ? Promise.resolve(n === 1 ? res(429, { detail: 'Rate limit exceeded' }) : res(200, { email: 'member@example.invalid' })) : Promise.resolve(res(204)))],
+  ['GET /auth/me fails (network error)', (call, n) => (call.url === API + '/auth/me' ? (n === 1 ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(res(200, { email: 'member@example.invalid' }))) : Promise.resolve(res(204)))],
+  ['the refresh after a 401 answers 503', (call, n) => (call.url === API + '/auth/me' ? Promise.resolve(n === 1 ? res(401, { detail: 'Token expired' }) : res(200, { email: 'member@example.invalid' })) : call.url === API + '/auth/refresh' ? Promise.resolve(res(503, { detail: 'Service unavailable' })) : Promise.resolve(res(204)))],
+]) {
+  await scenario(`[19] init() fails for a passing reason (${label}): the session is kept, the tab stays, and init() tries again`, async () => {
+    let me = 0;
+    const app = withPage(makeApp(call => route(call, call.url === API + '/auth/me' ? ++me : 0)));
+    await app.V('init()'); await tick();
+    ok(app.hrefs.length === 0, `no redirect (saw ${JSON.stringify(app.hrefs)})`);
+    ok(app.store.get('sol_token') === A && app.store.get('sol_refresh') === R, 'both tokens are still stored');
+    ok(app.V('__userEmail.textContent') === 'Reconnecting…', `the page says it is reconnecting rather than sitting on Loading… (saw ${JSON.stringify(app.V('__userEmail.textContent'))}) (RV5-CRITIC-1)`);
+    await new Promise(r => setTimeout(r, INIT_RETRY_WAIT_MS));
+    ok(me === 2, `init() asked /auth/me again (${me} request(s))`);
+    ok(app.hrefs.length === 0 && app.V('me && me.email') === 'member@example.invalid', 'the retry loaded the account; still no redirect');
+    ok(app.V('__userEmail.textContent') === 'member@example.invalid', 'and shows the account again');
+  });
+}
+
+await scenario('[19b] init() fails with a 403 (no sign-out): it goes to the sign-in page once and deletes nothing', async () => {
+  const app = withPage(makeApp(call => (call.url === API + '/auth/me' ? Promise.resolve(res(403, { detail: 'Account disabled' })) : Promise.resolve(res(204)))));
+  await app.V('init()'); await tick();
+  ok(app.hrefs.length === 1 && app.hrefs[0] === '/sol/', `redirected once to /sol/ (saw ${JSON.stringify(app.hrefs)})`);
+  ok(app.store.get('sol_token') === A && app.store.get('sol_refresh') === R, 'nothing removed (another tab may have stored a newer session meanwhile)');
+  await new Promise(r => setTimeout(r, INIT_RETRY_WAIT_MS));
+  ok(app.calls.filter(c => c.url === API + '/auth/me').length === 1, 'no retry');
+});
+
+await scenario('[20] a refresh answer without tokens (malformed 200) stores nothing; the session is kept and the tab stays', async () => {
+  const app = makeApp(call => (call.url === API + '/auth/refresh' ? Promise.resolve(res(200, { detail: 'synthetic answer without tokens' }))
+    : call.url === API + '/groups' ? Promise.resolve(res(401, { detail: 'Token expired' })) : Promise.resolve(res(204))));
+  const out = await app.V("api('/groups')").then(() => 'ok', e => 'err:' + e.message);
+  ok(app.store.get('sol_token') === A && app.store.get('sol_refresh') === R, `the stored pair is unchanged (saw ${JSON.stringify([...app.store].filter(([k]) => k === 'sol_token' || k === 'sol_refresh'))})`);
+  ok(out.startsWith('err:') && app.hrefs.length === 0, `the request fails and the tab stays (${out}; redirects ${JSON.stringify(app.hrefs)})`);
 });
 
 console.log(`\nsign-out: ${pass} passed, ${fail} failed`);
