@@ -2177,6 +2177,35 @@ async function publicPages(browser, leaks) {
     }
     await vr1.page.close();
   }
+  // DEPLOY-ORDER: the backend that reads the body must go live first. If this page reaches members
+  // before it, the deployed base (BASE api/auth.py:113-121, the harness's verifyFromQuery mode)
+  // answers the body form 422 at loc ["query","token"]: the page says verification is not
+  // available yet (the link was not used, so it is not "expired"), keeps the token in memory and
+  // never resends it in a URL; "Try again" verifies once that backend is live.
+  const vo = await open(`/sol/verify?token=${VERIFY_TOKEN}`, { flags: { verifyFromQuery: true } });
+  await vo.click('#verifyGo'); await vo.wait(250);
+  T('DEPLOY-ORDER verify: against the deployed backend (422 at loc ["query","token"] for the body form) the page says verification is not available yet and offers "Try again", not an expired link',
+    await vo.vis('#verifyRetry') && /not available yet/i.test(await vo.text('#verifyRetryText')) && await vo.vis('#verifyAgain') && !(await vo.vis('#verifyInvalid')));
+  T('DEPLOY-ORDER verify: no fallback to the URL form: one POST, the bare URL, the token in the body only', verifyPosts(vo).length === 1 && bodyForm(verifyPosts(vo)[0]));
+  await vo.page.evaluate(() => { window.__mock.verifyFromQuery = false; });   // the backend that reads the body is live
+  await vo.click('#verifyAgain'); await vo.wait(250);
+  T('DEPLOY-ORDER verify: once that backend is live, "Try again" verifies with the token kept in memory (no need to reopen the email)', verifyPosts(vo).length === 2 && verifyPosts(vo).every(bodyForm) && await vo.vis('#verifyDone'));
+  const vot = await tokenTravels(vo, VERIFY_TOKEN);
+  T(`DEPLOY-ORDER verify: no request of the page had the token in its URL or Referer header (the API calls, and the ${vot.files} files the browser loaded)`, travelOk(vot));
+  if (vot.where.length) console.log('    token found in:', JSON.stringify(vot.where.slice(0, 4)));
+  T('DEPLOY-ORDER verify: no page errors, and the token never reaches the console or storage', vo.perrs.length === 0 && !vo.logs.some(t => t.includes(VERIFY_TOKEN)) && !(await storageHas(vo.page, VERIFY_TOKEN)));
+  await vo.page.close();
+  // The mode models the deployed base: the old query form verifies there and the body form does not.
+  const vq = await open('/sol/verify.html', { flags: { verifyFromQuery: true } });
+  const vqs = await ev(vq.page, async () => {
+    const base = 'https://sol-api-production.up.railway.app/auth/verify-email';
+    const q = await fetch(base + '?token=synthetic-mock-probe', { method: 'POST' });
+    const b = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: 'synthetic-mock-probe' }) });
+    return [q.status, b.status, JSON.stringify(await b.json())];
+  });
+  T('DEPLOY-ORDER harness: in verifyFromQuery mode the mock answers as the deployed base (the query form 200, the body form 422 at loc ["query","token"])',
+    Array.isArray(vqs) && vqs[0] === 200 && vqs[1] === 422 && /"loc":\["query","token"\]/.test(vqs[2]));
+  await vq.page.close();
   const vm2 = await open('/sol/verify.html');
   T('3c verify: without a token, no request and a clear message', vm2.recorded.filter(r => r.url.startsWith('/auth/verify-email')).length === 0 && await vm2.vis('#verifyInvalid'));
   T('C4 verify: without a token, says the link is incomplete and offers no verify button', /incomplete/i.test(await vm2.text('#verifyInvalid')) && !(await vm2.vis('#verifyGo')));

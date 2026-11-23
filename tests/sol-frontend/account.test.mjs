@@ -11,7 +11,9 @@
 //      exists only in a draft backend PR); 429 is a rate limit; nothing else is either
 //   3. passwordProblem(): the backend's password rule (8 to 128 characters, counted the way
 //      the backend counts them: code points, not UTF-16 units) and the confirm field
-//   4. the outcome of the public auth calls (forgot, reset, verify) from the HTTP status
+//   4. the outcome of the public auth calls (forgot, reset, verify) from the HTTP status; a
+//      verify 422 at loc ["query","token"] (a backend that does not read the body yet) is
+//      "not available yet", any other 422 an unusable link
 //   5. consentVersions() / signupPayload(): the sign-up body is exactly the deployed shape
 //      with the switch off, and exactly the PR #34 shape with it on; consentDocs() picks the
 //      three documents sign-up agrees to (terms, privacy, e-sign disclosure) with their exact
@@ -163,6 +165,23 @@ await scenario('[A7] public call outcomes: forgot, reset, verify', async () => {
   ok(S.verifyOutcome(400) === 'invalid' && S.verifyOutcome(422) === 'invalid', 'verify 400 or 422 -> invalid');
   ok(S.verifyOutcome(404) === 'unavailable' && S.verifyOutcome(405) === 'unavailable', 'verify 404 or 405 -> unavailable');
   ok(S.verifyOutcome(429) === 'limited' && S.verifyOutcome(0) === 'offline' && S.verifyOutcome(502) === 'retry', 'verify 429 -> limited, no answer -> offline, 5xx -> retry');
+});
+
+await scenario('[A7b] verify 422: a backend that still reads ?token= is "not available yet", not an expired link', async () => {
+  const { S } = load();
+  // The deployed base (api/auth.py:113-121) reads the token from the query string only. To the
+  // body form it answers FastAPI's 422 at loc ["query","token"]: the page reached members before
+  // the backend that reads the body. The link is fine and was not used, so the member must not
+  // be told it expired, and must be able to try again once that backend is live.
+  const oldBackend = { detail: [{ type: 'missing', loc: ['query', 'token'], msg: 'Field required', input: null }] };
+  ok(S.verifyOutcome(422, oldBackend) === 'unavailable', '422 at loc ["query","token"] -> unavailable');
+  // The backend that reads the body refuses a token it cannot use (too long) at loc ["body","token"].
+  const refused = { detail: [{ type: 'string_too_long', loc: ['body', 'token'], msg: 'String should have at most 256 characters', input: '[redacted]' }] };
+  ok(S.verifyOutcome(422, refused) === 'invalid', '422 at loc ["body","token"] -> invalid');
+  ok(S.verifyOutcome(422) === 'invalid' && S.verifyOutcome(422, null) === 'invalid' && S.verifyOutcome(422, { detail: 'Unprocessable' }) === 'invalid'
+    && S.verifyOutcome(422, { detail: [null, 1, 'x', {}, { loc: 'query' }] }) === 'invalid', '422 without that detail (none, a string, odd entries) -> invalid');
+  ok(S.verifyOutcome(422, { detail: [{ type: 'missing', loc: ['query', 'other'] }] }) === 'invalid', '422 for another query field -> invalid');
+  ok(S.verifyOutcome(400, oldBackend) === 'invalid' && S.verifyOutcome(200, oldBackend) === 'done' && S.verifyOutcome(429, oldBackend) === 'limited', 'the detail counts only on a 422');
 });
 
 await scenario('[A8] sign-up body: exactly the deployed shape when consent is off, exactly the PR #34 shape when on', async () => {

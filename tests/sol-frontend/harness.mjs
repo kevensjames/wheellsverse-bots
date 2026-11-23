@@ -137,9 +137,11 @@ window.__reqLog = [];
 // revoked: every refresh session was ended (a 2FA disable does that, BASE services/auth.py:412),
 // so POST /auth/refresh answers 401 until __mockClear(). delay: ms before every answer.
 // versions: per consent kind, the document versions GET /legal/documents serves (C34).
-window.__mock = Object.assign({ over: {}, s35: false, c34: false, a33: false, revoked: false, delay: 0, versions: {} }, window.__mock || {});
+// verifyFromQuery: POST /auth/verify-email answers like the deployed base, which reads the token
+// from the query string only (see _publicRoute); the deploy-order checks of journeys.mjs turn it on.
+window.__mock = Object.assign({ over: {}, s35: false, c34: false, a33: false, revoked: false, delay: 0, versions: {}, verifyFromQuery: false }, window.__mock || {});
 window.__mockSet = (key, status, body, opts) => { window.__mock.over[key] = { status, body, once: !!(opts && opts.once) }; };
-window.__mockClear = () => { window.__mock.over = {}; window.__mock.s35 = false; window.__mock.c34 = false; window.__mock.a33 = false; window.__mock.revoked = false; window.__mock.delay = 0; window.__mock.versions = {}; };
+window.__mockClear = () => { window.__mock.over = {}; window.__mock.s35 = false; window.__mock.c34 = false; window.__mock.a33 = false; window.__mock.revoked = false; window.__mock.delay = 0; window.__mock.versions = {}; window.__mock.verifyFromQuery = false; };
 const R = (status, body) => ({ __mockStatus: status, body });
 const NOT_FOUND = () => R(404, { detail: 'Not Found' });
 const LIMITED = limit => R(429, { error: 'Rate limit exceeded: ' + limit });
@@ -170,6 +172,15 @@ function _publicRoute(method, path, query, body) {
   // from this body. Extra keys are refused, as in the other auth bodies (BASE schemas/auth.py).
   // A query string is not read here: a request without the body is a 422, so a page that still
   // sends ?token= does not verify against this mock.
+  // With __mock.verifyFromQuery the route is the deployed base instead: "token: str" is a query
+  // parameter (BASE api/auth.py:113-121), the body is not read, and a request without ?token= gets
+  // FastAPI's 422 at loc ["query","token"]. That is what the body form meets if the page ships
+  // before the backend that reads the body.
+  if (method === 'POST' && path === '/auth/verify-email' && window.__mock.verifyFromQuery) {
+    const q = new URLSearchParams(query || '');
+    if (!q.has('token')) return R(422, { detail: [{ type: 'missing', loc: ['query', 'token'], msg: 'Field required', input: null }] });
+    return q.get('token') ? R(200, { detail: 'Email verified' }) : R(400, { detail: 'Invalid or expired token' });
+  }
   if (method === 'POST' && path === '/auth/verify-email') {
     if (!body || typeof body !== 'object' || Array.isArray(body)) return R(422, { detail: [{ type: 'missing', loc: ['body'], msg: 'Field required' }] });
     for (const k of Object.keys(body)) if (k !== 'token') return EXTRA(k);

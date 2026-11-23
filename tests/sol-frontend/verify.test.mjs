@@ -15,6 +15,9 @@
 //   5. 404 and 405 read "not available yet", in the body form too
 //   6. the token never reaches the console, storage or a cookie
 //   7. without a token, nothing is sent
+//   8. deploy order: against a backend that still reads ?token= (the deployed base answers the
+//      body form 422 at loc ["query","token"]) the page reads "not available yet", keeps the
+//      token for "Try again" and never resends it in a URL
 // What it does NOT prove: anything about the backend, or real-browser behaviour (journeys.mjs
 // covers the page in Chromium, including the Referer of every request it makes).
 import { readFileSync } from 'node:fs';
@@ -186,6 +189,26 @@ await scenario('[V7] without a token, nothing is sent', async () => {
   await p.sb.runVerify();
   ok(p.requests.length === 0, 'no request');
   ok(p.el('verifyInvalid').hidden === false && /incomplete/i.test(p.el('verifyInvalidText').textContent), 'the "link is incomplete" message');
+});
+
+await scenario('[V8] deploy order: a backend that still reads ?token= (422 at loc query) reads "not available yet"; no fallback to the URL', async () => {
+  // The deployed base (api/auth.py:113-121) answers the body form 422 at loc ["query","token"]. If
+  // this page reaches members first, the link must not read as expired, the token must stay in
+  // memory for "Try again", and the page must never resend it in a URL to make it work.
+  const OLD = { detail: [{ type: 'missing', loc: ['query', 'token'], msg: 'Field required', input: null }] };
+  let backendReadsBody = false;
+  const p = openPage(`https://app.example.invalid/sol/verify?token=${TOKEN}`, () => (backendReadsBody ? res(200, { detail: 'Email verified' }) : res(422, OLD)));
+  await p.sb.runVerify();
+  ok(p.el('verifyRetry').hidden === false && /not available yet/i.test(p.el('verifyRetryText').textContent), `the retry section says "not available yet" (saw "${p.el('verifyRetryText').textContent}")`);
+  ok(p.el('verifyInvalid').hidden === true && p.el('pageTitle').textContent !== 'This link does not work', 'not the expired-link section');
+  ok(p.el('verifyState').textContent !== '' && p.el('verifyState').textContent === p.el('verifyRetryText').textContent && p.focused[p.focused.length - 1] === 'pageTitle', 'the reason is in the status region; focus on the heading');
+  ok(p.requests.length === 1, `one request: nothing resent with the token in the URL (saw ${p.requests.length})`);
+  backendReadsBody = true;   // the backend that reads the body is now live
+  await p.sb.runVerify();
+  ok(p.requests.length === 2 && p.el('verifyDone').hidden === false, '"Try again" once that backend is live verifies with the token kept in memory');
+  const forms = p.requests.map(bodyForm);
+  ok(forms.length === 2 && forms.every(f => f.post && f.urlExact && f.noTokenInUrl && f.exactBody), `both requests: the bare URL, the token in the body only (saw ${forms.map(f => f.url).join(', ')})`);
+  ok(!p.logged.some(l => l.includes(TOKEN)) && p.stored.length === 0 && p.cookies.length === 0, 'the token never reaches the console, storage or a cookie');
 });
 
 console.log(`\nverify-email page: ${pass} passed, ${fail} failed`);
