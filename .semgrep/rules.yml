@@ -1,0 +1,150 @@
+# Local Semgrep rules for the pre-commit gate (scripts/hooks/pre-commit-scan.sh).
+#
+# These rules always run, with no network. When semgrep.dev is reachable the
+# hook adds the p/default registry ruleset on top of them.
+#
+# Keep this set small and high-signal. Every finding blocks the commit, and
+# the hook scans whole staged files, so a noisy rule blocks unrelated edits
+# to any file it matches.
+#
+# Reviewed false positive: put `# nosemgrep: <rule-id>` on the flagged line
+# and say why in the commit body.
+#
+# Try a rule change against real files before committing it:
+#   semgrep scan --config .semgrep/rules.yml --metrics off \
+#     --disable-version-check <files>
+
+rules:
+  # ── Python ─────────────────────────────────────────────────────────────────
+
+  - id: python-shell-injection
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Shell command built from a non-literal value. If any part of it comes
+      from input, this is shell injection. Pass an argument list to
+      subprocess and drop shell=True.
+    metadata:
+      cwe: "CWE-78: OS Command Injection"
+    pattern-either:
+      - patterns:
+          - pattern: subprocess.$FN($CMD, ..., shell=True, ...)
+          - metavariable-regex:
+              metavariable: $FN
+              regex: ^(call|check_call|check_output|run|Popen)$
+          - pattern-not: subprocess.$FN("...", ..., shell=True, ...)
+      - patterns:
+          - pattern-either:
+              - pattern: os.system($CMD)
+              - pattern: os.popen($CMD, ...)
+              - pattern: asyncio.create_subprocess_shell($CMD, ...)
+          - pattern-not: os.system("...")
+          - pattern-not: os.popen("...", ...)
+          - pattern-not: asyncio.create_subprocess_shell("...", ...)
+
+  - id: python-eval-exec-dynamic
+    languages: [python]
+    severity: ERROR
+    message: >-
+      eval()/exec() on a non-literal value runs arbitrary code. Parse data
+      with json.loads or ast.literal_eval instead.
+    metadata:
+      cwe: "CWE-95: Eval Injection"
+    patterns:
+      - pattern-either:
+          - pattern: eval($CODE, ...)
+          - pattern: exec($CODE, ...)
+      - pattern-not: eval("...", ...)
+      - pattern-not: exec("...", ...)
+
+  - id: python-yaml-unsafe-load
+    languages: [python]
+    severity: ERROR
+    message: >-
+      yaml.load without SafeLoader (or yaml.unsafe_load) can build arbitrary
+      Python objects from the input. Use yaml.safe_load.
+    metadata:
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+    pattern-either:
+      - pattern: yaml.unsafe_load(...)
+      - pattern: yaml.unsafe_load_all(...)
+      - patterns:
+          - pattern-either:
+              - pattern: yaml.load(...)
+              - pattern: yaml.load_all(...)
+          - pattern-not: yaml.$LOAD(..., Loader=yaml.SafeLoader, ...)
+          - pattern-not: yaml.$LOAD(..., Loader=yaml.CSafeLoader, ...)
+          - pattern-not: yaml.$LOAD($STREAM, yaml.SafeLoader)
+          - pattern-not: yaml.$LOAD($STREAM, yaml.CSafeLoader)
+
+  - id: python-tls-verification-disabled
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Certificate or signature verification is turned off, so anyone in the
+      network path can impersonate the server (or forge the token). Remove
+      it. For a private CA, pass its bundle path: verify="/path/to/ca.pem".
+    metadata:
+      cwe: "CWE-295: Improper Certificate Validation"
+    pattern-either:
+      - pattern: $FN(..., verify=False, ...)
+      - pattern: $SESSION.verify = False
+      - pattern: ssl._create_unverified_context(...)
+      - pattern: $CTX.verify_mode = ssl.CERT_NONE
+      - pattern: $CTX.check_hostname = False
+
+  - id: python-jwt-verification-disabled
+    languages: [python]
+    severity: ERROR
+    message: >-
+      jwt.decode with signature checks off (or the "none" algorithm)
+      accepts forged tokens. Verify the signature and pin real algorithms.
+    metadata:
+      cwe: "CWE-347: Improper Verification of Cryptographic Signature"
+    pattern-either:
+      - pattern: 'jwt.decode(..., options={..., "verify_signature": False, ...}, ...)'
+      - pattern: 'jwt.decode(..., algorithms=[..., "none", ...], ...)'
+
+  # ── JavaScript / TypeScript ────────────────────────────────────────────────
+
+  - id: js-eval-dynamic
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      eval()/new Function() on a non-literal value runs arbitrary code.
+      Parse data with JSON.parse instead.
+    metadata:
+      cwe: "CWE-95: Eval Injection"
+    pattern-either:
+      - patterns:
+          - pattern: eval($CODE)
+          - pattern-not: eval("...")
+      - patterns:
+          - pattern: new Function(..., $BODY)
+          - pattern-not: new Function(..., "...")
+
+  # ── Any scanned file ───────────────────────────────────────────────────────
+
+  - id: hardcoded-credential
+    languages: [regex]
+    severity: ERROR
+    message: >-
+      This matches a real credential format (AWS, GitHub, Slack, Stripe,
+      Anthropic, OpenAI, Shopify key, or a private key). Move it to an
+      environment variable or secret store, and rotate it: treat it as
+      already exposed.
+    metadata:
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+    pattern-regex: >-
+      \b(?:(?:AKIA|ASIA)[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{60,}|xox[abeoprs]-[0-9]{6,}-[0-9A-Za-z-]{8,}|[rs]k_live_[0-9A-Za-z]{24,}|sk-ant-(?:api|admin)[0-9]{2}-[A-Za-z0-9_-]{32,}|sk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}T3BlbkFJ[A-Za-z0-9_-]{20,}|shp(?:at|ca|pa|ss)_[a-fA-F0-9]{32})\b|-----BEGIN (?:(?:RSA|EC|DSA|OPENSSH|PGP|ENCRYPTED) )?PRIVATE KEY(?: BLOCK)?-----
+
+  - id: hardcoded-telegram-bot-token
+    languages: [regex]
+    severity: ERROR
+    message: >-
+      This matches a Telegram bot token (<bot id>:<35-char secret>). Load it
+      from the environment and revoke it with @BotFather: treat it as
+      already exposed.
+    metadata:
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+    pattern-regex: \b[0-9]{8,10}:A[0-9A-Za-z_-]{34}\b

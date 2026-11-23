@@ -76,8 +76,24 @@ python dashboard.py
 # → http://localhost:7777
 
 python dashboard.py --port 8888  # custom port
-python dashboard.py --debug       # dev mode with auto-reload
+python dashboard.py --debug       # dev mode with auto-reload (localhost only)
 ```
+
+The dashboard runs whatever shell command an asset's Start and Stop buttons
+point at, and its forms can change those commands. So it only listens on
+`127.0.0.1`. To reach it from another device (phone, other laptop), set a
+token first:
+
+```bash
+export MONEY_CENTER_DASHBOARD_TOKEN="$(openssl rand -hex 32)"
+echo "$MONEY_CENTER_DASHBOARD_TOKEN"   # save it: this is the login password
+python dashboard.py --host 0.0.0.0
+```
+
+Log in with any username and the token as the password. Without the token,
+any `--host` other than loopback refuses to start. In every mode, forms only
+work when submitted from the dashboard itself, so other websites open in the
+same browser can't trigger them.
 
 Dashboard features:
 - Asset table with live status dots (🟢 running / ⚪ idle / 🟡 stopped / 🔴 error)
