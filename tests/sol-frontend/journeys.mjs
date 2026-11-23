@@ -1016,6 +1016,31 @@ async function publicPages(browser, leaks) {
   T('C4 verify: without a token, says the link is incomplete and offers no verify button', /incomplete/i.test(await vm2.text('#verifyInvalid')) && !(await vm2.vis('#verifyGo')));
   await keyboardOrder(vm2.page, 'verify page', 'header nav');
   await vm2.page.close();
+
+  // ── A2: the email links as the backend builds them: APP_BASE_URL/verify?token= and
+  // /reset-password?token= (BASE services/email.py:129, :142), i.e. the clean paths /sol/verify and
+  // /sol/reset-password, which Cloudflare Pages serves from verify.html and reset-password.html ──
+  // Whether the token is kept anywhere but the page's memory: storage, cookies, history state, the address.
+  const kept = (page, v) => ev(page, x => [JSON.stringify({ ...localStorage }), JSON.stringify({ ...sessionStorage }), document.cookie, JSON.stringify(history.state), location.href].some(s => s.includes(x)), v);
+  const scriptRan = page => ev(page, () => typeof window.SolAccount === 'object' && !!window.SolAccount);
+  const cv = await open(`/sol/verify?token=${VERIFY_TOKEN}&from=mail`);
+  T('A2 /sol/verify (clean path): the page loads and its script runs (one h1, the "Verify my email" button)', await scriptRan(cv.page) && (await ev(cv.page, () => document.querySelectorAll('h1').length)) === 1 && /verify your email/i.test(await cv.text('h1')) && await cv.vis('#verifyGo'));
+  T('A2 /sol/verify: after load the token is gone from the address bar; the clean path and the other parameters stay', await ev(cv.page, () => location.pathname === '/sol/verify' && location.search === '?from=mail' && location.hash === ''));
+  T('A2 /sol/verify: nothing stores the token (storage, cookies, history state)', await scriptRan(cv.page) && !(await kept(cv.page, VERIFY_TOKEN)));
+  await cv.click('#verifyGo'); await cv.wait(250);
+  const cvr = cv.recorded.filter(r => r.url.startsWith('/auth/verify-email'));
+  T('A2 /sol/verify: the click verifies with the token kept in memory, and still nothing stores it', cvr.length === 1 && cvr[0].url === '/auth/verify-email?token=' + VERIFY_TOKEN && await cv.vis('#verifyDone') && !(await kept(cv.page, VERIFY_TOKEN)));
+  T('A2 /sol/verify: no page errors, and the token never reaches the console', cv.perrs.length === 0 && !cv.logs.some(t => t.includes(VERIFY_TOKEN)));
+  await cv.page.close();
+  const cr = await open(`/sol/reset-password?token=${RESET_TOKEN}&from=mail`);
+  T('A2 /sol/reset-password (clean path): the page loads and its script runs (one h1, the new-password form)', await scriptRan(cr.page) && (await ev(cr.page, () => document.querySelectorAll('h1').length)) === 1 && /new password/i.test(await cr.text('h1')) && await cr.vis('#resetForm'));
+  T('A2 /sol/reset-password: after load the token is gone from the address bar; the clean path and the other parameters stay', await ev(cr.page, () => location.pathname === '/sol/reset-password' && location.search === '?from=mail' && location.hash === ''));
+  T('A2 /sol/reset-password: nothing stores the token (storage, cookies, history state)', await scriptRan(cr.page) && !(await kept(cr.page, RESET_TOKEN)));
+  await cr.fill('#resetPassword', 'synthetic-new-pass'); await cr.fill('#resetConfirm', 'synthetic-new-pass'); await cr.click('#resetBtn'); await cr.wait(250);
+  const crr = cr.recorded.filter(r => r.url === '/auth/reset-password');
+  T('A2 /sol/reset-password: the form sends the token kept in memory, and still nothing stores it', crr.length === 1 && crr[0].body && crr[0].body.token === RESET_TOKEN && await cr.vis('#resetDone') && !(await kept(cr.page, RESET_TOKEN)));
+  T('A2 /sol/reset-password: no page errors, and the token never reaches the console', cr.perrs.length === 0 && !cr.logs.some(t => t.includes(RESET_TOKEN)));
+  await cr.page.close();
   await ctx.close();
 }
 

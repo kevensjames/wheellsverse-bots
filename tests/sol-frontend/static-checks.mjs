@@ -122,5 +122,30 @@ for (const [file, mustHoldToken] of [['index.html', false], ['reset-password.htm
   ok(`${file}: loads core/account.js first; inline script parses${mustHoldToken ? '; no console or storage use' : ''}`);
 }
 
+// 7. The email links land on the clean paths /sol/verify and /sol/reset-password (the backend
+// builds APP_BASE_URL/verify?token= and /reset-password?token=). Cloudflare Pages serves
+// verify.html and reset-password.html there by itself and 308-redirects the .html paths to them.
+// A _redirects rule for these paths (say "/sol/verify /sol/verify.html 200") composes with that
+// into a redirect loop, as it once did for /sol/app, and a redirect would also carry the token
+// to another address. So no rule may match them, exactly or through a splat or placeholder.
+console.log('\n[6] email-link pages: no _redirects rule');
+const REDIRECTS = join(APP, '..', '..', '_redirects');                // frontend/_redirects
+const LINK_PATHS = ['/sol/verify', '/sol/verify.html', '/sol/reset-password', '/sol/reset-password.html'];
+let redirectsSrc = '';
+try { redirectsSrc = readFileSync(REDIRECTS, 'utf8'); } catch { fail('frontend/_redirects is missing'); }
+const ruleMatches = (source, path) => {
+  const src = source.length > 1 ? source.replace(/\/+$/, '') : source;   // "/sol/verify/" also counts
+  const re = '^' + src.split('/').map(seg => (seg === '*' ? '.*' : seg.startsWith(':') ? '[^/]+' : seg.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*'))).join('/') + '/?$';
+  return new RegExp(re).test(path);
+};
+let linkRules = 0;
+redirectsSrc.split('\n').forEach((line, i) => {
+  const source = line.replace(/#.*/, '').trim().split(/\s+/)[0];
+  if (!source) return;
+  const hit = LINK_PATHS.filter(p => ruleMatches(source, p));
+  if (hit.length) { linkRules++; fail(`_redirects:${i + 1}: rule "${source}" matches ${hit.join(', ')} (these pages need no rule: Cloudflare serves them at their clean paths, and a rule can loop with that)`); }
+});
+if (redirectsSrc && !linkRules) ok(`_redirects has no rule for ${LINK_PATHS.join(', ')}`);
+
 console.log(`\n${fails ? '✗ ' + fails + ' FAILURE(S)' : '✓ all static checks passed'}`);
 process.exit(fails ? 1 : 0);
