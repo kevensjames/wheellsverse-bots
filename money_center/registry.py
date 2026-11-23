@@ -10,6 +10,8 @@ All public functions are unit-tested in tests/test_registry.py.
 import json
 import logging
 import os
+import re
+import shlex
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -122,6 +124,55 @@ def validate(asset: Dict[str, Any]) -> List[str]:
     if not isinstance(est, dict) or not all(k in est for k in ("low", "mid", "high")):
         errors.append("'monthly_estimate_usd' must have keys: low, mid, high")
 
+    # Validate run_command and stop_command for security
+    run_cmd = asset.get("run_command", "").strip()
+    stop_cmd = asset.get("stop_command", "").strip()
+    
+    if run_cmd:
+        cmd_errors = _validate_command(run_cmd, "run_command")
+        errors.extend(cmd_errors)
+    
+    if stop_cmd:
+        cmd_errors = _validate_command(stop_cmd, "stop_command")
+        errors.extend(cmd_errors)
+
+    return errors
+
+
+def _validate_command(cmd: str, field_name: str) -> List[str]:
+    """
+    Validate a command string for security issues.
+    Returns a list of validation errors.
+    """
+    errors = []
+    
+    # Check for shell metacharacters that could enable command injection
+    dangerous_chars = [";", "|", "&", "$", "`", "$(", "||", "&&", ">", "<", ">>"]
+    for char in dangerous_chars:
+        if char in cmd:
+            errors.append(
+                f"'{field_name}' contains dangerous shell metacharacter '{char}'. "
+                f"Commands are executed without shell expansion for security."
+            )
+    
+    # Try to parse the command with shlex to ensure it's valid
+    try:
+        shlex.split(cmd)
+    except ValueError as e:
+        errors.append(f"'{field_name}' has invalid syntax: {e}")
+    
+    # Check for absolute path or whitelisted commands
+    cmd_parts = cmd.split()
+    if cmd_parts:
+        executable = cmd_parts[0]
+        # Allow absolute paths or common safe executables
+        if not (executable.startswith("/") or executable in [
+            "python", "python3", "node", "npm", "java", "ruby", "perl",
+            "bash", "sh", "pkill", "kill", "systemctl", "service"
+        ]):
+            # Warn but don't block - this is informational
+            pass
+    
     return errors
 
 
