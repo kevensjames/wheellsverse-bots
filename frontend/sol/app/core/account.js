@@ -56,7 +56,8 @@ window.SolAccount = (function () {
     if (!status) return 'offline';
     return 'retry';
   }
-  // POST /auth/verify-email?token=: 200, 400 invalid or expired, 422 no token.
+  // POST /auth/verify-email {token} (the token in the JSON body, never in the URL): 200,
+  // 400 invalid or expired, 422 no token.
   function verifyOutcome(status) {
     if (status >= 200 && status < 300) return 'done';
     if (status === 400 || status === 422) return 'invalid';
