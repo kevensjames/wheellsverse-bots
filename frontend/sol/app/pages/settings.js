@@ -20,7 +20,10 @@
 // shown once: on the Settings page, until the member chooses "I saved my codes" or leaves. The
 // server has already replaced the old ones when it answers, so codes that arrive while the member
 // is on another page (they left before the answer) wait for that one showing: a notice above
-// every page says so, and a reload or tab close asks first.
+// every page says so, and a reload or tab close asks first. Codes that arrive while something
+// covers Settings (the phone More sheet or another dialog open over it, or the tab hidden) wait
+// the same way: the cover closing back onto Settings is their showing; another page chosen from
+// the More sheet gets the notice.
 
 // resendNA: POST /auth/resend-verification answered 404 or 405 (the deployed base has no such
 // route). Kept in memory for this page session, so later visits of the dashboard and Settings
@@ -28,16 +31,28 @@
 // POST /auth/2fa/backup-codes/regenerate. regen: the "Get new backup codes" form is open.
 // codes: backup codes the member has not confirmed saving yet ("I saved my codes").
 // codesReplaced: they replace older ones, which no longer work. codesSeen: they were drawn on the
-// Settings page while it was on screen; the next Settings visit drops them. codesNews: codes
-// arrived while Settings was not on screen and wait for their first showing: what to announce (and
-// the two-factor note to show) then, and the text of the notice shown meanwhile.
+// Settings page while it was on screen (_settingsOnScreen: no dialog over it, the tab shown); the
+// next Settings visit drops them. codesNews: codes arrived while Settings was not on screen and
+// wait for their first showing: what to announce (and the two-factor note to show) then, and the
+// text of the notice shown meanwhile.
 let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, resendNA: false, regenNA: false, enroll: null, regen: false, codes: null, codesReplaced: false, codesSeen: false, codesNews: null, closed: false };
 const RESEND_NA_TEXT = 'Resending is not available yet. If you need a new link, contact support.';
 
 function setAnnounce(msg) { const el = document.getElementById('settingsLive'); if (el) { el.textContent = ''; el.textContent = msg; } }
 function setText(id, msg, show) { const el = document.getElementById(id); if (!el) return; el.textContent = msg || ''; if (show !== undefined) el.style.display = msg ? 'block' : 'none'; }
 function setErr(id, msg) { setText(id, msg, true); }
-function setFocus(id) { const el = document.getElementById(id); if (el) { try { el.focus(); } catch (e) {} } }
+// A modal dialog or sheet open over the page: the phone More sheet (class "open"), the first-run
+// guide, the close-account dialog and the other dialogs (class "is-open"), all aria-modal.
+const SET_MODAL_OPEN = '[aria-modal="true"].open, [aria-modal="true"].is-open';
+// Focus never moves under an open modal: an answer that lands while one is open leaves focus
+// where the member is (a control inside that modal still gets it).
+function setFocus(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const m = document.querySelector(SET_MODAL_OPEN);
+  if (m && !m.contains(el)) return;
+  try { el.focus(); } catch (e) {}
+}
 // Busy while its request runs, without `disabled`: disabling the focused control (or hiding or
 // re-drawing it) drops keyboard focus to the page body. SolGuard already drops a second click.
 function setBusy(el, busy) {
@@ -94,12 +109,9 @@ async function loadSettings(again) {
   setState.settings = setState.settingsOk ? stR.value : null;
   setState.settingsNA = stR.status === 'rejected' && SolAccount.notAvailable(stR.reason);
   renderSettings();
-  const news = setState.codesNews;
-  if (news && setState.codes) {
-    setState.codesNews = null;
-    if (news.note) setText('set2faMsg', news.note);
-    setAnnounce(news.say);
-    setFocus('set2faCodesH');
+  if (setState.codesNews && setState.codes) {
+    if (_settingsOnScreen()) _codesShowNow();
+    else _codesWaitCover();   // a dialog opened over Settings while it loaded, or the tab is hidden
   }
 }
 
@@ -330,7 +342,7 @@ async function confirmTwoFactor() {
   } catch (e) {
     if (e && e.status === 400) { setState.enroll = null; renderTwoFactor(); setErr('set2faErr', 'Your setup expired. Please start again.'); setFocus('setTwoFactorH'); }
     else if (e && e.status === 409) { setState.enroll = null; if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); setFocus('setTwoFactorH'); }
-    else { setErr('set2faErr', twoFactorError(e, "We couldn't turn on two-factor. Please try again.")); if (input) { input.value = ''; input.focus(); } }
+    else { setErr('set2faErr', twoFactorError(e, "We couldn't turn on two-factor. Please try again.")); if (input) input.value = ''; setFocus('set2faCode'); }
   } finally {
     SolGuard.release('settings:2fa');
     setBusy(document.getElementById('set2faConfirm'), false);
@@ -361,15 +373,21 @@ function _dropBackupCodes() {
 }
 // Settings is the active page (it may still be loading).
 function _settingsActive() { const p = document.getElementById('page-settings'); return !!p && p.classList.contains('active'); }
-// Settings is the page on screen and drawn (not the spinner of a visit still loading).
-function _settingsOnScreen() { return _settingsActive() && !!document.getElementById('set2faBody'); }
+// Settings is the page the member sees: the active page, drawn (not the spinner of a visit still
+// loading), with no modal open over it (at phone width the More sheet covers it while Settings is
+// still the active page), in a tab that is shown.
+function _settingsOnScreen() {
+  return _settingsActive() && !!document.getElementById('set2faBody') && !document.querySelector(SET_MODAL_OPEN) && document.visibilityState !== 'hidden';
+}
 // The codes were just drawn on screen: their one showing. The next Settings visit drops them.
 function _backupCodesShown() { setState.codesSeen = true; _codesWaitEnd(); }
 // An answer that changed the two-factor card (codes arrived): draw it, then announce it and move
-// focus when Settings is on screen. When the member has gone to another page, nothing is announced
-// there and focus stays where it is; the codes wait for the next Settings visit (loadSettings),
-// which shows, announces and focuses them. Meanwhile the notice says so on every page (`notice`),
-// and a reload or tab close asks first.
+// focus when Settings is on screen. Otherwise nothing is announced and focus stays where it is, and
+// the codes wait for their first showing, while a reload or tab close asks first. When the member
+// has gone to another page, the notice says so on every page (`notice`) and the next Settings visit
+// (loadSettings) shows, announces and focuses them. When Settings is drawn under a modal (the More
+// sheet, a dialog) or in a hidden tab, that cover closing back onto Settings shows them, and another
+// page chosen from the More sheet gets the notice (_codesCoverEnded).
 function _showTwoFactorNews(say, note, focusId, notice) {
   renderTwoFactor();
   if (_settingsOnScreen()) {
@@ -381,9 +399,42 @@ function _showTwoFactorNews(say, note, focusId, notice) {
     setState.codesNews = { say, note, notice };
     // (Settings still loading: that visit shows them, unless the member leaves first; see loadSettings.)
     if (!_settingsActive()) _codesNotice(notice);
+    else _codesWaitCover();
     window.addEventListener('beforeunload', _codesBeforeUnload);
   } else setState.codesNews = null;
 }
+// Their one showing, with Settings on screen: the line that came with them, the announcement, and
+// focus on them.
+function _codesShowNow() {
+  const news = setState.codesNews;
+  setState.codesNews = null;
+  _backupCodesShown();
+  if (news && news.note) setText('set2faMsg', news.note);
+  if (news) setAnnounce(news.say);
+  setFocus('set2faCodesH');
+}
+// Codes drawn on Settings under a modal (or in a hidden tab) wait for it to close: a change of an
+// aria-modal element's class (SolDialog adds and removes its open class) or the tab shown again
+// (the visibilitychange listener below). The observer lives only while they wait.
+let _codesCoverObs = null;
+function _codesWaitCover() {
+  if (_codesCoverObs || typeof MutationObserver === 'undefined') return;
+  _codesCoverObs = new MutationObserver(() => setTimeout(_codesCoverEnded, 0));
+  document.querySelectorAll('[aria-modal="true"]').forEach(d => _codesCoverObs.observe(d, { attributes: true, attributeFilter: ['class'] }));
+}
+function _codesCoverStop() { if (_codesCoverObs) { _codesCoverObs.disconnect(); _codesCoverObs = null; } }
+// The cover went away (checked after the task that closed it, so a More sheet item has already
+// opened its page). Back on Settings: their one showing. On another page: the notice. A new
+// Settings visit still loading (Settings chosen from the sheet) shows them itself, and nothing is
+// shown while the session is ending (Sign out in the sheet).
+function _codesCoverEnded() {
+  if (!setState.codesNews || !setState.codes) { _codesCoverStop(); return; }
+  if (document.querySelector(SET_MODAL_OPEN) || document.visibilityState === 'hidden') return;   // still covered
+  _codesCoverStop();
+  if (_settingsOnScreen()) { if (token) _codesShowNow(); }
+  else if (!_settingsActive() && !setState.codesSeen) _codesNotice(setState.codesNews.notice);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'hidden') _codesCoverEnded(); });
 // The notice above every page (app.html #codesNotice) while codes wait for their first showing.
 // Its status region gets its text once, so it is announced once; its button opens Settings.
 function _codesNotice(text) {
@@ -400,7 +451,7 @@ function _codesNotice(text) {
     msg.textContent = '';
   }
 }
-function _codesWaitEnd() { _codesNotice(null); window.removeEventListener('beforeunload', _codesBeforeUnload); }
+function _codesWaitEnd() { _codesNotice(null); _codesCoverStop(); window.removeEventListener('beforeunload', _codesBeforeUnload); }
 // A reload or tab close asks first while codes wait. Not once the session has ended (logout() and
 // a sign-out in another tab clear the token before leaving, and _leaving is set then): a sign-out
 // still loses the codes, and the notice is the warning.
