@@ -64,15 +64,19 @@ let verifyToken = SolAccount.readTokenOnce(window);
 let verifyBusy = false;
 
 // state: start | done | invalid | retry. focus: move focus to the heading after an answer.
+// Each answer changes the heading, so the focused heading says what happened. A "retry" answer
+// also puts its reason in the status region, which reads it out after the heading.
 function verifyShow(state, text, focus) {
   document.getElementById('verifyStart').hidden = state !== 'start';
   document.getElementById('verifyDone').hidden = state !== 'done';
   document.getElementById('verifyInvalid').hidden = state !== 'invalid';
   document.getElementById('verifyRetry').hidden = state !== 'retry';
   const h = document.getElementById('pageTitle');
-  h.textContent = state === 'done' ? 'Email verified' : state === 'invalid' ? 'This link does not work' : 'Verify your email';
+  h.textContent = state === 'done' ? 'Email verified' : state === 'invalid' ? 'This link does not work'
+    : state === 'retry' ? "We couldn't verify your email yet" : 'Verify your email';
   if (state === 'invalid' && text) document.getElementById('verifyInvalidText').textContent = text;
   if (state === 'retry') document.getElementById('verifyRetryText').textContent = text || '';
+  document.getElementById('verifyState').textContent = state === 'retry' ? (text || '') : '';
   if (state === 'done' || state === 'invalid') verifyToken = null;
   if (focus) h.focus();
 }
@@ -92,19 +96,20 @@ async function runVerify() {
   if (verifyBusy || !verifyToken) return;
   verifyBusy = true;
   verifyBusyUi(true);
+  let out = 'retry';
   try {
     const r = await SolAccount.callPublic(API, '/auth/verify-email?token=' + encodeURIComponent(verifyToken), { method: 'POST' });
-    const out = SolAccount.verifyOutcome(r.status);
-    if (out === 'done') verifyShow('done', null, true);
-    else if (out === 'invalid') verifyShow('invalid', null, true);
-    else if (out === 'unavailable') verifyShow('retry', 'Email verification is not available yet. Please try again later.', true);
-    else if (out === 'limited') verifyShow('retry', 'Too many tries. Please wait a minute and try again.', true);
-    else if (out === 'offline') verifyShow('retry', "We couldn't reach MySol. Check your connection and try again.", true);
-    else verifyShow('retry', 'Something went wrong on our side. Please try again.', true);
+    out = SolAccount.verifyOutcome(r.status);
   } finally {
     verifyBusy = false;
-    verifyBusyUi(false);
+    verifyBusyUi(false);   // before the answer is shown: this empties the status region
   }
+  if (out === 'done') verifyShow('done', null, true);
+  else if (out === 'invalid') verifyShow('invalid', null, true);
+  else if (out === 'unavailable') verifyShow('retry', 'Email verification is not available yet. Please try again later.', true);
+  else if (out === 'limited') verifyShow('retry', 'Too many tries. Please wait a minute and try again.', true);
+  else if (out === 'offline') verifyShow('retry', "We couldn't reach MySol. Check your connection and try again.", true);
+  else verifyShow('retry', 'Something went wrong on our side. Please try again.', true);
 }
 
 if (verifyToken) verifyShow('start');
