@@ -497,7 +497,13 @@ async function confirmCloseAccount(e) {
     } else if (SolAccount.rateLimited(err)) setErr('closeErr', 'Too many tries. Please try again later.');
     else {
       const m = (err && err.message) || '';
-      if (/2FA code required/i.test(m)) { const f = document.getElementById('closeCodeField'); if (f) f.hidden = false; setErr('closeErr', 'Enter the 6-digit code from your authenticator app.'); }
+      if (/2FA code required/i.test(m)) {
+        // Two-factor was turned on since this page loaded: ask for the code and send it next time.
+        if (me) me.totp_enabled = true;
+        const f = document.getElementById('closeCodeField'); if (f) f.hidden = false;
+        setErr('closeErr', 'Enter the 6-digit code from your authenticator app.');
+        setFocus('closeCode');
+      }
       else if (/invalid password/i.test(m)) setErr('closeErr', 'That password is not right.');
       else if (/invalid code/i.test(m)) setErr('closeErr', 'That code did not work.');
       else setErr('closeErr', m || "We couldn't close your account. Please try again.");
