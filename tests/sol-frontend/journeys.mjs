@@ -569,6 +569,29 @@ async function memberPages(page) {
   T('3f payouts: each shows its status and a date', /settled/i.test(po) && /processing/i.test(po) && /\b2026\b/.test(po));
   T('3f payouts: no raw payout, circle or cycle id in the page', !(await ev(page, ids => { const h = document.getElementById('page-payments').innerHTML; return ids.some(i => h.includes(i)); }, ['99990000-0000-4000-8000-999999999991', '99990000-0000-4000-8000-999999999992', IDS.G_ACT])));
 
+  // ── B1: every payout status the member endpoint can return (PayoutStatus, BASE models/payout.py:24-36) ──
+  // SETTLED (the settlement-gated flow) and SUCCESS (the legacy flow) are the settled states. A
+  // RETURNED, REVERSED or MANUAL_REVIEW payout keeps its settled_at, but must not read "Settled <date>".
+  const chip = (v, l) => `<span class="status status--${v}" aria-label="Status: ${l}">${l}</span>`;
+  const payoutRow = amt => ev(page, a => { const li = [...document.querySelectorAll('#payoutsList li.payout-row')].find(l => l.innerText.includes(a)); return li ? { text: li.innerText, chip: (li.querySelector('.status') || {}).outerHTML || '' } : { text: '', chip: '' }; }, amt);
+  const dateOf = iso => ev(page, x => fmtDate(x), iso);
+  const pSettled = await payoutRow('$540.00'), pReview = await payoutRow('$541.00'), pReturned = await payoutRow('$542.00'), pReversed = await payoutRow('$543.00');
+  T('B1 payouts: SETTLED gets the same green "Settled" chip as SUCCESS and reads "Settled <date>"', pSettled.chip === chip('active', 'Settled') && pSettled.text.includes('Settled ' + await dateOf('2026-08-20T00:00:00Z')));
+  T('B1 payouts: MANUAL_REVIEW reads "Under review", not the raw enum', pReview.chip === chip('pending', 'Under review') && !/manual[_ ]review/i.test(pReview.text));
+  T('B1 payouts: RETURNED reads "Returned" and REVERSED reads "Reversed", both red', pReturned.chip === chip('failed', 'Returned') && pReversed.chip === chip('failed', 'Reversed'));
+  T('B1 payouts: a RETURNED, REVERSED or MANUAL_REVIEW payout never reads "Settled <date>" (each keeps its settled_at)', [pReview, pReturned, pReversed].every(r => r.text && !/settled/i.test(r.text)));
+  T('B1 payouts: those rows show the date the payout started instead', pReturned.text.includes('Started ' + await dateOf('2026-10-15T00:00:00Z')) && pReversed.text.includes('Started ' + await dateOf('2026-10-28T00:00:00Z')) && pReview.text.includes('Started ' + await dateOf('2026-09-15T00:00:00Z')));
+  T('B1 payouts: SUCCESS still reads "Settled <date>"', await ev(page, d => [...document.querySelectorAll('#payoutsList li.payout-row')].some(l => l.innerText.includes('$1,080.00') && l.innerText.includes('Settled ' + d)), await dateOf('2026-06-20T00:00:00Z')));
+  T('B1 payouts: no raw id of the other payouts in the page', !(await ev(page, ids => { const h = document.getElementById('page-payments').innerHTML; return ids.some(i => h.includes(i)); }, ['99990000-0000-4000-8000-999999999995', '99990000-0000-4000-8000-999999999997', '99990000-0000-4000-8000-999999999999', '99990000-0000-4000-8000-99999999999b', '99990000-0000-4000-8000-99999999999c'])));
+  // statusChip() also draws circle, cycle, member, payment and participant states (circle-detail.js,
+  // timeline.js, admin.js): the payout keys are additive, and every key it had before is unchanged.
+  const before = [['ACTIVE', 'active', 'Active'], ['VERIFIED', 'verified', 'Verified'], ['SUCCESS', 'active', 'Settled'], ['FORMING', 'forming', 'Forming'],
+    ['PENDING', 'pending', 'Pending'], ['SUBMITTED', 'pending', 'Under review'], ['INITIATED', 'pending', 'Submitted'], ['COLLECTING', 'active', 'Active'],
+    ['SETTLING', 'active', 'Active'], ['PROCESSING', 'pending', 'Processing'], ['COMPLETED', 'completed', 'Completed'], ['FAILED', 'failed', 'Failed'],
+    ['DELINQUENT', 'failed', 'Action required'], ['SUSPENDED', 'blocked', 'Suspended'], ['CLOSED', 'cancelled', 'Closed'], ['RETURNED', 'failed', 'Returned'],
+    ['CANCELLED', 'cancelled', 'Cancelled'], ['PAUSED', 'warning', 'Paused'], ['active', 'active', 'Active'], ['SOMETHING_NEW', 'completed', 'Something_new'], ['', 'completed', '—'], [null, 'completed', '—']];
+  T('B1 statusChip: every status it knew before gives the same chip as before (unknown ones stay grey)', await ev(page, rows => rows.every(([k, v, l]) => statusChip(k) === `<span class="status status--${v}" aria-label="Status: ${l}">${l}</span>`), before));
+
   // ── [6a] first-run guide ──
   await page.evaluate(() => { window.__mockClear(); localStorage.removeItem('sol_guide_seen:' + SEED.user.id); window.nav('dashboard'); });
   await wait(450);

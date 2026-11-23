@@ -39,9 +39,16 @@ function seed() {
     // GET /account/settings (BASE api/account.py:64-69): {locale, preferences, dark_mode}.
     settings: { locale: 'en', preferences: { notifications: { email: true, sms: false } }, dark_mode: false },
     // GET /payments/my-payouts (BASE api/payments.py:366-397). Ids are never rendered.
+    // status is any PayoutStatus value (BASE models/payout.py:24-36). settled_at stays set on a
+    // payout that settled and was later returned, reversed or sent to manual review. Each of the
+    // last four rows has its own net amount, so a journey can find its row.
     payouts: [
       { id: '99990000-0000-4000-8000-999999999991', circle_id: G_ACT, cycle_id: '99990000-0000-4000-8000-999999999992', status: 'SUCCESS', gross_cents: 120000, fee_cents: 12000, net_cents: 108000, currency: 'USD', settled_at: '2026-06-20T00:00:00Z', created_at: '2026-06-15T00:00:00Z' },
       { id: '99990000-0000-4000-8000-999999999993', circle_id: G_ACT, cycle_id: '99990000-0000-4000-8000-999999999994', status: 'PROCESSING', gross_cents: 120000, fee_cents: 12000, net_cents: 108000, currency: 'USD', settled_at: null, created_at: '2026-07-15T00:00:00Z' },
+      { id: '99990000-0000-4000-8000-999999999995', circle_id: G_ACT, cycle_id: '99990000-0000-4000-8000-999999999996', status: 'SETTLED', gross_cents: 60000, fee_cents: 6000, net_cents: 54000, currency: 'USD', settled_at: '2026-08-20T00:00:00Z', created_at: '2026-08-15T00:00:00Z' },
+      { id: '99990000-0000-4000-8000-999999999997', circle_id: G_ACT, cycle_id: '99990000-0000-4000-8000-999999999998', status: 'MANUAL_REVIEW', gross_cents: 60100, fee_cents: 6000, net_cents: 54100, currency: 'USD', settled_at: '2026-09-20T00:00:00Z', created_at: '2026-09-15T00:00:00Z' },
+      { id: '99990000-0000-4000-8000-999999999999', circle_id: G_ACT, cycle_id: '99990000-0000-4000-8000-99999999999a', status: 'RETURNED', gross_cents: 60200, fee_cents: 6000, net_cents: 54200, currency: 'USD', settled_at: '2026-10-20T00:00:00Z', created_at: '2026-10-15T00:00:00Z' },
+      { id: '99990000-0000-4000-8000-99999999999b', circle_id: G_ACT, cycle_id: '99990000-0000-4000-8000-99999999999c', status: 'REVERSED', gross_cents: 60300, fee_cents: 6000, net_cents: 54300, currency: 'USD', settled_at: '2026-11-02T00:00:00Z', created_at: '2026-10-28T00:00:00Z' },
     ],
     groupsActive: [{
       id: G_ACT, name: 'Family Savings Circle', status: 'ACTIVE',
