@@ -122,10 +122,14 @@ window.__errs = window.__errs || [];
 window.addEventListener('error', e => window.__errs.push(String(e.message || e.error)));
 window.addEventListener('unhandledrejection', e => window.__errs.push('unhandledrejection: ' + String(e.reason)));
 window.__reqLog = [];
-// Per-route overrides: __mockSet('POST /auth/resend-verification', 202, {...}).
-window.__mock = Object.assign({ over: {}, s35: false, c34: false, a33: false }, window.__mock || {});
-window.__mockSet = (key, status, body) => { window.__mock.over[key] = { status, body }; };
-window.__mockClear = () => { window.__mock.over = {}; window.__mock.s35 = false; window.__mock.c34 = false; window.__mock.a33 = false; };
+// Per-route overrides: __mockSet('POST /auth/resend-verification', 202, {...}); with
+// { once: true } the override answers one request and is then removed.
+// revoked: every refresh session was ended (a 2FA disable does that, BASE services/auth.py:412),
+// so POST /auth/refresh answers 401 until __mockClear(). delay: ms before every answer.
+// versions: per consent kind, the document versions GET /legal/documents serves (C34).
+window.__mock = Object.assign({ over: {}, s35: false, c34: false, a33: false, revoked: false, delay: 0, versions: {} }, window.__mock || {});
+window.__mockSet = (key, status, body, opts) => { window.__mock.over[key] = { status, body, once: !!(opts && opts.once) }; };
+window.__mockClear = () => { window.__mock.over = {}; window.__mock.s35 = false; window.__mock.c34 = false; window.__mock.a33 = false; window.__mock.revoked = false; window.__mock.delay = 0; window.__mock.versions = {}; };
 const R = (status, body) => ({ __mockStatus: status, body });
 const NOT_FOUND = () => R(404, { detail: 'Not Found' });
 const LIMITED = limit => R(429, { error: 'Rate limit exceeded: ' + limit });
@@ -133,6 +137,12 @@ const EXTRA = field => R(422, { detail: [{ type: 'extra_forbidden', loc: ['body'
 const TOKENS = { access_token: 'synthetic-access-token', refresh_token: 'synthetic-refresh-token', token_type: 'bearer' };
 // A 1x1 PNG, standing in for the backend's QR code (BASE api/auth.py:173-186).
 const QR = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const LEGAL_DOCS = [
+  { kind: 'terms', title: 'Sol Terms of Service', sha256: '0'.repeat(64), consent_kind: 'terms', text: 'SYNTHETIC TERMS TEXT.\n\nSecond paragraph of the synthetic terms.' },
+  { kind: 'privacy', title: 'Sol Privacy Policy', sha256: '1'.repeat(64), consent_kind: 'privacy', text: 'SYNTHETIC PRIVACY TEXT.' },
+  { kind: 'esign_disclosure', title: 'Consent to Electronic Records and Signatures', sha256: '2'.repeat(64), consent_kind: 'esign', text: 'SYNTHETIC E-SIGN TEXT.' },
+  { kind: 'ach_debit_authorization', title: 'Bank-Debit (ACH) Authorization', sha256: '3'.repeat(64), consent_kind: 'ach_debit_authorization', text: 'SYNTHETIC ACH TEXT.' },
+];
 const BACKUP = ['a1b2-c3d4-e5','f6a7-b8c9-d0','e1f2-a3b4-c5','d6e7-f8a9-b0','c1d2-e3f4-a5','b6c7-d8e9-f0','a2b3-c4d5-e6','f7a8-b9c0-d1','e2f3-a4b5-c6','d7e8-f9a0-b1'];
 // Public routes (no session): the landing page, /sol/reset-password and /sol/verify.
 function _publicRoute(method, path, query, body) {
@@ -150,14 +160,12 @@ function _publicRoute(method, path, query, body) {
     if (!window.__mock.c34) { for (const k of Object.keys(body || {})) if (!['email', 'password', 'full_name', 'phone'].includes(k)) return EXTRA(k); }
     return R(201, TOKENS);
   }
-  // GET /legal/documents (C34 api/legal.py:13-16; legal/__init__.py:94-102); 404 on BASE.
+  // GET /legal/documents (C34 api/legal.py:13-16; legal/__init__.py:41-62, 94-102): the titles
+  // are PR #34's; the texts are synthetic stand-ins. 404 on BASE.
   if (method === 'GET' && path === '/legal/documents') {
     if (!window.__mock.c34) return NOT_FOUND();
-    return R(200, [
-      { kind: 'terms', version: '2026-11-22-draft-1', title: 'Terms of Service', sha256: '0'.repeat(64), consent_kind: 'terms', text: 'Draft.' },
-      { kind: 'privacy', version: '2026-11-22-draft-1', title: 'Privacy Policy', sha256: '1'.repeat(64), consent_kind: 'privacy', text: 'Draft.' },
-      { kind: 'esign_disclosure', version: '2026-11-22-draft-1', title: 'E-Sign Disclosure', sha256: '2'.repeat(64), consent_kind: 'esign', text: 'Draft.' },
-    ]);
+    const v = k => (window.__mock.versions && window.__mock.versions[k]) || '2026-11-22-draft-1';
+    return R(200, LEGAL_DOCS.map(d => Object.assign({}, d, { version: v(d.consent_kind) })));
   }
   // POST /auth/login -> 200 tokens, or 428 {"detail":{"totp_required":true,"challenge_token":…}}
   // for a two-factor account (BASE services/auth.py:176-182).
@@ -165,9 +173,13 @@ function _publicRoute(method, path, query, body) {
   // POST /auth/login/totp {challenge_token, code 6..12} -> 200 tokens (BASE api/auth.py:235-249).
   if (method === 'POST' && path === '/auth/login/totp') return R(200, TOKENS);
   if (method === 'POST' && path === '/auth/logout') return R(204, null);
-  // POST /auth/refresh -> new pair (BASE api/auth.py:84-97). A 401 from a wrong password or
-  // 2FA code makes api() refresh once and re-send, as it does against the real backend.
-  if (method === 'POST' && path === '/auth/refresh') { window.__refreshes = (window.__refreshes || 0) + 1; return R(200, { access_token: 'boot-test-token-' + window.__refreshes, refresh_token: 'r' + window.__refreshes, token_type: 'bearer' }); }
+  // POST /auth/refresh -> new pair (BASE api/auth.py:84-97); 401 "Invalid or expired refresh
+  // token" (BASE services/auth.py:436-437) once every session was ended (__mock.revoked).
+  if (method === 'POST' && path === '/auth/refresh') {
+    if (window.__mock.revoked) return R(401, { detail: 'Invalid or expired refresh token' });
+    window.__refreshes = (window.__refreshes || 0) + 1;
+    return R(200, { access_token: 'boot-test-token-' + window.__refreshes, refresh_token: 'r' + window.__refreshes, token_type: 'bearer' });
+  }
   return null;
 }
 function _logRequest(method, full, opts) {
@@ -190,11 +202,12 @@ function _mockFetch(resolve) {
     _logRequest(method, full, opts);
     let parsed = opts.body; if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch (e) {} }
     const over = window.__mock.over[method + ' ' + path];
+    if (over && over.once) delete window.__mock.over[method + ' ' + path];
     let res = over ? R(over.status, over.body) : resolve(method, path, query, parsed, opts);
     if (!res || res.__mockStatus === undefined) res = R(200, res);
     const err = () => new DOMException('The user aborted a request.', 'AbortError');
     if (sig && sig.aborted) throw err();
-    const delay = /__slow/.test(String(u)) ? 300 : 0;
+    const delay = /__slow/.test(String(u)) ? 300 : (Number(window.__mock.delay) || 0);
     await new Promise((ok, rej) => { const t = setTimeout(ok, delay); if (sig) sig.addEventListener('abort', () => { clearTimeout(t); rej(err()); }, { once: true }); });
     const status = res.__mockStatus, body = res.body;
     return { ok: status >= 200 && status < 300, status, statusText: STATUS_TEXT[status] || '', headers: { get: () => null },
@@ -268,19 +281,18 @@ function _memberRoute(method, path, query, body) {
       SEED.user.totp_enabled = true; SEED.user.totp_backup_codes_remaining = 10;
       return { detail: '2FA enabled', backup_codes: BACKUP };
     }
+    // Turning 2FA off ends every refresh session (BASE services/auth.py:412): refresh then answers 401.
     if (path === '/auth/2fa/disable' && method === 'POST') {
       if (!SEED.user.totp_enabled) return R(400, { detail: '2FA not enabled' });
       SEED.user.totp_enabled = false;
+      window.__mock.revoked = true;
       return { detail: '2FA disabled' };
     }
     // POST /account/close: A33 only (A33 api/account.py:63-70, 180-205; services/
     // account_lifecycle.py:249-264, 491-555). 404 on BASE.
     if (path === '/account/close' && method === 'POST') {
       if (!window.__mock.a33) return NOT_FOUND();
-      return { closed: true, user_id: SEED.user.id, closed_at: '2026-11-23T12:00:00+00:00',
-        removed: [{ item: 'email', description: 'Your email address, replaced with a placeholder.' }],
-        kept: [{ item: 'payments', description: 'Your contributions and their status.', retention_years: 5 }],
-        retention: { years: 5, until: '2031-11-23', note: 'Money records are kept for 5 years after closing for financial record-keeping. This period is pending legal review.' } };
+      return CLOSE_SUMMARY(5);
     }
     return {};
   }
@@ -317,6 +329,44 @@ function _memberRoute(method, path, query, body) {
   }
   return [];
 }
+// The 200 body of POST /account/close: PR #33's lists (A33 services/account_lifecycle.py:491-555),
+// for a retention period of \`years\` (ACCOUNT_RECORD_RETENTION_YEARS, 5 by default).
+function CLOSE_SUMMARY(years) {
+  const kept = (item, description) => ({ item, description, retention_years: years });
+  return { closed: true, user_id: SEED.user.id, closed_at: '2026-11-23T12:00:00+00:00',
+    removed: [
+      { item: 'email', description: 'Your email address, replaced with a placeholder.' },
+      { item: 'name', description: 'Your name, replaced with "Closed account".' },
+      { item: 'phone', description: 'Your phone number.' },
+      { item: 'profile', description: 'Date of birth, avatar, language and settings.' },
+      { item: 'password', description: 'Your password; signing in is no longer possible.' },
+      { item: 'two_factor', description: 'Two-factor secret and backup codes.' },
+      { item: 'sessions', description: 'Every session revoked, with the IP address and device description it recorded; refresh tokens and pending email links stop working.' },
+      { item: 'bank_references', description: 'Encrypted bank references; bank accounts deactivated.' },
+      { item: 'devices', description: 'Registered devices revoked and their tokens erased.' },
+      { item: 'notifications', description: 'Your in-app notifications.' },
+      { item: 'goals', description: 'Your savings goals.' },
+      { item: 'waitlist', description: 'Waiting circle reservations cancelled.' },
+      { item: 'waitlist_signup', description: 'Your pre-launch waitlist signup under your old email address (email, name and IP address), if you had one.' },
+    ],
+    kept: [
+      kept('payments', 'Your contributions and their status.'),
+      kept('payouts', 'Payouts made to you.'),
+      kept('ledger', 'Ledger entries and fees for those payments and payouts.'),
+      kept('circle_memberships', 'Which circles you were in, and when.'),
+      kept('bank_accounts', "Bank name, account type, last 4 digits and the bank provider's account reference."),
+      kept('identity_verification', 'KYC status and the verification provider reference.'),
+      kept('subscriptions', 'Plan and invoice history.'),
+      kept('provider_references', "The payment, identity-verification and billing providers' references to you, so those records can be reconciled and closed."),
+      kept('provider_event_log', 'Notifications those providers sent about your account, stored as received; they can include your name or email address.'),
+      kept('fraud_review', 'Fraud-review flags about this account, including the normalised email or phone number they matched on.'),
+      kept('account_record', 'Account id, creation and closing dates, payment counts.'),
+      kept('audit_log', 'The audit trail, including this closure.'),
+      kept('community_posts', 'Messages and posts you wrote in shared circle spaces.'),
+    ],
+    retention: { years, until: (2026 + years) + '-11-23', note: 'Money records are kept for ' + years + ' years after closing for financial record-keeping. This period is pending legal review.' } };
+}
+window.__closeSummary = CLOSE_SUMMARY;
 function _settingsOut() {
   const prefs = SEED.settings.preferences || {};
   const out = { locale: SEED.settings.locale, preferences: prefs, dark_mode: !!prefs.dark_mode };

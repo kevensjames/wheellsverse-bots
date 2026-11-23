@@ -13,12 +13,15 @@
 //      the backend counts them: code points, not UTF-16 units) and the confirm field
 //   4. the outcome of the public auth calls (forgot, reset, verify) from the HTTP status
 //   5. consentVersions() / signupPayload(): the sign-up body is exactly the deployed shape
-//      with the switch off, and exactly the PR #34 shape with it on
+//      with the switch off, and exactly the PR #34 shape with it on; consentDocs() picks the
+//      three documents sign-up agrees to (terms, privacy, e-sign disclosure) with their exact
+//      titles and texts, and sameConsentVersions() tells when one of them changed
 //   6. guideSeen() / markGuideSeen(): the first-run guide's "seen" mark is kept per member
 //      id and never throws when storage is blocked (then the guide may show again)
 //   7. settings bodies: notificationsPatch() keeps the other notification keys (the backend
 //      replaces the whole nested object), closePayload() is exactly the PR #33 body,
-//      closeRefusals() shows the backend's reasons and never an id
+//      closeRefusals() shows the backend's reasons and never an id, closeSummary() reads the
+//      removed and kept lists and the retention period from PR #33's close response
 //   8. callPublic(): never throws on an HTTP error; a network error is status 0
 // What it does NOT prove: anything about the backend, or the pages that use these helpers
 // (the browser journeys in journeys.mjs cover those).
@@ -184,6 +187,33 @@ await scenario('[A8] sign-up body: exactly the deployed shape when consent is of
   ok(S.consentVersions([{ consent_kind: 'terms', version: '' }, { consent_kind: 'privacy', version: 'x' }]) === null, 'an empty version gives null');
 });
 
+await scenario('[A8b] consent documents: the three texts sign-up agrees to, and whether one changed', async () => {
+  const { S } = load();
+  ok(typeof S.consentDocs === 'function' && typeof S.sameConsentVersions === 'function', 'consentDocs and sameConsentVersions exist');
+  if (typeof S.consentDocs !== 'function' || typeof S.sameConsentVersions !== 'function') return;
+  // GET /legal/documents (PR #34 api/legal.py:13-16; legal/__init__.py:41-62, 94-102).
+  const docs = [
+    { kind: 'terms', version: 't1', consent_kind: 'terms', title: 'Sol Terms of Service', sha256: 'a', text: 'Terms text.' },
+    { kind: 'privacy', version: 'p1', consent_kind: 'privacy', title: 'Sol Privacy Policy', sha256: 'b', text: 'Privacy text.' },
+    { kind: 'esign_disclosure', version: 'e1', consent_kind: 'esign', title: 'Consent to Electronic Records and Signatures', sha256: 'c', text: 'E-sign text.' },
+    { kind: 'ach_debit_authorization', version: 'v', consent_kind: 'ach_debit_authorization', title: 'ACH', sha256: 'd', text: 'ACH text.' },
+  ];
+  const c = S.consentDocs(docs);
+  ok(!!c && JSON.stringify(Object.keys(c)) === JSON.stringify(['terms', 'privacy', 'esign']), 'the terms, the privacy policy and the e-sign disclosure, in that order (no ACH text)');
+  ok(!!c && c.terms.title === 'Sol Terms of Service' && c.terms.text === 'Terms text.' && c.terms.version === 't1', 'exact title, text and version');
+  ok(!!c && c.esign.title === 'Consent to Electronic Records and Signatures' && c.esign.version === 'e1', 'the e-sign disclosure by its consent kind');
+  ok(S.consentDocs(docs.filter(d => d.consent_kind !== 'esign')) === null, 'without the e-sign disclosure: null (sign-up would record one never shown)');
+  ok(S.consentDocs([{ ...docs[0], text: '' }, docs[1], docs[2]]) === null && S.consentDocs([{ ...docs[0], title: 5 }, docs[1], docs[2]]) === null, 'an empty text or a title that is not a string: null');
+  ok(S.consentDocs(null) === null && S.consentDocs({}) === null, 'not a list: null');
+  const again = S.consentDocs(docs);
+  ok(S.sameConsentVersions(c, again) === true, 'the same versions: unchanged');
+  ok(S.sameConsentVersions(c, S.consentDocs(docs.map(d => d.consent_kind === 'esign' ? { ...d, version: 'e2' } : d))) === false, 'a new e-sign version: changed');
+  ok(S.sameConsentVersions(c, S.consentDocs(docs.map(d => d.consent_kind === 'privacy' ? { ...d, version: 'p2' } : d))) === false, 'a new privacy version: changed');
+  ok(S.sameConsentVersions(c, null) === false && S.sameConsentVersions(null, c) === false, 'nothing to compare: changed');
+  const v = S.consentVersions(docs);
+  ok(v && v.terms === 't1' && v.privacy === 'p1', 'consentVersions still reads terms and privacy');
+});
+
 await scenario('[A9] first-run guide "seen" mark: per member, and storage that throws never breaks the page', async () => {
   const { S } = load();
   const store = new Map();
@@ -228,6 +258,20 @@ await scenario('[A10] settings bodies: notifications keep the other keys; close 
   ok(typeof r[2] === 'string' && /admin/i.test(r[2]), 'a reason without a message gets a plain one from its code');
   ok(!r.join(' ').includes('bbbb2222'), 'no id in the refusals');
   ok(Array.isArray(S.closeRefusals(null)) && S.closeRefusals(null).length === 0 && S.closeRefusals('x').length === 0, 'no reasons: empty list');
+  // POST /account/close 200 (A33 services/account_lifecycle.py:491-555): removed, kept, retention.
+  ok(typeof S.closeSummary === 'function', 'closeSummary exists');
+  if (typeof S.closeSummary === 'function') {
+    const sum = S.closeSummary({ closed: true, user_id: 'u-synthetic', removed: [{ item: 'email', description: 'Your email address, replaced with a placeholder.' }, { item: 'x', description: 7 }],
+      kept: [{ item: 'payments', description: 'Your contributions and their status.', retention_years: 7 }, { item: 'audit_log', description: 'The audit trail, including this closure.', retention_years: 7 }],
+      retention: { years: 7, until: '2033-11-23', note: 'Money records are kept for 7 years after closing.' } });
+    ok(JSON.stringify(sum.removed) === JSON.stringify(['Your email address, replaced with a placeholder.']), 'removed: the descriptions (anything that is not a string is dropped)');
+    ok(JSON.stringify(sum.kept) === JSON.stringify(['Your contributions and their status.', 'The audit trail, including this closure.']), 'kept: the descriptions, in order');
+    ok(sum.years === 7 && sum.note === 'Money records are kept for 7 years after closing.', 'the retention years and note from the response');
+    ok(!JSON.stringify(sum).includes('u-synthetic'), 'no id');
+    const none = S.closeSummary(null);
+    ok(none.removed.length === 0 && none.kept.length === 0 && none.years === null && none.note === '', 'no response body: empty lists, no years');
+    ok(S.closeSummary({ retention: { years: '5' } }).years === null && S.closeSummary({ retention: { years: -1 } }).years === null, 'years must be a whole number, 0 or more');
+  }
   ok(S.groupSecret('JBSWY3DPEHPK3PXP') === 'JBSW Y3DP EHPK 3PXP', 'groupSecret() splits a secret into groups of 4 for reading');
   ok(/^mysol-data-\d{4}-\d{2}-\d{2}\.json$/.test(S.exportFileName(new Date('2026-11-23T10:00:00Z'))), 'exportFileName() is mysol-data-YYYY-MM-DD.json');
 });

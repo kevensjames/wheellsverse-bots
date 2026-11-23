@@ -151,6 +151,33 @@ const SECRETS = ['JBSWY3DPEHPK3PXP', 'a1b2-c3d4-e5', 'synthetic-challenge-token'
 const RESET_TOKEN = 'synthetic-reset-Tok3n_0123456789abcdefABCDEF';
 const VERIFY_TOKEN = 'synthetic-verify-Tok3n_0123456789abcdefABCDEF';
 
+// Requests to a path, and POSTs to /auth/refresh, in a request log (helpers().reqs()).
+const countOf = (rs, url) => rs.filter(r => r.url === url).length;
+const refreshCount = rs => rs.filter(r => r.url === '/auth/refresh' && r.method === 'POST').length;
+// Runs in the journey page: the access token becomes a JWT-shaped synthetic token of the seeded
+// member that expires in `seconds` (the harness token has no expiry, which reads as "expires soon").
+function SET_TOKEN(seconds) {
+  const b64 = o => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  token = b64({ alg: 'none' }) + '.' + b64({ sub: SEED.user.id, exp: Math.floor(Date.now() / 1000) + seconds }) + '.synthetic';
+}
+
+// The accessibility-tree node of the first element matching `sel` (Chromium, over CDP): whether
+// it is in the tree (not ignored, e.g. display:none) and its role.
+async function axNode(page, sel) {
+  let cdp;
+  try {
+    cdp = await page.context().newCDPSession(page);
+    const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
+    const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: sel });
+    if (!nodeId) return { inTree: false, role: null };
+    const { node } = await cdp.send('DOM.describeNode', { nodeId });
+    const { nodes } = await cdp.send('Accessibility.getPartialAXTree', { backendNodeId: node.backendNodeId, fetchRelatives: false });
+    const n = (nodes || []).find(x => x.backendDOMNodeId === node.backendNodeId) || (nodes || [])[0];
+    return { inTree: !!n && !n.ignored, role: n && n.role ? n.role.value : null };
+  } catch (e) { return { inTree: false, role: null, error: String(e) }; }
+  finally { if (cdp) await cdp.detach().catch(() => {}); }
+}
+
 // page.evaluate that reads as false (a failed check) instead of throwing when an element is missing.
 async function ev(pg, fn, arg) { try { return await pg.evaluate(fn, arg); } catch { return false; } }
 const exactKeys = (o, keys) => !!o && typeof o === 'object' && !Array.isArray(o) && JSON.stringify(Object.keys(o).sort()) === JSON.stringify([...keys].sort());
@@ -268,6 +295,10 @@ async function memberPages(page) {
   T('3d settings: the mobile More sheet lists Settings', await ev(page, () => [...document.querySelectorAll('#moreSheet .more-item')].some(b => /settings/i.test(b.textContent))));
   // Profile: PATCH /account/profile {full_name} (BASE api/account.py:72-84).
   T('3d profile: the display name is prefilled', (await page.inputValue('#setName', { timeout: 1000 }).catch(() => null)) === 'Test User');
+  // full_name is the name the backend sends to the ID check (BASE services/kyc.py:33) and to the
+  // bank provider when the first bank is linked (BASE services/bank.py:110-114) (SECURITY-SEC-4).
+  T('SEC-4 profile: the name field is labelled as the full legal name', /full legal name/i.test(await text('label[for="setName"]')) && !/display name/i.test(await text('#setProfile')));
+  T('SEC-4 profile: a note tied to the field says it is used for the ID check and the bank link', await ev(page, () => { const i = document.getElementById('setName'); const ids = (i && i.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean); const t = ids.map(id => (document.getElementById(id) || {}).textContent || '').join(' '); return /ID check/i.test(t) && /bank/i.test(t); }));
   T('3d profile: the email is shown read-only, with its verified status', await ev(page, () => { const e = document.getElementById('setEmail'); return !!e && e.tagName !== 'INPUT' && /member@example\.invalid/.test(e.textContent); }) && (await text('#setEmailStatus')).trim() === 'Verified');
   await clearReqs();
   await fill('#setName', '  Alex Example  '); await click('#setNameSave'); await wait(200);
@@ -300,17 +331,70 @@ async function memberPages(page) {
   await click('#set2faSaved'); await wait(150);
   T('3d two-factor: "I saved my codes" removes them from the page', await ev(page, () => { const ps = document.getElementById('page-settings'); return !!ps && !ps.innerHTML.includes('a1b2-c3d4-e5'); }));
   T('3d two-factor: the status reads On', (await text('#set2faState')).trim() === 'On');
+  // A wrong password when turning off: 401 "Invalid password" (BASE services/auth.py:403-404).
+  // That is not an expired session: one POST, and no POST /auth/refresh (5 per 15 minutes per
+  // IP, BASE api/auth.py:84-86), so the field error shows (CONTRACT-C1, SECURITY-SEC-1).
+  await page.evaluate(() => window.__mockSet('POST /auth/2fa/disable', 401, { detail: 'Invalid password' }));
+  await clearReqs();
+  await fill('#set2faPw', 'synthetic-wrong-password'); await fill('#set2faOffCode', '654321'); await click('#set2faOff'); await wait(300);
+  let rq = await reqs();
+  T('C1 two-factor off, wrong password: one POST /auth/2fa/disable and no POST /auth/refresh', countOf(rq, '/auth/2fa/disable') === 1 && refreshCount(rq) === 0);
+  T('C1 two-factor off, wrong password: says the password is not right', /password is not right/i.test(await alertText('#setTwoFactor')));
+  await page.evaluate(() => { delete window.__mock.over['POST /auth/2fa/disable']; });
   // Turn off: {password, code} (BASE api/auth.py:162-164, 221-232).
   await clearReqs();
   await fill('#set2faPw', 'synthetic-password'); await fill('#set2faOffCode', '654321'); await click('#set2faOff'); await wait(250);
   const off = (await reqs()).filter(r => r.url === '/auth/2fa/disable');
   T('3d two-factor: turning off sends POST /auth/2fa/disable with exactly {password, code}', off.length === 1 && exactKeys(off[0].body, ['password', 'code']) && off[0].body.code === '654321');
   T('3d two-factor: then reads Off and says the sessions were signed out', (await text('#set2faState')).trim() === 'Off' && /signed out/i.test(await text('#set2faMsg')));
-  // A wrong code: 401 "Invalid code" (BASE services/auth.py:315-316). api() refreshes once and re-sends.
+  // A wrong code: 401 "Invalid code" (BASE services/auth.py:315-316). Turning off ended every
+  // refresh session, so the mock's POST /auth/refresh now answers 401: a refresh here would sign
+  // the member out. One POST, no refresh, the code error, and the member stays signed in.
   await page.evaluate(() => { window.__mockSet('POST /auth/2fa/activate', 401, { detail: 'Invalid code' }); });
   await click('#set2faStart'); await wait(250);
+  await clearReqs();
   await fill('#set2faCode', '000000'); await click('#set2faConfirm'); await wait(400);
-  T('3d two-factor: a wrong code shows a clear error and no backup codes', (await alertText('#setTwoFactor')).length > 0 && (await ev(page, () => document.querySelectorAll('#set2faCodes li').length)) === 0);
+  const stayed = await ev(page, () => /boot-test\.html$/.test(location.pathname) && typeof window.nav === 'function');
+  rq = stayed ? await reqs() : [];
+  T('C1 two-factor on, wrong code right after turning off: the member stays signed in', stayed === true);
+  T('C1 two-factor on, wrong code: one POST /auth/2fa/activate and no POST /auth/refresh', stayed === true && countOf(rq, '/auth/2fa/activate') === 1 && refreshCount(rq) === 0);
+  if (stayed !== true) {   // signed out (the defect): reload the journey page so the rest still runs
+    await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await wait(500);
+    await page.evaluate(() => { window.__mockSet('POST /auth/2fa/activate', 401, { detail: 'Invalid code' }); window.nav('settings'); }); await wait(300);
+    await click('#set2faStart'); await wait(250);
+    await fill('#set2faCode', '000000'); await click('#set2faConfirm'); await wait(400);
+  }
+  T('3d two-factor: a wrong code shows a clear error and no backup codes', /code did not work/i.test(await alertText('#setTwoFactor')) && (await ev(page, () => document.querySelectorAll('#set2faCodes li').length)) === 0);
+  // With an access token that is still fresh, the POST is sent straight away: no GET /auth/me first.
+  await page.evaluate(SET_TOKEN, 3600);
+  await clearReqs();
+  await fill('#set2faCode', '111111'); await click('#set2faConfirm'); await wait(300);
+  rq = await reqs();
+  T('C1 two-factor on, wrong code, fresh token: only the POST (no GET /auth/me, no refresh)', countOf(rq, '/auth/2fa/activate') === 1 && countOf(rq, '/auth/me') === 0 && refreshCount(rq) === 0);
+  // A token about to expire is renewed first by an ordinary GET /auth/me (which refreshes the usual
+  // way when it must), then the POST is sent once.
+  await page.evaluate(SET_TOKEN, 10);
+  await clearReqs();
+  await fill('#set2faCode', '222222'); await click('#set2faConfirm'); await wait(300);
+  rq = (await reqs()).filter(r => ['/auth/me', '/auth/2fa/activate', '/auth/refresh'].includes(r.url));
+  T('C1 two-factor on, token about to expire: GET /auth/me, then one POST', JSON.stringify(rq.map(r => r.method + ' ' + r.url)) === JSON.stringify(['GET /auth/me', 'POST /auth/2fa/activate']));
+  // A 401 about the token, not the code ("Invalid token", BASE core/deps.py:33-38): the session is
+  // renewed once through GET /auth/me and the code is sent once more; two-factor then turns on.
+  await page.evaluate(SET_TOKEN, 3600);
+  await page.evaluate(() => {
+    window.__mock.revoked = false;   // signed in again
+    window.__mockSet('POST /auth/2fa/activate', 401, { detail: 'Invalid token' }, { once: true });
+    window.__mockSet('GET /auth/me', 401, { detail: 'Invalid token' }, { once: true });
+  });
+  await clearReqs();
+  await fill('#set2faCode', '333333'); await click('#set2faConfirm'); await wait(400);
+  rq = (await reqs()).filter(r => ['/auth/me', '/auth/2fa/activate', '/auth/refresh'].includes(r.url));
+  T('C1 two-factor on, token refused: POST, GET /auth/me (401), one refresh, GET /auth/me, POST again',
+    JSON.stringify(rq.map(r => r.method + ' ' + r.url)) === JSON.stringify(['POST /auth/2fa/activate', 'GET /auth/me', 'POST /auth/refresh', 'GET /auth/me', 'POST /auth/2fa/activate']));
+  T('C1 two-factor on, token refused: two-factor turns on after the renewal', (await ev(page, () => document.querySelectorAll('#set2faCodes li').length)) === 10);
+  await page.evaluate(() => { delete window.__mock.over['GET /auth/me']; delete window.__mock.over['POST /auth/2fa/activate']; SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; window.nav('settings'); });
+  await wait(300);
+  await click('#set2faStart'); await wait(250);
   await click('#set2faCancel'); await wait(100);
   T('3d two-factor: Cancel clears the secret from the page', await ev(page, () => { const ps = document.getElementById('page-settings'); return !!ps && !ps.innerHTML.includes('JBSWY3DPEHPK3PXP'); }));
   // Notifications: preferences.notifications (BASE api/account.py:95-125; shallow merge).
@@ -345,6 +429,14 @@ async function memberPages(page) {
   await click('#setCloseOpen'); await wait(150);
   T('3d close: a confirmation dialog opens with focus inside', await ev(page, () => window.SolDialog.isOpen('closeAccountDialog') && document.getElementById('closeAccountDialog').contains(document.activeElement)));
   T('3d close: it says what is kept and that it cannot be undone', /keep/i.test(await text('#closeAccountDialog')) && /undone/i.test(await text('#closeAccountDialog')));
+  // What is kept, from PR #33's list (A33 services/account_lifecycle.py:491-555): the name and
+  // email address are replaced on the account, but copies stay in kept records (CONTRACT-C3, SECURITY-SEC-2).
+  const intro = await text('#closeIntro');
+  T('C3 close: the dialog does not say the name and email address are removed everywhere', !/remove your name, email address/i.test(intro) && /replace your name and email address/i.test(intro));
+  T('C3 close: it says kept records can include the name, email address or phone number (provider messages, fraud checks)', /can include your name, email address or phone number/i.test(intro) && /payment, ID check and billing providers/i.test(intro) && /fraud/i.test(intro));
+  T("C3 close: it lists the bank provider's reference, the ID check provider's reference, the account record and the audit trail", /bank provider's reference/i.test(intro) && /ID check provider's reference/i.test(intro) && /account record/i.test(intro) && /audit trail/i.test(intro));
+  T('C3 close: it does not call the bank links removed (the account reference is kept)', !/saved bank links/i.test(intro));
+  T('C3 close: the 5 years are given as the default, still under legal review', /by default/i.test(intro) && /5 years/.test(intro) && /legal review/i.test(intro));
   await fill('#closePw', 'synthetic-password');
   T('3d close: the confirm button stays disabled until DELETE is typed', await ev(page, () => document.getElementById('closeConfirm').disabled === true));
   await fill('#closePhrase', 'delete');
@@ -370,10 +462,78 @@ async function memberPages(page) {
   const reasons = await page.evaluate(() => [...document.querySelectorAll('#closeReasons li')].map(li => li.textContent.trim()));
   T('3d close (409): lists the backend\'s refusal reasons (circle, checkout, admin)', reasons.length === 3 && /circle/.test(reasons[0]) && /checkout/.test(reasons[1]) && /admin/i.test(reasons[2]));
   T('3d close (409): no id in the dialog', await ev(page, gid => { const d = document.getElementById('closeAccountDialog'); return !!d && !d.innerHTML.includes(gid); }, IDS.G_ACT));
+  // A wrong password, or a missing 2FA code: 401 (A33 services/account_lifecycle.py:267-278).
+  // Not an expired session: one POST, no POST /auth/refresh (CONTRACT-C1, SECURITY-SEC-1).
+  await page.evaluate(() => window.__mockSet('POST /account/close', 401, { detail: 'Invalid password' }));
+  await clearReqs();
+  await click('#closeConfirm'); await wait(300);
+  rq = await reqs();
+  T('C1 close, wrong password: one POST /account/close and no POST /auth/refresh', countOf(rq, '/account/close') === 1 && refreshCount(rq) === 0);
+  T('C1 close, wrong password: says the password is not right', /password is not right/i.test(await alertText('#closeAccountDialog')));
+  await page.evaluate(() => window.__mockSet('POST /account/close', 401, { detail: '2FA code required' }));
+  await clearReqs();
+  await click('#closeConfirm'); await wait(300);
+  rq = await reqs();
+  T('C1 close, 2FA code required: one POST, no refresh, and the code field is shown', countOf(rq, '/account/close') === 1 && refreshCount(rq) === 0 && await vis('#closeCode'));
   await page.keyboard.press('Escape'); await wait(120);
   T('3d close: Escape closes the dialog and focus returns to its button', await ev(page, () => !window.SolDialog.isOpen('closeAccountDialog') && document.activeElement && document.activeElement.id === 'setCloseOpen'));
   T('3d close: the password is cleared when the dialog closes', await ev(page, () => document.getElementById('closePw').value === ''));
   await page.evaluate(() => window.__mockClear());
+
+  // ── A11Y-3: an empty polite status region stays in the accessibility tree, so its message is read ──
+  await page.evaluate(() => window.nav('settings')); await wait(300);
+  let ax = await axNode(page, '#setExportMsg');
+  T('A11Y-3 settings: the empty "Download my data" status region is in the accessibility tree', ax.inTree && ax.role === 'status');
+  await click('#setCloseOpen'); await wait(150);
+  ax = await axNode(page, '#closeNote');
+  T('A11Y-3 close dialog: the empty status region is in the accessibility tree', ax.inTree && ax.role === 'status');
+  await page.keyboard.press('Escape'); await wait(120);
+
+  // ── A11Y-2: keyboard focus stays on the page after each Settings action (each answer takes 150 ms) ──
+  // Disabling the focused control, or hiding or re-rendering it, drops focus to <body>.
+  const focusAfter = async (sel, key, scope) => {
+    try { await page.focus(sel, { timeout: 1000 }); } catch { return { mid: 'no control', end: 'no control' }; }
+    await page.keyboard.press(key);
+    const where = () => ev(page, sc => { const a = document.activeElement; if (!a || a === document.body) return 'body'; return a.closest(sc) ? 'ok' : 'outside:' + (a.id || a.tagName); }, scope);
+    await wait(50); const mid = await where();
+    await wait(400); const end = await where();
+    return { mid, end };
+  };
+  const focusOk = (name, r) => { T(`A11Y-2 ${name}: focus stays on the page while it runs and after`, r.mid === 'ok' && r.end === 'ok'); if (!(r.mid === 'ok' && r.end === 'ok')) console.log('      ' + JSON.stringify(r)); };
+  await page.evaluate(() => { window.__mockClear(); window.nav('settings'); }); await wait(300);
+  await page.evaluate(() => { window.__mock.delay = 150; });
+  await fill('#setName', 'Alex Example');
+  focusOk('Save name', await focusAfter('#setNameSave', 'Enter', '#page-settings'));
+  focusOk('Email me a reset link', await focusAfter('#setPwReset', 'Enter', '#page-settings'));
+  focusOk('the email notifications checkbox', await focusAfter('#setNotifEmail', 'Space', '#page-settings'));
+  focusOk('Download my data (not available yet)', await focusAfter('#setExport', 'Enter', '#page-settings'));
+  focusOk('Turn on two-factor', await focusAfter('#set2faStart', 'Enter', '#page-settings'));
+  await page.evaluate(() => window.__mockSet('POST /auth/2fa/activate', 401, { detail: 'Invalid code' }));
+  await fill('#set2faCode', '000000');
+  focusOk('Turn on (a wrong code)', await focusAfter('#set2faConfirm', 'Enter', '#page-settings'));
+  await page.evaluate(() => window.__mockSet('POST /auth/2fa/activate', 400, { detail: 'No TOTP setup in progress — call /auth/2fa/setup first' }));
+  await fill('#set2faCode', '000000');
+  focusOk('Turn on (setup expired, the card is drawn again)', await focusAfter('#set2faConfirm', 'Enter', '#page-settings'));
+  await page.evaluate(() => { window.__mock.delay = 0; SEED.user.totp_enabled = true; window.nav('settings'); }); await wait(300);
+  await page.evaluate(() => { window.__mock.delay = 150; window.__mockSet('POST /auth/2fa/disable', 401, { detail: 'Invalid password' }); });
+  await fill('#set2faPw', 'synthetic-wrong-password'); await fill('#set2faOffCode', '654321');
+  focusOk('Turn off two-factor (a wrong password)', await focusAfter('#set2faOff', 'Enter', '#page-settings'));
+  // (The AI setting was hidden by an earlier refusal; show it again for this check.)
+  await page.evaluate(() => { window.__mock.delay = 0; SEED.user.totp_enabled = false; SEED.user.email_verified_at = null; window.__mock.s35 = true; setState.aiHidden = false; window.nav('settings'); }); await wait(300);
+  await page.evaluate(() => { window.__mock.delay = 150; window.__mockSet('PATCH /account/settings', 422, { detail: [{ type: 'extra_forbidden', loc: ['body', 'ai_assistant_consent'], msg: 'Extra inputs are not permitted', input: true }] }); });
+  focusOk('the AI assistant checkbox (refused, the setting is hidden)', await focusAfter('#setAiConsent', 'Space', '#page-settings'));
+  focusOk('Resend email in Settings (not available yet, the button is hidden)', await focusAfter('#setResend', 'Enter', '#page-settings'));
+  await page.evaluate(() => { window.__mock.delay = 0; delete window.__mock.over['PATCH /account/settings']; window.nav('settings'); }); await wait(300);
+  await click('#setCloseOpen'); await wait(150);
+  await fill('#closePw', 'synthetic-password'); await fill('#closePhrase', 'DELETE');
+  await page.evaluate(() => { window.__mock.delay = 150; window.__mockSet('POST /account/close', 409, { detail: { error: 'account_close_refused', message: 'Your account cannot be closed yet.', reasons: [{ code: 'admin_account', message: 'An admin account cannot be closed. Remove the admin role first.' }] } }); });
+  focusOk('Close my account (refused)', await focusAfter('#closeConfirm', 'Enter', '#closeAccountDialog'));
+  T('A11Y-2 close (409): the refusal reasons are inside the alert region', await ev(page, () => !!document.querySelector('#closeAccountDialog [role=alert] #closeReasons li')));
+  await page.evaluate(() => { window.__mock.delay = 0; }); await page.keyboard.press('Escape'); await wait(120);
+  await page.evaluate(() => window.nav('dashboard')); await wait(400);
+  await page.evaluate(() => { window.__mock.delay = 150; });
+  focusOk('Resend email on the dashboard banner (not available yet, the button is hidden)', await focusAfter('#verifyResend', 'Enter', '#page-dashboard'));
+  await page.evaluate(async () => { window.__mockClear(); SEED.user.email_verified_at = '2026-01-02T00:00:00Z'; me = await api('/auth/me'); });
 
   // ── [3f] payout history on the payments page (GET /payments/my-payouts, BASE api/payments.py:366-397) ──
   await clearReqs();
@@ -460,6 +620,36 @@ async function accessibility(page) {
   });
   T('6b focus ring: a keyboard-focused control shows an outline with 3:1 contrast', ring.style !== 'none' && ring.width >= 2 && ring.ratio >= 3);
   if (!(ring.style !== 'none' && ring.width >= 2 && ring.ratio >= 3)) console.log('      ' + JSON.stringify(ring));
+  // The dark dashboard hero and the dark Premium card: the ring is drawn on their background, so it
+  // must reach 3:1 against every colour of their gradient (A11Y-1).
+  for (const [label, sel] of [['dashboard hero', '#dashHero .hero-actions .btn'], ['Premium card', '#dashPremium .premium-card .btn']]) {
+    await page.evaluate(() => window.nav('dashboard')); await page.waitForTimeout(400);
+    await page.evaluate(s => { const b = document.querySelector(s); if (b) b.focus(); }, sel);
+    await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Tab');   // keyboard focus, so :focus-visible applies
+    await page.waitForTimeout(400);
+    const dark = await page.evaluate(s => {
+      const b = document.activeElement;
+      if (!b || !b.matches(s)) return { focused: false };
+      const cs = getComputedStyle(b);
+      const rgb = c => (c.match(/\d+(\.\d+)?/g) || []).slice(0, 3).map(Number);
+      const lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+      const L = a => 0.2126 * lin(a[0]) + 0.7152 * lin(a[1]) + 0.0722 * lin(a[2]);
+      const ratio = (a, b2) => { const x = L(a), y = L(b2); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+      let el = b.parentElement, colors = [];
+      while (el) {
+        const st = getComputedStyle(el);
+        if (st.backgroundImage && st.backgroundImage !== 'none') { colors = st.backgroundImage.match(/rgba?\([^)]*\)/g) || []; break; }
+        if (st.backgroundColor && !/rgba\(0, 0, 0, 0\)|transparent/.test(st.backgroundColor)) { colors = [st.backgroundColor]; break; }
+        el = el.parentElement;
+      }
+      const ring = rgb(cs.outlineColor);
+      const ratios = colors.map(c => ratio(ring, rgb(c)));
+      return { focused: true, focusVisible: b.matches(':focus-visible'), style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), colors, min: ratios.length ? Math.min(...ratios) : 0 };
+    }, sel);
+    const okDark = dark.focused && dark.focusVisible && dark.style !== 'none' && dark.width >= 2 && dark.colors.length >= 2 && dark.min >= 3;
+    T(`A11Y-1 focus ring on the ${label}: 3:1 against every colour of its dark background`, okDark);
+    if (!okDark) console.log('      ' + JSON.stringify(dark));
+  }
   await page.emulateMedia({ reducedMotion: 'reduce' });
   T('6b prefers-reduced-motion: transitions are switched off', await ev(page, () => parseFloat(getComputedStyle(document.querySelector('.btn')).transitionDuration) < 0.01));
   await page.emulateMedia({ reducedMotion: 'no-preference' });
@@ -491,14 +681,41 @@ async function closeAccountSignsOut(browser, leaks) {
   await page.exposeFunction('__recordReq', e => { recorded.push(e); });
   await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(400);
   const { wait, click, fill } = helpers(page);
-  await page.evaluate(() => { window.__mock.a33 = true; window.nav('settings'); }); await wait(300);
+  // The response's retention period is 7 years here (ACCOUNT_RECORD_RETENTION_YEARS is a setting):
+  // the summary must come from the response, not from a fixed 5.
+  const summary = await page.evaluate(() => { const b = window.__closeSummary(7); window.__mockSet('POST /account/close', 200, b); window.__mock.a33 = true; window.nav('settings'); return b; });
+  await wait(300);
   await click('#setCloseOpen'); await wait(120);
   await fill('#closePw', 'synthetic-password'); await fill('#closePhrase', 'DELETE');
-  await click('#closeConfirm');
+  await click('#closeConfirm'); await wait(400);
+  const done = await ev(page, () => {
+    const box = document.getElementById('closeDone');
+    const items = id => [...document.querySelectorAll('#' + id + ' li')].map(li => li.textContent.trim());
+    return { shown: !!box && box.offsetParent !== null, text: box ? box.innerText : '', removed: items('closeDoneRemoved'), kept: items('closeDoneKept'),
+      focusIn: document.getElementById('closeAccountDialog').contains(document.activeElement), url: location.pathname };
+  });
+  T('C3 close (PR #33, 200): the dialog then lists what was removed, from the response', !!done && done.shown && JSON.stringify(done.removed) === JSON.stringify(summary.removed.map(d => d.description)));
+  T('C3 close (PR #33, 200): and what is kept, from the response', !!done && JSON.stringify(done.kept) === JSON.stringify(summary.kept.map(d => d.description)));
+  T('C3 close (PR #33, 200): the retention period is the response\'s (7 years), not a fixed 5', !!done && /7 years/.test(done.text) && !/5 years/.test(done.text));
+  T('C3 close (PR #33, 200): the member can read it first: not signed out yet, focus inside the dialog', !!done && /boot-test\.html$/.test(done.url) && done.focusIn && !recorded.some(r => r.url === '/auth/logout'));
+  await click('#closeDoneSignOut');
   await page.waitForURL(/\/sol\/$/, { timeout: 5000 }).catch(() => {});
   const close = recorded.filter(r => r.url === '/account/close');
   T('3d close (PR #33, 200): POST /account/close was sent once', close.length === 1 && close[0].body && close[0].body.confirm === 'DELETE');
-  T('3d close (PR #33, 200): then the existing logout() runs: POST /auth/logout and back to the sign-in page', recorded.some(r => r.url === '/auth/logout' && r.method === 'POST') && /\/sol\/$/.test(page.url()));
+  T('3d close (PR #33, 200): "Sign out" runs the existing logout(): POST /auth/logout and back to the sign-in page', recorded.some(r => r.url === '/auth/logout' && r.method === 'POST') && /\/sol\/$/.test(page.url()));
+  // Escape (any way out of the summary) signs out too.
+  const page2 = await ctx.newPage();
+  const rec2 = [];
+  await page2.exposeFunction('__recordReq', e => { rec2.push(e); });
+  await page2.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page2.waitForTimeout(400);
+  const h2 = helpers(page2);
+  await page2.evaluate(() => { window.__mock.a33 = true; window.nav('settings'); }); await h2.wait(300);
+  await h2.click('#setCloseOpen'); await h2.wait(120);
+  await h2.fill('#closePw', 'synthetic-password'); await h2.fill('#closePhrase', 'DELETE');
+  await h2.click('#closeConfirm'); await h2.wait(400);
+  await page2.keyboard.press('Escape');
+  await page2.waitForURL(/\/sol\/$/, { timeout: 5000 }).catch(() => {});
+  T('C3 close (PR #33, 200): Escape from the summary also signs out', rec2.some(r => r.url === '/auth/logout' && r.method === 'POST') && /\/sol\/$/.test(page2.url()));
   await ctx.close();
 }
 
@@ -530,8 +747,9 @@ async function publicPages(browser, leaks) {
     await o.click('#forgotLink'); await o.wait(120);
     const formShown = await o.vis('#forgotForm');
     const focusInForm = await o.page.evaluate(() => document.activeElement && document.activeElement.id === 'forgotEmail');
+    const axMsg = await axNode(o.page, '#forgotMsg');
     await o.fill('#forgotEmail', 'member@example.invalid'); await o.click('#forgotBtn'); await o.wait(250);
-    return { o, hasLink, formShown, focusInForm, msg: (await o.text('#forgotMsg')).trim(), err: (await o.text('#forgotErr')).trim() };
+    return { o, hasLink, formShown, focusInForm, axMsg, msg: (await o.text('#forgotMsg')).trim(), err: (await o.text('#forgotErr')).trim() };
   };
   let f = await forgot();
   T('3a forgot: the sign-in form has a "Forgot password?" control', f.hasLink && /forgot password/i.test(await f.o.text('#forgotLink')));
@@ -539,6 +757,16 @@ async function publicPages(browser, leaks) {
   const sent = f.o.recorded.filter(r => r.url === '/auth/forgot-password');
   T('3a forgot: sends POST /auth/forgot-password with exactly {email}', sent.length === 1 && exactKeys(sent[0].body, ['email']) && sent[0].body.email === 'member@example.invalid');
   T('3a forgot: shows the neutral message', f.msg === NEUTRAL);
+  T('A11Y-3 forgot: the empty status region is in the accessibility tree before the message arrives', f.axMsg.inTree && f.axMsg.role === 'status');
+  // Keyboard: Enter on "Send reset link" while the answer takes 150 ms keeps focus in the modal (A11Y-2).
+  await f.o.page.evaluate(() => { window.__mock.delay = 150; });
+  await f.o.page.focus('#forgotBtn').catch(() => {}); await f.o.page.keyboard.press('Enter');
+  await f.o.wait(50);
+  const fMid = await ev(f.o.page, () => !!document.activeElement && document.activeElement !== document.body && !!document.activeElement.closest('#authModal'));
+  await f.o.wait(400);
+  const fEnd = await ev(f.o.page, () => !!document.activeElement && document.activeElement !== document.body && !!document.activeElement.closest('#authModal'));
+  T('A11Y-2 forgot: focus stays in the modal while "Send reset link" runs and after', fMid === true && fEnd === true);
+  await f.o.page.evaluate(() => { window.__mock.delay = 0; });
   reportAudit('6c a11y landing page (sign-in modal open, forgot form): labels, names, one h1, landmarks, no positive tabindex, alt text', await f.o.page.evaluate(auditPage, 'doc'));
   T('6b landing modal: focus stays inside the open modal on Tab', await (async () => { for (let i = 0; i < 12; i++) await f.o.page.keyboard.press('Tab'); return f.o.page.evaluate(() => !!document.activeElement.closest('#authModal')); })());
   await f.o.page.keyboard.press('Escape'); await f.o.wait(120);
@@ -576,13 +804,14 @@ async function publicPages(browser, leaks) {
   await tl.page.close();
 
   // ── [3e] consent at sign-up (off by default; PR #34 shape when on) ──
-  const signup = async (opts, tick) => {
+  const signup = async (opts, tick, beforeSubmit) => {
     const o = await open('/sol/index.html', opts);
     await o.page.evaluate(() => window.openModal && window.openModal('register'));
     await o.wait(100);
     const box = await o.vis('#regConsent');
     await o.fill('#regName', 'Test Member'); await o.fill('#regEmail', 'new-member@example.invalid'); await o.fill('#regPassword', 'synthetic-pass-1');
     if (tick) await o.page.check('#regConsent', { timeout: 1000 }).catch(() => {});
+    if (beforeSubmit) await o.page.evaluate(beforeSubmit);
     await o.page.click('#regBtn').catch(() => {});
     await o.page.waitForURL(/\/sol\/app$/, { timeout: 2500 }).catch(() => {});
     return { o, box, bodies: o.recorded.filter(r => r.url === '/auth/signup').map(r => r.body) };
@@ -591,20 +820,42 @@ async function publicPages(browser, leaks) {
   T('3e consent off (default): no consent checkbox', !su.box);
   T('3e consent off: the sign-up body is exactly {email, password, full_name}', su.bodies.length === 1 && exactKeys(su.bodies[0], ['email', 'password', 'full_name']));
   await su.o.page.close();
-  const co = await open('/sol/index.html', { consentOn: true });
-  await co.page.evaluate(() => window.openModal && window.openModal('register')); await co.wait(100);
-  T('3e consent on: a required, unticked checkbox', await ev(co.page, () => { const c = document.getElementById('regConsent'); return !!c && c.type === 'checkbox' && c.required === true && c.checked === false && c.offsetParent !== null; }));
-  T('3e consent on: its label links to /terms.html and /privacy.html', await ev(co.page, () => { const l = document.querySelector('label[for="regConsent"]'); return !!l && !!l.querySelector('a[href="/terms.html"]') && !!l.querySelector('a[href="/privacy.html"]'); }));
-  reportAudit('6c a11y landing page (register form, consent on): labels, names, one h1, landmarks, no positive tabindex, alt text', await co.page.evaluate(auditPage, 'doc'));
+  // Switch on. The member agrees to the texts GET /legal/documents returns (C34 api/legal.py:13-16),
+  // the same versions sign-up records; /terms.html and /privacy.html are another product's pages
+  // (frontend/terms.html, frontend/privacy.html) and are never linked (CONTRACT-C2, SECURITY-SEC-3).
+  const co = await open('/sol/index.html', { consentOn: true, flags: { c34: true } });
+  await co.page.evaluate(() => window.openModal && window.openModal('register')); await co.wait(150);
+  T('3e consent on, PR #34: a required, unticked checkbox', await ev(co.page, () => { const c = document.getElementById('regConsent'); return !!c && c.type === 'checkbox' && c.required === true && c.checked === false && c.offsetParent !== null; }));
+  const shownDocs = await ev(co.page, () => [...document.querySelectorAll('#regConsentDocs details')].map(d => ({ title: (d.querySelector('summary') || {}).textContent, text: (d.querySelector('.consent-doc__text') || {}).textContent })));
+  T('C2 consent on, PR #34: the terms, privacy policy and e-sign disclosure are shown with the exact titles and texts of GET /legal/documents', Array.isArray(shownDocs) && JSON.stringify(shownDocs) === JSON.stringify([
+    { title: 'Sol Terms of Service', text: 'SYNTHETIC TERMS TEXT.\n\nSecond paragraph of the synthetic terms.' },
+    { title: 'Sol Privacy Policy', text: 'SYNTHETIC PRIVACY TEXT.' },
+    { title: 'Consent to Electronic Records and Signatures', text: 'SYNTHETIC E-SIGN TEXT.' }]));
+  T('C2 consent on: no link to /terms.html or /privacy.html (another product\'s pages)', await ev(co.page, () => !document.querySelector('#registerForm a[href*="terms.html"], #registerForm a[href*="privacy.html"]')));
+  T('C2 consent on: the checkbox label names the three documents', await ev(co.page, () => { const l = document.querySelector('label[for="regConsent"]'); const t = l ? l.textContent : ''; return /Sol Terms of Service/.test(t) && /Sol Privacy Policy/.test(t) && /Consent to Electronic Records and Signatures/.test(t); }));
+  await co.page.click('#regConsentDocs summary').catch(() => {}); await co.wait(80);
+  reportAudit('6c a11y landing page (register form, consent on, a document open): labels, names, one h1, landmarks, no positive tabindex, alt text', await co.page.evaluate(auditPage, 'doc'));
   await co.page.close();
-  su = await signup({ consentOn: true }, false);
+  su = await signup({ consentOn: true, flags: { c34: true } }, false);
   T('3e consent on: an unticked box blocks sign-up (no request)', su.bodies.length === 0);
   await su.o.page.close();
   su = await signup({ consentOn: true }, true);
+  T('C2 consent on, deployed base (GET /legal/documents 404): no checkbox, since nothing could be recorded', su.box === false);
   T('3e consent on, deployed base (GET /legal/documents 404): sign-up still works with the base body', su.bodies.length === 1 && exactKeys(su.bodies[0], ['email', 'password', 'full_name']));
   await su.o.page.close();
   su = await signup({ consentOn: true, flags: { c34: true } }, true);
   T('3e consent on, PR #34: the body adds accepted_terms_version, accepted_privacy_version and esign_consent', su.bodies.length === 1 && exactKeys(su.bodies[0], ['email', 'password', 'full_name', 'accepted_terms_version', 'accepted_privacy_version', 'esign_consent']) && su.bodies[0].accepted_terms_version === '2026-11-22-draft-1' && su.bodies[0].accepted_privacy_version === '2026-11-22-draft-1' && su.bodies[0].esign_consent === true);
+  await su.o.page.close();
+  // A document changes between showing it and signing up (the e-sign disclosure here: the body has
+  // no version for it, PR #34 records the current one): nothing is sent, the new text is shown and
+  // the member is asked to agree again.
+  su = await signup({ consentOn: true, flags: { c34: true } }, true, () => { window.__mock.versions = { esign: '2026-11-23-draft-2' }; });
+  T('C2 consent on, PR #34: a document that changed before sign-up sends nothing and asks the member to agree again', su.bodies.length === 0 && /changed/i.test(await su.o.text('#regErr')) && await ev(su.o.page, () => document.getElementById('regConsent').checked === false));
+  await su.o.page.check('#regConsent', { timeout: 1000 }).catch(() => {});
+  await su.o.page.click('#regBtn').catch(() => {});
+  await su.o.page.waitForURL(/\/sol\/app$/, { timeout: 2500 }).catch(() => {});
+  const su2 = su.o.recorded.filter(r => r.url === '/auth/signup').map(r => r.body);
+  T('C2 consent on, PR #34: agreeing again then signs up', su2.length === 1 && su2[0].esign_consent === true && su2[0].accepted_terms_version === '2026-11-22-draft-1');
   await su.o.page.close();
   su = await signup({ consentOn: true, flags: { c34: true }, over: { 'POST /auth/signup': { status: 422, body: { detail: { code: 'consent_required', problems: { terms: 'not_current' }, current_versions: { terms: '2026-11-23-draft-2', privacy: '2026-11-22-draft-1', esign: '2026-11-22-draft-1' } } } } } }, true);
   T('3e consent on, PR #34 422 consent_required: a plain message, no raw JSON', /terms|review/i.test(await su.o.text('#regErr')) && !/consent_required|\{"/.test(await su.o.text('#regErr')));
