@@ -21,14 +21,18 @@ const PAY_STATE = {
 function normalizePayment(raw) { return PAY_STATE[raw] || { key: 'UNKNOWN', label: 'Pending review', cls: 'pending', tab: 'processing', desc: "This payment is in an unrecognized state — we're checking on it." }; }
 const PAY_TABS = ['upcoming', 'processing', 'completed', 'failed'];
 
-let payments = { all: [], gmap: {}, tab: 'upcoming', ok: true };
+let payments = { all: [], gmap: {}, tab: 'upcoming', ok: true, payouts: [], payoutsOk: true };
 
 async function loadMyPayments() {
   const el = document.getElementById('paymentsList'); if (!el) return;
   el.innerHTML = paySkeletons(); renderPaySummarySkeleton();
-  const [pr, gr] = await Promise.allSettled([api('/payments/my'), api('/groups')]);
+  const pl = document.getElementById('payoutsList'); if (pl) pl.innerHTML = '<div class="spinner"></div>';
+  // GET /payments/my-payouts: the member's own payouts, read-only (backend api/payments.py:366-397).
+  const [pr, gr, por] = await Promise.allSettled([api('/payments/my'), api('/groups'), api('/payments/my-payouts')]);
   payments.ok = pr.status === 'fulfilled';
   let all = pr.status === 'fulfilled' ? (pr.value || []) : [];
+  payments.payoutsOk = por.status === 'fulfilled' && Array.isArray(por.value);
+  let payouts = payments.payoutsOk ? por.value : [];
   payments.gmap = {};
   if (gr.status === 'fulfilled') {
     const raw = gr.value || [];
@@ -36,10 +40,31 @@ async function loadMyPayments() {
     // Never surface payments that belong to internal test circles.
     const testIds = new Set(raw.filter(isTestCircle).map(g => g.id));
     all = all.filter(p => !testIds.has(p.group_id));
+    payouts = payouts.filter(p => !testIds.has(p.circle_id));
   }
   payments.all = all;
+  payments.payouts = payouts;
   syncPayFromURL();
   renderPayments();
+  renderPayouts();
+}
+
+// Payouts to the member: amount, status and date only (no payout, circle or cycle id in
+// the page). SUCCESS is the only settled state (statusChip: "Settled").
+function renderPayouts() {
+  const el = document.getElementById('payoutsList'); if (!el) return;
+  if (!payments.payoutsOk) { el.innerHTML = `<div class="empty"><p>Couldn't load your payouts.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadMyPayments()">Retry</button></div>`; return; }
+  const list = payments.payouts.slice().sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  if (!list.length) { el.innerHTML = `<div class="empty"><p>No payouts yet. When it's your turn in a circle, your payout shows here.</p></div>`; return; }
+  el.innerHTML = `<ul class="payout-list">${list.map(p => {
+    const g = payments.gmap[p.circle_id];
+    const name = g && g.name ? g.name : 'Circle';
+    const net = Number.isFinite(p.net_cents) ? fmt$(p.net_cents) : '—';
+    const fee = Number.isFinite(p.fee_cents) && p.fee_cents > 0 && Number.isFinite(p.gross_cents) ? `${fmt$(p.gross_cents)} pool, ${fmt$(p.fee_cents)} fee` : '';
+    const when = p.settled_at ? `Settled ${fmtDate(p.settled_at)}` : (p.created_at ? `Started ${fmtDate(p.created_at)}` : '');
+    return `<li class="payout-row"><div class="payout-row__lead"><span class="payout-row__amt tnum">${net}</span><span class="payout-row__meta">${esc(name)}${fee ? ' · ' + fee : ''}</span></div>
+      <div class="payout-row__end">${statusChip(p.status)}<span class="payout-row__date">${esc(when)}</span></div></li>`;
+  }).join('')}</ul>`;
 }
 
 function payCircleName(p) { const g = payments.gmap[p.group_id]; return g && g.name ? g.name : 'Circle'; }
