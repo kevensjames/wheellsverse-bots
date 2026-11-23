@@ -66,6 +66,16 @@
   </nav>
 </header>
 
+<!-- Mobile bottom nav (hidden on desktop via media query). It comes before <main> in the DOM,
+     so Tab reaches it before the page content; CSS keeps it fixed at the bottom of the screen. -->
+<nav class="mobile-nav" id="mobileNav" aria-label="Primary mobile">
+  <button type="button" class="mn active" data-mpage="dashboard" onclick="nav('dashboard')" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#ic-dashboard"/></svg>Home</button>
+  <button type="button" class="mn" data-mpage="groups" onclick="nav('groups')"><svg class="ic" aria-hidden="true"><use href="#ic-circles"/></svg>Circles</button>
+  <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><svg class="ic" aria-hidden="true"><use href="#ic-payments"/></svg>Pay</button>
+  <button type="button" class="mn" data-mpage="notifications" onclick="nav('notifications')"><svg class="ic" aria-hidden="true"><use href="#ic-alerts"/></svg>Alerts</button>
+  <button type="button" class="mn" onclick="openMore()" aria-haspopup="dialog" aria-controls="moreSheet"><svg class="ic" aria-hidden="true"><use href="#ic-menu"/></svg>More</button>
+</nav>
+
 <main class="main" id="main" tabindex="-1">
   <!-- Dashboard -->
   <div class="page active" id="page-dashboard">
@@ -614,15 +624,6 @@
     </div>
   </div>
 </main>
-
-<!-- Mobile bottom nav (hidden on desktop via media query) -->
-<nav class="mobile-nav" id="mobileNav" aria-label="Primary mobile">
-  <button type="button" class="mn active" data-mpage="dashboard" onclick="nav('dashboard')" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#ic-dashboard"/></svg>Home</button>
-  <button type="button" class="mn" data-mpage="groups" onclick="nav('groups')"><svg class="ic" aria-hidden="true"><use href="#ic-circles"/></svg>Circles</button>
-  <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><svg class="ic" aria-hidden="true"><use href="#ic-payments"/></svg>Pay</button>
-  <button type="button" class="mn" data-mpage="notifications" onclick="nav('notifications')"><svg class="ic" aria-hidden="true"><use href="#ic-alerts"/></svg>Alerts</button>
-  <button type="button" class="mn" onclick="openMore()" aria-haspopup="dialog" aria-controls="moreSheet"><svg class="ic" aria-hidden="true"><use href="#ic-menu"/></svg>More</button>
-</nav>
 
 <!-- Mobile "More" sheet: secondary destinations -->
 <div class="more-sheet-backdrop" id="moreSheet" role="dialog" aria-modal="true" aria-label="More destinations" aria-hidden="true" onclick="if(event.target===this)closeMore()">

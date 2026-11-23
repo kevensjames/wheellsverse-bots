@@ -160,7 +160,13 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   .circles-filters__panel{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;border-radius:1rem 1rem 0 0;box-shadow:0 -8px 32px rgba(14,23,38,.18)}
 }
 @media(max-width:640px){
-  .sidebar{display:none}
+  /* Phones: the sidebar header becomes a small bar at the top (the page's banner landmark)
+     showing only the logo; the bottom nav (#mobileNav) takes the place of its nav. */
+  body{flex-direction:column}
+  .sidebar{width:auto;min-height:0;flex-direction:row;align-items:center;padding:.6rem 1rem;border-right:none;border-bottom:1px solid var(--line)}
+  .sidebar .user-info,.sidebar .nav-groups{display:none}
+  .sidebar .logo-wrap{padding:0}
+  .sidebar .logo-wrap img{height:26px;display:block}
   .main{padding:1rem;padding-bottom:5rem}
   .mobile-nav{display:flex}
   h1{font-size:1.2rem}
