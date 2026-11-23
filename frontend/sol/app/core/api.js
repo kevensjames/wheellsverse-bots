@@ -33,6 +33,10 @@ async function api(path, opts = {}) {
     if (refreshed) {
       return api(path, { ...opts, _retry: true });
     }
+    // Signing out (core/router.js logout()): let it finish revoking and redirect.
+    // Navigating away here first would cancel its revoke request. (During a
+    // sign-out _tryRefresh() always returns false: the refresh token is gone.)
+    if (_logoutPromise) { await _logoutPromise; throw new Error('Signed out'); }
     localStorage.removeItem('sol_token');
     localStorage.removeItem('sol_refresh');
     window.location.href = '/sol/';
@@ -52,6 +56,7 @@ async function _tryRefresh() {
   if (!refresh) return false;
   // Dedupe concurrent 401s so we don't rotate the refresh token multiple times.
   if (_refreshPromise) return _refreshPromise;
+  const epoch = _authEpoch;
   _refreshPromise = (async () => {
     try {
       const r = await fetch(API + '/auth/refresh', {
@@ -61,6 +66,12 @@ async function _tryRefresh() {
       });
       if (!r.ok) return false;
       const d = await r.json();
+      if (epoch !== _authEpoch) {
+        // Signed out while this refresh was in flight: keep the tab signed out
+        // and revoke the session the server just created.
+        await _revokeRefresh(d && d.refresh_token);
+        return false;
+      }
       localStorage.setItem('sol_token', d.access_token);
       localStorage.setItem('sol_refresh', d.refresh_token);
       token = d.access_token;
