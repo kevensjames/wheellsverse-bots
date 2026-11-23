@@ -706,7 +706,9 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .set-value{font-weight:600;word-break:break-all}
 .set-inline{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin:.6rem 0}
 .set-na{font-size:.85rem;color:var(--ink-700);margin:.5rem 0}
-.set-na:empty{display:none}
+/* Empty, but still rendered: a polite status region that is display:none is not in the
+   accessibility tree when its message arrives, so screen readers may never read it. */
+.set-na:empty{margin:0}
 .set-check{display:flex;align-items:flex-start;gap:.55rem}
 .set-check input{width:1.1rem;height:1.1rem;margin-top:.15rem;flex-shrink:0}
 .set-check label{font-size:.9rem}

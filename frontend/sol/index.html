@@ -116,7 +116,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 .link-btn{background:none;border:0;padding:0;font:inherit;font-size:.85rem;color:var(--sol-700);text-decoration:underline;cursor:pointer}
 .form-note{color:var(--ink-700);font-size:.9rem;margin:-.25rem 0 1rem}
 .ok-note{color:var(--ink-900);background:var(--sol-50);border:1px solid var(--sol-200);border-radius:var(--r-md);padding:.6rem .75rem;font-size:.85rem;margin-bottom:.75rem}
-.ok-note:empty{display:none}
+.ok-note:empty{padding:0;border:0;margin:0}   /* rendered while empty: a status region must be in the accessibility tree before its message */
 .forgot-row{margin:-.4rem 0 1rem}
 .consent-field{font-size:.85rem;color:var(--ink-800)}
 .consent-field[hidden]{display:none}
