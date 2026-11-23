@@ -294,7 +294,7 @@ async function memberPages(page) {
   T('3d settings: the sidebar has a Settings entry, marked current', await ev(page, () => { const n = document.querySelector('.nav-item[data-page="settings"]'); return !!n && n.getAttribute('aria-current') === 'page'; }));
   T('3d settings: the mobile More sheet lists Settings', await ev(page, () => [...document.querySelectorAll('#moreSheet .more-item')].some(b => /settings/i.test(b.textContent))));
   // Profile: PATCH /account/profile {full_name} (BASE api/account.py:72-84).
-  T('3d profile: the display name is prefilled', (await page.inputValue('#setName', { timeout: 1000 }).catch(() => null)) === 'Test User');
+  T('3d profile: the name is prefilled', (await page.inputValue('#setName', { timeout: 1000 }).catch(() => null)) === 'Test User');
   // full_name is the name the backend sends to the ID check (BASE services/kyc.py:33) and to the
   // bank provider when the first bank is linked (BASE services/bank.py:110-114) (SECURITY-SEC-4).
   T('SEC-4 profile: the name field is labelled as the full legal name', /full legal name/i.test(await text('label[for="setName"]')) && !/display name/i.test(await text('#setProfile')));

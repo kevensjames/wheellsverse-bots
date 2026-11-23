@@ -71,8 +71,9 @@ function renderSettings() {
   body.innerHTML = `
     <section class="set-card" id="setProfile" aria-labelledby="setProfileH">
       <h2 id="setProfileH">Profile</h2>
-      <div class="field"><label for="setName">Display name</label>
-        <input id="setName" class="input" type="text" maxlength="255" autocomplete="name" value="${esc(m.full_name || '')}"></div>
+      <div class="field"><label for="setName">Full legal name</label>
+        <input id="setName" class="input" type="text" maxlength="255" autocomplete="name" aria-describedby="setNameHelp" value="${esc(m.full_name || '')}"></div>
+      <p class="hint-muted" id="setNameHelp">Use your full legal name. We use it for your ID check and when you link a bank account.</p>
       <p class="err" id="setNameErr" role="alert" style="display:none"></p>
       <p class="set-na" id="setNameNote" style="display:none"></p>
       <button type="button" class="btn btn-primary btn--sm" id="setNameSave" onclick="saveDisplayName()">Save name</button>
@@ -134,6 +135,8 @@ function renderSettings() {
 }
 
 // ── Profile ───────────────────────────────────────────────────────────────────
+// full_name is the legal name the backend sends to the ID check (BASE services/kyc.py:33) and,
+// at the first bank link, to the bank provider's customer record (BASE services/bank.py:110-114).
 async function saveDisplayName() {
   const input = document.getElementById('setName');
   if (!input) return;
