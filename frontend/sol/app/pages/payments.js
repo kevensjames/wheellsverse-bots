@@ -50,7 +50,10 @@ async function loadMyPayments() {
 }
 
 // Payouts to the member: amount, status and date only (no payout, circle or cycle id in
-// the page). SUCCESS is the only settled state (statusChip: "Settled").
+// the page). The settled states are SETTLED (settlement-gated flow) and SUCCESS (legacy flow)
+// (backend models/payout.py:24-36; statusChip: "Settled"). Only they read "Settled <date>": a
+// RETURNED, REVERSED or MANUAL_REVIEW payout keeps its settled_at but is not settled any more.
+const PAYOUT_SETTLED_STATES = ['SETTLED', 'SUCCESS'];
 function renderPayouts() {
   const el = document.getElementById('payoutsList'); if (!el) return;
   if (!payments.payoutsOk) { el.innerHTML = `<div class="empty"><p>Couldn't load your payouts.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadMyPayments()">Retry</button></div>`; return; }
@@ -61,7 +64,8 @@ function renderPayouts() {
     const name = g && g.name ? g.name : 'Circle';
     const net = Number.isFinite(p.net_cents) ? fmt$(p.net_cents) : '—';
     const fee = Number.isFinite(p.fee_cents) && p.fee_cents > 0 && Number.isFinite(p.gross_cents) ? `${fmt$(p.gross_cents)} pool, ${fmt$(p.fee_cents)} fee` : '';
-    const when = p.settled_at ? `Settled ${fmtDate(p.settled_at)}` : (p.created_at ? `Started ${fmtDate(p.created_at)}` : '');
+    const settled = PAYOUT_SETTLED_STATES.includes(String(p.status || '').toUpperCase());
+    const when = settled && p.settled_at ? `Settled ${fmtDate(p.settled_at)}` : (p.created_at ? `Started ${fmtDate(p.created_at)}` : '');
     return `<li class="payout-row"><div class="payout-row__lead"><span class="payout-row__amt tnum">${net}</span><span class="payout-row__meta">${esc(name)}${fee ? ' · ' + fee : ''}</span></div>
       <div class="payout-row__end">${statusChip(p.status)}<span class="payout-row__date">${esc(when)}</span></div></li>`;
   }).join('')}</ul>`;
