@@ -138,6 +138,7 @@ async function main() {
   await publicPages(browser, leaks);
   await appShell(browser, leaks);
   await codesLeaveGuard(browser, leaks);
+  await codesUnderModal(browser, leaks);
   await phoneFilters(browser, leaks);
   await keyboardPolish(browser, leaks);
   // Secrets shown on the Settings page (2FA secret, backup codes) never reach the console.
@@ -1174,6 +1175,155 @@ async function codesLeaveGuard(browser, leaks) {
   await t.page.waitForURL(/\/sol\/$/, { timeout: 5000 }).catch(() => {});
   T('R3-C1 real Chromium: a sign-out while codes wait does not ask: the existing logout() sends one POST /auth/logout, then the sign-in page',
     t.waiting === true && t.dialogs.length === 0 && t.recorded.filter(r => r.url === '/auth/logout' && r.method === 'POST').length === 1 && /\/sol\/$/.test(t.page.url()));
+  await t.ctx.close();
+}
+
+// R3-PHONE-1 (round 3 fixer; PHONE-A11Y-R3-PHONE-1, SECURITY-SEC-R3-1), at 390x844 with touch, each
+// run in its own context. New backup codes, or the codes from turning two-factor on, answered (1.2 s
+// late) while something covers the Settings page: the phone More sheet, the first-run guide, or a
+// hidden tab. The codes are drawn on Settings under it, where the member cannot see them, so this is
+// not their one showing: nothing is announced, focus stays where the member is, and a reload asks
+// first. The sheet or guide closing back onto Settings (or the tab shown again) is their showing:
+// announced then, with focus on them. Another page chosen in the sheet: the notice says the codes
+// wait, and the next Settings visit shows them, once; Settings chosen in the sheet shows them on
+// that visit. Every text #settingsLive takes is logged, with whether it came while covered.
+async function codesUnderModal(browser, leaks) {
+  const KIND = {
+    regen: { notice: 'Your new backup codes are ready. Open Settings to see and save them.', say: 'new backup codes are ready', code: '9f8e-7d6c-5b' },
+    on: { notice: 'Two-factor sign-in is on. Your backup codes are ready. Open Settings to see and save them.', say: 'two-factor sign-in is on', code: 'a1b2-c3d4-e5' },
+  };
+  // Settings, the request sent with its answer 1.2 s late; then `cover(page)` covers Settings before
+  // the answer lands, and the run waits until it has landed (`landed`, by default the 10 codes).
+  const run = async (kind, cover, landed = () => Array.isArray(setState.codes) && setState.codes.length === 10) => {
+    const ctx = await safeContext(browser, leaks, { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true });
+    const page = await ctx.newPage();
+    const perrs = [];
+    page.on('pageerror', e => perrs.push(String(e)));
+    await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+    await page.evaluate(on => {
+      try { localStorage.setItem('sol_guide_seen:' + SEED.user.id, '1'); } catch (e) {}
+      if (window.SolDialog.isOpen('guideDialog')) window.SolDialog.close('guideDialog');
+      SEED.user.totp_enabled = on; SEED.user.totp_backup_codes_remaining = on ? 2 : 0; window.nav('settings');
+    }, kind === 'regen');
+    await page.waitForTimeout(500);
+    await page.evaluate(() => {
+      window.__live = [];
+      const el = document.getElementById('settingsLive');
+      new MutationObserver(() => {
+        const t = el.textContent.trim();
+        if (t) window.__live.push({ t, covered: !!document.querySelector('[aria-modal="true"].open, [aria-modal="true"].is-open') || document.visibilityState === 'hidden' });
+      }).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+    const tap = sel => page.tap(sel, { timeout: 2000 }).then(() => true, () => false);
+    if (kind === 'regen') {
+      await tap('#set2faNewCodes'); await page.waitForTimeout(200);
+      await page.fill('#set2faRegenPw', 'synthetic-password', { timeout: 2000 }).catch(() => {});
+      await page.fill('#set2faRegenCode', '123456', { timeout: 2000 }).catch(() => {});
+      await page.evaluate(() => { window.__mock.delay = 1200; });
+      await tap('#set2faRegenGo');
+    } else {
+      await tap('#set2faStart'); await page.waitForTimeout(300);
+      await page.fill('#set2faCode', '123456', { timeout: 2000 }).catch(() => {});
+      await page.evaluate(() => { window.__mock.delay = 1200; });
+      await tap('#set2faConfirm');
+    }
+    await page.waitForTimeout(100);
+    await page.evaluate(() => { window.__mock.delay = 0; });
+    await cover(page, tap);
+    for (let i = 0; i < 60 && !(await ev(page, landed)); i++) await page.waitForTimeout(50);
+    await page.waitForTimeout(300);
+    return { ctx, page, perrs, tap };
+  };
+  const moreSheet = async (page, tap) => { await tap('#mobileNav [aria-controls="moreSheet"]'); await page.waitForTimeout(450); };
+  const codeCount = page => ev(page, () => document.querySelectorAll('#set2faCodes li').length);
+  const unload = page => ev(page, () => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented ? 'armed' : 'not armed'; });
+  const noticeText = page => ev(page, () => document.getElementById('codesNoticeText').textContent.trim());
+  const noticeShown = async (page, text) => (await noticeText(page)) === text && await ev(page, () => { const b = document.getElementById('codesNoticeOpen'); return !b.hidden && b.getBoundingClientRect().height > 0; });
+  const noticeGone = async page => (await noticeText(page)) === '' && await ev(page, () => document.getElementById('codesNoticeOpen').hidden);
+  const focusOn = (page, id) => ev(page, i => !!document.activeElement && document.activeElement.id === i, id);
+  const liveLog = async page => (await ev(page, () => window.__live.slice())) || [];
+  // Announced once, and not while covered.
+  const announcedOnce = async (page, say) => { const l = await liveLog(page); return l.length === 1 && !l[0].covered && new RegExp(say, 'i').test(l[0].t); };
+  // While covered: the codes are in page memory and drawn under the cover; nothing is announced;
+  // focus is where the member is (in the sheet or guide, not behind it); a reload asks first.
+  const coveredState = (page, inside) => ev(page, sel => {
+    const a = document.activeElement, list = document.getElementById('set2faCodes');
+    return { arrived: Array.isArray(setState.codes) && setState.codes.length === 10, drawn: !!list && list.children.length === 10,
+      focusInside: sel ? !!(a && a.closest(sel)) : !(a && a.closest('#page-settings')), announced: window.__live.length };
+  }, inside);
+  const covered = async (page, inside) => { const s = await coveredState(page, inside); return !!s && s.arrived && s.drawn && s.focusInside && s.announced === 0 && (await unload(page)) === 'armed'; };
+  const nextVisit = async page => { await page.evaluate(() => window.nav('dashboard')); await page.waitForTimeout(300); await page.evaluate(() => window.nav('settings')); await page.waitForTimeout(600); return codeCount(page); };
+
+  for (const kind of ['regen', 'on']) {
+    const k = KIND[kind], label = kind === 'regen' ? 'new codes' : 'turning two-factor on';
+    // The More sheet, then another page chosen in it.
+    let t = await run(kind, moreSheet);
+    T(`R3-PHONE-1 ${label}, answered while the More sheet is open: the codes wait under it; nothing is announced, focus stays in the sheet, and a reload asks first`,
+      await ev(t.page, () => window.SolDialog.isOpen('moreSheet')) && await covered(t.page, '#moreSheet'));
+    await t.tap('#moreSheet .more-item:has-text("Goals")'); await t.page.waitForTimeout(500);
+    T(`R3-PHONE-1 ${label}, then Goals chosen in the sheet: Goals shows the notice "${k.notice}" with "Open Settings", and a reload asks first`,
+      await ev(t.page, () => document.getElementById('page-goals').classList.contains('active')) && await noticeShown(t.page, k.notice) && (await unload(t.page)) === 'armed');
+    await t.tap('#codesNoticeOpen'); await t.page.waitForTimeout(700);
+    T(`R3-PHONE-1 ${label}, then "Open Settings": the 10 codes are shown, announced once (not while covered), with focus on them; the notice is gone and a reload no longer asks`,
+      (await codeCount(t.page)) === 10 && new RegExp(k.code).test(await ev(t.page, () => document.getElementById('set2faCodes').textContent))
+      && await announcedOnce(t.page, k.say) && await focusOn(t.page, 'set2faCodesH') && await noticeGone(t.page) && (await unload(t.page)) === 'not armed');
+    T(`R3-PHONE-1 ${label}: shown once: the next Settings visit does not show them`, (await nextVisit(t.page)) === 0);
+    T(`R3-PHONE-1 ${label}, More sheet then Goals: no page errors`, t.perrs.length === 0);
+    await t.ctx.close();
+
+    // The More sheet closing back onto Settings (regen: Escape; turning on: a tap on the backdrop).
+    t = await run(kind, moreSheet);
+    const coveredFirst = await covered(t.page, '#moreSheet');
+    if (kind === 'regen') await t.page.keyboard.press('Escape');
+    else await t.page.touchscreen.tap(195, 60);
+    await t.page.waitForTimeout(500);
+    T(`R3-PHONE-1 ${label}, the More sheet closed back onto Settings (${kind === 'regen' ? 'Escape' : 'a tap outside it'}): that is their showing: the 10 codes, announced once the sheet is closed, focus on them; no notice, and a reload no longer asks`,
+      coveredFirst && await ev(t.page, () => !window.SolDialog.isOpen('moreSheet') && document.getElementById('page-settings').classList.contains('active'))
+      && (await codeCount(t.page)) === 10 && await announcedOnce(t.page, k.say) && await focusOn(t.page, 'set2faCodesH') && await noticeGone(t.page) && (await unload(t.page)) === 'not armed');
+    T(`R3-PHONE-1 ${label}, sheet closed onto Settings: shown once: the next Settings visit does not show them`, (await nextVisit(t.page)) === 0);
+    await t.ctx.close();
+
+    // Settings chosen in the More sheet: a new Settings visit, which must not drop the waiting codes.
+    t = await run(kind, moreSheet);
+    const coveredToo = await covered(t.page, '#moreSheet');
+    await t.tap('#moreSheet .more-item:has-text("Settings")'); await t.page.waitForTimeout(700);
+    T(`R3-PHONE-1 ${label}, Settings chosen in the sheet: that visit shows the 10 codes, announces them once and moves focus to them`,
+      coveredToo && (await codeCount(t.page)) === 10 && await announcedOnce(t.page, k.say) && await focusOn(t.page, 'set2faCodesH') && (await unload(t.page)) === 'not armed');
+    T(`R3-PHONE-1 ${label}, Settings chosen in the sheet: shown once: the next Settings visit does not show them`, (await nextVisit(t.page)) === 0);
+    await t.ctx.close();
+  }
+
+  // Any modal over Settings counts: the first-run guide ("Show the guide"), then its close button.
+  let t = await run('regen', async (page, tap) => { await tap('#setGuide'); await page.waitForTimeout(300); });
+  T('R3-PHONE-1 new codes, answered while the first-run guide is open over Settings: the codes wait under it; nothing is announced, focus stays in the guide, and a reload asks first',
+    await ev(t.page, () => window.SolDialog.isOpen('guideDialog')) && await covered(t.page, '#guideDialog'));
+  await t.tap('#guideClose'); await t.page.waitForTimeout(500);
+  T('R3-PHONE-1 new codes, the guide closed back onto Settings: the 10 codes are shown, announced once the guide is closed, with focus on them; a reload no longer asks',
+    (await codeCount(t.page)) === 10 && await announcedOnce(t.page, KIND.regen.say) && await focusOn(t.page, 'set2faCodesH') && (await unload(t.page)) === 'not armed');
+  await t.ctx.close();
+
+  // A hidden tab (the member switched tabs or apps before the answer): shown when the tab is shown again.
+  const setHidden = (page, hidden) => page.evaluate(h => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (h ? 'hidden' : 'visible') });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => h });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, hidden);
+  t = await run('regen', async page => { await setHidden(page, true); });
+  T('R3-PHONE-1 new codes, answered while the tab is hidden: the codes wait; nothing is announced and a reload asks first',
+    await covered(t.page, null));
+  await setHidden(t.page, false); await t.page.waitForTimeout(300);
+  T('R3-PHONE-1 new codes, the tab shown again on Settings: the 10 codes are shown, announced once, with focus on them; a reload no longer asks',
+    (await codeCount(t.page)) === 10 && await announcedOnce(t.page, KIND.regen.say) && await focusOn(t.page, 'set2faCodesH') && (await unload(t.page)) === 'not armed');
+  T('R3-PHONE-1 the codes are never stored or put in the address bar', await ev(t.page, s => { const all = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + location.href + JSON.stringify(history.state); return !s.some(x => all.includes(x)); }, SECRETS));
+  await t.ctx.close();
+
+  // Not only the codes: an error answered while the More sheet is open (a wrong code when turning
+  // two-factor on, 401 "Invalid code") is shown on Settings, and focus stays in the sheet.
+  t = await run('on', async (page, tap) => { await page.evaluate(() => window.__mockSet('POST /auth/2fa/activate', 401, { detail: 'Invalid code' })); await moreSheet(page, tap); },
+    () => /code did not work/i.test(document.getElementById('set2faErr').textContent));
+  T('R3-PHONE-1 turning two-factor on, a wrong code answered while the More sheet is open: the error is on Settings, no codes, and focus stays in the sheet',
+    await ev(t.page, () => window.SolDialog.isOpen('moreSheet') && /code did not work/i.test(document.getElementById('set2faErr').textContent) && !setState.codes
+      && !!document.activeElement && !!document.activeElement.closest('#moreSheet')));
   await t.ctx.close();
 }
 
