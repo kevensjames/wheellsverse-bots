@@ -209,6 +209,9 @@ function mockBlock() {
   return `
 <script>
 // ── Enriched mock backend (test harness — NOT committed) ──────────────────────
+// Every load starts from a clean browser: a pair an earlier run stored after a refresh
+// (with its commit tag) must not outlive a reload of the harness.
+localStorage.clear();
 localStorage.setItem('sol_token','boot-test-token');
 localStorage.setItem('sol_refresh','r');
 const SEED = ${JSON.stringify(seed())};
