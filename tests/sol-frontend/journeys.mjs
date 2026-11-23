@@ -137,6 +137,7 @@ async function main() {
   await guideStorageBlocked(browser, leaks);
   await publicPages(browser, leaks);
   await appShell(browser, leaks);
+  await codesLeaveGuard(browser, leaks);
   // Secrets shown on the Settings page (2FA secret, backup codes) never reach the console.
   T('no 2FA secret or backup code in the console', !allConsole.some(t => SECRETS.some(x => t.includes(x))));
   T('no console errors', consoleErrors.length === 0);
@@ -523,11 +524,17 @@ async function memberPages(page) {
   T('SEC-R2-1 new codes, back in Settings: the 10 new codes are shown with the copy button and the warning, and the old codes are said to no longer work',
     (await codeCount()) === 10 && /9f8e-7d6c-5b/.test(await text('#set2faCodes')) && await vis('#set2faCopyCodes') && /(store|save|keep).{0,40}(safe|somewhere)/i.test(await text('#setTwoFactor')) && /old (backup )?codes no longer work/i.test(await text('#setTwoFactor')));
   T('SEC-R2-1 new codes, back in Settings: they are announced then, and focus moves to them', await announcedOnScreen('new backup codes are ready') && await ev(page, () => !!document.activeElement && document.activeElement.id === 'set2faCodesH'));
+  // Round 3 (R3-C1): this visit is their one showing, so the warning says they are shown once,
+  // and the next visit does not show them again.
+  T('SEC-R2-1 new codes: the warning says the codes are shown only once ("You will see these codes only once. Save them now.")',
+    (await codeCount()) === 10 && /You will see these codes only once\. Save them now\./.test(await text('#setTwoFactor')));
   await page.evaluate(() => window.nav('dashboard')); await wait(300);
   await page.evaluate(() => window.nav('settings')); await wait(400);
-  T('SEC-R2-1 new codes: leaving Settings and coming back before "I saved my codes" still shows them', (await codeCount()) === 10 && /9f8e-7d6c-5b/.test(await text('#set2faCodes')));
-  T('SEC-R2-1 new codes: the warning says they are not shown again once the member chooses "I saved my codes" (not "never again" while they still are)',
-    (await codeCount()) === 10 && await (async t => !/not see them again/i.test(t) || /saved my codes.{0,40}not see them again/i.test(t))(await text('#setTwoFactor')));
+  T('SEC-R2-1 new codes: once shown, leaving Settings and coming back before "I saved my codes" does not show them again; 10 codes left',
+    (await codeCount()) === 0 && await ev(page, () => !document.getElementById('page-settings').innerHTML.includes('9f8e-7d6c-5b') && setState.codes === null) && /backup codes left: 10/i.test(await text('#setTwoFactor')));
+  // "I saved my codes" still drops them at once: new codes on screen, saved, then the next visit.
+  await click('#set2faNewCodes'); await wait(120);
+  await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456'); await click('#set2faRegenGo'); await wait(300);
   await click('#set2faSaved'); await wait(150);
   await page.evaluate(() => window.nav('dashboard')); await wait(300);
   await page.evaluate(() => window.nav('settings')); await wait(400);
@@ -559,6 +566,113 @@ async function memberPages(page) {
   T('SEC-R2-1 codes waiting, two-factor turned off elsewhere: the next visit reads Off and the codes are gone from the page',
     (await text('#set2faState')).trim() === 'Off' && (await codeCount()) === 0 && await ev(page, () => !document.getElementById('page-settings').innerHTML.includes('a1b2-c3d4-e5')));
   T('SEC-R2-1 the codes are never stored or put in the address bar', await ev(page, s => { const all = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + location.href + JSON.stringify(history.state); return !s.some(x => all.includes(x)); }, SECRETS));
+  await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; });
+
+  // ── R3-C1: backup codes are shown once. Codes drawn on the Settings page while it is on screen
+  // (the member saw them) are dropped on the next Settings visit; "I saved my codes" drops them at
+  // once, with the line about other devices. Codes answered while the member is on another page
+  // wait, in page memory only, for their first showing on Settings. Meanwhile a notice above every
+  // member page (a polite status region whose text is set once) says so, with a button that opens
+  // Settings, and a reload or tab close asks first (beforeunload). Every text the notice's status
+  // region takes is logged. ──
+  const noticeLive = () => page.evaluate(() => {
+    window.__noticeLive = [];
+    const el = document.getElementById('codesNoticeText');
+    if (el && !window.__noticeLiveOn) {
+      window.__noticeLiveOn = true;
+      new MutationObserver(() => { const t = el.textContent.trim(); if (t) window.__noticeLive.push(t); }).observe(el, { childList: true, characterData: true, subtree: true });
+    }
+  });
+  const noticeLog = async () => (await ev(page, () => window.__noticeLive.slice())) || [];
+  const NOTICE_NEW = 'Your new backup codes are ready. Open Settings to see and save them.';
+  const NOTICE_ON = 'Two-factor sign-in is on. Your backup codes are ready. Open Settings to see and save them.';
+  const noticeText = async () => (await text('#codesNoticeText')).trim();
+  const noticeOn = async () => await vis('#codesNoticeOpen') && /^open settings$/i.test((await text('#codesNoticeOpen')).trim());
+  const noticeGone = async () => !(await vis('#codesNoticeOpen')) && (await noticeText()) === '' && await ev(page, () => { const n = document.getElementById('codesNotice'); return !n || n.getBoundingClientRect().height === 0; });
+  // A beforeunload listener that asks first cancels the event: 'armed', else 'not armed'.
+  const unload = () => ev(page, () => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented ? 'armed' : 'not armed'; });
+  const codesGone = code => ev(page, c => !document.getElementById('page-settings').innerHTML.includes(c) && setState.codes === null, code);
+  // New codes answered on screen: seen there, so the next visit does not show them.
+  await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = true; SEED.user.totp_backup_codes_remaining = 2; setState.regenNA = false; window.nav('settings'); }); await wait(300);
+  T('R3-C1 nothing waits: no notice, its empty status region is in the accessibility tree, and a reload does not ask first',
+    await noticeGone() && await (async a => a.inTree && a.role === 'status')(await axNode(page, '#codesNoticeText')) && await ev(page, () => document.getElementById('codesNoticeText').getAttribute('aria-live') === 'polite') && (await unload()) === 'not armed');
+  await click('#set2faNewCodes'); await wait(120);
+  await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456'); await click('#set2faRegenGo'); await wait(300);
+  T('R3-C1 new codes answered on screen: shown, with no notice and no beforeunload guard', (await codeCount()) === 10 && await noticeGone() && (await unload()) === 'not armed');
+  await page.evaluate(() => window.nav('dashboard')); await wait(300);
+  await page.evaluate(() => window.nav('settings')); await wait(400);
+  T('R3-C1 new codes seen on Settings: the next visit does not show them (no "I saved my codes"); 10 codes left and "Get new backup codes" is offered',
+    (await codeCount()) === 0 && await codesGone('9f8e-7d6c-5b') && /backup codes left: 10/i.test(await text('#setTwoFactor')) && await vis('#set2faNewCodes'));
+  // Turning two-factor on, on screen: the same; the warning says the codes are shown once.
+  await page.evaluate(() => { SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; window.nav('settings'); }); await wait(300);
+  await click('#set2faStart'); await wait(250);
+  await fill('#set2faCode', '123456'); await click('#set2faConfirm'); await wait(300);
+  T('R3-C1 turning two-factor on: the warning says "You will see these codes only once. Save them now." and the copy button stays',
+    (await codeCount()) === 10 && /You will see these codes only once\. Save them now\./.test(await text('#setTwoFactor')) && await vis('#set2faCopyCodes'));
+  await page.evaluate(() => window.nav('dashboard')); await wait(300);
+  await page.evaluate(() => window.nav('settings')); await wait(400);
+  T('R3-C1 turning two-factor on: codes seen on Settings do not come back on the next visit; it reads On',
+    (await codeCount()) === 0 && await codesGone('a1b2-c3d4-e5') && (await text('#set2faState')).trim() === 'On');
+  // "I saved my codes" removes the line about other devices with the codes (it belongs to turning on).
+  await page.evaluate(() => { SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; window.nav('settings'); }); await wait(300);
+  await click('#set2faStart'); await wait(250);
+  await fill('#set2faCode', '123456'); await click('#set2faConfirm'); await wait(300);
+  const devicesLine = /other devices may need to sign in again/i.test(await text('#setTwoFactor'));
+  await click('#set2faSaved'); await wait(150);
+  T('R3-C1 turning two-factor on: "I saved my codes" removes the codes and the "other devices" line with them; focus on the two-factor heading',
+    devicesLine && (await codeCount()) === 0 && !/other devices may need to sign in again/i.test(await text('#setTwoFactor')) && await ev(page, () => !!document.activeElement && document.activeElement.id === 'setTwoFactorH'));
+  // A Retry on the same visit (a section did not load) is not a new visit: the codes on screen stay.
+  await page.evaluate(() => { window.__mockSet('GET /account/settings', 500, { detail: 'Internal Server Error' }); window.nav('settings'); }); await wait(300);
+  await click('#set2faNewCodes'); await wait(120);
+  await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456'); await click('#set2faRegenGo'); await wait(300);
+  const beforeRetry = await codeCount();
+  await click('#setNotifBody button'); await wait(400);
+  T('R3-C1 "Retry" on the same Settings visit (notification settings did not load) keeps the codes on screen', beforeRetry === 10 && (await codeCount()) === 10);
+  await click('#set2faSaved'); await wait(150);
+  // New codes answered while the member is on another page: the notice, once; beforeunload; Open Settings.
+  await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = true; SEED.user.totp_backup_codes_remaining = 2; window.nav('settings'); }); await wait(300);
+  await click('#set2faNewCodes'); await wait(120);
+  await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456');
+  await settingsLive(); await noticeLive(); await clearReqs();
+  await page.evaluate(() => { window.__mock.delay = 600; });
+  await click('#set2faRegenGo'); await wait(100);
+  await page.evaluate(() => window.nav('dashboard'));
+  await answered('/auth/2fa/backup-codes/regenerate');
+  await page.evaluate(() => { window.__mock.delay = 0; });
+  T('R3-C1 new codes answered while away: the dashboard shows "' + NOTICE_NEW + '" with an "Open Settings" button',
+    regenPosts(await reqs()) === 1 && await ev(page, () => document.getElementById('page-dashboard').classList.contains('active')) && (await noticeText()) === NOTICE_NEW && await noticeOn());
+  T('R3-C1 the notice is announced once, in its polite status region', JSON.stringify(await noticeLog()) === JSON.stringify([NOTICE_NEW]));
+  T('R3-C1 while the codes wait, a reload or tab close asks first (beforeunload)', (await unload()) === 'armed');
+  const onPages = [];
+  for (const p of ['payments', 'goals']) { await page.evaluate(x => window.nav(x), p); await wait(300); if (await noticeOn() && (await noticeText()) === NOTICE_NEW) onPages.push(p); }
+  T('R3-C1 the notice stays on the other member pages (Payments, Goals) while the codes wait, and is not announced again', onPages.join() === 'payments,goals' && (await noticeLog()).length === 1);
+  await click('#codesNoticeOpen'); await wait(400);
+  T('R3-C1 "Open Settings" opens Settings, which shows the 10 new codes, announces them and moves focus to them',
+    await ev(page, () => document.getElementById('page-settings').classList.contains('active')) && (await codeCount()) === 10 && /9f8e-7d6c-5b/.test(await text('#set2faCodes'))
+    && await announcedOnScreen('new backup codes are ready') && await ev(page, () => !!document.activeElement && document.activeElement.id === 'set2faCodesH'));
+  T('R3-C1 once the codes are shown, the notice is gone and a reload no longer asks first', await noticeGone() && (await unload()) === 'not armed');
+  await page.evaluate(() => window.nav('dashboard')); await wait(300);
+  const goneAfter = await noticeGone();
+  await page.evaluate(() => window.nav('settings')); await wait(400);
+  T('R3-C1 codes that waited are shown exactly once: no notice afterwards, and the next Settings visit does not show them; 10 codes left',
+    goneAfter && (await codeCount()) === 0 && await codesGone('9f8e-7d6c-5b') && /backup codes left: 10/i.test(await text('#setTwoFactor')) && (await noticeLog()).length === 1);
+  // Turning two-factor on, answered while away; then turned off on another device before Settings showed the codes.
+  await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; window.nav('settings'); }); await wait(300);
+  await click('#set2faStart'); await wait(250);
+  await fill('#set2faCode', '123456');
+  await noticeLive(); await clearReqs();
+  await page.evaluate(() => { window.__mock.delay = 600; });
+  await click('#set2faConfirm'); await wait(100);
+  await page.evaluate(() => window.nav('dashboard'));
+  await answered('/auth/2fa/activate');
+  await page.evaluate(() => { window.__mock.delay = 0; });
+  T('R3-C1 turning two-factor on, answered while away: the notice says "' + NOTICE_ON + '" (announced once) and a reload asks first',
+    (await noticeText()) === NOTICE_ON && await noticeOn() && JSON.stringify(await noticeLog()) === JSON.stringify([NOTICE_ON]) && (await unload()) === 'armed');
+  await page.evaluate(() => { SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; });   // turned off on another device
+  await page.evaluate(() => window.nav('settings')); await wait(400);
+  T('R3-C1 codes waiting, two-factor turned off elsewhere before Settings showed them: Settings reads Off with no codes; the notice is gone and a reload no longer asks first',
+    (await text('#set2faState')).trim() === 'Off' && (await codeCount()) === 0 && await codesGone('a1b2-c3d4-e5') && await noticeGone() && (await unload()) === 'not armed');
+  T('R3-C1 the codes are never stored or put in the address bar', await ev(page, s => { const all = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + location.href + JSON.stringify(history.state); return !s.some(x => all.includes(x)); }, SECRETS));
   await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; });
   // Notifications: preferences.notifications (BASE api/account.py:95-125; shallow merge).
   await page.evaluate(() => { window.__mockClear(); window.nav('settings'); }); await wait(300);
@@ -970,6 +1084,51 @@ async function appShell(browser, leaks) {
       recorded.filter(r => r.url === '/auth/logout' && r.method === 'POST').length === 1 && /\/sol\/$/.test(page.url()));
     await ctx.close();
   }
+}
+
+// R3-C1 in real Chromium (its own context): while new backup codes wait for their first showing,
+// closing the tab asks first (a beforeunload dialog; dismissing it keeps the page); once Settings
+// has shown them it does not; and a sign-out while they wait leaves without asking (the existing
+// logout(): one POST /auth/logout, then the sign-in page).
+async function codesLeaveGuard(browser, leaks) {
+  const codesWaiting = async () => {
+    const ctx = await safeContext(browser, leaks);
+    const page = await ctx.newPage();
+    const recorded = [];
+    await page.exposeFunction('__recordReq', e => { recorded.push(e); });
+    await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+    await page.evaluate(() => { SEED.user.totp_enabled = true; SEED.user.totp_backup_codes_remaining = 2; window.nav('settings'); }); await page.waitForTimeout(400);
+    await page.click('#set2faNewCodes', { timeout: 2000 }).catch(() => {}); await page.waitForTimeout(150);
+    await page.fill('#set2faRegenPw', 'synthetic-password', { timeout: 2000 }).catch(() => {});
+    await page.fill('#set2faRegenCode', '123456', { timeout: 2000 }).catch(() => {});
+    await page.evaluate(() => { window.__mock.delay = 600; });
+    await page.click('#set2faRegenGo', { timeout: 2000 }).catch(() => {}); await page.waitForTimeout(100);
+    await page.evaluate(() => window.nav('dashboard'));
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => { window.__mock.delay = 0; });
+    const waiting = await ev(page, () => Array.isArray(setState.codes) && setState.codes.length === 10 && document.getElementById('page-dashboard').classList.contains('active'));
+    const dialogs = [];
+    page.on('dialog', d => { dialogs.push(d.type()); d.dismiss().catch(() => {}); });
+    return { ctx, page, recorded, waiting, dialogs };
+  };
+  const settle = () => new Promise(r => setTimeout(r, 1000));
+  let t = await codesWaiting();
+  await t.page.close({ runBeforeUnload: true }); await settle();
+  T('R3-C1 real Chromium: closing the tab while new codes wait asks first (a beforeunload dialog); dismissed, the page stays',
+    t.waiting === true && t.dialogs.join() === 'beforeunload' && !t.page.isClosed());
+  await t.ctx.close();
+  t = await codesWaiting();
+  await t.page.evaluate(() => window.nav('settings')); await t.page.waitForTimeout(500);
+  const shown = await ev(t.page, () => document.querySelectorAll('#set2faCodes li').length);
+  await t.page.close({ runBeforeUnload: true }); await settle();
+  T('R3-C1 real Chromium: once Settings has shown the codes, closing the tab does not ask', t.waiting === true && shown === 10 && t.dialogs.length === 0 && t.page.isClosed());
+  await t.ctx.close();
+  t = await codesWaiting();
+  await t.page.click('.nav-item.logout', { timeout: 2000 }).catch(() => {});
+  await t.page.waitForURL(/\/sol\/$/, { timeout: 5000 }).catch(() => {});
+  T('R3-C1 real Chromium: a sign-out while codes wait does not ask: the existing logout() sends one POST /auth/logout, then the sign-in page',
+    t.waiting === true && t.dialogs.length === 0 && t.recorded.filter(r => r.url === '/auth/logout' && r.method === 'POST').length === 1 && /\/sol\/$/.test(t.page.url()));
+  await t.ctx.close();
 }
 
 // B3: storage blocked in a new page session (its own context). The guide opens on the first
