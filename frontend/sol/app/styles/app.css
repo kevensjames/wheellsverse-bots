@@ -697,7 +697,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .set-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.25rem 1.35rem;box-shadow:var(--shadow-1)}
 .set-card h2{font-size:1.1rem;margin:0 0 .75rem}
 .set-card h3{font-size:.98rem;margin:.25rem 0 .5rem}
-.set-card h3:focus{outline:none}
+.set-card h2:focus,.set-card h3:focus{outline:none}
 .set-card .field{max-width:26rem}
 .set-row{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin:.9rem 0 .4rem}
 .set-label{font-size:.8rem;color:var(--ink-700);min-width:4.5rem}

@@ -68,7 +68,7 @@ function renderSettings() {
     </section>
 
     <section class="set-card" id="setTwoFactor" aria-labelledby="setTwoFactorH">
-      <h2 id="setTwoFactorH">Two-factor sign-in</h2>
+      <h2 id="setTwoFactorH" tabindex="-1">Two-factor sign-in</h2>
       <div id="set2faBody"></div>
       <p class="err" id="set2faErr" role="alert" style="display:none"></p>
       <p class="hint-muted" id="set2faMsg" role="status" aria-live="polite"></p>
@@ -242,7 +242,7 @@ async function confirmTwoFactor() {
     if (me) { me.totp_enabled = true; me.totp_backup_codes_remaining = codes.length; }
     renderTwoFactor();
     setAnnounce('Two-factor sign-in is on.');
-    setFocus(setState.codes ? 'set2faCodesH' : 'set2faState');
+    setFocus(setState.codes ? 'set2faCodesH' : 'setTwoFactorH');
   } catch (e) {
     if (e && e.status === 400) { setState.enroll = null; renderTwoFactor(); setErr('set2faErr', 'Your setup expired. Please start again.'); }
     else if (e && e.status === 409) { setState.enroll = null; if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); }
@@ -267,7 +267,7 @@ function copyBackupCodes() { if (setState.codes) copyText(setState.codes.join('\
 function backupCodesSaved() {
   setState.codes = null;   // shown once: the codes leave the page
   renderTwoFactor();
-  setFocus('set2faState');
+  setFocus('setTwoFactorH');
 }
 async function disableTwoFactor() {
   const pw = document.getElementById('set2faPw'), codeEl = document.getElementById('set2faOffCode');
@@ -283,7 +283,7 @@ async function disableTwoFactor() {
     renderTwoFactor();
     // The backend ends every session, this one included (services/auth.py:412).
     setText('set2faMsg', 'Two-factor sign-in is off. For your safety, you were signed out on all devices. You may be asked to sign in again soon.');
-    setFocus('set2faState');
+    setFocus('setTwoFactorH');
   } catch (e) {
     setErr('set2faErr', twoFactorError(e, "We couldn't turn off two-factor. Please try again."));
   } finally {
