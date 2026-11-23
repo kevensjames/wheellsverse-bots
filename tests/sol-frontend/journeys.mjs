@@ -475,6 +475,16 @@ async function memberPages(page) {
   await click('#closeConfirm'); await wait(300);
   rq = await reqs();
   T('C1 close, 2FA code required: one POST, no refresh, and the code field is shown', countOf(rq, '/account/close') === 1 && refreshCount(rq) === 0 && await vis('#closeCode'));
+  // The page thought two-factor was off (it was turned on elsewhere since Settings loaded): focus
+  // goes to the code field, and the code typed next is sent.
+  T('close, 2FA code required: focus moves to the code field', await ev(page, () => !!document.activeElement && document.activeElement.id === 'closeCode'));
+  await fill('#closeCode', '123456');
+  await page.evaluate(() => window.__mockSet('POST /account/close', 401, { detail: 'Invalid code' }));
+  await clearReqs();
+  await click('#closeConfirm'); await wait(300);
+  const withCode = (await reqs()).filter(r => r.url === '/account/close');
+  T('close, 2FA code required: the code typed next is sent as totp_code', withCode.length === 1 && !!withCode[0].body && withCode[0].body.totp_code === '123456');
+  T('close, a wrong code: says the code did not work', /code did not work/i.test(await alertText('#closeAccountDialog')));
   await page.keyboard.press('Escape'); await wait(120);
   T('3d close: Escape closes the dialog and focus returns to its button', await ev(page, () => !window.SolDialog.isOpen('closeAccountDialog') && document.activeElement && document.activeElement.id === 'setCloseOpen'));
   T('3d close: the password is cleared when the dialog closes', await ev(page, () => document.getElementById('closePw').value === ''));
