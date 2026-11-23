@@ -3,9 +3,10 @@
 //
 // First-run guide: a SolDialog with four short steps, opened on the first dashboard load
 // after sign-in and from Settings > How MySol works. "Seen" is remembered per member id in
-// localStorage (SolAccount.guideSeen/markGuideSeen); when storage is blocked nothing
-// throws and the guide may show again next time. Escape and the close button dismiss it;
-// focus returns to the page heading.
+// localStorage (SolAccount.guideSeen/markGuideSeen), the record across visits, and in this
+// page's memory for the page session. So when storage is blocked nothing throws, the guide
+// opens once in the page session, and it may show again on a later visit. Escape and the close
+// button dismiss it; focus returns to the page heading.
 
 const GUIDE_STEPS = [
   {
@@ -42,6 +43,8 @@ const GUIDE_STEPS = [
   },
 ];
 let _guideStep = 0;
+// Member ids whose guide opened in this page session (the in-memory "seen").
+const _guideShownIds = new Set();
 
 // The active page's heading, focusable (tabindex -1) so focus can return to it.
 function _activeHeading() {
@@ -97,8 +100,10 @@ function maybeShowGuide() {
   const dash = document.getElementById('page-dashboard');
   if (!dash || !dash.classList.contains('active')) return;
   if (document.querySelector('.bank-modal.is-open, .more-sheet-backdrop.open')) return;
+  if (_guideShownIds.has(me.id)) return;   // already opened in this page session
   const storage = SolAccount.storageOf(window);
   if (SolAccount.guideSeen(storage, me.id)) return;
+  _guideShownIds.add(me.id);
   SolAccount.markGuideSeen(storage, me.id);
   openGuide();
 }
