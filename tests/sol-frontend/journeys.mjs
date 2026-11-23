@@ -802,6 +802,7 @@ async function keyboardFromTop(page) {
 async function appShell(browser, leaks) {
   for (const [label, width, height, navItem] of [['phone 390x844', 390, 844, '.mn[data-mpage="payments"]'], ['desktop 1280x720', 1280, 720, '.nav-item[data-page="payments"]']]) {
     const ctx = await safeContext(browser, leaks, { viewport: { width, height }, deviceScaleFactor: 1 });
+    const phone = width < 641;
     const page = await ctx.newPage();
     const perrs = [];
     page.on('pageerror', e => perrs.push(String(e)));
@@ -841,11 +842,44 @@ async function appShell(browser, leaks) {
       await page.evaluate(x => window.nav(x), p); await page.waitForTimeout(400);
       T(`A1 ${label}: no horizontal scroll on ${p}`, await ev(page, () => document.documentElement.scrollWidth <= window.innerWidth && document.body.scrollWidth <= window.innerWidth));
     }
+    // PHONE-2 (WCAG 2.4.11): at phone width the bottom nav is fixed over the bottom of the screen, so
+    // a control that focus scrolls to the bottom edge would sit under it. Keyboard only, through
+    // Settings with two-factor on: open "Get new backup codes", get them, "I saved my codes", then
+    // on to the end of the page. No focused element in main may overlap the bottom nav.
+    if (phone) {
+      await page.evaluate(() => { SEED.user.totp_enabled = true; SEED.user.totp_backup_codes_remaining = 3; window.nav('settings'); });
+      await page.waitForTimeout(500);
+      const seen = [], under = [];
+      let regenDone = false;
+      const look = async () => {
+        const f = await ev(page, () => {
+          const a = document.activeElement;
+          if (!a || !a.closest('main')) return { inMain: false };
+          const r = a.getBoundingClientRect(), n = document.getElementById('mobileNav').getBoundingClientRect();
+          return { inMain: true, id: a.id || a.tagName, under: r.bottom > n.top && r.top < n.bottom, at: [Math.round(r.top), Math.round(r.bottom), Math.round(n.top)] };
+        });
+        if (f && f.inMain) { seen.push(f.id); if (f.under) under.push(`${f.id} ${JSON.stringify(f.at)}`); }
+        return f || { inMain: false };
+      };
+      for (let i = 0; i < 80; i++) {
+        await page.keyboard.press('Tab');
+        const f = await look();
+        if (!f.inMain) { if (seen.length) break; continue; }
+        if (regenDone) continue;
+        if (f.id === 'set2faNewCodes') { await page.keyboard.press('Enter'); await page.waitForTimeout(250); await look(); }
+        else if (f.id === 'set2faRegenPw') await page.keyboard.type('synthetic-password');
+        else if (f.id === 'set2faRegenCode') await page.keyboard.type('123456');
+        else if (f.id === 'set2faRegenGo') { await page.keyboard.press('Enter'); await page.waitForTimeout(400); await look(); }
+        else if (f.id === 'set2faSaved') { await page.keyboard.press('Enter'); await page.waitForTimeout(250); await look(); regenDone = true; }
+      }
+      T(`A1 ${label}: Tab through Settings (two-factor on, new backup codes, to the end of the page): no focused element is under the bottom nav`,
+        ['set2faNewCodes', 'set2faCodesH', 'set2faCopyCodes', 'set2faSaved', 'setExport', 'setCloseOpen', 'setGuide'].every(id => seen.includes(id)) && under.length === 0);
+      if (under.length) console.log('      under the bottom nav: ' + under.join(', '));
+    }
     T(`A1 ${label}: no page errors`, perrs.length === 0 && (await ev(page, () => (window.__errs || []).length)) === 0);
     // PHONE-1: Sign out stays in reach at every width. At phone width the sidebar, and the Sign out
     // in it, is hidden, so the More sheet carries one. Choosing it runs the existing logout() (one
     // POST /auth/logout, then the sign-in page); the sign-out logic itself is not changed.
-    const phone = width < 641;
     if (phone) { await page.click('#mobileNav [aria-controls="moreSheet"]', { timeout: 2000 }).catch(() => {}); await page.waitForTimeout(450); }
     const signOut = page.getByRole('button', { name: /^sign out$/i }).filter({ visible: true });
     const outs = await signOut.count().catch(() => 0);
