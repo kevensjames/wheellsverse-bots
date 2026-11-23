@@ -6,7 +6,8 @@
 // synthetic. Covers:
 //   1. readTokenOnce(): an email link's ?token= is read once, removed from the address bar
 //      with history.replaceState (other query parameters and the hash are kept), and never
-//      written to storage or the console
+//      written to storage or the console; the same for #token= in the URL fragment, which no
+//      server receives (the other fragment parameters are kept)
 //   2. notAvailable() / rateLimited(): 404 and 405 mean "not available yet" (a route that
 //      exists only in a draft backend PR); 429 is a rate limit; nothing else is either
 //   3. passwordProblem(): the backend's password rule (8 to 128 characters, counted the way
@@ -123,6 +124,37 @@ await scenario('[A4] readTokenOnce still returns the token when replaceState thr
   let t, threw = false;
   try { t = S.readTokenOnce(win); } catch { threw = true; }
   ok(!threw && t === TOKEN, 'no throw; the token is still returned');
+});
+
+await scenario('[A4b] readTokenOnce reads #token= (the URL fragment, which no server receives) once and removes it', async () => {
+  // The follow-up moves the email links to APP_BASE_URL/verify#token= and /reset-password#token=:
+  // a browser never sends the fragment, so the token stays out of the static host's request logs.
+  // The page must read that form too, before the backend sends it.
+  const { S, logged } = load();
+  const { win, calls, store } = fakeWindow(`https://app.example.invalid/sol/verify#token=${TOKEN}`);
+  ok(S.readTokenOnce(win) === TOKEN, 'returns the token from the fragment');
+  ok(calls.length === 1 && calls[0].url === '/sol/verify', `the new address has no fragment (saw ${calls[0] && calls[0].url})`);
+  ok(calls[0] && calls[0].state && calls[0].state.kept === true, 'the history state is kept');
+  ok(!win.location.href.includes(TOKEN) && win.location.hash === '', 'the address bar no longer holds the token');
+  ok(S.readTokenOnce(win) === null, 'a second read finds nothing (read once)');
+  ok(store.size === 0 && !logged.some(l => l.includes(TOKEN)), 'nothing stored or logged');
+  const b = fakeWindow(`https://app.example.invalid/sol/reset-password?from=mail#token=${TOKEN}&x=1`);
+  ok(S.readTokenOnce(b.win) === TOKEN && b.calls.length === 1 && b.calls[0].url === '/sol/reset-password?from=mail#x=1', `the query and the other fragment parameters kept (saw ${b.calls[0] && b.calls[0].url})`);
+  const c = fakeWindow('https://app.example.invalid/sol/verify#main');
+  ok(S.readTokenOnce(c.win) === null && c.calls.length === 0, 'a plain anchor (#main) is no token: null, the address left alone');
+  const c2 = fakeWindow(`https://app.example.invalid/sol/verify?token=${TOKEN}#main`);
+  ok(S.readTokenOnce(c2.win) === TOKEN && c2.calls[0] && c2.calls[0].url === '/sol/verify#main', 'the query form with a plain anchor: the anchor kept as it was');
+  const d = fakeWindow(`https://app.example.invalid/sol/verify?token=synthetic-query-Tok3n&a=1#token=${TOKEN}`);
+  ok(S.readTokenOnce(d.win) === TOKEN && d.calls.length === 1 && d.calls[0].url === '/sol/verify?a=1', `both forms: the fragment one is used and both leave the address (saw ${d.calls[0] && d.calls[0].url})`);
+  const e = fakeWindow('https://app.example.invalid/sol/verify#token=');
+  ok(S.readTokenOnce(e.win) === null && e.calls.length === 1 && e.calls[0].url === '/sol/verify', 'an empty fragment token reads as no token and is still removed');
+  const f = fakeWindow('https://app.example.invalid/sol/verify#token=' + 'x'.repeat(3000));
+  ok(S.readTokenOnce(f.win) === null && f.calls.length === 1 && !f.win.location.href.includes('xxxx'), 'an oversized fragment value is removed and not used');
+  const g = fakeWindow(`https://app.example.invalid/sol/verify#token=${TOKEN}`);
+  g.win.history.replaceState = () => { throw new Error('SecurityError'); };
+  let t, threw = false;
+  try { t = S.readTokenOnce(g.win); } catch { threw = true; }
+  ok(!threw && t === TOKEN, 'replaceState throwing: no throw, the token is still returned');
 });
 
 await scenario('[A5] notAvailable(): 404 and 405 only; rateLimited(): 429 only', async () => {

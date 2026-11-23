@@ -18,6 +18,8 @@
 //   8. deploy order: against a backend that still reads ?token= (the deployed base answers the
 //      body form 422 at loc ["query","token"]) the page reads "not available yet", keeps the
 //      token for "Try again" and never resends it in a URL
+//   9. the token may come in the URL fragment (#token=), which no server receives: read once,
+//      removed from the address bar, sent in the body like the ?token= form
 // What it does NOT prove: anything about the backend, or real-browser behaviour (journeys.mjs
 // covers the page in Chromium, including the Referer of every request it makes).
 import { readFileSync } from 'node:fs';
@@ -208,6 +210,19 @@ await scenario('[V8] deploy order: a backend that still reads ?token= (422 at lo
   ok(p.requests.length === 2 && p.el('verifyDone').hidden === false, '"Try again" once that backend is live verifies with the token kept in memory');
   const forms = p.requests.map(bodyForm);
   ok(forms.length === 2 && forms.every(f => f.post && f.urlExact && f.noTokenInUrl && f.exactBody), `both requests: the bare URL, the token in the body only (saw ${forms.map(f => f.url).join(', ')})`);
+  ok(!p.logged.some(l => l.includes(TOKEN)) && p.stored.length === 0 && p.cookies.length === 0, 'the token never reaches the console, storage or a cookie');
+});
+
+await scenario('[V9] the token in the URL fragment (#token=, which no server receives): read once, removed, sent in the body', async () => {
+  const p = openPage(`https://app.example.invalid/sol/verify?from=mail#token=${TOKEN}`, () => res(200, { detail: 'Email verified' }));
+  await tick();
+  ok(p.requests.length === 0, `no request on load (saw ${p.requests.length})`);
+  ok(!p.win.location.href.includes(TOKEN) && p.win.location.hash === '' && p.win.location.search === '?from=mail', `the address bar no longer holds the token; the query kept, no fragment left (saw ${p.win.location.search}${p.win.location.hash})`);
+  ok(p.el('verifyStart').hidden === false && p.el('verifyInvalid').hidden === true, 'the "Verify my email" section shows');
+  await p.sb.runVerify();
+  const f = p.requests[0] ? bodyForm(p.requests[0]) : {};
+  ok(p.requests.length === 1 && f.post && f.urlExact && f.noTokenInUrl && f.json && f.exactBody, `one POST: the bare URL, the token in the body only (saw ${f.url})`);
+  ok(p.el('verifyDone').hidden === false, 'success shows');
   ok(!p.logged.some(l => l.includes(TOKEN)) && p.stored.length === 0 && p.cookies.length === 0, 'the token never reaches the console, storage or a cookie');
 });
 

@@ -29,6 +29,11 @@ const FRONTEND = join(HERE, '..', '..', 'frontend');   // repo/frontend
 const PORT = Number(process.env.SOL_JOURNEYS_PORT) || 8891;
 const MIME = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
 
+// Every request the static server received (the request line's path and query, and the Referer
+// header): what the static host (Cloudflare Pages) would see and could log. The TOKEN-FRAGMENT
+// checks read it.
+const HOST_LOG = [];
+
 let failures = 0;
 const T = (name, cond) => { if (cond) console.log('  ✓', name); else { failures++; console.log('  ✗ FAIL:', name); } };
 
@@ -42,6 +47,7 @@ async function main() {
   // Clean URLs, as Cloudflare Pages serves them: a path without an extension that is not a file
   // (e.g. /sol/verify, or /sol/app next to the app/ folder) serves <path>.html; .html paths still work.
   const server = createServer(async (req, res) => {
+    HOST_LOG.push({ url: String(req.url), referer: String(req.headers.referer || '') });
     try {
       const path = decodeURIComponent(req.url.split('?')[0]);
       let file = normalize(join(FRONTEND, path));
@@ -2243,6 +2249,54 @@ async function publicPages(browser, leaks) {
   if (crt.where.length) console.log('    token found in:', JSON.stringify(crt.where.slice(0, 4)));
   T('A2 /sol/reset-password: no page errors, and the token never reaches the console', cr.perrs.length === 0 && !cr.logs.some(t => t.includes(RESET_TOKEN)));
   await cr.page.close();
+
+  // ── TOKEN-FRAGMENT: the email links with the token in the URL fragment, APP_BASE_URL/verify#token=
+  // and /reset-password#token= (the follow-up moves backend services/email.py:129, :142 there). A
+  // browser never sends the fragment to a server, so the static host never gets the token in a
+  // request line or a Referer. These checks read what the static server received (HOST_LOG), not
+  // what the page says it sent. The page must read this form before the backend sends it. ──
+  const hostSaw = v => HOST_LOG.filter(e => e.url.includes(v) || e.referer.includes(v)).map(e => e.url);
+  const FRAG_VERIFY = 'synthetic-fragment-verify-Tok3n_0123456789abcdef';
+  const FRAG_RESET = 'synthetic-fragment-reset-Tok3n_0123456789abcdef';
+  let h0 = HOST_LOG.length;
+  const fv = await open(`/sol/verify?from=mail#token=${FRAG_VERIFY}`);
+  T('TOKEN-FRAGMENT /sol/verify#token=: the page reads the token from the fragment (the "Verify my email" button, not the incomplete-link message)', await scriptRan(fv.page) && await fv.vis('#verifyGo') && !(await fv.vis('#verifyInvalid')));
+  T('TOKEN-FRAGMENT /sol/verify#token=: after load the token is gone from the address bar; the clean path and the query stay, no fragment is left', await ev(fv.page, () => location.pathname === '/sol/verify' && location.search === '?from=mail' && location.hash === ''));
+  T('TOKEN-FRAGMENT /sol/verify#token=: nothing keeps the token (storage, cookies, history state, the address)', await scriptRan(fv.page) && !(await kept(fv.page, FRAG_VERIFY)));
+  await fv.click('#verifyGo'); await fv.wait(250);
+  const fvr = verifyPosts(fv);
+  T('TOKEN-FRAGMENT /sol/verify#token=: the click sends one POST /auth/verify-email, the bare URL, exactly {token} in the body, and verifies',
+    fvr.length === 1 && fvr[0].method === 'POST' && fvr[0].url === '/auth/verify-email' && exactKeys(fvr[0].body, ['token']) && fvr[0].body.token === FRAG_VERIFY && await fv.vis('#verifyDone'));
+  const fvt = await tokenTravels(fv, FRAG_VERIFY);
+  T(`TOKEN-FRAGMENT /sol/verify#token=: no request of the page has the token in its URL or Referer header (the API call, and the ${fvt.files} files the browser loaded)`, travelOk(fvt));
+  const fvHost = HOST_LOG.slice(h0);
+  T(`TOKEN-FRAGMENT /sol/verify#token=: the static host never received the token: none of the ${fvHost.length} requests it got for the page (the page itself, CSS, scripts, images) has it in the request line or Referer`,
+    hostSaw(FRAG_VERIFY).length === 0 && fvHost.length >= 4 && fvHost.some(e => e.url === '/sol/verify?from=mail'));
+  if (hostSaw(FRAG_VERIFY).length) console.log('    host saw:', JSON.stringify(hostSaw(FRAG_VERIFY).slice(0, 4)));
+  T('TOKEN-FRAGMENT /sol/verify#token=: no page errors, and the token never reaches the console', fv.perrs.length === 0 && !fv.logs.some(t => t.includes(FRAG_VERIFY)));
+  await fv.page.close();
+  h0 = HOST_LOG.length;
+  const fr = await open(`/sol/reset-password?from=mail#token=${FRAG_RESET}`);
+  T('TOKEN-FRAGMENT /sol/reset-password#token=: the page reads the token from the fragment (the new-password form, not the missing-code message)', await scriptRan(fr.page) && await fr.vis('#resetForm') && !(await fr.vis('#resetInvalid')));
+  T('TOKEN-FRAGMENT /sol/reset-password#token=: after load the token is gone from the address bar; the clean path and the query stay, no fragment is left', await ev(fr.page, () => location.pathname === '/sol/reset-password' && location.search === '?from=mail' && location.hash === ''));
+  T('TOKEN-FRAGMENT /sol/reset-password#token=: nothing keeps the token (storage, cookies, history state, the address)', await scriptRan(fr.page) && !(await kept(fr.page, FRAG_RESET)));
+  await fr.fill('#resetPassword', 'synthetic-new-pass'); await fr.fill('#resetConfirm', 'synthetic-new-pass'); await fr.click('#resetBtn'); await fr.wait(250);
+  const frr = fr.recorded.filter(r => r.url.startsWith('/auth/reset-password'));
+  T('TOKEN-FRAGMENT /sol/reset-password#token=: the form sends one POST /auth/reset-password, the bare URL, exactly {token, new_password} in the body',
+    frr.length === 1 && frr[0].url === '/auth/reset-password' && exactKeys(frr[0].body, ['token', 'new_password']) && frr[0].body.token === FRAG_RESET && await fr.vis('#resetDone'));
+  const frt = await tokenTravels(fr, FRAG_RESET);
+  T(`TOKEN-FRAGMENT /sol/reset-password#token=: no request of the page has the token in its URL or Referer header (the API call, and the ${frt.files} files the browser loaded)`, travelOk(frt));
+  const frHost = HOST_LOG.slice(h0);
+  T(`TOKEN-FRAGMENT /sol/reset-password#token=: the static host never received the token: none of the ${frHost.length} requests it got for the page has it in the request line or Referer`,
+    hostSaw(FRAG_RESET).length === 0 && frHost.length >= 4 && frHost.some(e => e.url === '/sol/reset-password?from=mail'));
+  if (hostSaw(FRAG_RESET).length) console.log('    host saw:', JSON.stringify(hostSaw(FRAG_RESET).slice(0, 4)));
+  T('TOKEN-FRAGMENT /sol/reset-password#token=: no page errors, and the token never reaches the console', fr.perrs.length === 0 && !fr.logs.some(t => t.includes(FRAG_RESET)));
+  await fr.page.close();
+  // The same log does see a token in a query string: the ?token= links opened above (A2) reached
+  // the static host in the request line. That is the exposure left until the email links move to
+  // #token=, and it shows the two "never received" checks above can fail.
+  T('TOKEN-FRAGMENT probe: the ?token= links opened above did reach the static host in the request line (so the host log sees tokens and the checks above are not vacuous)',
+    hostSaw(VERIFY_TOKEN).some(u => u.startsWith('/sol/verify?token=')) && hostSaw(RESET_TOKEN).some(u => u.startsWith('/sol/reset-password?token=')));
   await ctx.close();
 }
 
