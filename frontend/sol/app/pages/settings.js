@@ -2,7 +2,7 @@
 // Classic script (shared global scope); loaded in order by app.html.
 //
 // Settings: profile, password, two-factor sign-in, notifications, the AI assistant opt-in,
-// your data (export, close account). Also the dashboard's
+// your data (export, close account) and the first-run guide. Also the dashboard's
 // verify-email banner. Routes (BASE = deployed c218dfb; PR = draft backend PR, not
 // deployed). Each section degrades on 404/405 ("not available yet"), with no error alert:
 //   GET   /auth/me                     BASE (email_verified_at, totp_enabled, …)
@@ -97,6 +97,12 @@ function renderSettings() {
         <p class="hint-muted">Closing your account is permanent. Some money records are kept.</p>
         <button type="button" class="btn btn-danger btn--sm" id="setCloseOpen" onclick="openCloseDialog()">Close account</button>
       </div>
+    </section>
+
+    <section class="set-card" id="setHelp" aria-labelledby="setHelpH">
+      <h2 id="setHelpH">How MySol works</h2>
+      <p class="hint-muted">A short guide to circles, payouts and the checks we run.</p>
+      <button type="button" class="btn btn-ghost btn--sm" id="setGuide" onclick="openGuide()">Show the guide</button>
     </section>`;
   renderTwoFactor();
   renderNotifications();

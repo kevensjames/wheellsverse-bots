@@ -23,6 +23,7 @@ async function loadDashboard() {
   renderDashHero(D); renderDashAttention(D); renderDashSummary(D);
   renderDashCircles(D); renderDashTimeline(D);
   renderDashScore(D); renderDashPremium(D); renderDashGoals(D); renderDashTrust(D);
+  maybeShowGuide();   // pages/onboarding.js: the first-run guide, once per member
 }
 
 function dashGreeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }

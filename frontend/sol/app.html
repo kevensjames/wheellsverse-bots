@@ -631,6 +631,21 @@
   </div>
 </div>
 
+<!-- First-run guide (pages/onboarding.js). At body level so it can open over any page. -->
+<div class="bank-modal guide-modal" id="guideDialog" role="dialog" aria-modal="true" aria-labelledby="guideTitle" aria-describedby="guideBody">
+  <div class="modal guide">
+    <button type="button" class="guide__close" id="guideClose" aria-label="Close guide" onclick="closeGuide()"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <p class="guide__count" id="guideStepCount" aria-live="polite">Step 1 of 4</p>
+    <h2 class="guide__title" id="guideTitle" tabindex="-1">What a sol is</h2>
+    <div id="guideBody" class="guide__body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="guideBack" onclick="guideStep(-1)">Back</button>
+      <button type="button" class="btn btn-primary" id="guideNext" onclick="guideStep(1)">Next</button>
+      <button type="button" class="btn btn-ghost" id="guideDone" onclick="closeGuide()" hidden>Done</button>
+    </div>
+  </div>
+</div>
+
 <script src="/sol/app/core/features.js"></script>
 <script src="/sol/app/core/session.js"></script>
 <script src="/sol/app/core/state.js"></script>
@@ -655,6 +670,7 @@
 <script src="/sol/app/pages/community.js"></script>
 <script src="/sol/app/pages/goals.js"></script>
 <script src="/sol/app/pages/settings.js"></script>
+<script src="/sol/app/pages/onboarding.js"></script>
 <script src="/sol/app/main.js"></script>
 </body>
 </html>

@@ -727,3 +727,17 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .payout-row__amt{font-family:var(--font-display);font-weight:700;font-size:1.1rem}
 .payout-row__meta,.payout-row__date{font-size:.8rem;color:var(--ink-700)}
 @media(max-width:560px){.payout-row__end{align-items:flex-start}}
+/* First-run guide (pages/onboarding.js) */
+.guide-modal{z-index:300}
+.guide-modal .modal.guide{max-width:30rem;position:relative;padding-top:1.6rem}
+.guide__close{position:absolute;top:.6rem;right:.6rem;width:44px;height:44px;display:grid;place-items:center;background:none;border:0;border-radius:var(--r-md);color:var(--ink-700);cursor:pointer}
+.guide__close:hover{background:var(--surface-2)}
+.guide__count{font-size:.78rem;color:var(--ink-700);margin:0 0 .25rem;font-weight:600}
+.guide__title{font-size:1.3rem;margin:0 0 .75rem}
+.guide__title:focus{outline:none}
+.guide__body p,.guide__list li{font-size:.92rem;color:var(--ink-800)}
+.guide__list{padding-left:1.1rem;margin:0 0 .5rem}
+.guide__list li{margin-bottom:.35rem}
+.guide__actions{list-style:none;padding:0;margin:.5rem 0 0;display:flex;flex-direction:column;gap:.5rem}
+.guide__actions .btn{width:100%;justify-content:center;min-height:44px}
+.guide-modal .modal-actions .btn{min-height:44px}
