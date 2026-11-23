@@ -140,6 +140,7 @@ async function main() {
   await codesLeaveGuard(browser, leaks);
   await codesUnderModal(browser, leaks);
   await phoneFilters(browser, leaks);
+  await phoneFiltersToggle(browser, leaks);
   await keyboardPolish(browser, leaks);
   // Secrets shown on the Settings page (2FA secret, backup codes) never reach the console.
   T('no 2FA secret or backup code in the console', !allConsole.some(t => SECRETS.some(x => t.includes(x))));
@@ -1413,6 +1414,94 @@ async function phoneFilters(browser, leaks) {
   T('D1 desktop 1280x720: "Filters & sort" is still a dropdown under its button (240px wide, right-aligned), and nothing is over its three controls',
     !!desk && desk.pos === 'absolute' && desk.below && desk.right && desk.width === 240 && deskFree.every(x => x === true));
   await t.ctx.close();
+}
+
+// R3-PHONE-2 (round 3 fixer; PHONE-A11Y-R3-PHONE-2): the phone "Filters & sort" sheet must not
+// cover "Filters & sort" itself, the control that opened it and closes it. The sheet is fixed above
+// the bottom nav, so anything that pushes the toolbar down put that control under the sheet: the
+// backup-codes notice at 390x844, and the toolbar's own place on 667px and 640px tall phones. Shift+Tab
+// from Status then focused a control nobody could see (WCAG 2.4.11), and a touch user could not tap
+// it. Each size in its own context with touch; the notice is shown with its real text through
+// _codesNotice (pages/settings.js), as while codes wait, since only its height matters here.
+async function phoneFiltersToggle(browser, leaks) {
+  const NOTICE = 'Your new backup codes are ready. Open Settings to see and save them.';
+  for (const [label, width, height, notice] of [['390x844 with the codes notice', 390, 844, true], ['375x667', 375, 667, false], ['360x640', 360, 640, false]]) {
+    const open = async () => {
+      const ctx = await safeContext(browser, leaks, { viewport: { width, height }, deviceScaleFactor: 1, hasTouch: true });
+      const page = await ctx.newPage();
+      const perrs = [];
+      page.on('pageerror', e => perrs.push(String(e)));
+      await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+      await page.evaluate(n => {
+        try { localStorage.setItem('sol_guide_seen:' + SEED.user.id, '1'); } catch (e) {}
+        if (window.SolDialog.isOpen('guideDialog')) window.SolDialog.close('guideDialog');
+        if (n) _codesNotice(n);
+        window.nav('groups');
+      }, notice ? NOTICE : null);
+      await page.waitForTimeout(500);
+      return { ctx, page, perrs };
+    };
+    const isOpen = pg => ev(pg, () => document.querySelector('.circles-filters').open === true);
+    // `sel` (default: the focused element) is wholly on the screen and above the open sheet's top
+    // (when `aboveSheet`) and the bottom nav, with nothing over its centre.
+    const clear = (pg, sel, aboveSheet) => ev(pg, ([s, above]) => {
+      const a = s ? document.querySelector(s) : document.activeElement;
+      if (!a || a === document.body) return false;
+      const r = a.getBoundingClientRect(), n = document.getElementById('mobileNav').getBoundingClientRect();
+      const sheet = document.querySelector('.circles-filters__panel').getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      if (r.top < 0 || r.bottom > innerHeight || (n.height && r.bottom > n.top) || (above && r.bottom > sheet.top)) return false;
+      const hit = document.elementFromPoint(cx, cy);
+      return !!hit && (hit === a || a.contains(hit));
+    }, [sel || null, !!aboveSheet]);
+    const SUMMARY = '.circles-filters summary';
+
+    // Touch: a tap opens the sheet; the toggle stays clear of it, the three controls are clear, and a
+    // tap on the toggle closes the sheet.
+    let t = await open();
+    const noticeOn = !notice || await ev(t.page, x => document.getElementById('codesNoticeText').textContent === x && document.getElementById('codesNotice').getBoundingClientRect().height > 0, NOTICE);
+    await t.page.tap(SUMMARY, { timeout: 2000 }).catch(() => {}); await t.page.waitForTimeout(300);
+    const toggleClear = await clear(t.page, SUMMARY, true);
+    const each = [];
+    for (const s of ['#circlesStatus', '#circlesRole', '#circlesSort']) each.push(await clear(t.page, s, false));
+    T(`R3-PHONE-2 phone ${label}, touch: the open sheet leaves "Filters & sort" on the screen above it, with nothing over it; Status, Role and Sort by are each on the screen above the bottom nav, with nothing over them`,
+      noticeOn && (await isOpen(t.page)) && toggleClear && each.every(x => x === true));
+    // A finger on the toggle where it is shown (page.tap would first scroll a covered target clear).
+    const at = await ev(t.page, s => { const r = document.querySelector(s).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, SUMMARY);
+    if (at) { await t.page.touchscreen.tap(at.x, at.y); await t.page.waitForTimeout(250); }
+    T(`R3-PHONE-2 phone ${label}, touch: a tap on "Filters & sort", where it is shown, closes the open sheet`, !!at && (await isOpen(t.page)) === false);
+    T(`R3-PHONE-2 phone ${label}, touch: no page errors`, t.perrs.length === 0);
+    await t.ctx.close();
+
+    // Keyboard: Enter on the toggle opens the sheet, Tab reaches Status, and Shift+Tab goes back to a
+    // toggle that is on the screen with nothing over it, with the sheet still open.
+    t = await open();
+    await t.page.focus(SUMMARY).catch(() => {}); await t.page.keyboard.press('Enter'); await t.page.waitForTimeout(300);
+    await t.page.keyboard.press('Tab'); await t.page.waitForTimeout(100);
+    const onStatus = await ev(t.page, () => document.activeElement.id === 'circlesStatus');
+    await t.page.keyboard.press('Shift+Tab'); await t.page.waitForTimeout(150);
+    T(`R3-PHONE-2 phone ${label}, keyboard: Shift+Tab from Status lands on "Filters & sort", on the screen above the open sheet, with nothing over it`,
+      onStatus && await ev(t.page, s => document.activeElement === document.querySelector(s), SUMMARY) && (await isOpen(t.page)) && await clear(t.page, null, true));
+    await t.page.keyboard.press('Enter'); await t.page.waitForTimeout(200);
+    T(`R3-PHONE-2 phone ${label}, keyboard: Enter on "Filters & sort" then closes the sheet, and focus stays on it`,
+      (await isOpen(t.page)) === false && await ev(t.page, s => document.activeElement === document.querySelector(s), SUMMARY));
+    T(`R3-PHONE-2 phone ${label}, keyboard: no horizontal scroll and no page errors`, await ev(t.page, () => document.documentElement.scrollWidth <= innerWidth) && t.perrs.length === 0);
+    await t.ctx.close();
+
+    // A short page (no circle matches the search): the page still scrolls the toggle above the sheet,
+    // and closing the sheet gives back the page's own height.
+    if (width !== 360) continue;
+    t = await open();
+    await t.page.fill('#circlesSearch', 'no-such-circle', { timeout: 2000 }).catch(() => {}); await t.page.waitForTimeout(300);
+    const before = await ev(t.page, () => ({ empty: /no circles match/i.test(document.getElementById('groupList').textContent), h: document.documentElement.scrollHeight }));
+    await t.page.tap(SUMMARY, { timeout: 2000 }).catch(() => {}); await t.page.waitForTimeout(300);
+    T(`R3-PHONE-2 phone ${label}, no circle matches the search (a short page): the open sheet still leaves "Filters & sort" on the screen above it, with nothing over it`,
+      !!before && before.empty && (await isOpen(t.page)) && await clear(t.page, SUMMARY, true));
+    await t.page.keyboard.press('Escape'); await t.page.waitForTimeout(250);
+    T(`R3-PHONE-2 phone ${label}, short page: closing the sheet gives the page back its own height`,
+      (await isOpen(t.page)) === false && !!before && await ev(t.page, h => document.documentElement.scrollHeight === h, before.h));
+    await t.ctx.close();
+  }
 }
 
 // D3 (round 3), at 1280x720 and 390x844, each in its own context:
