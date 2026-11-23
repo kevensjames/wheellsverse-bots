@@ -8,8 +8,9 @@ window.SOL_FEATURES = {
   catalog: false,   // Phase 3 — Circle Catalog browse (mock-backed; backend is a separate repo)
   // Consent at sign-up (draft backend PR #34, not deployed). Sign-up runs on the landing
   // page, which has the matching switch LANDING_FEATURES.signup_consent in index.html:
-  // turn both on together, and only once the backend records consent and Sol's own Terms
-  // and Privacy Policy are published at /terms.html and /privacy.html.
+  // turn both on together, and only once the backend records consent and its GET
+  // /legal/documents serves owner-approved Sol texts (the register form shows those texts;
+  // /terms.html and /privacy.html are another product's pages and are not used).
   signup_consent: false,
 };
 

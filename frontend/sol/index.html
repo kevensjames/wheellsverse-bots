@@ -99,7 +99,8 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
   -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:1rem}
 .modal-bg.open{display:flex}
 .modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
-  padding:2rem;width:100%;max-width:400px;position:relative;box-shadow:var(--shadow-2)}
+  padding:2rem;width:100%;max-width:400px;position:relative;box-shadow:var(--shadow-2);
+  max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem);overflow-y:auto}
 .modal h2{font-size:1.25rem;margin-bottom:1.25rem}
 .modal .close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--ink-300);font-size:1.25rem;cursor:pointer;line-height:1}
 .modal .field{margin-bottom:1rem}
@@ -117,10 +118,17 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 .ok-note{color:var(--ink-900);background:var(--sol-50);border:1px solid var(--sol-200);border-radius:var(--r-md);padding:.6rem .75rem;font-size:.85rem;margin-bottom:.75rem}
 .ok-note:empty{display:none}
 .forgot-row{margin:-.4rem 0 1rem}
-.consent-field{display:flex;gap:.55rem;align-items:flex-start;font-size:.85rem;color:var(--ink-800)}
+.consent-field{font-size:.85rem;color:var(--ink-800)}
 .consent-field[hidden]{display:none}
-.consent-field input{width:1.05rem;height:1.05rem;margin-top:.15rem;flex-shrink:0}
-.consent-field a{color:var(--sol-700);text-decoration:underline}
+.consent-docs{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.7rem}
+.consent-doc{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface-2)}
+.consent-doc summary{cursor:pointer;padding:.5rem .7rem;font-weight:600;color:var(--ink-900)}
+.consent-doc__text{max-height:12rem;overflow-y:auto;margin:0 .7rem .7rem;white-space:pre-wrap;font-size:.8rem;line-height:1.5;color:var(--ink-800)}
+.consent-doc summary:focus-visible,.consent-doc__text:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;border-radius:var(--r-sm)}
+.consent-check{display:flex;gap:.55rem;align-items:flex-start}
+.modal .consent-check input{width:1.05rem;height:1.05rem;padding:0;margin-top:.15rem;flex-shrink:0}
+.consent-state{font-size:.85rem;color:var(--ink-700);margin:0 0 .75rem}
+.consent-state:empty{margin:0}
 
 @media (max-width:760px){
   .hero{grid-template-columns:1fr;padding-top:2.5rem}
@@ -268,11 +276,16 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
         <input type="email" id="regEmail" placeholder="you@example.com" required></div>
       <div class="field"><label for="regPassword">Password</label>
         <input type="password" id="regPassword" placeholder="Min 8 characters" minlength="8" required></div>
-      <!-- Consent at sign-up: shown only when LANDING_FEATURES.signup_consent is on. -->
+      <!-- Consent at sign-up: shown only when LANDING_FEATURES.signup_consent is on and the
+           backend serves GET /legal/documents. The texts shown are the ones sign-up records. -->
       <div class="field consent-field" id="regConsentField" hidden>
-        <input type="checkbox" id="regConsent">
-        <label for="regConsent">I agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms</a> and the <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>, and to get notices and records from MySol electronically.</label>
+        <div class="consent-docs" id="regConsentDocs"></div>
+        <div class="consent-check">
+          <input type="checkbox" id="regConsent">
+          <label for="regConsent" id="regConsentLabel">I agree to the documents above.</label>
+        </div>
       </div>
+      <p class="consent-state" id="regConsentState" role="status" aria-live="polite"></p>
       <p class="err" id="regErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="regBtn">Create account</button>
     </form>
@@ -309,8 +322,9 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 <script>
 const API = 'https://sol-api-production.up.railway.app';
 // Off by default, like SOL_FEATURES.signup_consent in core/features.js (the member app).
-// On: a required consent checkbox at sign-up, sent in the shape draft backend PR #34
-// expects. Turn both on together, only once the backend records consent.
+// On: the register form shows the documents GET /legal/documents returns and a required
+// consent checkbox, sent in the shape draft backend PR #34 expects. Turn both on together,
+// only once the backend records consent and serves the owner-approved texts.
 const LANDING_FEATURES = { signup_consent: false };
 
 // The modal is a SolDialog (core/dialog.js): focus moves into it and stays there on Tab,
@@ -337,6 +351,7 @@ function switchTab(tab) {
   document.getElementById('tabRegister').className = 'tab' + (tab === 'register' ? ' active' : '');
   document.getElementById('tabLogin').setAttribute('aria-pressed', tab === 'login' ? 'true' : 'false');
   document.getElementById('tabRegister').setAttribute('aria-pressed', tab === 'register' ? 'true' : 'false');
+  if (tab === 'register' && LANDING_FEATURES.signup_consent === true) loadConsent();
 }
 document.getElementById('authModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
@@ -530,10 +545,46 @@ async function handleTotp(e) {
   } finally { btn.textContent = 'Verify'; btn.disabled = false; }
 }
 
-// Consent switch on: show the checkbox (required, unticked).
-if (LANDING_FEATURES.signup_consent === true) {
-  const field = document.getElementById('regConsentField'), box = document.getElementById('regConsent');
-  if (field && box) { field.hidden = false; box.required = true; }
+// Consent switch on: the register form shows the documents GET /legal/documents returns
+// (PR #34 api/legal.py:13-16): the exact titles and texts of the terms, the privacy policy and
+// the e-sign disclosure that sign-up records consent to, then a required, unticked checkbox.
+// Nothing links /terms.html or /privacy.html: those are another product's pages. A backend
+// without the route (404/405, the deployed one) cannot record consent and forbids the fields:
+// then nothing is shown and sign-up sends the plain body.
+let _consentDocs = null;   // the documents shown (SolAccount.consentDocs): { terms, privacy, esign }
+let _consentNA = false;    // the backend has no /legal/documents
+let _consentLoad = null;   // the request in flight
+function renderConsent(docs) {
+  const field = document.getElementById('regConsentField'), list = document.getElementById('regConsentDocs');
+  const box = document.getElementById('regConsent'), label = document.getElementById('regConsentLabel');
+  if (!field || !list || !box || !label) return;
+  list.textContent = '';
+  for (const kind of ['terms', 'privacy', 'esign']) {
+    const d = docs[kind];
+    const det = document.createElement('details'); det.className = 'consent-doc';
+    const sum = document.createElement('summary'); sum.textContent = d.title;
+    const txt = document.createElement('div'); txt.className = 'consent-doc__text'; txt.tabIndex = 0;
+    txt.setAttribute('role', 'region'); txt.setAttribute('aria-label', d.title); txt.textContent = d.text;
+    det.append(sum, txt); list.appendChild(det);
+  }
+  label.textContent = 'I agree to the ' + docs.terms.title + ', the ' + docs.privacy.title + ' and the ' + docs.esign.title + '.';
+  box.checked = false; box.required = true;
+  field.hidden = false;
+}
+async function loadConsent() {
+  if (_consentDocs || _consentNA) return;
+  if (!_consentLoad) {
+    const state = document.getElementById('regConsentState');
+    _consentLoad = (async () => {
+      if (state) state.textContent = 'Loading the terms…';
+      const r = await SolAccount.callPublic(API, '/legal/documents', { method: 'GET' });
+      const docs = r.ok ? SolAccount.consentDocs(r.data) : null;
+      if (docs) { _consentDocs = docs; renderConsent(docs); }
+      else if (!r.ok && (r.status === 404 || r.status === 405)) _consentNA = true;
+      if (state) state.textContent = (docs || _consentNA) ? '' : "We couldn't load the terms. Please try again in a moment.";
+    })().finally(() => { _consentLoad = null; });
+  }
+  return _consentLoad;
 }
 
 async function handleRegister(e) {
@@ -543,22 +594,35 @@ async function handleRegister(e) {
   err.style.display = 'none';
   const consentOn = LANDING_FEATURES.signup_consent === true;
   const box = document.getElementById('regConsent');
-  if (consentOn && !(box && box.checked)) {
-    err.textContent = 'Please agree to the Terms and the Privacy Policy to create an account.'; err.style.display = 'block';
-    if (box) box.focus();
-    return;
+  if (consentOn && !_consentNA) {
+    if (!_consentDocs) await loadConsent();   // not loaded yet, or it failed: try once more
+    if (!_consentNA && !_consentDocs) {
+      err.textContent = "We couldn't load the terms. Please try again."; err.style.display = 'block';
+      return;
+    }
+    if (_consentDocs && !(box && box.checked)) {
+      err.textContent = 'Please agree to the documents above to create an account.'; err.style.display = 'block';
+      if (box) box.focus();
+      return;
+    }
   }
   btn.textContent = 'Creating…'; btn.disabled = true;
+  let changed = false;
   try {
-    // PR #34 records consent at the current document versions (GET /legal/documents,
-    // api/legal.py:13-16) through accepted_terms_version, accepted_privacy_version and
-    // esign_consent (schemas/auth.py:16-20). A backend without that route (404/405, the
-    // deployed one) forbids those fields, so sign-up then sends the plain body.
+    // PR #34 records consent at the current document versions through
+    // accepted_terms_version, accepted_privacy_version and esign_consent (schemas/auth.py:16-20;
+    // the e-sign disclosure has no version in the body: it is recorded at the current one). So
+    // the current versions are read again and sign-up goes ahead only if they are the ones shown.
     let versions = null;
-    if (consentOn) {
+    if (consentOn && _consentDocs) {
       const r = await SolAccount.callPublic(API, '/legal/documents', { method: 'GET' });
-      if (r.ok) versions = SolAccount.consentVersions(r.data);
-      if ((r.ok && !versions) || (!r.ok && r.status !== 404 && r.status !== 405)) throw new Error("We couldn't load the current terms. Please try again.");
+      const now = r.ok ? SolAccount.consentDocs(r.data) : null;
+      if (!now) throw new Error("We couldn't load the current terms. Please try again.");
+      if (!SolAccount.sameConsentVersions(_consentDocs, now)) {
+        _consentDocs = now; renderConsent(now); changed = true;
+        throw new Error('These documents changed since you opened them. Please review them and agree again.');
+      }
+      versions = { terms: _consentDocs.terms.version, privacy: _consentDocs.privacy.version };
     }
     const data = await apiPost('/auth/signup', SolAccount.signupPayload({
       email: document.getElementById('regEmail').value,
@@ -568,11 +632,15 @@ async function handleRegister(e) {
     finishAuth(data);
   } catch(ex) {
     const d = ex && ex.detail;
-    err.textContent = (ex && ex.status === 422 && d && d.code === 'consent_required')
-      ? 'The Terms or the Privacy Policy changed. Please review them and try again.'
-      : ex.message;
+    const required = !!(ex && ex.status === 422 && d && d.code === 'consent_required');
+    err.textContent = required ? 'The terms changed. Please review them and agree again.' : ex.message;
     err.style.display = 'block';
-  } finally { btn.textContent = 'Create account'; btn.disabled = false; }
+    // The backend wants consent to newer versions: show those (the checkbox is unticked again).
+    if (required && consentOn) { _consentDocs = null; loadConsent(); }
+  } finally {
+    btn.textContent = 'Create account'; btn.disabled = false;
+    if (changed && box) box.focus();
+  }
 }
 </script>
 </body>

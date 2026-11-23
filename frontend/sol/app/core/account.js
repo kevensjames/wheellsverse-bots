@@ -76,6 +76,27 @@ window.SolAccount = (function () {
     }
     return v.terms && v.privacy ? { terms: v.terms, privacy: v.privacy } : null;
   }
+  // The three documents sign-up agrees to, by consent kind, with their exact title, text and
+  // version: { terms, privacy, esign } (PR #34 legal/__init__.py:41-62, 94-102; the esign consent
+  // accepts the esign_disclosure document). Null unless all three are complete: sign-up records
+  // esign at the current version, so the page must have shown that text too.
+  const CONSENT_KINDS = ['terms', 'privacy', 'esign'];
+  function consentDocs(docs) {
+    if (!Array.isArray(docs)) return null;
+    const out = {};
+    for (const kind of CONSENT_KINDS) {
+      const d = docs.find(x => x && x.consent_kind === kind);
+      if (!d || typeof d.version !== 'string' || !d.version || typeof d.title !== 'string' || !d.title.trim()
+        || typeof d.text !== 'string' || !d.text.trim()) return null;
+      out[kind] = { version: d.version, title: d.title.trim(), text: d.text };
+    }
+    return out;
+  }
+  // True when two consentDocs() results carry the same three versions.
+  function sameConsentVersions(a, b) {
+    if (!a || !b) return false;
+    return CONSENT_KINDS.every(k => a[k] && b[k] && a[k].version === b[k].version);
+  }
   // POST /auth/signup body. The deployed backend forbids extra keys, so the consent fields
   // are added only with versions from PR #34's /legal/documents.
   function signupPayload(f, versions) {
@@ -177,7 +198,7 @@ window.SolAccount = (function () {
   return {
     readTokenOnce, notAvailable, rateLimited, passwordProblem,
     forgotOutcome, resetOutcome, verifyOutcome,
-    consentVersions, signupPayload,
+    consentVersions, consentDocs, sameConsentVersions, signupPayload,
     storageOf, guideSeen, markGuideSeen,
     emailNotificationsOn, notificationsPatch, closePayload, closeRefusals, closeSummary,
     groupSecret, exportFileName, callPublic,
