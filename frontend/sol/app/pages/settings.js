@@ -9,6 +9,7 @@
 //   PATCH /account/profile {full_name} BASE api/account.py:72-84
 //   POST  /auth/forgot-password        BASE api/auth.py:124-132 (no change-password route exists)
 //   POST  /auth/2fa/setup|activate|disable  BASE api/auth.py:167-232
+//   POST  /auth/2fa/backup-codes/regenerate {password, code}  BASE api/auth.py:162-164, 205-218
 //   GET/PATCH /account/settings        BASE api/account.py:87-125 (preferences, shallow merge)
 //     ai_assistant_consent             PR #35 api/account.py:60, 76-83
 //   GET   /account/export              PR #33 api/account.py:164-175
@@ -19,8 +20,10 @@
 
 // resendNA: POST /auth/resend-verification answered 404 or 405 (the deployed base has no such
 // route). Kept in memory for this page session, so later visits of the dashboard and Settings
-// show the contact-support note instead of offering the button again.
-let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, resendNA: false, enroll: null, codes: null, closed: false };
+// show the contact-support note instead of offering the button again. regenNA: the same for
+// POST /auth/2fa/backup-codes/regenerate. regen: the "Get new backup codes" form is open.
+// codesReplaced: the codes shown replace older ones, which no longer work.
+let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, resendNA: false, regenNA: false, enroll: null, regen: false, codes: null, codesReplaced: false, closed: false };
 const RESEND_NA_TEXT = 'Resending is not available yet. If you need a new link, contact support.';
 
 function setAnnounce(msg) { const el = document.getElementById('settingsLive'); if (el) { el.textContent = ''; el.textContent = msg; } }
@@ -37,7 +40,8 @@ function setBusy(el, busy) {
 const setNA = text => `<p class="set-na">${esc(text)}</p>`;
 
 // ── Re-authenticating requests ────────────────────────────────────────────────
-// POST /auth/2fa/activate, /auth/2fa/disable and /account/close (PR #33) answer a wrong code
+// POST /auth/2fa/activate, /auth/2fa/disable, /auth/2fa/backup-codes/regenerate and
+// /account/close (PR #33) answer a wrong code
 // or password with 401 ("Invalid code", "Invalid password", "2FA code required"). api() reads
 // every first 401 as an expired access token: it renews the session (POST /auth/refresh, 5 per
 // 15 minutes per IP) and sends the request again. A typo would then cost a refresh and count
@@ -63,7 +67,7 @@ async function reauthPost(path, body) {
 async function loadSettings() {
   const body = document.getElementById('settingsBody');
   if (!body) return;
-  setState.enroll = null; setState.codes = null;   // a new visit never shows an old secret or codes
+  setState.enroll = null; setState.codes = null; setState.regen = false;   // a new visit never shows an old secret or codes
   body.innerHTML = '<div class="spinner"></div>';
   const [meR, stR] = await Promise.allSettled([api('/auth/me'), api('/account/settings')]);
   if ((meR.status === 'rejected' && _aborted(meR.reason)) || (stR.status === 'rejected' && _aborted(stR.reason))) return;
@@ -201,6 +205,7 @@ function renderTwoFactor() {
       <div class="set-warn" role="note">
         <h3 id="set2faCodesH" tabindex="-1">Save your backup codes</h3>
         <p>Store these codes somewhere safe. Each code works once, if you lose your phone. You will not see them again.</p>
+        ${setState.codesReplaced ? '<p>Your old backup codes no longer work.</p>' : ''}
         <ul class="set-codes" id="set2faCodes">${setState.codes.map(c => `<li><code>${esc(c)}</code></li>`).join('')}</ul>
         <div class="set-inline">
           <button type="button" class="btn btn-ghost btn--sm" id="set2faCopyCodes" onclick="copyBackupCodes()">Copy codes</button>
@@ -227,10 +232,24 @@ function renderTwoFactor() {
       </div>`;
     return;
   }
+  if (on && setState.regen) {
+    el.innerHTML = `${state}
+      <h3 id="set2faRegenH" tabindex="-1">Get new backup codes</h3>
+      <p class="hint-muted">Enter your password and a code from your app. We will show you 10 new codes. Your old backup codes stop working.</p>
+      <div class="field"><label for="set2faRegenPw">Password</label><input id="set2faRegenPw" class="input" type="password" autocomplete="current-password"></div>
+      <div class="field"><label for="set2faRegenCode">6-digit code from your app</label><input id="set2faRegenCode" class="input set-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+      <div class="set-inline">
+        <button type="button" class="btn btn-primary btn--sm" id="set2faRegenGo" onclick="getNewBackupCodes()">Get new codes</button>
+        <button type="button" class="btn btn-ghost btn--sm" id="set2faRegenCancel" onclick="cancelNewBackupCodes()">Cancel</button>
+      </div>`;
+    return;
+  }
   if (on) {
     const left = me && Number.isInteger(me.totp_backup_codes_remaining) ? me.totp_backup_codes_remaining : null;
     el.innerHTML = `${state}
       ${left !== null ? `<p class="hint-muted">Backup codes left: <span class="tnum">${esc(left)}</span></p>` : ''}
+      ${setState.regenNA ? `<p class="set-na" id="set2faNewCodesNA">${esc(REGEN_NA_TEXT)}</p>`
+        : '<p><button type="button" class="btn btn-ghost btn--sm" id="set2faNewCodes" onclick="startNewBackupCodes()">Get new backup codes</button></p>'}
       <p class="hint-muted">To turn off two-factor sign-in, enter your password and a code from your app. This signs you out on all devices.</p>
       <div class="field"><label for="set2faPw">Password</label><input id="set2faPw" class="input" type="password" autocomplete="current-password"></div>
       <div class="field"><label for="set2faOffCode">6-digit code from your app</label><input id="set2faOffCode" class="input set-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
@@ -277,10 +296,12 @@ async function confirmTwoFactor() {
     const d = await reauthPost('/auth/2fa/activate', { code });
     const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
     setState.enroll = null;   // the secret leaves the page
-    setState.codes = codes.length ? codes : null;
+    setState.codes = codes.length ? codes : null; setState.codesReplaced = false;
     if (me) { me.totp_enabled = true; me.totp_backup_codes_remaining = codes.length; }
     renderTwoFactor();
     setAnnounce('Two-factor sign-in is on.');
+    // PR #35 ends every other session when two-factor is turned on (harmless to say on the base).
+    setText('set2faMsg', 'Your other devices may need to sign in again.');
     setFocus(setState.codes ? 'set2faCodesH' : 'setTwoFactorH');
   } catch (e) {
     if (e && e.status === 400) { setState.enroll = null; renderTwoFactor(); setErr('set2faErr', 'Your setup expired. Please start again.'); setFocus('setTwoFactorH'); }
@@ -304,9 +325,74 @@ async function copyText(text, okMsg) {
 function copyTwoFactorKey() { if (setState.enroll) copyText(setState.enroll.secret, 'Key copied.'); }
 function copyBackupCodes() { if (setState.codes) copyText(setState.codes.join('\n'), 'Backup codes copied.'); }
 function backupCodesSaved() {
-  setState.codes = null;   // shown once: the codes leave the page
+  setState.codes = null; setState.codesReplaced = false;   // shown once: the codes leave the page
   renderTwoFactor();
   setFocus('setTwoFactorH');
+}
+
+// Two-factor was turned off elsewhere (another device) since this page loaded: turning it off or
+// getting new codes answers 400 "2FA not enabled" (BASE services/auth.py:334-335, 400-401). Read
+// the status again rather than keep a stale "On".
+function _twoFactorNotOn(e) { return !!(e && e.status === 400 && /not enabled/i.test(typeof e.detail === 'string' ? e.detail : (e.message || ''))); }
+async function twoFactorAlreadyOff() {
+  setState.enroll = null; setState.regen = false; setState.codes = null; setState.codesReplaced = false;
+  let m = null;
+  try { m = await api('/auth/me'); } catch (e) { m = null; }
+  if (m && typeof m === 'object') me = m;
+  else if (me) me.totp_enabled = false;   // the backend just said so
+  renderTwoFactor();
+  if (me && me.totp_enabled) setErr('set2faErr', 'Two-factor sign-in changed on another device. Please try again.');
+  else setText('set2faMsg', 'Two-factor sign-in is already off.');
+  setFocus('setTwoFactorH');
+}
+
+// ── New backup codes: POST /auth/2fa/backup-codes/regenerate {password, code} (BASE api/auth.py:
+// 162-164, 205-218; services/auth.py:326-345). 200 {backup_codes: [10]}: the old codes stop working.
+// 401 "Invalid password" / "Invalid code" (re-authenticated like turning off: never a refresh).
+// The new codes are shown once, like at activation, and are never stored or logged.
+const REGEN_NA_TEXT = 'Getting new backup codes here is not available yet.';
+function startNewBackupCodes() {
+  setState.regen = true;
+  setErr('set2faErr', ''); setText('set2faMsg', '');
+  renderTwoFactor();
+  setFocus('set2faRegenH');
+}
+function cancelNewBackupCodes() {
+  setState.regen = false;   // the form and its password leave the page
+  setErr('set2faErr', '');
+  renderTwoFactor();
+  setFocus('set2faNewCodes');
+}
+async function getNewBackupCodes() {
+  const pw = document.getElementById('set2faRegenPw'), codeEl = document.getElementById('set2faRegenCode');
+  const password = pw ? pw.value : '', code = codeEl ? codeEl.value.trim() : '';
+  setErr('set2faErr', ''); setText('set2faMsg', '');
+  if (!password) { setErr('set2faErr', 'Enter your password.'); if (pw) pw.focus(); return; }
+  if (!/^\d{6}$/.test(code)) { setErr('set2faErr', 'Enter the 6-digit code from your app.'); if (codeEl) codeEl.focus(); return; }
+  if (!SolGuard.acquire('settings:2fa')) return;
+  setBusy(document.getElementById('set2faRegenGo'), true);
+  try {
+    const d = await reauthPost('/auth/2fa/backup-codes/regenerate', { password, code });
+    const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
+    setState.regen = false;
+    setState.codes = codes.length ? codes : null; setState.codesReplaced = !!setState.codes;
+    if (me && codes.length) me.totp_backup_codes_remaining = codes.length;
+    renderTwoFactor();
+    if (setState.codes) { setAnnounce('Your new backup codes are ready. Your old codes no longer work.'); setFocus('set2faCodesH'); }
+    else { setErr('set2faErr', "Your old backup codes no longer work, but we couldn't show the new ones. Please get new codes again."); setFocus('setTwoFactorH'); }
+  } catch (e) {
+    if (_twoFactorNotOn(e)) await twoFactorAlreadyOff();
+    else if (SolAccount.notAvailable(e)) {
+      setState.regenNA = true; setState.regen = false;   // remembered for this page session
+      renderTwoFactor();
+      setText('set2faMsg', REGEN_NA_TEXT);
+      setFocus('setTwoFactorH');   // the form is gone
+    } else setErr('set2faErr', twoFactorError(e, "We couldn't get new backup codes. Please try again."));
+  } finally {
+    SolGuard.release('settings:2fa');
+    if (pw) pw.value = '';
+    setBusy(document.getElementById('set2faRegenGo'), false);
+  }
 }
 async function disableTwoFactor() {
   const pw = document.getElementById('set2faPw'), codeEl = document.getElementById('set2faOffCode');
@@ -324,7 +410,8 @@ async function disableTwoFactor() {
     setText('set2faMsg', 'Two-factor sign-in is off. For your safety, you were signed out on all devices. You may be asked to sign in again soon.');
     setFocus('setTwoFactorH');
   } catch (e) {
-    setErr('set2faErr', twoFactorError(e, "We couldn't turn off two-factor. Please try again."));
+    if (_twoFactorNotOn(e)) await twoFactorAlreadyOff();
+    else setErr('set2faErr', twoFactorError(e, "We couldn't turn off two-factor. Please try again."));
   } finally {
     SolGuard.release('settings:2fa');
     if (pw) pw.value = '';
