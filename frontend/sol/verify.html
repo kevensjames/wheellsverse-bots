@@ -55,9 +55,12 @@
 <script>
 // Verify email: POST /auth/verify-email with the token in the JSON body, exactly {token}, as
 // /auth/reset-password takes it. Never in the URL: proxies, the API's access log and the host's
-// HTTP logs record URLs, so a one-time token in a query string would be written there. (The
-// deployed backend, api/auth.py:113-121, and draft PR #33 read ?token= from the query string;
-// the backend change "keep email-verify tokens out of sol-api logs" reads this body.)
+// HTTP logs record URLs, so a one-time token in a query string would be written there.
+// Deploy order: the backend change "keep email-verify tokens out of sol-api logs" (it reads this
+// body) must be live before this page. The deployed backend (api/auth.py:113-121) and draft PR
+// #33 read ?token= from the query string only and answer this body 422 at loc ["query","token"]:
+// the page then says "not available yet" and keeps the token for "Try again". It never resends
+// the token in a URL to make an older backend work.
 // The token is read from the address once, removed from it at once, and kept in this
 // variable only: never logged, stored or put back in the address (or in any request URL).
 // Nothing is sent when the page loads: a mail scanner that opens the link and runs scripts
@@ -103,7 +106,7 @@ async function runVerify() {
   let out = 'retry';
   try {
     const r = await SolAccount.callPublic(API, '/auth/verify-email', { method: 'POST', body: { token: verifyToken } });
-    out = SolAccount.verifyOutcome(r.status);
+    out = SolAccount.verifyOutcome(r.status, r.data);
   } finally {
     verifyBusy = false;
     verifyBusyUi(false);   // before the answer is shown: this empties the status region

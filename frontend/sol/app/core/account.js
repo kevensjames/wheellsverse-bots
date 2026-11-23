@@ -57,9 +57,17 @@ window.SolAccount = (function () {
     return 'retry';
   }
   // POST /auth/verify-email {token} (the token in the JSON body, never in the URL): 200,
-  // 400 invalid or expired, 422 no token.
-  function verifyOutcome(status) {
+  // 400 invalid or expired, 422 a token the backend cannot use. One 422 is different: at loc
+  // ["query","token"] it comes from a backend that still reads the token from the query string
+  // only (the deployed base, api/auth.py:113-121), i.e. the page went live before the backend
+  // that reads the body. The link was not used, so that is "not available yet", never "expired".
+  function backendReadsQueryOnly(data) {
+    const d = data && typeof data === 'object' ? data.detail : null;
+    return Array.isArray(d) && d.some(e => !!e && typeof e === 'object' && Array.isArray(e.loc) && e.loc[0] === 'query' && e.loc[1] === 'token');
+  }
+  function verifyOutcome(status, data) {
     if (status >= 200 && status < 300) return 'done';
+    if (status === 422 && backendReadsQueryOnly(data)) return 'unavailable';
     if (status === 400 || status === 422) return 'invalid';
     if (status === 404 || status === 405) return 'unavailable';
     if (status === 429) return 'limited';
