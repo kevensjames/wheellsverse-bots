@@ -86,6 +86,18 @@ sign-in is already off.", matching the app's "Two-factor sign-in is already on."
 says "two-factor" everywhere (never "two-step"), so `B4a` and `B4b` compare the status line
 with that exact sentence.
 
+## Round 4 checks in `journeys.mjs`
+
+| Prefix | Covers |
+|--------|--------|
+| `R4-RING` | Every heading the app focuses after a keyboard action shows a ring: an outline of at least 2px, at least 2px off the letters (`scriptFocusRings`, at 1280x720 and 390x844, keyboard only). The headings are "Get new backup codes" (`#set2faRegenH`), the new codes (`#set2faCodesH`), "I saved my codes" (`#setTwoFactorH`), "Turn on" (`#set2faSetupH`), the close-account dialog's title (`#closeTitle`, where `D3d` opens it), and the guide's last step (`#guideTitle`). It also covers the verify and reset pages' heading after Enter (`publicPages`). On 0b5d35c each had keyboard focus (`:focus-visible`) but `outline-style: none`, because rules in the Settings cards, the dialog, the guide and `auth-pages.css` removed it: 14 checks failed. Those rules now remove the outline only for a focus that is not keyboard focus. |
+| `R4-STALE` | Two-factor turned on, Settings left and opened again while the answer is on its way. That visit's `GET /auth/me` holds the state the server read before it turned two-factor on, and it settles after the codes arrived (`codesStaleStatus`). The visit shows the 10 codes once, with focus on them, and reads On. The next visit reads On and shows none. On 0b5d35c the stale read set the card to Off and dropped the codes before their one showing (security review SEC-R3-2): 1 check failed. |
+| `R4-ABORT` | Codes from turning two-factor on land while a Settings visit is loading. The member leaves before it draws (`codesLoadAborted`, `GET /account/settings` held 1.5 s and aborted on leaving). The notice says the codes wait, and its text is written once. Settings is then opened and left again before it draws while the notice shows: the notice stays and its text is not written (announced) again. Settings, opened at last, shows the 10 codes once and the notice goes. These passed on 0b5d35c. Scratch mutations prove they bite: removing the notice's write-once guard fails 1 check, and removing the notice call for an aborted visit (`settings.js`, `loadSettings`) fails 2. |
+
+Renamed in round 4: the `SEC-R2-1` check "codes waiting, two-factor turned off elsewhere" is
+now "codes already shown, two-factor turned off elsewhere". Since round 3 it runs after the
+codes were shown. Waiting codes with two-factor turned off elsewhere are covered by `R3-C1`.
+
 ## Known failing check: `journey C_bank_noRawId`
 
 `journeys.mjs` checks that no raw id reaches the member markup by scanning
