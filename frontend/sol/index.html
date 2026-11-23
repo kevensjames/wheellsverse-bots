@@ -634,7 +634,11 @@ async function handleRegister(e) {
   } catch(ex) {
     const d = ex && ex.detail;
     const required = !!(ex && ex.status === 422 && d && d.code === 'consent_required');
-    err.textContent = required ? 'The terms changed. Please review them and agree again.' : ex.message;
+    // With the switch off this page shows no documents and no checkbox, so the member cannot
+    // agree here: say what they can do instead.
+    err.textContent = required
+      ? (consentOn ? 'The terms changed. Please review them and agree again.' : "We can't create new accounts right now. Please try again later, or contact support.")
+      : ex.message;
     err.style.display = 'block';
     // The backend wants consent to newer versions: show those (the checkbox is unticked again).
     if (required && consentOn) { _consentDocs = null; loadConsent(); }
