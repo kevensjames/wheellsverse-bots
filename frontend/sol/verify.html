@@ -25,7 +25,10 @@
   <div class="auth-card">
     <h1 id="pageTitle" tabindex="-1">Verify your email</h1>
 
-    <p id="verifyBusy" hidden>Checking your link…</p>
+    <section id="verifyStart" hidden>
+      <p class="auth-lede">Confirm that this email address is yours.</p>
+      <button type="button" class="btn btn--primary auth-wide" id="verifyGo" onclick="runVerify()">Verify my email</button>
+    </section>
 
     <section id="verifyDone" hidden>
       <p>Thanks. Your email address is verified.</p>
@@ -34,13 +37,14 @@
 
     <section id="verifyInvalid" hidden>
       <p id="verifyInvalidText">This link has expired or was already used.</p>
-      <p>To get a new link, sign in and choose Resend email on your dashboard.</p>
+      <p>If you already verified your email, you can just sign in.</p>
+      <p>To get a new link, sign in and choose Resend email in the reminder on your dashboard, or contact support.</p>
       <a class="btn btn--primary auth-wide" href="/sol/app">Sign in</a>
     </section>
 
     <section id="verifyRetry" hidden>
       <p id="verifyRetryText"></p>
-      <button type="button" class="btn btn--primary auth-wide" id="verifyAgain" onclick="runVerify(true)">Try again</button>
+      <button type="button" class="btn btn--primary auth-wide" id="verifyAgain" onclick="runVerify()">Try again</button>
     </section>
 
     <p class="sr-only" id="verifyState" role="status" aria-live="polite"></p>
@@ -52,13 +56,16 @@
 // Verify email: POST /auth/verify-email?token=<token>, no body (backend api/auth.py:113-121;
 // identical in draft PR #33). The token is read from the address once, removed from it at
 // once, and kept in this variable only: never logged, stored or put back in the address.
+// Nothing is sent when the page loads: a mail scanner that opens the link and runs scripts
+// would otherwise use up the one-time token. The POST goes only when the member selects
+// "Verify my email" (or "Try again"), once at a time.
 const API = 'https://sol-api-production.up.railway.app';
 let verifyToken = SolAccount.readTokenOnce(window);
 let verifyBusy = false;
 
-// state: busy | done | invalid | retry. focus: move focus to the heading after an answer.
+// state: start | done | invalid | retry. focus: move focus to the heading after an answer.
 function verifyShow(state, text, focus) {
-  document.getElementById('verifyBusy').hidden = state !== 'busy';
+  document.getElementById('verifyStart').hidden = state !== 'start';
   document.getElementById('verifyDone').hidden = state !== 'done';
   document.getElementById('verifyInvalid').hidden = state !== 'invalid';
   document.getElementById('verifyRetry').hidden = state !== 'retry';
@@ -66,31 +73,42 @@ function verifyShow(state, text, focus) {
   h.textContent = state === 'done' ? 'Email verified' : state === 'invalid' ? 'This link does not work' : 'Verify your email';
   if (state === 'invalid' && text) document.getElementById('verifyInvalidText').textContent = text;
   if (state === 'retry') document.getElementById('verifyRetryText').textContent = text || '';
-  document.getElementById('verifyState').textContent = state === 'busy' ? 'Checking your link.' : '';
   if (state === 'done' || state === 'invalid') verifyToken = null;
   if (focus) h.focus();
 }
+// Busy while the request runs, without `disabled`: disabling the focused button drops keyboard
+// focus to the page body. verifyBusy already drops a second click.
+function verifyBusyUi(on) {
+  for (const id of ['verifyGo', 'verifyAgain']) {
+    const b = document.getElementById(id);
+    if (on) { b.setAttribute('aria-disabled', 'true'); b.setAttribute('aria-busy', 'true'); }
+    else { b.removeAttribute('aria-disabled'); b.removeAttribute('aria-busy'); }
+  }
+  document.getElementById('verifyGo').textContent = on ? 'Verifying…' : 'Verify my email';
+  document.getElementById('verifyState').textContent = on ? 'Checking your link.' : '';
+}
 
-async function runVerify(focus) {
+async function runVerify() {
   if (verifyBusy || !verifyToken) return;
   verifyBusy = true;
-  verifyShow('busy');
+  verifyBusyUi(true);
   try {
     const r = await SolAccount.callPublic(API, '/auth/verify-email?token=' + encodeURIComponent(verifyToken), { method: 'POST' });
     const out = SolAccount.verifyOutcome(r.status);
-    if (out === 'done') verifyShow('done', null, focus);
-    else if (out === 'invalid') verifyShow('invalid', null, focus);
-    else if (out === 'unavailable') verifyShow('retry', 'Email verification is not available yet. Please try again later.', focus);
-    else if (out === 'limited') verifyShow('retry', 'Too many tries. Please wait a minute and try again.', focus);
-    else if (out === 'offline') verifyShow('retry', "We couldn't reach MySol. Check your connection and try again.", focus);
-    else verifyShow('retry', 'Something went wrong on our side. Please try again.', focus);
+    if (out === 'done') verifyShow('done', null, true);
+    else if (out === 'invalid') verifyShow('invalid', null, true);
+    else if (out === 'unavailable') verifyShow('retry', 'Email verification is not available yet. Please try again later.', true);
+    else if (out === 'limited') verifyShow('retry', 'Too many tries. Please wait a minute and try again.', true);
+    else if (out === 'offline') verifyShow('retry', "We couldn't reach MySol. Check your connection and try again.", true);
+    else verifyShow('retry', 'Something went wrong on our side. Please try again.', true);
   } finally {
     verifyBusy = false;
+    verifyBusyUi(false);
   }
 }
 
-if (verifyToken) runVerify(false);
-else verifyShow('invalid', 'This link is missing its code. Open the link from your email again.');
+if (verifyToken) verifyShow('start');
+else verifyShow('invalid', 'This link is incomplete. Open the link from your email again.');
 </script>
 </body>
 </html>

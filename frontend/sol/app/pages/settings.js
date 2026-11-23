@@ -17,7 +17,11 @@
 // The two-factor secret and backup codes live only in this page's memory and DOM while
 // they are needed; they are never stored, logged or put in the address bar.
 
-let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, enroll: null, codes: null, closed: false };
+// resendNA: POST /auth/resend-verification answered 404 or 405 (the deployed base has no such
+// route). Kept in memory for this page session, so later visits of the dashboard and Settings
+// show the contact-support note instead of offering the button again.
+let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, resendNA: false, enroll: null, codes: null, closed: false };
+const RESEND_NA_TEXT = 'Resending is not available yet. If you need a new link, contact support.';
 
 function setAnnounce(msg) { const el = document.getElementById('settingsLive'); if (el) { el.textContent = ''; el.textContent = msg; } }
 function setText(id, msg, show) { const el = document.getElementById(id); if (!el) return; el.textContent = msg || ''; if (show !== undefined) el.style.display = msg ? 'block' : 'none'; }
@@ -87,7 +91,8 @@ function renderSettings() {
       <div class="set-row"><span class="set-label">Email</span>
         <span class="set-value" id="setEmail">${esc(m.email || '')}</span>
         <span id="setEmailStatus">${verified ? '<span class="status status--verified">Verified</span>' : '<span class="status status--pending">Not verified</span>'}</span></div>
-      ${verified ? '' : `<div class="set-inline" id="setResendWrap"><button type="button" class="btn btn-ghost btn--sm" id="setResend" onclick="resendVerification('set')">Resend email</button>
+      ${verified ? '' : setState.resendNA ? `<p class="hint-muted" id="setResendNA">${esc(RESEND_NA_TEXT)}</p>`
+        : `<div class="set-inline" id="setResendWrap"><button type="button" class="btn btn-ghost btn--sm" id="setResend" onclick="resendVerification('set')">Resend email</button>
         <p class="hint-muted" id="setResendMsg" role="status" aria-live="polite"></p></div>`}
       <p class="hint-muted">To change your email address, contact support.</p>
     </section>
@@ -523,8 +528,9 @@ function renderVerifyBanner() {
   el.innerHTML = `<section class="verify-banner" aria-labelledby="verifyBannerTitle">
       <div class="verify-banner__text"><h2 id="verifyBannerTitle" class="verify-banner__title" tabindex="-1">Please verify your email address</h2>
         <p>Open the link we sent to <strong>${esc(me.email)}</strong> to confirm this address is yours.</p>
+        ${setState.resendNA ? `<p class="hint-muted" id="verifyNA">${esc(RESEND_NA_TEXT)}</p>` : ''}
         <p class="hint-muted" id="verifyMsg" role="status" aria-live="polite"></p></div>
-      <button type="button" class="btn btn-ghost btn--sm" id="verifyResend" onclick="resendVerification('verify')">Resend email</button>
+      ${setState.resendNA ? '' : `<button type="button" class="btn btn-ghost btn--sm" id="verifyResend" onclick="resendVerification('verify')">Resend email</button>`}
     </section>`;
 }
 // POST /auth/resend-verification (PR #33): 202 sent, 200 already verified, 3/hour.
@@ -541,7 +547,7 @@ async function resendVerification(scope) {
     if (d && d.already_verified === true) { setText(msgId, 'Your email is already verified.'); hide = true; }
     else setText(msgId, 'We sent a new link. Check your inbox.');
   } catch (e) {
-    if (SolAccount.notAvailable(e)) { setText(msgId, 'Resending is not available yet. If you need a new link, contact support.'); hide = true; }
+    if (SolAccount.notAvailable(e)) { setState.resendNA = true; setText(msgId, RESEND_NA_TEXT); hide = true; }
     else if (SolAccount.rateLimited(e)) setText(msgId, 'You asked for several emails. Please try again later.');
     else setText(msgId, "We couldn't send the email. Please try again.");
   } finally {
