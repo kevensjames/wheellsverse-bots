@@ -500,7 +500,8 @@ async function memberPages(page) {
   await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456'); await click('#set2faRegenGo'); await wait(300);
   rq = await reqs();
   T('B4a backup codes, 400 "2FA not enabled": the status is read again (GET /auth/me after the POST) and reads Off', JSON.stringify(rq.filter(r => ['/auth/me', '/auth/2fa/backup-codes/regenerate'].includes(r.url)).map(r => r.method + ' ' + r.url).slice(-2)) === JSON.stringify(['POST /auth/2fa/backup-codes/regenerate', 'GET /auth/me']) && (await text('#set2faState')).trim() === 'Off');
-  T('B4a backup codes, 400 "2FA not enabled": says two-factor sign-in is already off, without the raw text or an error alert', /two-(factor|step) sign-in is already off/i.test(await text('#setTwoFactor')) && !/2FA not enabled/i.test(await text('#setTwoFactor')) && (await alertText('#setTwoFactor')) === '');
+  // The wording matches the app's "Two-factor sign-in is already on." (the app says "two-factor" everywhere).
+  T('B4a backup codes, 400 "2FA not enabled": says exactly "Two-factor sign-in is already off.", without the raw text or an error alert', (await text('#set2faMsg')).trim() === 'Two-factor sign-in is already off.' && !/2FA not enabled/i.test(await text('#setTwoFactor')) && (await alertText('#setTwoFactor')) === '');
 
   // ── B4b: turning off answers 400 "2FA not enabled" when it was turned off elsewhere (BASE services/auth.py:396-401) ──
   await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = true; window.nav('settings'); }); await wait(300);
@@ -509,7 +510,7 @@ async function memberPages(page) {
   await fill('#set2faPw', 'synthetic-password'); await fill('#set2faOffCode', '654321'); await click('#set2faOff'); await wait(300);
   rq = await reqs();
   T('B4b two-factor off, 400 "2FA not enabled": one POST, then the status is read again (GET /auth/me) and reads Off', countOf(rq, '/auth/2fa/disable') === 1 && JSON.stringify(rq.filter(r => ['/auth/me', '/auth/2fa/disable'].includes(r.url)).map(r => r.method + ' ' + r.url).slice(-2)) === JSON.stringify(['POST /auth/2fa/disable', 'GET /auth/me']) && (await text('#set2faState')).trim() === 'Off');
-  T('B4b two-factor off, 400 "2FA not enabled": says two-factor sign-in is already off, without the raw text or an error alert', /two-(factor|step) sign-in is already off/i.test(await text('#setTwoFactor')) && !/2FA not enabled/i.test(await text('#setTwoFactor')) && (await alertText('#setTwoFactor')) === '');
+  T('B4b two-factor off, 400 "2FA not enabled": says exactly "Two-factor sign-in is already off.", without the raw text or an error alert', (await text('#set2faMsg')).trim() === 'Two-factor sign-in is already off.' && !/2FA not enabled/i.test(await text('#setTwoFactor')) && (await alertText('#setTwoFactor')) === '');
   T('B4b two-factor off, 400: focus moves to the two-factor heading', await ev(page, () => !!document.activeElement && document.activeElement.id === 'setTwoFactorH'));
   // The route is missing (404, 405): "not available yet", no error.
   for (const st of [404, 405]) {
