@@ -1222,6 +1222,34 @@ async function publicPages(browser, leaks) {
   await vn.click('#verifyGo'); await vn.wait(250);
   T('3c verify (405): says it is not available yet', /not available yet/i.test(await vn.text('main')));
   await vn.page.close();
+  // VERIFY-1: an answer that leaves the page in its "try again" state (429, 5xx, 404/405) is
+  // announced, keyboard only: focus goes to the heading, which no longer reads as before the
+  // click, and the reason is in a status region. "Try again" that fails again announces it again.
+  // Every text a live region takes is logged (MutationObserver).
+  const liveLog = pg => pg.evaluate(() => { window.__live = []; new MutationObserver(() => { document.querySelectorAll('[role=status],[role=alert],[aria-live]:not([aria-live=off])').forEach(e => { const t = e.textContent.trim(); if (t) window.__live.push(t); }); }).observe(document.body, { subtree: true, childList: true, characterData: true }); });
+  for (const [st, body] of [[429, { error: 'Rate limit exceeded: 10 per 1 minute' }], [500, { detail: 'Internal Server Error' }], [404, { detail: 'Not Found' }]]) {
+    const vr1 = await open(`/sol/verify.html?token=${VERIFY_TOKEN}`, { flags: { delay: 150 }, over: { 'POST /auth/verify-email': { status: st, body } } });
+    const h0 = (await vr1.text('h1')).trim();
+    await liveLog(vr1.page);
+    await vr1.page.focus('#verifyGo', { timeout: 1000 }).catch(() => {});
+    await vr1.page.keyboard.press('Enter'); await vr1.wait(500);
+    const got = await ev(vr1.page, () => {
+      const msg = document.getElementById('verifyRetryText').textContent.trim();
+      const live = [...document.querySelectorAll('[role=status],[role=alert],[aria-live]:not([aria-live=off])')].filter(e => !e.closest('[hidden]') && getComputedStyle(e).display !== 'none');
+      const h = document.querySelector('h1');
+      return { msg, inLive: !!msg && live.some(e => e.textContent.includes(msg)), onH1: document.activeElement === h, h1: h.textContent.trim(), retry: !document.getElementById('verifyRetry').hidden };
+    });
+    T(`VERIFY-1 verify (${st}): after Enter on "Verify my email", focus is on the heading, which no longer reads "${h0}", and the reason is in a status region`,
+      !!got && got.retry && got.onH1 && got.h1 !== h0 && got.inLive && (await ev(vr1.page, m => window.__live.includes(m), got.msg)));
+    if (st === 429) {
+      await vr1.page.evaluate(() => { window.__live.length = 0; });
+      await vr1.page.focus('#verifyAgain', { timeout: 1000 }).catch(() => {});
+      await vr1.page.keyboard.press('Enter'); await vr1.wait(500);
+      T('VERIFY-1 verify (429): "Try again" that fails again announces the reason again', !!got && verifyPosts(vr1).length === 2 && await ev(vr1.page, m => window.__live.includes(m), got.msg)
+        && await ev(vr1.page, () => document.activeElement === document.querySelector('h1')));
+    }
+    await vr1.page.close();
+  }
   const vm2 = await open('/sol/verify.html');
   T('3c verify: without a token, no request and a clear message', vm2.recorded.filter(r => r.url.startsWith('/auth/verify-email')).length === 0 && await vm2.vis('#verifyInvalid'));
   T('C4 verify: without a token, says the link is incomplete and offers no verify button', /incomplete/i.test(await vm2.text('#verifyInvalid')) && !(await vm2.vis('#verifyGo')));
