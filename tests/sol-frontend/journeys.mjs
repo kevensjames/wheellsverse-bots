@@ -134,6 +134,7 @@ async function main() {
   if (errs.length) console.log('    page errors:', JSON.stringify(errs.slice(0, 5)));
   await keyboardFromTop(page);
   await closeAccountSignsOut(browser, leaks);
+  await guideStorageBlocked(browser, leaks);
   await publicPages(browser, leaks);
   await appShell(browser, leaks);
   // Secrets shown on the Settings page (2FA secret, backup codes) never reach the console.
@@ -623,7 +624,8 @@ async function memberPages(page) {
   await click('#setGuide'); await wait(120);
   await click('#guideClose'); await wait(120);
   T('6a guide: the close button (with an accessible name) dismisses it, focus on the heading', await ev(page, () => !window.SolDialog.isOpen('guideDialog') && document.activeElement === document.querySelector('#page-settings h1')));
-  // Storage blocked: the guide still opens, nothing throws.
+  // Storage blocked (B3): the guide was already shown in this page session (above), so it does not
+  // open again, and nothing throws. Before, with storage throwing, every dashboard load reopened it.
   const blocked = await page.evaluate(async () => {
     const before = window.__errs.length;
     const g = Storage.prototype.getItem, s = Storage.prototype.setItem;
@@ -634,7 +636,7 @@ async function memberPages(page) {
     finally { Storage.prototype.getItem = g; Storage.prototype.setItem = s; }
     return { opened, errs: window.__errs.length - before };
   });
-  T('6a guide: with storage blocked it still opens and nothing throws', blocked.opened === true && blocked.errs === 0);
+  T('6a guide (B3): with storage blocked it does not reopen in the same page session, and nothing throws', blocked.opened === false && blocked.errs === 0);
   await page.evaluate(() => { try { localStorage.setItem('sol_guide_seen:' + SEED.user.id, '1'); } catch (e) {} });
 }
 
@@ -757,6 +759,35 @@ async function appShell(browser, leaks) {
     T(`A1 ${label}: no page errors`, perrs.length === 0 && (await ev(page, () => (window.__errs || []).length)) === 0);
     await ctx.close();
   }
+}
+
+// B3: storage blocked in a new page session (its own context). The guide opens on the first
+// dashboard load, as the first-run guide should, and then not again in that page session: the
+// "seen" mark is also kept in memory, per member (storage stays the record across sessions).
+async function guideStorageBlocked(browser, leaks) {
+  const ctx = await safeContext(browser, leaks);
+  const page = await ctx.newPage();
+  await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+  const r = await ev(page, async () => {
+    const sleep = ms => new Promise(ok => setTimeout(ok, ms));
+    const before = (window.__errs || []).length;
+    const g = Storage.prototype.getItem, s = Storage.prototype.setItem;
+    Storage.prototype.getItem = function () { throw new DOMException('blocked', 'SecurityError'); };
+    Storage.prototype.setItem = function () { throw new DOMException('blocked', 'SecurityError'); };
+    const opens = [];
+    try {
+      // Dashboard, Settings, Dashboard, Dashboard: what the Dashboard (Home) button does each time.
+      for (const p of ['dashboard', 'settings', 'dashboard', 'dashboard']) {
+        window.nav(p); await sleep(450);
+        if (p === 'dashboard') opens.push(window.SolDialog.isOpen('guideDialog'));
+        if (window.SolDialog.isOpen('guideDialog')) { window.SolDialog.close('guideDialog'); await sleep(60); }
+      }
+    } finally { Storage.prototype.getItem = g; Storage.prototype.setItem = s; }
+    return { opens, errs: (window.__errs || []).length - before };
+  });
+  T('B3 guide, storage blocked in a new page session: the first dashboard load opens it', !!r && r.opens[0] === true);
+  T('B3 guide, storage blocked: later dashboard loads in that page session do not reopen it, and nothing throws', !!r && r.opens.length === 3 && r.opens[1] === false && r.opens[2] === false && r.errs === 0);
+  await ctx.close();
 }
 
 // A fresh browser context (its own storage, so a sign-in or sign-out there never reaches the
