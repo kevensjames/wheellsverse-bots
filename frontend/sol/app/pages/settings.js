@@ -384,8 +384,8 @@ async function getNewBackupCodes() {
     if (_twoFactorNotOn(e)) await twoFactorAlreadyOff();
     else if (SolAccount.notAvailable(e)) {
       setState.regenNA = true; setState.regen = false;   // remembered for this page session
-      renderTwoFactor();
-      setText('set2faMsg', REGEN_NA_TEXT);
+      renderTwoFactor();   // the note takes the button's place
+      setAnnounce(REGEN_NA_TEXT);
       setFocus('setTwoFactorH');   // the form is gone
     } else setErr('set2faErr', twoFactorError(e, "We couldn't get new backup codes. Please try again."));
   } finally {
