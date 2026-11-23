@@ -224,6 +224,8 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .premium-card:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 .premium-card__sheen{position:absolute;inset:0;background:radial-gradient(140px 90px at 82% 0%,rgba(244,169,60,.25),transparent);pointer-events:none}
 .premium-card .btn-ghost{border-color:rgba(255,255,255,.32);color:#fff}
+/* On the dark hero and Premium card the light-surface ring (--sol-700) is about 2:1: use the light one. */
+.dash-hero :focus-visible,.premium-card :focus-visible{outline-color:var(--focus-ring-on-dark)}
 .premium-card .btn-ghost:hover{background:rgba(255,255,255,.12)}
 .premium-card>*{position:relative;z-index:1}
 .premium-price{font-family:var(--font-display);margin:.3rem 0 .5rem}

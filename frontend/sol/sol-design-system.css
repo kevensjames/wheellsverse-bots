@@ -29,7 +29,8 @@
   /* Ergonomic aliases */
   --bg:var(--paper); --text:var(--ink-900); --text-muted:var(--ink-500);
   --border:var(--line); --brand:var(--sol-500); --brand-strong:var(--sol-600);
-  --focus-ring:var(--sol-700);   /* focus outlines and focused field borders: >=3:1 on every surface */
+  --focus-ring:var(--sol-700);   /* focus outlines and focused field borders: >=3:1 on the light surfaces */
+  --focus-ring-on-dark:var(--sol-400);   /* the same on the dark dashboard hero and Premium card */
 
   /* WCAG AA (2026-11): text tokens that failed against their backgrounds were darkened
      the least that passes on surface #FFF, paper #FBFAF7 and surface-2 #F4F2EC (4.5:1):
@@ -38,7 +39,9 @@
        --success-600 #1E9E6A -> #177A51  (3.41 -> 5.33; on --success-100 2.93 -> 4.58)
        --warn-600    #C98A14 -> #8A5A0C  (on --warn-100 2.58 -> 5.18)
        --st-cancelled #5E6B85 -> #5C6983 (on its chip 4.49 -> 4.63)
-     The focus ring moved from --sol-500 (2.43:1 on #FFF) to --focus-ring = --sol-700 (6.67:1). */
+     The focus ring moved from --sol-500 (2.43:1 on #FFF) to --focus-ring = --sol-700 (6.67:1).
+     On the dark hero and Premium card (#0E1726 to #3A2A1A) --sol-700 is about 2:1, so controls
+     there use --focus-ring-on-dark = --sol-400 (6.94:1 or more on every colour of them). */
 
   /* Type */
   --font-display:"Space Grotesk",system-ui,-apple-system,sans-serif;
