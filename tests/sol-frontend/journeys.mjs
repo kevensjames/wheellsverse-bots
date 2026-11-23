@@ -1290,8 +1290,11 @@ async function keyboardPolish(browser, leaks) {
         offset: parseFloat(cs.outlineOffset) || 0, width: parseFloat(cs.outlineWidth) || 0, top: r.top, margin: parseFloat(cs.scrollMarginTop) || 0 };
     });
 
-    // (b) A new page session: the guide opens on its own on the first dashboard load (no banner, the
-    // email address is verified). Escape: focus on the overview section.
+    // (b) A new page session where the member has not seen the guide (the harness marks it seen):
+    // it opens on its own on the dashboard (no banner, the email address is verified). Escape: focus
+    // on the overview section.
+    await page.evaluate(() => { localStorage.removeItem('sol_guide_seen:' + SEED.user.id); window.nav('dashboard'); });
+    await page.waitForTimeout(600);
     const opened = await ev(page, () => window.SolDialog.isOpen('guideDialog'));
     await page.keyboard.press('Escape'); await page.waitForTimeout(150);
     const gh = await seen();
