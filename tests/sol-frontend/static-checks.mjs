@@ -92,5 +92,35 @@ for (const rel of order) {
 }
 if (!deletes) ok('stored member tokens are deleted only by logout() and when a sign-in replaces them');
 
+// 6. The member account pages. The pages an email link opens (reset-password.html,
+// verify.html) hold a one-time token in memory: their own scripts never log it or store it.
+// Every page that uses window.SolAccount (core/account.js) loads it first, and the inline
+// scripts of the standalone pages parse.
+console.log('\n[5] member account pages');
+const SOL_DIR = join(APP, '..');
+const ACCOUNT_TAG = '<script src="/sol/app/core/account.js"></script>';
+const accIdx = order.indexOf('core/account.js');
+const usesAccount = ['pages/settings.js', 'pages/onboarding.js', 'pages/dashboard.js'].map(r => order.indexOf(r)).filter(i => i !== -1);
+if (accIdx === -1) fail('app.html must load core/account.js');
+else if (usesAccount.some(i => i < accIdx)) fail('app.html must load core/account.js before the pages that use it');
+else ok('app.html loads core/account.js before the pages that use it');
+for (const rel of ['pages/settings.js', 'pages/onboarding.js', 'core/a11y.js']) {
+  if (order.indexOf(rel) === -1) fail(`app.html must load ${rel}`);
+}
+const inlineScripts = src => [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+for (const [file, mustHoldToken] of [['index.html', false], ['reset-password.html', true], ['verify.html', true]]) {
+  let src;
+  try { src = readFileSync(join(SOL_DIR, file), 'utf8'); } catch { fail(`frontend/sol/${file} is missing`); continue; }
+  const tagAt = src.indexOf(ACCOUNT_TAG), inlineAt = src.search(/<script>/);
+  if (tagAt === -1 || inlineAt === -1 || tagAt > inlineAt) { fail(`${file}: must load core/account.js before its own script`); continue; }
+  const inline = inlineScripts(src).join('\n');
+  const tmpInline = join(HERE, '.inline.tmp.js');
+  try { writeFileSync(tmpInline, inline); check(tmpInline); }
+  catch (e) { fail(`${file}: inline script does not parse\n${e.stderr}`); continue; }
+  finally { try { unlinkSync(tmpInline); } catch {} }
+  if (mustHoldToken && /\bconsole\s*\.|\blocalStorage\b|\bsessionStorage\b|\bdocument\.cookie\b/.test(inline)) { fail(`${file}: the page holds an email-link token; its script must not use console, localStorage, sessionStorage or cookies`); continue; }
+  ok(`${file}: loads core/account.js first; inline script parses${mustHoldToken ? '; no console or storage use' : ''}`);
+}
+
 console.log(`\n${fails ? '✗ ' + fails + ' FAILURE(S)' : '✓ all static checks passed'}`);
 process.exit(fails ? 1 : 0);
