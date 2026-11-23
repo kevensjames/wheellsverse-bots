@@ -19,9 +19,9 @@
 // enriched mock. A real-backend authenticated E2E remains a future addition.
 // The port is 8891 unless SOL_JOURNEYS_PORT is set (to run beside another copy).
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, normalize } from 'node:path';
+import { dirname, extname, join, normalize } from 'node:path';
 import { generateHarness, HARNESS_URL_PATH, IDS, publicMockScript } from './harness.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -39,11 +39,14 @@ async function main() {
 
   generateHarness();
 
+  // Clean URLs, as Cloudflare Pages serves them: a path without an extension that is not a file
+  // (e.g. /sol/verify, or /sol/app next to the app/ folder) serves <path>.html; .html paths still work.
   const server = createServer(async (req, res) => {
     try {
       const path = decodeURIComponent(req.url.split('?')[0]);
-      const file = normalize(join(FRONTEND, path));
+      let file = normalize(join(FRONTEND, path));
       if (!file.startsWith(FRONTEND)) { res.writeHead(403).end(); return; }
+      if (!extname(path) && !path.endsWith('/') && !(await stat(file).then(st => st.isFile(), () => false))) file += '.html';
       const body = await readFile(file);
       const ext = file.slice(file.lastIndexOf('.'));
       res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' }).end(body);
@@ -790,6 +793,10 @@ async function closeAccountSignsOut(browser, leaks) {
 
 async function publicPages(browser, leaks) {
   const ctx = await safeContext(browser, leaks);
+  // A sign-in here ends on the member app at /sol/app, which the server now serves from app.html
+  // (clean URLs). These pages carry the public mock only, so the app is not booted there: it gets
+  // an empty stub page, as the 404 it got before. Its scripts under /sol/app/ are not affected.
+  await ctx.route(/^http:\/\/localhost:\d+\/sol\/app(\?[^/]*)?$/, r => r.fulfill({ status: 200, contentType: 'text/html', body: '<!DOCTYPE html><html lang="en"><title>MySol app (stub)</title></html>' }));
   const open = async (path, opts = {}) => {
     const page = await ctx.newPage();
     const logs = []; const perrs = []; const recorded = [];
