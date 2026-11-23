@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/sol/app/styles/app.css">
 </head>
 <body>
+<a class="skip-link" href="#main" onclick="return skipToContent(event)">Skip to content</a>
 
 <!-- Icon sprite: one stroke-based line-icon set, referenced via <use>. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
@@ -31,7 +32,7 @@
   <symbol id="ic-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
 </defs></svg>
 
-<aside class="sidebar">
+<header class="sidebar">
   <div class="logo-wrap"><img src="/sol/assets/sol-logo.svg" alt="Sol"></div>
   <div class="user-info"><div class="user-email" id="userEmail">Loading…</div></div>
   <nav class="nav-groups" aria-label="Primary">
@@ -63,12 +64,12 @@
     <button type="button" class="nav-item" data-page="admin" data-feature="catalog" data-admin hidden onclick="nav('admin')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-circles"/></svg> Circle admin</button>
     <button type="button" class="nav-item logout" onclick="logout()"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-signout"/></svg> Sign out</button>
   </nav>
-</aside>
+</header>
 
-<main class="main">
+<main class="main" id="main" tabindex="-1">
   <!-- Dashboard -->
   <div class="page active" id="page-dashboard">
-    <h1 class="sr-only">Dashboard</h1>
+    <h1 class="sr-only" tabindex="-1">Dashboard</h1>
     <div id="dashVerify"></div>
     <section class="dash-hero" id="dashHero" aria-label="Overview"></section>
     <div id="dashAttention"></div>
@@ -91,7 +92,7 @@
   <div class="page" id="page-groups">
     <div class="circles-head">
       <div>
-        <h1>Savings circles</h1>
+        <h1 tabindex="-1">Savings circles</h1>
         <p class="sub">Manage your circles, track contributions, and plan upcoming payouts.</p>
       </div>
       <div class="circles-head__actions">
@@ -104,7 +105,7 @@
       <div class="form-box">
         <div style="font-weight:600;margin-bottom:.5rem">Join a private circle</div>
         <div style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">Paste the invite code a friend shared with you.</div>
-        <div class="field"><label>Invite code</label>
+        <div class="field"><label for="jbcCode">Invite code</label>
           <input type="text" id="jbcCode" placeholder="e.g. aB3cD4eF"></div>
         <p class="err" id="jbcErr" style="display:none"></p>
         <div style="display:flex;gap:.5rem">
@@ -116,11 +117,11 @@
     <div id="createForm" style="display:none;margin-bottom:1.5rem">
       <div class="form-box">
         <div style="font-weight:600;margin-bottom:1rem">Create a circle</div>
-        <div class="field"><label>Circle name</label>
+        <div class="field"><label for="cName">Circle name</label>
           <input type="text" id="cName" placeholder="My savings group"></div>
-        <div class="field"><label>Members (2–20)</label>
+        <div class="field"><label for="cMax">Members (2–20)</label>
           <input type="number" id="cMax" min="2" max="20" value="20"></div>
-        <div class="field"><label>Payout day of month (1–28)</label>
+        <div class="field"><label for="cDay">Payout day of month (1–28)</label>
           <input type="number" id="cDay" min="1" max="28" value="1"></div>
         <div class="field" style="display:flex;align-items:center;gap:.5rem">
           <input type="checkbox" id="cPrivate" style="width:auto;margin:0">
@@ -171,7 +172,7 @@
   <div class="page" id="page-catalog">
     <div id="catalogLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Circle Catalog</h1><p class="sub">Browse SOL Circle offerings — browsing is open to everyone.</p></div>
+      <div><h1 tabindex="-1">Circle Catalog</h1><p class="sub">Browse SOL Circle offerings — browsing is open to everyone.</p></div>
     </div>
     <div id="catalogList"></div>
     <!-- Circle detail + join dialog (lives in #page-catalog so it's shown when the catalog is active) -->
@@ -193,7 +194,7 @@
   <div class="page" id="page-admin">
     <div id="adminLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Circle admin</h1><p class="sub">Create and manage admin-defined catalog circles.</p></div>
+      <div><h1 tabindex="-1">Circle admin</h1><p class="sub">Create and manage admin-defined catalog circles.</p></div>
       <div class="circles-head__actions"><button type="button" class="btn btn-primary" onclick="openAdminForm('create',null,event)">Create a circle</button></div>
     </div>
     <div id="adminList" tabindex="-1"></div>
@@ -211,7 +212,7 @@
 
   <!-- Group Detail (injected dynamically) -->
   <div class="page" id="page-group-detail">
-    <h1 class="sr-only">Circle detail</h1>
+    <h1 class="sr-only" tabindex="-1">Circle detail</h1>
     <button class="btn btn-ghost cdetail__back" onclick="nav('groups')">← Back</button>
     <div id="groupDetail"></div>
   </div>
@@ -220,7 +221,7 @@
   <div class="page" id="page-kyc">
     <div id="kycLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="kyc-head">
-      <h1>Verify your identity</h1>
+      <h1 tabindex="-1">Verify your identity</h1>
       <p class="sub">Complete identity verification to help protect your account and enable eligible financial features.</p>
     </div>
     <div id="kycContent"><div class="spinner"></div></div>
@@ -229,7 +230,7 @@
   <!-- Payments -->
   <div class="page" id="page-payments">
     <div class="circles-head">
-      <div><h1>Payments</h1><p class="sub">Track contributions from due date through final settlement.</p></div>
+      <div><h1 tabindex="-1">Payments</h1><p class="sub">Track contributions from due date through final settlement.</p></div>
       <div class="circles-head__actions" id="payHeadActions"></div>
     </div>
     <div class="dash-summary" id="paySummary" aria-label="Payment summary"></div>
@@ -251,7 +252,7 @@
   <div class="page" id="page-discover">
     <div id="discLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Discover circles</h1><p class="sub">Find a contribution circle that fits your amount, schedule, and goals.</p></div>
+      <div><h1 tabindex="-1">Discover circles</h1><p class="sub">Find a contribution circle that fits your amount, schedule, and goals.</p></div>
       <div class="circles-head__actions"><button type="button" class="btn btn-ghost" onclick="nav('groups')">View my circles</button></div>
     </div>
     <div class="disc-elig" id="discElig"></div>
@@ -298,14 +299,14 @@
 
   <!-- Timeline -->
   <div class="page" id="page-timeline">
-    <h1>Your timeline</h1>
+    <h1 tabindex="-1">Your timeline</h1>
     <p class="sub">Next contribution, upcoming payout, and progress across your circles.</p>
     <div id="timelineContent"><div class="spinner"></div></div>
   </div>
 
   <!-- Trust / SOL Score -->
   <div class="page" id="page-trust">
-    <h1>Your SOL Score</h1>
+    <h1 tabindex="-1">Your SOL Score</h1>
     <p class="sub">Trust you build by saving on time and showing up for your circles.</p>
     <div id="trustContent"><div class="spinner"></div></div>
   </div>
@@ -314,7 +315,7 @@
   <div class="page" id="page-premium">
     <div id="premiumLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="kyc-head">
-      <h1>SOL Premium</h1>
+      <h1 tabindex="-1">SOL Premium</h1>
       <p class="sub">Manage your membership, billing status, and Premium benefits.</p>
     </div>
     <div id="premiumContent"><div class="spinner"></div></div>
@@ -336,7 +337,7 @@
   <div class="page" id="page-notifications">
     <div id="notifLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Notifications</h1><p class="sub">Review account alerts, payment updates, and circle activity.</p></div>
+      <div><h1 tabindex="-1">Notifications</h1><p class="sub">Review account alerts, payment updates, and circle activity.</p></div>
       <div class="circles-head__actions" id="notifHeadActions"></div>
     </div>
     <div class="dash-summary" id="notifSummary" aria-label="Notification summary"></div>
@@ -368,7 +369,7 @@
     <div id="commLive" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
       <div>
-        <h1>Community</h1>
+        <h1 tabindex="-1">Community</h1>
         <p class="sub">Share progress, ask general questions, and connect with other SOL members.</p>
       </div>
       <div class="circles-head__actions">
@@ -444,7 +445,7 @@
   <div class="page" id="page-goals">
     <div id="goalsLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Savings goals</h1><p class="sub">Track progress toward the things that matter to you.</p></div>
+      <div><h1 tabindex="-1">Savings goals</h1><p class="sub">Track progress toward the things that matter to you.</p></div>
       <div class="circles-head__actions" id="goalsHeadActions"></div>
     </div>
     <div class="goal-disclose"><svg class="ic" aria-hidden="true"><use href="#ic-goals"/></svg><span>Goals are a planning tool. The tracked amount reflects your own progress toward a goal — it isn't money held in an account, and updating it moves no money.</span></div>
@@ -509,7 +510,7 @@
   <div class="page" id="page-bank">
     <div id="bankLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Bank &amp; payment methods</h1><p class="sub">Manage the account used for contributions and payouts.</p></div>
+      <div><h1 tabindex="-1">Bank &amp; payment methods</h1><p class="sub">Manage the account used for contributions and payouts.</p></div>
       <div class="circles-head__actions" id="bankHeadActions"></div>
     </div>
     <div class="dash-summary" id="bankSummary" aria-label="Bank summary"></div>
@@ -563,7 +564,7 @@
   <div class="page" id="page-settings">
     <div id="settingsLive" class="sr-only" role="status" aria-live="polite"></div>
     <div class="kyc-head">
-      <h1>Settings</h1>
+      <h1 tabindex="-1">Settings</h1>
       <p class="sub">Your profile, sign-in security, notifications and data.</p>
     </div>
     <div id="settingsBody" class="set-grid"><div class="spinner"></div></div>
@@ -604,7 +605,7 @@
 
 <!-- Mobile bottom nav (hidden on desktop via media query) -->
 <nav class="mobile-nav" id="mobileNav" aria-label="Primary mobile">
-  <button type="button" class="mn active" data-mpage="dashboard" onclick="nav('dashboard')"><svg class="ic" aria-hidden="true"><use href="#ic-dashboard"/></svg>Home</button>
+  <button type="button" class="mn active" data-mpage="dashboard" onclick="nav('dashboard')" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#ic-dashboard"/></svg>Home</button>
   <button type="button" class="mn" data-mpage="groups" onclick="nav('groups')"><svg class="ic" aria-hidden="true"><use href="#ic-circles"/></svg>Circles</button>
   <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><svg class="ic" aria-hidden="true"><use href="#ic-payments"/></svg>Pay</button>
   <button type="button" class="mn" data-mpage="notifications" onclick="nav('notifications')"><svg class="ic" aria-hidden="true"><use href="#ic-alerts"/></svg>Alerts</button>
@@ -654,6 +655,7 @@
 <script src="/sol/app/core/dialog.js"></script>
 <script src="/sol/app/core/guard.js"></script>
 <script src="/sol/app/core/account.js"></script>
+<script src="/sol/app/core/a11y.js"></script>
 <script src="/sol/app/pages/dashboard.js"></script>
 <script src="/sol/app/pages/circles.js"></script>
 <script src="/sol/app/pages/circle-detail.js"></script>

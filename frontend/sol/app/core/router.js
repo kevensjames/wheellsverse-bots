@@ -16,11 +16,13 @@ function nav(page) {
   _routeAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => { n.classList.remove('active'); n.removeAttribute('aria-current'); });
-  document.querySelectorAll('.mn').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.mn').forEach(n => { n.classList.remove('active'); n.removeAttribute('aria-current'); });
   document.getElementById('page-' + page)?.classList.add('active');
   const _side = document.querySelector(`[data-page="${page}"]`);
   if (_side) { _side.classList.add('active'); _side.setAttribute('aria-current', 'page'); }
-  document.querySelector(`[data-mpage="${page}"]`)?.classList.add('active');
+  const _mob = document.querySelector(`[data-mpage="${page}"]`);
+  if (_mob) { _mob.classList.add('active'); _mob.setAttribute('aria-current', 'page'); }
+  if (typeof solRouteChanged === 'function') solRouteChanged(page);   // title + focus on the page h1 (core/a11y.js)
   if (page === 'groups') loadGroups();
   if (page === 'kyc') loadKYC();
   if (page === 'bank') loadBank();

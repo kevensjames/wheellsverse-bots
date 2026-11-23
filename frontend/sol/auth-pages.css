@@ -1,7 +1,7 @@
 /* Pages an email link opens (reset-password.html, verify.html). Built on the Sol design
    system tokens; no build step. */
 body{background:var(--paper);color:var(--ink-900);min-height:100vh;display:flex;flex-direction:column}
-.skip-link{position:absolute;left:1rem;top:-3rem;z-index:100;background:var(--surface);color:var(--ink-900);border:2px solid var(--sol-700);border-radius:var(--r-md);padding:.5rem .9rem;font-weight:600}
+.skip-link{position:absolute;left:1rem;top:-3rem;z-index:100;background:var(--surface);color:var(--ink-900);border:2px solid var(--focus-ring);border-radius:var(--r-md);padding:.5rem .9rem;font-weight:600}
 .skip-link:focus{top:1rem}
 .auth-top{padding:.9rem 1.5rem;border-bottom:1px solid var(--line);background:var(--surface)}
 .auth-brand img{height:30px;display:block}
