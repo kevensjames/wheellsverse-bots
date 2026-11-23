@@ -138,6 +138,7 @@ async function main() {
   await publicPages(browser, leaks);
   await appShell(browser, leaks);
   await codesLeaveGuard(browser, leaks);
+  await phoneFilters(browser, leaks);
   // Secrets shown on the Settings page (2FA secret, backup codes) never reach the console.
   T('no 2FA secret or backup code in the console', !allConsole.some(t => SECRETS.some(x => t.includes(x))));
   T('no console errors', consoleErrors.length === 0);
@@ -1159,6 +1160,91 @@ async function codesLeaveGuard(browser, leaks) {
   await t.page.waitForURL(/\/sol\/$/, { timeout: 5000 }).catch(() => {});
   T('R3-C1 real Chromium: a sign-out while codes wait does not ask: the existing logout() sends one POST /auth/logout, then the sign-in page',
     t.waiting === true && t.dialogs.length === 0 && t.recorded.filter(r => r.url === '/auth/logout' && r.method === 'POST').length === 1 && /\/sol\/$/.test(t.page.url()));
+  await t.ctx.close();
+}
+
+// D1 (round 3): at phone width the Circles "Filters & sort" panel is a sheet fixed to the bottom of
+// the screen, and the bottom nav (#mobileNav, fixed, stacked over it) covered its last control: a tap
+// on "Sort by" hit the nav, and Tab focus landed on a control nobody could see. A touch context at
+// 390x844, a keyboard walk in another, then the desktop dropdown at 1280x720, which must not change.
+async function phoneFilters(browser, leaks) {
+  const SELECTS = ['#circlesStatus', '#circlesRole', '#circlesSort'];
+  const open = async (opts = {}) => {
+    const ctx = await safeContext(browser, leaks, { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, ...opts });
+    const page = await ctx.newPage();
+    const perrs = [];
+    page.on('pageerror', e => perrs.push(String(e)));
+    await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+    await page.evaluate(() => { try { localStorage.setItem('sol_guide_seen:' + SEED.user.id, '1'); } catch (e) {} if (window.SolDialog.isOpen('guideDialog')) window.SolDialog.close('guideDialog'); window.nav('groups'); });
+    await page.waitForTimeout(500);
+    return { ctx, page, perrs };
+  };
+  // `sel` (default: the focused element) is on the screen with nothing over its centre; with
+  // `whole`, all of it is also above the bottom nav (when the nav is shown).
+  const free = (pg, sel, whole = true) => ev(pg, ([s, w]) => {
+    const a = s ? document.querySelector(s) : document.activeElement;
+    if (!a || a === document.body) return false;
+    const r = a.getBoundingClientRect(), n = document.getElementById('mobileNav').getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (cx < 0 || cy < 0 || cx >= innerWidth || cy >= innerHeight) return false;
+    const hit = document.elementFromPoint(cx, cy);
+    const above = !w || (r.top >= 0 && r.bottom <= innerHeight && (n.height === 0 || r.bottom <= n.top));
+    return above && !!hit && (hit === a || a.contains(hit));
+  }, [sel || null, whole]);
+  const isOpen = pg => ev(pg, () => document.querySelector('.circles-filters').open === true);
+
+  // Touch.
+  let t = await open();
+  await t.page.tap('.circles-filters summary', { timeout: 2000 }).catch(() => {}); await t.page.waitForTimeout(250);
+  T('D1 phone 390x844, touch: a tap on "Filters & sort" opens the sheet', await isOpen(t.page));
+  const each = [];
+  for (const s of SELECTS) each.push(await free(t.page, s));
+  T('D1 phone 390x844: in the open sheet, Status, Role and Sort by are each on the screen and above the bottom nav, with nothing over them', each.every(x => x === true));
+  const tapped = await t.page.tap('#circlesSort', { timeout: 2000 }).then(() => true, () => false);
+  if (tapped) await t.page.selectOption('#circlesSort', 'newest', { timeout: 2000 }).catch(() => {});
+  await t.page.waitForTimeout(200);
+  T('D1 phone 390x844, touch: a tap reaches "Sort by" (not the bottom nav), and choosing "Newest" sorts the circles by newest',
+    tapped && await ev(t.page, () => circles.sort === 'newest' && document.getElementById('circlesSort').value === 'newest' && /[?&]sort=newest\b/.test(location.search)));
+  await t.page.tap('#page-groups h1', { timeout: 2000 }).catch(() => {}); await t.page.waitForTimeout(200);
+  T('D1 phone 390x844, touch: a tap outside the open sheet closes it', (await isOpen(t.page)) === false);
+  T('D1 phone 390x844, touch: no page errors', t.perrs.length === 0);
+  await t.ctx.close();
+
+  // Keyboard.
+  t = await open();
+  await t.page.focus('.circles-filters summary').catch(() => {}); await t.page.keyboard.press('Enter'); await t.page.waitForTimeout(200);
+  const order = [], ok = [];
+  for (let i = 0; i < 3; i++) {
+    await t.page.keyboard.press('Tab'); await t.page.waitForTimeout(80);
+    order.push(await ev(t.page, () => '#' + document.activeElement.id)); ok.push(await free(t.page));
+  }
+  T('D1 phone 390x844, keyboard: Tab from "Filters & sort" goes to Status, Role and Sort by, and each focused control is on the screen and above the bottom nav, with nothing over it',
+    JSON.stringify(order) === JSON.stringify(SELECTS) && ok.every(x => x === true));
+  await t.page.keyboard.press('ArrowDown'); await t.page.waitForTimeout(200);
+  T('D1 phone 390x844, keyboard: ArrowDown on "Sort by" changes the sort (Next action to Newest)', await ev(t.page, () => circles.sort === 'newest' && document.activeElement.id === 'circlesSort'));
+  await t.page.keyboard.press('Tab'); await t.page.waitForTimeout(200);
+  T('D1 phone 390x844, keyboard: Tab past "Sort by" closes the sheet, and nothing is over the next focused element (the circle list)',
+    (await isOpen(t.page)) === false && await ev(t.page, () => document.activeElement.id === 'groupList') && await free(t.page, null, false));
+  await t.page.focus('.circles-filters summary').catch(() => {}); await t.page.keyboard.press('Enter'); await t.page.waitForTimeout(150);
+  await t.page.keyboard.press('Tab'); await t.page.waitForTimeout(80);
+  await t.page.keyboard.press('Escape'); await t.page.waitForTimeout(150);
+  T('D1 phone 390x844, keyboard: Escape in the open sheet closes it and returns focus to "Filters & sort"',
+    (await isOpen(t.page)) === false && await ev(t.page, () => document.activeElement === document.querySelector('.circles-filters summary')));
+  T('D1 phone 390x844, keyboard: no page errors', t.perrs.length === 0);
+  await t.ctx.close();
+
+  // Desktop: unchanged, a dropdown under its button.
+  t = await open({ viewport: { width: 1280, height: 720 }, hasTouch: false });
+  await t.page.click('.circles-filters summary', { timeout: 2000 }).catch(() => {}); await t.page.waitForTimeout(200);
+  const desk = await ev(t.page, () => {
+    const s = document.querySelector('.circles-filters summary').getBoundingClientRect(), p = document.querySelector('.circles-filters__panel');
+    const r = p.getBoundingClientRect(), d = document.querySelector('.circles-filters').getBoundingClientRect();
+    return { pos: getComputedStyle(p).position, below: r.top >= s.bottom && r.top - s.bottom < 12, right: Math.abs(r.right - d.right) < 1, width: Math.round(r.width) };
+  });
+  const deskFree = [];
+  for (const s of SELECTS) deskFree.push(await free(t.page, s));
+  T('D1 desktop 1280x720: "Filters & sort" is still a dropdown under its button (240px wide, right-aligned), and nothing is over its three controls',
+    !!desk && desk.pos === 'absolute' && desk.below && desk.right && desk.width === 240 && deskFree.every(x => x === true));
   await t.ctx.close();
 }
 
