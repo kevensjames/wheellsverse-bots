@@ -6,7 +6,9 @@
 // localStorage (SolAccount.guideSeen/markGuideSeen), the record across visits, and in this
 // page's memory for the page session. So when storage is blocked nothing throws, the guide
 // opens once in the page session, and it may show again on a later visit. Escape and the close
-// button dismiss it; focus returns to the page heading.
+// button dismiss it. Focus then returns to the control that opened it while that is still shown
+// (Settings > Show the guide); when it opened on its own, focus goes to the first visible part at
+// the top of the page (the dashboard's h1 is for screen readers only).
 
 const GUIDE_STEPS = [
   {
@@ -45,13 +47,30 @@ const GUIDE_STEPS = [
 let _guideStep = 0;
 // Member ids whose guide opened in this page session (the in-memory "seen").
 const _guideShownIds = new Set();
+// The control that opened the guide, or null when it opened on its own.
+let _guideOpener = null;
+// "What to do next" is leaving for another page, which moves focus itself.
+let _guideLeaving = false;
 
-// The active page's heading, focusable (tabindex -1) so focus can return to it.
-function _activeHeading() {
+// Where focus starts on the active page when nothing opened the guide: its first heading or
+// labelled section that is shown (on the dashboard, the verify-email banner's heading when the
+// banner shows, else the overview section), made focusable with tabindex -1.
+function _visibleStart() {
   const page = document.querySelector('.page.active');
-  const h = page ? page.querySelector('h1') : null;
-  if (h && !h.hasAttribute('tabindex')) h.setAttribute('tabindex', '-1');
-  return h;
+  const shown = e => { const r = e.getBoundingClientRect(); return r.width > 2 && r.height > 2 && getComputedStyle(e).visibility !== 'hidden'; };
+  const el = (page && [...page.querySelectorAll('h1, h2, section[aria-label]')].find(shown)) || document.getElementById('main');
+  if (el && !el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+  return el;
+}
+
+// After the guide closes (close button, Done, Escape): back to its opener while that is still
+// shown, else to the visible start of the page.
+function _guideClosed() {
+  const o = _guideOpener;
+  _guideOpener = null;
+  if (_guideLeaving) { _guideLeaving = false; return; }
+  const t = o && o.isConnected && o.offsetParent !== null ? o : _visibleStart();
+  if (t) { try { t.focus(); } catch (e) {} }
 }
 
 function renderGuide() {
@@ -66,12 +85,16 @@ function renderGuide() {
   set('guideDone', el => { el.hidden = !last; });
 }
 
-// Open the guide at its first step. Focus returns to the active page's heading on close.
-function openGuide() {
+// Open the guide at its first step. `auto`: it opened on its own (maybeShowGuide), so no control
+// opened it; otherwise the focused control did (Settings > Show the guide).
+function openGuide(auto) {
   if (!document.getElementById('guideDialog')) return;
   _guideStep = 0;
   renderGuide();
-  SolDialog.open('guideDialog', { opener: _activeHeading() || document.activeElement, initialFocus: '#guideNext' });
+  const a = document.activeElement;
+  _guideOpener = auto !== true && a && a !== document.body && a !== document.documentElement ? a : null;
+  _guideLeaving = false;
+  SolDialog.open('guideDialog', { opener: _guideOpener, initialFocus: '#guideNext', restoreFocus: false, onClose: _guideClosed });
 }
 function closeGuide() { SolDialog.close('guideDialog'); }
 
@@ -89,6 +112,7 @@ function guideStep(delta) {
 // A "what to do next" button: close the guide, then go there (nav() moves focus to that
 // page's heading).
 function guideGo(page) {
+  _guideLeaving = true;
   SolDialog.close('guideDialog', { restoreFocus: false });
   nav(page);
 }
@@ -105,5 +129,5 @@ function maybeShowGuide() {
   if (SolAccount.guideSeen(storage, me.id)) return;
   _guideShownIds.add(me.id);
   SolAccount.markGuideSeen(storage, me.id);
-  openGuide();
+  openGuide(true);
 }
