@@ -108,6 +108,11 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 .tab{flex:1;padding:.55rem;border-radius:var(--r-md);background:transparent;border:1px solid var(--line);
   color:var(--ink-500);cursor:pointer;font-family:var(--font-display);font-size:.9rem}
 .tab.active{background:var(--sol-200);border-color:var(--sol-500);color:var(--sol-600)}
+.link-btn{background:none;border:0;padding:0;font:inherit;font-size:.85rem;color:var(--sol-700);text-decoration:underline;cursor:pointer}
+.form-note{color:var(--ink-700);font-size:.9rem;margin:-.25rem 0 1rem}
+.ok-note{color:var(--ink-900);background:var(--sol-50);border:1px solid var(--sol-200);border-radius:var(--r-md);padding:.6rem .75rem;font-size:.85rem;margin-bottom:.75rem}
+.ok-note:empty{display:none}
+.forgot-row{margin:-.4rem 0 1rem}
 
 @media (max-width:760px){
   .hero{grid-template-columns:1fr;padding-top:2.5rem}
@@ -236,6 +241,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
         <input type="email" id="loginEmail" placeholder="you@example.com" required></div>
       <div class="field"><label>Password</label>
         <input type="password" id="loginPassword" placeholder="Your password" required></div>
+      <p class="forgot-row"><button type="button" class="link-btn" id="forgotLink" onclick="showForgot()">Forgot password?</button></p>
       <p class="err" id="loginErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="loginBtn">Sign in</button>
     </form>
@@ -253,6 +259,19 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="regBtn">Create account</button>
     </form>
 
+    <!-- Forgot password: POST /auth/forgot-password. The same message whatever the answer,
+         so the page never shows whether an account exists. -->
+    <form id="forgotForm" style="display:none" onsubmit="handleForgot(event)">
+      <h2>Reset your password</h2>
+      <p class="form-note">Enter your email address. If it matches an account, we send a link to set a new password.</p>
+      <div class="field"><label for="forgotEmail">Email</label>
+        <input type="email" id="forgotEmail" autocomplete="email" placeholder="you@example.com" required></div>
+      <p class="ok-note" id="forgotMsg" role="status" aria-live="polite"></p>
+      <p class="err" id="forgotErr" role="alert" aria-live="assertive"></p>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="forgotBtn">Send reset link</button>
+      <button type="button" class="btn" id="forgotBack" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--ink-700)" onclick="switchTab('login')">← Back to sign in</button>
+    </form>
+
     <!-- 2FA / TOTP step — shown when /auth/login returns totp_required -->
     <form id="totpForm" style="display:none" onsubmit="handleTotp(event)">
       <h2>Two-factor code</h2>
@@ -267,6 +286,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 </div>
 
 <script src="/sol/app/core/session.js"></script>
+<script src="/sol/app/core/account.js"></script>
 <script>
 const API = 'https://sol-api-production.up.railway.app';
 
@@ -278,9 +298,11 @@ function closeModal() {
   document.getElementById('authModal').classList.remove('open');
 }
 function switchTab(tab) {
-  // Leaving the 2FA step (e.g. "Back to sign in") restores the normal tabs.
+  // Leaving the 2FA step (e.g. "Back to sign in") restores the normal tabs. The
+  // forgot-password form ('forgot') hides them, like the 2FA step.
   const totp = document.getElementById('totpForm'); if (totp) totp.style.display = 'none';
-  const tabs = document.querySelector('.tab-row'); if (tabs) tabs.style.display = '';
+  const forgot = document.getElementById('forgotForm'); if (forgot) forgot.style.display = tab === 'forgot' ? '' : 'none';
+  const tabs = document.querySelector('.tab-row'); if (tabs) tabs.style.display = tab === 'forgot' ? 'none' : '';
   document.getElementById('loginForm').style.display = tab === 'login' ? '' : 'none';
   document.getElementById('registerForm').style.display = tab === 'register' ? '' : 'none';
   document.getElementById('tabLogin').className = 'tab' + (tab === 'login' ? ' active' : '');
@@ -319,6 +341,49 @@ async function apiPost(path, body) {
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(formatApiError(data, r.statusText));
   return data;
+}
+
+// Forgot password (POST /auth/forgot-password {email}; backend api/auth.py:124-132). The
+// backend answers the same for unknown addresses, and so does this page: one neutral
+// message for any answer, except a rate limit (429) or no answer at all.
+const FORGOT_SENT = 'If an account exists for that address, we sent a link.';
+let _forgotBusy = false;
+function showForgot() {
+  switchTab('forgot');
+  const f = document.getElementById('forgotEmail'), le = document.getElementById('loginEmail');
+  if (f && le && !f.value && le.value) f.value = le.value;
+  document.getElementById('forgotMsg').textContent = '';
+  document.getElementById('forgotErr').style.display = 'none';
+  if (f) f.focus();
+}
+async function handleForgot(e) {
+  e.preventDefault();
+  if (_forgotBusy) return;
+  const btn = document.getElementById('forgotBtn'), msg = document.getElementById('forgotMsg'), err = document.getElementById('forgotErr');
+  const email = document.getElementById('forgotEmail').value.trim();
+  msg.textContent = ''; err.style.display = 'none';
+  if (!email) { err.textContent = 'Enter your email address.'; err.style.display = 'block'; return; }
+  _forgotBusy = true;
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  try {
+    const r = await SolAccount.callPublic(API, '/auth/forgot-password', { method: 'POST', body: { email } });
+    const out = SolAccount.forgotOutcome(r.status);
+    if (out === 'sent') msg.textContent = FORGOT_SENT;
+    else {
+      err.textContent = out === 'limited' ? 'Too many requests. Please try again later.' : "We couldn't reach MySol. Check your connection and try again.";
+      err.style.display = 'block';
+    }
+  } finally { _forgotBusy = false; btn.textContent = 'Send reset link'; btn.disabled = false; }
+}
+
+// /sol/?forgot opens the forgot-password form (the reset page links here when a link has
+// expired); /sol/?signin opens the sign-in form (after a password reset).
+const _landingParams = new URLSearchParams(window.location.search);
+if (_landingParams.has('forgot') || _landingParams.has('signin')) {
+  window.addEventListener('DOMContentLoaded', () => {
+    if (_landingParams.has('forgot')) { openModal('login'); showForgot(); }
+    else { openModal('login'); const le = document.getElementById('loginEmail'); if (le) le.focus(); }
+  });
 }
 
 // If the landing URL has ?invite=XYZ, persist it through signup/login so the
