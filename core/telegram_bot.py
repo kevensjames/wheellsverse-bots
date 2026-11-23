@@ -9,15 +9,19 @@ Commands:
   /help             — List commands
   /ask <question>   — Ask NarAI a question
   /bots             — List running bots
-  /startbot <name>  — Start a bot
-  /stopbot <name>   — Stop a bot
+  /startbot <name>  — Start a bot (owner only)
+  /stopbot <name>   — Stop a bot (owner only)
   /status           — System status
-  /run <code>       — Generate + run code
+  /run <code>       — Generate + run code (owner only)
 
 Plain messages → NarAI response (uses per-chat conversation context).
 Voice messages → transcribe with Whisper → NarAI.
 
 Webhook mode when TELEGRAM_WEBHOOK_URL is set, polling mode otherwise.
+
+Security:
+  Privileged commands (/startbot, /stopbot, /run) require the sender's
+  chat_id to match TELEGRAM_CHAT_ID environment variable (bot owner).
 ─────────────────────────────────────────────────────────────────────────────
 """
 
@@ -43,6 +47,18 @@ def _is_rate_limited(chat_id: str, max_msgs: int = 5, window: int = 60) -> bool:
         return True
     q.append(now)
     return False
+
+
+def _is_authorized(chat_id: int) -> bool:
+    """Check if the chat_id matches the authorized owner's TELEGRAM_CHAT_ID."""
+    authorized_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    if not authorized_chat_id:
+        # If TELEGRAM_CHAT_ID is not set, deny all privileged operations
+        return False
+    try:
+        return int(authorized_chat_id) == chat_id
+    except (ValueError, TypeError):
+        return False
 
 
 def is_enabled() -> bool:
@@ -112,8 +128,8 @@ async def _start(update, context):
         "Commands:\n"
         "/ask <question> — Ask me anything\n"
         "/bots — List running bots\n"
-        "/startbot <name> — Start a bot\n"
-        "/stopbot <name> — Stop a bot\n"
+        "/startbot <name> — Start a bot (owner only)\n"
+        "/stopbot <name> — Stop a bot (owner only)\n"
         "/status — System status\n\n"
         "Or just send me any message!",
         parse_mode="Markdown"
@@ -125,10 +141,10 @@ async def _help_cmd(update, context):
         "🤖 *NarAI Commands*\n\n"
         "/ask <question> — Ask NarAI\n"
         "/bots — List all running bots\n"
-        "/startbot <name> — Start bot (category/name)\n"
-        "/stopbot <name> — Stop a running bot\n"
+        "/startbot <name> — Start bot (owner only)\n"
+        "/stopbot <name> — Stop a running bot (owner only)\n"
         "/status — Platform health\n"
-        "/run <prompt> — Generate + describe code\n\n"
+        "/run <prompt> — Generate + describe code (owner only)\n\n"
         "Or send any message to chat with NarAI!",
         parse_mode="Markdown"
     )
@@ -167,6 +183,12 @@ async def _bots_cmd(update, context):
 
 
 async def _startbot_cmd(update, context):
+    # Authorization check: only the owner can start bots
+    if not _is_authorized(update.effective_chat.id):
+        await update.message.reply_text("❌ Unauthorized. This command is restricted to the bot owner.")
+        logger.warning(f"[telegram] Unauthorized /startbot attempt from chat_id={update.effective_chat.id}")
+        return
+    
     if not context.args:
         await update.message.reply_text("Usage: /startbot <name> [category]")
         return
@@ -181,6 +203,12 @@ async def _startbot_cmd(update, context):
 
 
 async def _stopbot_cmd(update, context):
+    # Authorization check: only the owner can stop bots
+    if not _is_authorized(update.effective_chat.id):
+        await update.message.reply_text("❌ Unauthorized. This command is restricted to the bot owner.")
+        logger.warning(f"[telegram] Unauthorized /stopbot attempt from chat_id={update.effective_chat.id}")
+        return
+    
     if not context.args:
         await update.message.reply_text("Usage: /stopbot <name>")
         return
@@ -209,6 +237,12 @@ async def _status_cmd(update, context):
 
 
 async def _run_cmd(update, context):
+    # Authorization check: only the owner can generate and run code
+    if not _is_authorized(update.effective_chat.id):
+        await update.message.reply_text("❌ Unauthorized. This command is restricted to the bot owner.")
+        logger.warning(f"[telegram] Unauthorized /run attempt from chat_id={update.effective_chat.id}")
+        return
+    
     prompt = " ".join(context.args) if context.args else ""
     if not prompt:
         await update.message.reply_text("Usage: /run <describe what code should do>")
