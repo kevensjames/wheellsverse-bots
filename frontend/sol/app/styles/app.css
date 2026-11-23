@@ -5,6 +5,9 @@
   --muted:var(--ink-500);
   --cyan:var(--sol-500); --purple:var(--sol-600);
   --green:var(--success-600); --gold:var(--sol-600);
+  /* The phone bottom nav's height (.mobile-nav below): a 48px button, .4rem padding above and
+     below it, and a 1px top border. */
+  --mobile-nav-h:calc(48px + .8rem + 1px);
 }
 *{box-sizing:border-box}
 body{background:var(--paper);color:var(--ink-900);font-family:var(--font-body);display:flex;min-height:100vh;margin:0}
@@ -159,7 +162,9 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   .circles-head__actions{width:100%}.circles-head__actions .btn{flex:1}
   .circle-card__acts .btn{min-height:44px}
   .ctab{min-height:44px}
-  .circles-filters__panel{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;border-radius:1rem 1rem 0 0;box-shadow:0 -8px 32px rgba(14,23,38,.18)}
+  /* A sheet fixed just above the bottom nav, not under it, so its last control stays visible and a
+     tap reaches it (pages/circles.js closes it when focus leaves it). */
+  .circles-filters__panel{position:fixed;left:0;right:0;bottom:calc(var(--mobile-nav-h) + env(safe-area-inset-bottom,0px));top:auto;width:auto;max-height:calc(100vh - var(--mobile-nav-h) - 4rem);max-height:calc(100dvh - var(--mobile-nav-h) - 4rem);overflow-y:auto;border-radius:1rem 1rem 0 0;box-shadow:0 -8px 32px rgba(14,23,38,.18)}
 }
 @media(max-width:640px){
   /* Phones: the sidebar header becomes a small bar at the top (the page's banner landmark)

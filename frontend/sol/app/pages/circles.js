@@ -189,6 +189,26 @@ function circlesClearFilters() {
 }
 function circlesLoadMore() { circles.limit += CIRCLE_PAGE; renderCircles(); }
 
+// Phones (app.css, max-width 640px): "Filters & sort" opens as a sheet fixed just above the bottom
+// nav. It closes when focus leaves it (Tab past "Sort by", or a tap anywhere else; the panel has
+// tabindex -1, so a tap on its own blank space keeps it open), so it never covers the control that
+// has focus. Escape closes it and returns focus to "Filters & sort". Desktop keeps its dropdown.
+(function circlesFiltersSheet() {
+  const d = document.querySelector('.circles-filters');
+  if (!d) return;
+  const sheet = () => !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
+  d.addEventListener('focusout', () => {
+    setTimeout(() => { if (d.open && sheet() && !d.contains(document.activeElement)) d.open = false; }, 0);
+  });
+  d.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !d.open || !sheet()) return;
+    e.preventDefault();
+    d.open = false;
+    const s = d.querySelector('summary');
+    if (s) s.focus();
+  });
+})();
+
 function syncCirclesToURL() {
   const p = new URLSearchParams();
   if (circles.tab !== 'mine') p.set('tab', circles.tab);
