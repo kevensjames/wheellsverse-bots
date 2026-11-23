@@ -107,7 +107,7 @@
         <div style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">Paste the invite code a friend shared with you.</div>
         <div class="field"><label for="jbcCode">Invite code</label>
           <input type="text" id="jbcCode" placeholder="e.g. aB3cD4eF"></div>
-        <p class="err" id="jbcErr" style="display:none"></p>
+        <p class="err" id="jbcErr" role="alert" style="display:none"></p>
         <div style="display:flex;gap:.5rem">
           <button type="button" class="btn btn-primary" id="jbcBtn" onclick="joinByCode()">Join circle</button>
           <button type="button" class="btn btn-ghost" onclick="toggleJoinByCode()">Cancel</button>
@@ -127,7 +127,7 @@
           <input type="checkbox" id="cPrivate" style="width:auto;margin:0">
           <label for="cPrivate" style="margin:0;cursor:pointer">Private — only people with my invite link can join</label>
         </div>
-        <p class="err" id="cErr" style="display:none"></p>
+        <p class="err" id="cErr" role="alert" style="display:none"></p>
         <div style="display:flex;gap:.5rem">
           <button type="button" class="btn btn-primary" id="cBtn" onclick="createGroup()">Create</button>
           <button class="btn btn-ghost" onclick="toggleCreateForm()">Cancel</button>
@@ -527,7 +527,7 @@
               <div class="field"><label for="routingNumber">Routing number (9 digits)</label><input id="routingNumber" class="input" type="text" inputmode="numeric" maxlength="9" minlength="9" pattern="[0-9]{9}" placeholder="021000021" autocomplete="off" required></div>
               <div class="field"><label for="accountNumber">Account number</label><input id="accountNumber" class="input" type="text" inputmode="numeric" placeholder="Your checking or savings account number" autocomplete="off" required></div>
               <div class="field"><label for="accountType">Account type</label><select id="accountType" class="input"><option value="checking">Checking</option><option value="savings">Savings</option></select></div>
-              <p class="err" id="bankErr" style="display:none"></p>
+              <p class="err" id="bankErr" role="alert" style="display:none"></p>
               <button id="bankBtn" class="btn btn-primary" type="submit">Connect account</button>
             </form>
           </div>

@@ -83,7 +83,7 @@ async function showGroup(id) {
               <div class="cdetail__callout-sub">You'll contribute ${fmt$(g.contribution_cents)} each cycle for ${esc(g.max_members)} cycles (total ${fmt$(totalContributions)}) and receive <strong>${fmt$(netPayout)}</strong> on cycle ${yourPosition} (${feePct}% platform fee applied).</div>
             </div>
             <button class="btn btn-primary" id="joinBtn" onclick="joinGroup('${esc(g.id)}')">Join this circle</button>
-            <p class="err" id="joinErr" style="display:none"></p>
+            <p class="err" id="joinErr" role="alert" style="display:none"></p>
           `;
         })() : ''}
       </div>
