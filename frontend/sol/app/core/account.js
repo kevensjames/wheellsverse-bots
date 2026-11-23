@@ -6,20 +6,30 @@
 window.SolAccount = (function () {
   const TOKEN_MAX = 2048;
 
-  // An email link's ?token= (the backend builds APP_BASE_URL/verify?token= and
-  // /reset-password?token=, services/email.py:129, :142). Read once: the parameter is
-  // removed from the address bar at once with history.replaceState (other parameters and
-  // the hash are kept), so it is not left in the history, a bookmark or a shared screen.
-  // The caller keeps the value in memory only. Returns null when there is no usable token.
+  // An email link's token: ?token= in the query string (the backend builds
+  // APP_BASE_URL/verify?token= and /reset-password?token=, services/email.py:129, :142) or
+  // #token= in the fragment. A browser never sends the fragment to a server, so a #token= link
+  // keeps the token out of the static host's request logs; the follow-up moves the email links
+  // there, and this reads both forms so that change needs no page change. With both, the
+  // fragment one is used. Read once: both are removed from the address bar at once with
+  // history.replaceState (other query and fragment parameters are kept, and a fragment without
+  // a token is left as it was), so the token is not left in the history, a bookmark or a
+  // shared screen. The caller keeps the value in memory only. Returns null when there is no
+  // usable token.
   function readTokenOnce(win) {
     let params;
     try { params = new URLSearchParams(win.location.search || ''); } catch (e) { return null; }
-    if (!params.has('token')) return null;
-    const raw = params.get('token');
+    const hash = String(win.location.hash || '');
+    let frag = null;
+    try { if (hash.length > 1) { const f = new URLSearchParams(hash.slice(1)); if (f.has('token')) frag = f; } } catch (e) { frag = null; }
+    if (!frag && !params.has('token')) return null;
+    const raw = frag ? frag.get('token') : params.get('token');
     params.delete('token');
     const rest = params.toString();
+    let restHash = hash;
+    if (frag) { frag.delete('token'); const f = frag.toString(); restHash = f ? '#' + f : ''; }
     try {
-      win.history.replaceState(win.history.state, '', (win.location.pathname || '') + (rest ? '?' + rest : '') + (win.location.hash || ''));
+      win.history.replaceState(win.history.state, '', (win.location.pathname || '') + (rest ? '?' + rest : '') + restHash);
     } catch (e) { /* the token is still used; the address bar keeps it */ }
     const token = (raw || '').trim();
     return token && token.length <= TOKEN_MAX ? token : null;

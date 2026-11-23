@@ -61,8 +61,9 @@
 // #33 read ?token= from the query string only and answer this body 422 at loc ["query","token"]:
 // the page then says "not available yet" and keeps the token for "Try again". It never resends
 // the token in a URL to make an older backend work.
-// The token is read from the address once, removed from it at once, and kept in this
-// variable only: never logged, stored or put back in the address (or in any request URL).
+// The token is read from the address once (?token=, or #token= in the fragment, which no server
+// receives: SolAccount.readTokenOnce), removed from it at once, and kept in this variable only:
+// never logged, stored or put back in the address (or in any request URL).
 // Nothing is sent when the page loads: a mail scanner that opens the link and runs scripts
 // would otherwise use up the one-time token. The POST goes only when the member selects
 // "Verify my email" (or "Try again"), once at a time.
