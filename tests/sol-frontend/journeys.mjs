@@ -416,7 +416,7 @@ async function memberPages(page) {
 
   // ── B4a: new backup codes (POST /auth/2fa/backup-codes/regenerate {password, code}, BASE api/auth.py:162-164,
   // 205-218; services/auth.py:326-345). Re-authenticated like turning off: a wrong password or code is one
-  // POST and never a POST /auth/refresh. The new codes are shown once and never stored. ──
+  // POST and never a POST /auth/refresh. The new codes are shown until "I saved my codes" (SEC-R2-1) and never stored. ──
   const codeCount = () => ev(page, () => document.querySelectorAll('#set2faCodes li').length);
   const regenPosts = rs => countOf(rs, '/auth/2fa/backup-codes/regenerate');
   T('B4a backup codes: not offered while two-factor sign-in is off', (await text('#set2faState')).trim() === 'Off' && !(await vis('#set2faNewCodes')));

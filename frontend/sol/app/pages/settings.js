@@ -380,7 +380,8 @@ async function twoFactorAlreadyOff() {
 // ── New backup codes: POST /auth/2fa/backup-codes/regenerate {password, code} (BASE api/auth.py:
 // 162-164, 205-218; services/auth.py:326-345). 200 {backup_codes: [10]}: the old codes stop working.
 // 401 "Invalid password" / "Invalid code" (re-authenticated like turning off: never a refresh).
-// The new codes are shown once, like at activation, and are never stored or logged.
+// The new codes are shown, like at activation, until the member chooses "I saved my codes", and
+// are never stored or logged.
 const REGEN_NA_TEXT = 'Getting new backup codes here is not available yet.';
 function startNewBackupCodes() {
   setState.regen = true;
