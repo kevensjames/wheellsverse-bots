@@ -488,6 +488,77 @@ async function memberPages(page) {
     T(`B4a backup codes (${st}): says getting new codes is not available yet, no error alert, no codes, focus on the page`, /not available yet/i.test(await text('#setTwoFactor')) && (await alertText('#setTwoFactor')) === '' && (await codeCount()) === 0 && await ev(page, () => !!document.activeElement && document.activeElement !== document.body && !!document.activeElement.closest('#page-settings')));
     T(`B4a backup codes (${st}): the note is shown once, in place of the button, and announced`, ((await text('#setTwoFactor')).match(/not available yet/gi) || []).length === 1 && !(await vis('#set2faNewCodes')) && /not available yet/i.test(await text('#settingsLive')));
   }
+
+  // ── SEC-R2-1: backup codes are kept until the member chooses "I saved my codes". The server
+  // replaces the codes when it answers (the old ones stop working), so codes that arrive while the
+  // member is on another page must be shown on the next Settings visit, and leaving Settings again
+  // must not lose them. While Settings is not on screen nothing is announced and focus stays where
+  // it is. Every text #settingsLive takes is logged, with whether Settings was the active page. ──
+  const settingsLive = () => page.evaluate(() => {
+    if (!window.__setLiveOn) {
+      window.__setLiveOn = true;
+      const el = document.getElementById('settingsLive');
+      new MutationObserver(() => { const t = el.textContent.trim(); if (t) window.__setLive.push({ t, active: document.getElementById('page-settings').classList.contains('active') }); }).observe(el, { childList: true, characterData: true, subtree: true });
+    }
+    window.__setLive = [];
+  });
+  // arrived: the answer reached the page (setState.codes holds the 10 codes) while Settings was not on screen.
+  const awayState = () => ev(page, () => ({ active: (document.querySelector('.page.active') || {}).id, focusInSettings: !!(document.activeElement && document.activeElement.closest('#page-settings')), hiddenNews: window.__setLive.filter(x => !x.active).map(x => x.t), arrived: Array.isArray(setState.codes) && setState.codes.length === 10 }));
+  // Wait until the POST was sent (a token about to expire is renewed first), then past its 600 ms answer.
+  const answered = async url => { for (let i = 0; i < 60 && countOf(await reqs(), url) === 0; i++) await wait(50); await wait(900); };
+  const announcedOnScreen = re => ev(page, r => window.__setLive.some(x => x.active && new RegExp(r, 'i').test(x.t)), re);
+  await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = true; SEED.user.totp_backup_codes_remaining = 2; setState.regenNA = false; window.nav('settings'); }); await wait(300);
+  await click('#set2faNewCodes'); await wait(120);
+  await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456');
+  await settingsLive(); await clearReqs();
+  await page.evaluate(() => { window.__mock.delay = 600; });
+  await click('#set2faRegenGo'); await wait(100);
+  await page.evaluate(() => window.nav('dashboard'));   // the member leaves before the answer
+  await answered('/auth/2fa/backup-codes/regenerate');
+  await page.evaluate(() => { window.__mock.delay = 0; });
+  let away = await awayState();
+  T('SEC-R2-1 new codes, Settings left before the answer: one POST, answered while away; nothing is announced and focus does not move into the hidden Settings page',
+    regenPosts(await reqs()) === 1 && !!away && away.arrived && away.active === 'page-dashboard' && !away.focusInSettings && away.hiddenNews.length === 0);
+  await page.evaluate(() => window.nav('settings')); await wait(400);
+  T('SEC-R2-1 new codes, back in Settings: the 10 new codes are shown with the copy button and the warning, and the old codes are said to no longer work',
+    (await codeCount()) === 10 && /9f8e-7d6c-5b/.test(await text('#set2faCodes')) && await vis('#set2faCopyCodes') && /(store|save|keep).{0,40}(safe|somewhere)/i.test(await text('#setTwoFactor')) && /old (backup )?codes no longer work/i.test(await text('#setTwoFactor')));
+  T('SEC-R2-1 new codes, back in Settings: they are announced then, and focus moves to them', await announcedOnScreen('new backup codes are ready') && await ev(page, () => !!document.activeElement && document.activeElement.id === 'set2faCodesH'));
+  await page.evaluate(() => window.nav('dashboard')); await wait(300);
+  await page.evaluate(() => window.nav('settings')); await wait(400);
+  T('SEC-R2-1 new codes: leaving Settings and coming back before "I saved my codes" still shows them', (await codeCount()) === 10 && /9f8e-7d6c-5b/.test(await text('#set2faCodes')));
+  T('SEC-R2-1 new codes: the warning says they are not shown again once the member chooses "I saved my codes" (not "never again" while they still are)',
+    (await codeCount()) === 10 && await (async t => !/not see them again/i.test(t) || /saved my codes.{0,40}not see them again/i.test(t))(await text('#setTwoFactor')));
+  await click('#set2faSaved'); await wait(150);
+  await page.evaluate(() => window.nav('dashboard')); await wait(300);
+  await page.evaluate(() => window.nav('settings')); await wait(400);
+  T('SEC-R2-1 new codes: after "I saved my codes" they are gone and do not come back on the next visit; 10 codes left',
+    (await codeCount()) === 0 && await ev(page, () => !document.getElementById('page-settings').innerHTML.includes('9f8e-7d6c-5b')) && /backup codes left: 10/i.test(await text('#setTwoFactor')));
+  // Turning two-factor on: the same, when the member leaves before the answer.
+  await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; window.nav('settings'); }); await wait(300);
+  await click('#set2faStart'); await wait(250);
+  await fill('#set2faCode', '123456');
+  await settingsLive(); await clearReqs();
+  await page.evaluate(() => { window.__mock.delay = 600; });
+  await click('#set2faConfirm'); await wait(100);
+  await page.evaluate(() => window.nav('dashboard'));
+  await answered('/auth/2fa/activate');
+  await page.evaluate(() => { window.__mock.delay = 0; });
+  away = await awayState();
+  T('SEC-R2-1 turning two-factor on, Settings left before the answer: one POST, answered while away; nothing is announced and focus does not move into the hidden Settings page',
+    countOf(await reqs(), '/auth/2fa/activate') === 1 && !!away && away.arrived && away.active === 'page-dashboard' && !away.focusInSettings && away.hiddenNews.length === 0);
+  await page.evaluate(() => window.nav('settings')); await wait(400);
+  T('SEC-R2-1 turning two-factor on, back in Settings: it reads On and the 10 backup codes are shown, announced, with focus on them',
+    (await text('#set2faState')).trim() === 'On' && (await codeCount()) === 10 && /a1b2-c3d4-e5/.test(await text('#set2faCodes'))
+    && await announcedOnScreen('two-factor sign-in is on') && await ev(page, () => !!document.activeElement && document.activeElement.id === 'set2faCodesH'));
+  T('SEC-R2-1 turning two-factor on, back in Settings: the secret is not on the page', await ev(page, () => !document.getElementById('page-settings').innerHTML.includes('JBSWY3DPEHPK3PXP')));
+  // Two-factor turned off on another device while the codes wait: they no longer work. The next
+  // visit reads Off and drops them.
+  await page.evaluate(() => window.nav('dashboard')); await wait(200);
+  await page.evaluate(() => { SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; });
+  await page.evaluate(() => window.nav('settings')); await wait(400);
+  T('SEC-R2-1 codes waiting, two-factor turned off elsewhere: the next visit reads Off and the codes are gone from the page',
+    (await text('#set2faState')).trim() === 'Off' && (await codeCount()) === 0 && await ev(page, () => !document.getElementById('page-settings').innerHTML.includes('a1b2-c3d4-e5')));
+  T('SEC-R2-1 the codes are never stored or put in the address bar', await ev(page, s => { const all = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + location.href + JSON.stringify(history.state); return !s.some(x => all.includes(x)); }, SECRETS));
   await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; });
   // Notifications: preferences.notifications (BASE api/account.py:95-125; shallow merge).
   await page.evaluate(() => { window.__mockClear(); window.nav('settings'); }); await wait(300);
