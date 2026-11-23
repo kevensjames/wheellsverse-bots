@@ -17,18 +17,21 @@
 //   POST  /auth/resend-verification    PR #33 api/auth.py:127-143
 // The two-factor secret and backup codes live only in this page's memory and DOM while
 // they are needed; they are never stored, logged or put in the address bar. Backup codes are
-// needed until the member chooses "I saved my codes": the server has already replaced the old
-// ones, so leaving Settings (even before the answer arrives) must not lose them.
+// shown once: on the Settings page, until the member chooses "I saved my codes" or leaves. The
+// server has already replaced the old ones when it answers, so codes that arrive while the member
+// is on another page (they left before the answer) wait for that one showing: a notice above
+// every page says so, and a reload or tab close asks first.
 
 // resendNA: POST /auth/resend-verification answered 404 or 405 (the deployed base has no such
 // route). Kept in memory for this page session, so later visits of the dashboard and Settings
 // show the contact-support note instead of offering the button again. regenNA: the same for
 // POST /auth/2fa/backup-codes/regenerate. regen: the "Get new backup codes" form is open.
-// codes: backup codes the member has not confirmed saving yet ("I saved my codes"); kept across
-// Settings visits until then. codesReplaced: they replace older ones, which no longer work.
-// codesNews: codes arrived while Settings was not on screen: what to announce (and the two-factor
-// note to show) on the next visit, which also moves focus to them.
-let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, resendNA: false, regenNA: false, enroll: null, regen: false, codes: null, codesReplaced: false, codesNews: null, closed: false };
+// codes: backup codes the member has not confirmed saving yet ("I saved my codes").
+// codesReplaced: they replace older ones, which no longer work. codesSeen: they were drawn on the
+// Settings page while it was on screen; the next Settings visit drops them. codesNews: codes
+// arrived while Settings was not on screen and wait for their first showing: what to announce (and
+// the two-factor note to show) then, and the text of the notice shown meanwhile.
+let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, resendNA: false, regenNA: false, enroll: null, regen: false, codes: null, codesReplaced: false, codesSeen: false, codesNews: null, closed: false };
 const RESEND_NA_TEXT = 'Resending is not available yet. If you need a new link, contact support.';
 
 function setAnnounce(msg) { const el = document.getElementById('settingsLive'); if (el) { el.textContent = ''; el.textContent = msg; } }
@@ -69,15 +72,21 @@ async function reauthPost(path, body) {
   }
 }
 
-async function loadSettings() {
+// again: the Retry of a section that did not load, on the same visit (codes on screen stay).
+async function loadSettings(again) {
   const body = document.getElementById('settingsBody');
   if (!body) return;
-  // A new visit never shows an old secret or form. Backup codes the member has not confirmed
-  // saving stay (see setState.codes).
+  // A new visit never shows an old secret or form, nor backup codes the member has already seen
+  // here. Codes that arrived while the member was on another page wait for this first showing.
   setState.enroll = null; setState.regen = false;
+  if (!again && setState.codes && setState.codesSeen) _dropBackupCodes();
   body.innerHTML = '<div class="spinner"></div>';
   const [meR, stR] = await Promise.allSettled([api('/auth/me'), api('/account/settings')]);
-  if ((meR.status === 'rejected' && _aborted(meR.reason)) || (stR.status === 'rejected' && _aborted(stR.reason))) return;
+  if ((meR.status === 'rejected' && _aborted(meR.reason)) || (stR.status === 'rejected' && _aborted(stR.reason))) {
+    // The member left while this visit loaded: codes that arrived meanwhile still wait.
+    if (setState.codesNews && setState.codes && !_settingsActive()) _codesNotice(setState.codesNews.notice);
+    return;
+  }
   if (meR.status === 'fulfilled' && meR.value && typeof meR.value === 'object') me = meR.value;
   // Two-factor turned off elsewhere since the codes arrived: they no longer work.
   if (setState.codes && meR.status === 'fulfilled' && me && !me.totp_enabled) _dropBackupCodes();
@@ -220,7 +229,7 @@ function renderTwoFactor() {
     el.innerHTML = `${state}
       <div class="set-warn" role="note">
         <h3 id="set2faCodesH" tabindex="-1">Save your backup codes</h3>
-        <p>Store these codes somewhere safe. Each code works once, if you lose your phone. After you choose "I saved my codes", you will not see them again.</p>
+        <p>Store these codes somewhere safe. Each code works once, if you lose your phone. You will see these codes only once. Save them now.</p>
         ${setState.codesReplaced ? '<p>Your old backup codes no longer work.</p>' : ''}
         <ul class="set-codes" id="set2faCodes">${setState.codes.map(c => `<li><code>${esc(c)}</code></li>`).join('')}</ul>
         <div class="set-inline">
@@ -228,6 +237,7 @@ function renderTwoFactor() {
           <button type="button" class="btn btn-primary btn--sm" id="set2faSaved" onclick="backupCodesSaved()">I saved my codes</button>
         </div>
       </div>`;
+    if (_settingsOnScreen()) _backupCodesShown();   // their one showing
     return;
   }
   if (setState.enroll) {
@@ -312,10 +322,11 @@ async function confirmTwoFactor() {
     const d = await reauthPost('/auth/2fa/activate', { code });
     const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
     setState.enroll = null;   // the secret leaves the page
-    setState.codes = codes.length ? codes : null; setState.codesReplaced = false;
+    setState.codes = codes.length ? codes : null; setState.codesReplaced = false; setState.codesSeen = false;
     if (me) { me.totp_enabled = true; me.totp_backup_codes_remaining = codes.length; }
     // PR #35 ends every other session when two-factor is turned on (harmless to say on the base).
-    _showTwoFactorNews('Two-factor sign-in is on.', 'Your other devices may need to sign in again.', setState.codes ? 'set2faCodesH' : 'setTwoFactorH');
+    _showTwoFactorNews('Two-factor sign-in is on.', 'Your other devices may need to sign in again.', setState.codes ? 'set2faCodesH' : 'setTwoFactorH',
+      'Two-factor sign-in is on. Your backup codes are ready. Open Settings to see and save them.');
   } catch (e) {
     if (e && e.status === 400) { setState.enroll = null; renderTwoFactor(); setErr('set2faErr', 'Your setup expired. Please start again.'); setFocus('setTwoFactorH'); }
     else if (e && e.status === 409) { setState.enroll = null; if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); setFocus('setTwoFactorH'); }
@@ -342,23 +353,61 @@ function backupCodesSaved() {
   renderTwoFactor();
   setFocus('setTwoFactorH');
 }
-function _dropBackupCodes() { setState.codes = null; setState.codesReplaced = false; setState.codesNews = null; }
-// Settings is the page on screen and drawn (not the spinner of a visit still loading).
-function _settingsOnScreen() {
-  const p = document.getElementById('page-settings');
-  return !!p && p.classList.contains('active') && !!document.getElementById('set2faBody');
+// The codes leave the page, with the line about other devices that came with them.
+function _dropBackupCodes() {
+  setState.codes = null; setState.codesReplaced = false; setState.codesSeen = false; setState.codesNews = null;
+  _codesWaitEnd();
+  setText('set2faMsg', '');
 }
+// Settings is the active page (it may still be loading).
+function _settingsActive() { const p = document.getElementById('page-settings'); return !!p && p.classList.contains('active'); }
+// Settings is the page on screen and drawn (not the spinner of a visit still loading).
+function _settingsOnScreen() { return _settingsActive() && !!document.getElementById('set2faBody'); }
+// The codes were just drawn on screen: their one showing. The next Settings visit drops them.
+function _backupCodesShown() { setState.codesSeen = true; _codesWaitEnd(); }
 // An answer that changed the two-factor card (codes arrived): draw it, then announce it and move
 // focus when Settings is on screen. When the member has gone to another page, nothing is announced
-// and focus stays where it is; the next Settings visit (loadSettings) does both, with the codes.
-function _showTwoFactorNews(say, note, focusId) {
+// there and focus stays where it is; the codes wait for the next Settings visit (loadSettings),
+// which shows, announces and focuses them. Meanwhile the notice says so on every page (`notice`),
+// and a reload or tab close asks first.
+function _showTwoFactorNews(say, note, focusId, notice) {
   renderTwoFactor();
   if (_settingsOnScreen()) {
     setState.codesNews = null;
     setAnnounce(say);
     if (note) setText('set2faMsg', note);
     setFocus(focusId);
-  } else setState.codesNews = setState.codes ? { say, note } : null;
+  } else if (setState.codes) {
+    setState.codesNews = { say, note, notice };
+    // (Settings still loading: that visit shows them, unless the member leaves first; see loadSettings.)
+    if (!_settingsActive()) _codesNotice(notice);
+    window.addEventListener('beforeunload', _codesBeforeUnload);
+  } else setState.codesNews = null;
+}
+// The notice above every page (app.html #codesNotice) while codes wait for their first showing.
+// Its status region gets its text once, so it is announced once; its button opens Settings.
+function _codesNotice(text) {
+  const box = document.getElementById('codesNotice'), msg = document.getElementById('codesNoticeText'), btn = document.getElementById('codesNoticeOpen');
+  if (!box || !msg || !btn) return;
+  if (text) {
+    if (box.classList.contains('is-on')) return;   // already shown and announced
+    box.classList.add('is-on');
+    btn.hidden = false;
+    msg.textContent = text;
+  } else {
+    box.classList.remove('is-on');
+    btn.hidden = true;
+    msg.textContent = '';
+  }
+}
+function _codesWaitEnd() { _codesNotice(null); window.removeEventListener('beforeunload', _codesBeforeUnload); }
+// A reload or tab close asks first while codes wait. Not once the session has ended (logout() and
+// a sign-out in another tab clear the token before leaving, and _leaving is set then): a sign-out
+// still loses the codes, and the notice is the warning.
+function _codesBeforeUnload(e) {
+  if (!setState.codes || setState.codesSeen || !token || (typeof _leaving !== 'undefined' && _leaving)) return;
+  e.preventDefault();
+  e.returnValue = true;   // browsers before preventDefault() asked here
 }
 
 // Two-factor was turned off elsewhere (another device) since this page loaded: turning it off or
@@ -407,9 +456,10 @@ async function getNewBackupCodes() {
     const d = await reauthPost('/auth/2fa/backup-codes/regenerate', { password, code });
     const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
     setState.regen = false;
-    setState.codes = codes.length ? codes : null; setState.codesReplaced = !!setState.codes;
+    setState.codes = codes.length ? codes : null; setState.codesReplaced = !!setState.codes; setState.codesSeen = false;
     if (me && codes.length) me.totp_backup_codes_remaining = codes.length;
-    if (setState.codes) _showTwoFactorNews('Your new backup codes are ready. Your old codes no longer work.', null, 'set2faCodesH');
+    if (setState.codes) _showTwoFactorNews('Your new backup codes are ready. Your old codes no longer work.', null, 'set2faCodesH',
+      'Your new backup codes are ready. Open Settings to see and save them.');
     else { renderTwoFactor(); setErr('set2faErr', "Your old backup codes no longer work, but we couldn't show the new ones. Please get new codes again."); setFocus('setTwoFactorH'); }
   } catch (e) {
     if (_twoFactorNotOn(e)) await twoFactorAlreadyOff();
@@ -455,7 +505,7 @@ function renderNotifications() {
   const el = document.getElementById('setNotifBody');
   if (!el) return;
   if (setState.settingsNA) { el.innerHTML = setNA('Notification settings are not available yet.'); return; }
-  if (!setState.settingsOk) { el.innerHTML = `<p class="hint-muted">We couldn't load your notification settings.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadSettings()">Retry</button>`; return; }
+  if (!setState.settingsOk) { el.innerHTML = `<p class="hint-muted">We couldn't load your notification settings.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadSettings(true)">Retry</button>`; return; }
   const on = SolAccount.emailNotificationsOn(setState.settings.preferences);
   el.innerHTML = `<div class="set-check"><input type="checkbox" id="setNotifEmail"${on ? ' checked' : ''} onchange="saveNotifications(this)">
       <label for="setNotifEmail">Email updates about my circles and payments</label></div>

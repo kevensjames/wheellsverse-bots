@@ -77,6 +77,14 @@
 </nav>
 
 <main class="main" id="main" tabindex="-1">
+  <!-- Backup codes that arrived while the member was on another page (pages/settings.js
+       _codesNotice): shown above every page until Settings shows them. Empty, it takes no space,
+       and its status region stays in the accessibility tree so its one message is read. -->
+  <div class="app-notice" id="codesNotice">
+    <p class="app-notice__text" id="codesNoticeText" role="status" aria-live="polite"></p>
+    <button type="button" class="btn btn-primary btn--sm" id="codesNoticeOpen" hidden onclick="nav('settings')">Open Settings</button>
+  </div>
+
   <!-- Dashboard -->
   <div class="page active" id="page-dashboard">
     <h1 class="sr-only" tabindex="-1">Dashboard</h1>
