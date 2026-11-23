@@ -152,7 +152,7 @@ async function main() {
 // ════ Member account pages and accessibility (items 3 and 6) ═══════════════════
 // Synthetic values the mock returns (harness.mjs). None may be stored, logged or kept in
 // the address bar.
-const SECRETS = ['JBSWY3DPEHPK3PXP', 'a1b2-c3d4-e5', 'synthetic-challenge-token'];
+const SECRETS = ['JBSWY3DPEHPK3PXP', 'a1b2-c3d4-e5', '9f8e-7d6c-5b', 'synthetic-challenge-token'];
 const RESET_TOKEN = 'synthetic-reset-Tok3n_0123456789abcdefABCDEF';
 const VERIFY_TOKEN = 'synthetic-verify-Tok3n_0123456789abcdefABCDEF';
 
@@ -339,6 +339,8 @@ async function memberPages(page) {
   const act = (await reqs()).filter(r => r.url === '/auth/2fa/activate');
   T('3d two-factor: confirm sends POST /auth/2fa/activate with exactly {code}', act.length === 1 && exactKeys(act[0].body, ['code']) && act[0].body.code === '123456');
   T('3d two-factor: the 10 backup codes are shown', (await ev(page, () => document.querySelectorAll('#set2faCodes li').length)) === 10);
+  // PR #35 ends every other session when two-factor is turned on (S35 services/auth.py:306-368); harmless to say on the base.
+  T('B4c two-factor on: one short line says other devices may need to sign in again', /other devices may need to sign in again/i.test(await text('#setTwoFactor')));
   T('3d two-factor: with a copy button and a warning to store them', await vis('#set2faCopyCodes') && /(store|save|keep).{0,40}(safe|somewhere)/i.test(await text('#setTwoFactor')));
   T('3d two-factor: the secret is gone from the page once confirmed', await ev(page, () => { const ps = document.getElementById('page-settings'); return !!ps && !ps.innerHTML.includes('JBSWY3DPEHPK3PXP'); }));
   T('3d two-factor: secret and codes are never stored or put in the address bar', await ev(page, s => { const all = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + location.href; return !s.some(x => all.includes(x)); }, SECRETS));
@@ -411,6 +413,81 @@ async function memberPages(page) {
   await click('#set2faStart'); await wait(250);
   await click('#set2faCancel'); await wait(100);
   T('3d two-factor: Cancel clears the secret from the page', await ev(page, () => { const ps = document.getElementById('page-settings'); return !!ps && !ps.innerHTML.includes('JBSWY3DPEHPK3PXP'); }));
+
+  // ── B4a: new backup codes (POST /auth/2fa/backup-codes/regenerate {password, code}, BASE api/auth.py:162-164,
+  // 205-218; services/auth.py:326-345). Re-authenticated like turning off: a wrong password or code is one
+  // POST and never a POST /auth/refresh. The new codes are shown once and never stored. ──
+  const codeCount = () => ev(page, () => document.querySelectorAll('#set2faCodes li').length);
+  const regenPosts = rs => countOf(rs, '/auth/2fa/backup-codes/regenerate');
+  T('B4a backup codes: not offered while two-factor sign-in is off', (await text('#set2faState')).trim() === 'Off' && !(await vis('#set2faNewCodes')));
+  await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = true; SEED.user.totp_backup_codes_remaining = 2; window.nav('settings'); }); await wait(300);
+  T('B4a backup codes: with two-factor on, Settings shows the codes left and offers "Get new backup codes"', /backup codes left: 2/i.test(await text('#setTwoFactor')) && await vis('#set2faNewCodes') && /^get new backup codes$/i.test((await text('#set2faNewCodes')).trim()));
+  await clearReqs();
+  await click('#set2faNewCodes'); await wait(150);
+  T('B4a backup codes: a form opens with focus on its heading; nothing is sent yet', await ev(page, () => { const h = document.getElementById('set2faRegenH'); return !!h && document.activeElement === h; }) && regenPosts(await reqs()) === 0);
+  T('B4a backup codes: the form asks for the password and a 6-digit code (both labelled) and says the old codes stop working',
+    await ev(page, () => ['set2faRegenPw', 'set2faRegenCode'].every(id => !!document.getElementById(id) && !!document.querySelector(`label[for="${id}"]`))) && /old (backup )?codes stop working/i.test(await text('#setTwoFactor')));
+  reportAudit('B4a a11y settings (the new backup codes form open): labels, names, one h1, landmarks, no positive tabindex, alt text, aria-current', await page.evaluate(auditPage, 'app'));
+  await click('#set2faRegenGo'); await wait(150);
+  T('B4a backup codes: an empty password is refused before any request', regenPosts(await reqs()) === 0 && /password/i.test(await alertText('#setTwoFactor')));
+  await page.evaluate(() => window.__mockSet('POST /auth/2fa/backup-codes/regenerate', 401, { detail: 'Invalid password' }));
+  await clearReqs();
+  await fill('#set2faRegenPw', 'synthetic-wrong-password'); await fill('#set2faRegenCode', '654321'); await click('#set2faRegenGo'); await wait(300);
+  rq = await reqs();
+  T('B4a backup codes, wrong password: one POST and no POST /auth/refresh; says the password is not right; no codes', regenPosts(rq) === 1 && refreshCount(rq) === 0 && /password is not right/i.test(await alertText('#setTwoFactor')) && (await codeCount()) === 0);
+  // A wrong code while every refresh session is ended (a refresh would then sign the member out).
+  await page.evaluate(() => { window.__mock.revoked = true; window.__mockSet('POST /auth/2fa/backup-codes/regenerate', 401, { detail: 'Invalid code' }); });
+  await clearReqs();
+  await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '000000'); await click('#set2faRegenGo'); await wait(400);
+  const stayedRegen = await ev(page, () => /boot-test\.html$/.test(location.pathname) && typeof window.nav === 'function');
+  rq = stayedRegen ? await reqs() : [];
+  T('B4a backup codes, wrong code: one POST, no POST /auth/refresh, the member stays signed in and the code error shows', stayedRegen === true && regenPosts(rq) === 1 && refreshCount(rq) === 0 && /code did not work/i.test(await alertText('#setTwoFactor')) && (await codeCount()) === 0);
+  if (stayedRegen !== true) {   // signed out (a defect): reload the journey page so the rest still runs
+    await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await wait(500);
+    await page.evaluate(() => { SEED.user.totp_enabled = true; window.nav('settings'); }); await wait(300);
+    await click('#set2faNewCodes'); await wait(150);
+  }
+  await page.evaluate(() => { window.__mock.revoked = false; delete window.__mock.over['POST /auth/2fa/backup-codes/regenerate']; });
+  await clearReqs();
+  await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456'); await click('#set2faRegenGo'); await wait(300);
+  const rg = (await reqs()).filter(r => r.url === '/auth/2fa/backup-codes/regenerate');
+  T('B4a backup codes: sends POST /auth/2fa/backup-codes/regenerate with exactly {password, code}, without the route abort signal', rg.length === 1 && rg[0].method === 'POST' && exactKeys(rg[0].body, ['password', 'code']) && rg[0].body.password === 'synthetic-password' && rg[0].body.code === '123456' && rg[0].hadSignal === false);
+  T('B4a backup codes: the 10 new codes are shown, with the copy button and the warning to store them', (await codeCount()) === 10 && /9f8e-7d6c-5b/.test(await text('#set2faCodes')) && await vis('#set2faCopyCodes') && /(store|save|keep).{0,40}(safe|somewhere)/i.test(await text('#setTwoFactor')));
+  T('B4a backup codes: it says the old codes no longer work', /old (backup )?codes no longer work/i.test(await text('#setTwoFactor')));
+  T('B4a backup codes: focus moves to the codes heading; two-factor still reads On', await ev(page, () => !!document.activeElement && document.activeElement.id === 'set2faCodesH') && (await text('#set2faState')).trim() === 'On');
+  T('B4a backup codes: the password is not left on the page', await ev(page, () => ![...document.querySelectorAll('#page-settings input')].some(i => i.value === 'synthetic-password')));
+  T('B4a backup codes: the new codes are never stored or put in the address bar', await ev(page, s => { const all = JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + location.href + JSON.stringify(history.state); return !s.some(x => all.includes(x)); }, SECRETS));
+  await click('#set2faSaved'); await wait(150);
+  T('B4a backup codes: "I saved my codes" removes them from the page; 10 codes left', await ev(page, () => { const ps = document.getElementById('page-settings'); return !!ps && !ps.innerHTML.includes('9f8e-7d6c-5b'); }) && /backup codes left: 10/i.test(await text('#setTwoFactor')));
+  await click('#set2faNewCodes'); await wait(120);
+  await fill('#set2faRegenPw', 'synthetic-password'); await click('#set2faRegenCancel'); await wait(120);
+  T('B4a backup codes: Cancel closes the form, clears the password and returns focus to "Get new backup codes"', !(await vis('#set2faRegenPw')) && await ev(page, () => !!document.activeElement && document.activeElement.id === 'set2faNewCodes' && ![...document.querySelectorAll('#page-settings input')].some(i => i.value === 'synthetic-password')));
+  // Two-factor was turned off elsewhere since Settings loaded: 400 "2FA not enabled" (BASE services/auth.py:334-335).
+  await page.evaluate(() => { SEED.user.totp_enabled = false; });
+  await click('#set2faNewCodes'); await wait(120);
+  await clearReqs();
+  await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456'); await click('#set2faRegenGo'); await wait(300);
+  rq = await reqs();
+  T('B4a backup codes, 400 "2FA not enabled": the status is read again (GET /auth/me after the POST) and reads Off', JSON.stringify(rq.filter(r => ['/auth/me', '/auth/2fa/backup-codes/regenerate'].includes(r.url)).map(r => r.method + ' ' + r.url).slice(-2)) === JSON.stringify(['POST /auth/2fa/backup-codes/regenerate', 'GET /auth/me']) && (await text('#set2faState')).trim() === 'Off');
+  T('B4a backup codes, 400 "2FA not enabled": says two-factor sign-in is already off, without the raw text or an error alert', /two-(factor|step) sign-in is already off/i.test(await text('#setTwoFactor')) && !/2FA not enabled/i.test(await text('#setTwoFactor')) && (await alertText('#setTwoFactor')) === '');
+
+  // ── B4b: turning off answers 400 "2FA not enabled" when it was turned off elsewhere (BASE services/auth.py:396-401) ──
+  await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = true; window.nav('settings'); }); await wait(300);
+  await page.evaluate(() => { SEED.user.totp_enabled = false; });   // turned off on another device
+  await clearReqs();
+  await fill('#set2faPw', 'synthetic-password'); await fill('#set2faOffCode', '654321'); await click('#set2faOff'); await wait(300);
+  rq = await reqs();
+  T('B4b two-factor off, 400 "2FA not enabled": one POST, then the status is read again (GET /auth/me) and reads Off', countOf(rq, '/auth/2fa/disable') === 1 && JSON.stringify(rq.filter(r => ['/auth/me', '/auth/2fa/disable'].includes(r.url)).map(r => r.method + ' ' + r.url).slice(-2)) === JSON.stringify(['POST /auth/2fa/disable', 'GET /auth/me']) && (await text('#set2faState')).trim() === 'Off');
+  T('B4b two-factor off, 400 "2FA not enabled": says two-factor sign-in is already off, without the raw text or an error alert', /two-(factor|step) sign-in is already off/i.test(await text('#setTwoFactor')) && !/2FA not enabled/i.test(await text('#setTwoFactor')) && (await alertText('#setTwoFactor')) === '');
+  T('B4b two-factor off, 400: focus moves to the two-factor heading', await ev(page, () => !!document.activeElement && document.activeElement.id === 'setTwoFactorH'));
+  // The route is missing (404, 405): "not available yet", no error.
+  for (const st of [404, 405]) {
+    await page.evaluate(x => { window.__mockClear(); SEED.user.totp_enabled = true; setState.regenNA = false; window.__mockSet('POST /auth/2fa/backup-codes/regenerate', x, { detail: x === 404 ? 'Not Found' : 'Method Not Allowed' }); window.nav('settings'); }, st); await wait(300);
+    await click('#set2faNewCodes'); await wait(120);
+    await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '123456'); await click('#set2faRegenGo'); await wait(300);
+    T(`B4a backup codes (${st}): says getting new codes is not available yet, no error alert, no codes, focus on the page`, /not available yet/i.test(await text('#setTwoFactor')) && (await alertText('#setTwoFactor')) === '' && (await codeCount()) === 0 && await ev(page, () => !!document.activeElement && document.activeElement !== document.body && !!document.activeElement.closest('#page-settings')));
+  }
+  await page.evaluate(() => { window.__mockClear(); SEED.user.totp_enabled = false; SEED.user.totp_backup_codes_remaining = 0; if (me) me.totp_enabled = false; });
   // Notifications: preferences.notifications (BASE api/account.py:95-125; shallow merge).
   await page.evaluate(() => { window.__mockClear(); window.nav('settings'); }); await wait(300);
   T('3d notifications: the email toggle reflects the stored preference', await ev(page, () => { const c = document.getElementById('setNotifEmail'); return !!c && c.checked === true; }));
@@ -542,6 +619,11 @@ async function memberPages(page) {
   await page.evaluate(() => { window.__mock.delay = 150; window.__mockSet('POST /auth/2fa/disable', 401, { detail: 'Invalid password' }); });
   await fill('#set2faPw', 'synthetic-wrong-password'); await fill('#set2faOffCode', '654321');
   focusOk('Turn off two-factor (a wrong password)', await focusAfter('#set2faOff', 'Enter', '#page-settings'));
+  await page.evaluate(() => { window.__mock.delay = 0; setState.regenNA = false; window.nav('settings'); }); await wait(300);
+  focusOk('Get new backup codes (opens the form)', await focusAfter('#set2faNewCodes', 'Enter', '#page-settings'));
+  await page.evaluate(() => { window.__mock.delay = 150; window.__mockSet('POST /auth/2fa/backup-codes/regenerate', 401, { detail: 'Invalid code' }); });
+  await fill('#set2faRegenPw', 'synthetic-password'); await fill('#set2faRegenCode', '000000');
+  focusOk('Get new codes (a wrong code)', await focusAfter('#set2faRegenGo', 'Enter', '#page-settings'));
   // (The AI setting was hidden by an earlier refusal; show it again for this check.)
   await page.evaluate(() => { window.__mock.delay = 0; SEED.user.totp_enabled = false; SEED.user.email_verified_at = null; window.__mock.s35 = true; setState.aiHidden = false; window.nav('settings'); }); await wait(300);
   await page.evaluate(() => { window.__mock.delay = 150; window.__mockSet('PATCH /account/settings', 422, { detail: [{ type: 'extra_forbidden', loc: ['body', 'ai_assistant_consent'], msg: 'Extra inputs are not permitted', input: true }] }); });

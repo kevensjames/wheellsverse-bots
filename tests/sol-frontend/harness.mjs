@@ -151,6 +151,8 @@ const LEGAL_DOCS = [
   { kind: 'ach_debit_authorization', title: 'Bank-Debit (ACH) Authorization', sha256: '3'.repeat(64), consent_kind: 'ach_debit_authorization', text: 'SYNTHETIC ACH TEXT.' },
 ];
 const BACKUP = ['a1b2-c3d4-e5','f6a7-b8c9-d0','e1f2-a3b4-c5','d6e7-f8a9-b0','c1d2-e3f4-a5','b6c7-d8e9-f0','a2b3-c4d5-e6','f7a8-b9c0-d1','e2f3-a4b5-c6','d7e8-f9a0-b1'];
+// The synthetic codes POST /auth/2fa/backup-codes/regenerate returns (the backend's format, XXXX-XXXX-XX).
+const BACKUP_NEW = ['9f8e-7d6c-5b','4a39-2817-06','f5e4-d3c2-b1','0a1b-2c3d-4e','5f6a-7b8c-9d','e0f1-a2b3-c4','d5e6-f7a8-b9','c0d1-e2f3-a4','b5c6-d7e8-f9','a0b1-c2d3-e4'];
 // Public routes (no session): the landing page, /sol/reset-password and /sol/verify.
 function _publicRoute(method, path, query, body) {
   // POST /auth/forgot-password -> 200, the same answer for unknown emails (BASE api/auth.py:124-132).
@@ -287,6 +289,18 @@ function _memberRoute(method, path, query, body) {
       if (!body || typeof body.code !== 'string' || body.code.length !== 6) return R(422, { detail: [{ type: 'string_too_short', loc: ['body', 'code'], msg: 'String should have at least 6 characters' }] });
       SEED.user.totp_enabled = true; SEED.user.totp_backup_codes_remaining = 10;
       return { detail: '2FA enabled', backup_codes: BACKUP };
+    }
+    // POST /auth/2fa/backup-codes/regenerate {password, code} (TotpDisableRequest: password str,
+    // code 6..6; BASE api/auth.py:162-164, 205-218) -> 200 {"detail": "Backup codes regenerated",
+    // "backup_codes": [10 new codes]}; 400 "2FA not enabled", 401 "Invalid password" or "Invalid
+    // code" (BASE services/auth.py:326-345; a journey sets the 401s with __mockSet). The old codes
+    // stop working; no session is ended. PR #35 has the same route (S35 api/auth.py:211-224).
+    if (path === '/auth/2fa/backup-codes/regenerate' && method === 'POST') {
+      if (!body || typeof body.password !== 'string') return R(422, { detail: [{ type: 'missing', loc: ['body', 'password'], msg: 'Field required' }] });
+      if (typeof body.code !== 'string' || body.code.length !== 6) return R(422, { detail: [{ type: 'string_too_short', loc: ['body', 'code'], msg: 'String should have at least 6 characters' }] });
+      if (!SEED.user.totp_enabled) return R(400, { detail: '2FA not enabled' });
+      SEED.user.totp_backup_codes_remaining = 10;
+      return { detail: 'Backup codes regenerated', backup_codes: BACKUP_NEW };
     }
     // Turning 2FA off ends every refresh session (BASE services/auth.py:412): refresh then answers 401.
     if (path === '/auth/2fa/disable' && method === 'POST') {
