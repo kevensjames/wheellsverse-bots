@@ -1205,6 +1205,9 @@ async function phoneFilters(browser, leaks) {
   await t.page.waitForTimeout(200);
   T('D1 phone 390x844, touch: a tap reaches "Sort by" (not the bottom nav), and choosing "Newest" sorts the circles by newest',
     tapped && await ev(t.page, () => circles.sort === 'newest' && document.getElementById('circlesSort').value === 'newest' && /[?&]sort=newest\b/.test(location.search)));
+  const pad = await ev(t.page, () => { const r = document.querySelector('.circles-filters__panel').getBoundingClientRect(); return { x: r.left + 6, y: r.top + 6 }; });
+  if (pad) { await t.page.touchscreen.tap(pad.x, pad.y); await t.page.waitForTimeout(200); }
+  T('D1 phone 390x844, touch: a tap on the open sheet\'s own blank space keeps it open', !!pad && (await isOpen(t.page)) === true);
   await t.page.tap('#page-groups h1', { timeout: 2000 }).catch(() => {}); await t.page.waitForTimeout(200);
   T('D1 phone 390x844, touch: a tap outside the open sheet closes it', (await isOpen(t.page)) === false);
   T('D1 phone 390x844, touch: no page errors', t.perrs.length === 0);
