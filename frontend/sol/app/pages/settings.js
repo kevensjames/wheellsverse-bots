@@ -17,7 +17,7 @@
 // The two-factor secret and backup codes live only in this page's memory and DOM while
 // they are needed; they are never stored, logged or put in the address bar.
 
-let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, enroll: null, codes: null };
+let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, enroll: null, codes: null, closed: false };
 
 function setAnnounce(msg) { const el = document.getElementById('settingsLive'); if (el) { el.textContent = ''; el.textContent = msg; } }
 function setText(id, msg, show) { const el = document.getElementById(id); if (!el) return; el.textContent = msg || ''; if (show !== undefined) el.style.display = msg ? 'block' : 'none'; }
@@ -434,8 +434,26 @@ function openCloseDialog() {
     opener: document.getElementById('setCloseOpen'),
     initialFocus: '#closePw',
     canClose: () => !SolGuard.isLocked('settings:close'),
-    onClose: () => closeFormReset(),
+    // Once the account is closed, every way out of the dialog signs out.
+    onClose: () => { if (setState.closed) logout(); else closeFormReset(); },
   });
+}
+// After a close (PR #33, 200): the response's own lists of what was removed and what is kept,
+// and the retention period it gives (a backend setting, 5 years by default). The member reads
+// it, then signs out with the button (or Escape).
+function showCloseSummary(d) {
+  const sum = SolAccount.closeSummary(d);
+  const list = (id, items) => (items.length ? `<ul class="bank-remove-list" id="${id}">${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '');
+  const years = sum.years === null ? '' : ` for ${sum.years} ${sum.years === 1 ? 'year' : 'years'}`;
+  const body = document.getElementById('closeDoneBody');
+  if (body) body.innerHTML = `<p>Every session has ended. Here is what we removed and what we keep.</p>
+    ${sum.removed.length ? `<h4>What we removed</h4>${list('closeDoneRemoved', sum.removed)}` : ''}
+    ${sum.kept.length ? `<h4>What we keep${esc(years)}</h4>${list('closeDoneKept', sum.kept)}` : ''}
+    ${sum.note ? `<p>${esc(sum.note)}</p>` : ''}`;
+  ['closeIntro', 'closeForm'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
+  const done = document.getElementById('closeDone'); if (done) done.hidden = false;
+  const title = document.getElementById('closeTitle');
+  if (title) { title.textContent = 'Your account is closed'; try { title.focus(); } catch (e) {} }
 }
 function closeCloseDialog() {
   if (SolGuard.isLocked('settings:close')) return;
@@ -455,10 +473,9 @@ async function confirmCloseAccount(e) {
   try {
     const d = await reauthPost('/account/close', body);
     closed = true;
-    const note = d && d.retention && typeof d.retention.note === 'string' ? d.retention.note + ' ' : '';
-    setText('closeNote', 'Your account is closed. ' + note + 'Signing you out…');
+    setState.closed = true;
     const pw = document.getElementById('closePw'); if (pw) pw.value = '';
-    logout();
+    showCloseSummary(d);
   } catch (err) {
     const d = err && err.detail;
     if (SolAccount.notAvailable(err)) setText('closeNote', 'Closing your account here is not available yet. Contact support if you need help.');

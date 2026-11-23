@@ -573,13 +573,16 @@
          for how long, follows that PR's own description (services/account_lifecycle.py:491-555). -->
     <div class="bank-modal" id="closeAccountDialog" role="dialog" aria-modal="true" aria-labelledby="closeTitle" aria-describedby="closeIntro">
       <div class="modal">
-        <h3 id="closeTitle">Close your account?</h3>
+        <h3 id="closeTitle" tabindex="-1">Close your account?</h3>
+        <!-- What is removed and kept: PR #33's lists (services/account_lifecycle.py:491-555). -->
         <div id="closeIntro" class="bank-remove-body">
           <p>This can't be undone. Download your data first if you want a copy.</p>
           <ul class="bank-remove-list">
             <li>You can't sign in again, and every session ends.</li>
-            <li>We remove your name, email address, phone number, password, two-factor settings, saved bank links, devices, alerts and savings goals.</li>
-            <li>We keep money records for financial record-keeping: your contributions and payouts, ledger entries, the circles you were in, the bank name, account type and last 4 digits, your ID check status, plan and invoice history, and posts you wrote in circle spaces. We keep them for 5 years by default; that period is still under legal review.</li>
+            <li>On your account, we replace your name and email address. We remove your phone number, date of birth, photo, preferences, password, two-factor settings, devices, alerts, savings goals and waitlist places. We switch off your bank accounts and delete their encrypted bank links.</li>
+            <li>We keep money records for financial record-keeping: your contributions and payouts, ledger entries and fees, the circles you were in, your plan and invoice history, the bank name, account type, last 4 digits and the bank provider's reference for the account, and your ID check status and the ID check provider's reference.</li>
+            <li>Some kept records can include your name, email address or phone number: messages our payment, ID check and billing providers sent us about your account, and fraud-check flags. We also keep the providers' references to you, your account record (its id, dates and payment counts), the audit trail, including this closure, and posts you wrote in circle spaces.</li>
+            <li>By default, we keep these records for 5 years. That period is still under legal review.</li>
             <li>You can't close your account while a circle you belong to hasn't finished, a contribution or payout is in progress, or a plan is active.</li>
           </ul>
         </div>
@@ -598,6 +601,13 @@
             <button type="submit" class="btn btn-danger" id="closeConfirm" disabled>Close my account</button>
           </div>
         </form>
+        <!-- After closing: what the response says was removed and kept (settings.js). -->
+        <div id="closeDone" hidden>
+          <div id="closeDoneBody" class="bank-remove-body"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-primary" id="closeDoneSignOut" onclick="logout()">Sign out</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

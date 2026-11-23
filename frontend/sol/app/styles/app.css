@@ -716,7 +716,11 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .set-warn{border:1px solid var(--sol-300);background:var(--sol-50);border-radius:var(--r-md);padding:.9rem 1rem;margin-top:.6rem}
 .set-codes{list-style:none;padding:0;margin:.6rem 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem .8rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .set-danger{border-top:1px solid var(--line);margin-top:1rem;padding-top:.9rem}
-.set-card .btn,.bank-modal #closeForm .btn{min-height:44px}
+.set-card .btn,.bank-modal #closeForm .btn,#closeDone .btn{min-height:44px}
+/* The close-account dialog is long: it scrolls inside the screen, so its buttons stay reachable. */
+#closeAccountDialog .modal{max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem);overflow-y:auto}
+#closeAccountDialog h3:focus{outline:none}
+#closeDone h4{font-size:.95rem;margin:.9rem 0 .35rem}
 .verify-banner{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border:1px solid var(--sol-300);background:var(--sol-50);border-radius:var(--r-lg);padding:.9rem 1.1rem;margin-bottom:1rem}
 .verify-banner__title{font-size:1rem;margin:0 0 .25rem}
 .verify-banner p{margin:0;font-size:.88rem;color:var(--ink-800)}

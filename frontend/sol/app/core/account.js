@@ -138,6 +138,21 @@ window.SolAccount = (function () {
     }).filter(Boolean);
   }
 
+  // What POST /account/close (PR #33, 200) says it removed and kept, and for how long
+  // (services/account_lifecycle.py:491-555): the descriptions only (never an id), the
+  // retention years (a setting, 5 by default) and the backend's note.
+  function closeSummary(d) {
+    const texts = list => (Array.isArray(list) ? list : [])
+      .map(x => (x && typeof x.description === 'string' ? x.description.trim() : '')).filter(Boolean);
+    const r = d && typeof d === 'object' && d.retention && typeof d.retention === 'object' ? d.retention : {};
+    return {
+      removed: texts(d && d.removed),
+      kept: texts(d && d.kept),
+      years: Number.isInteger(r.years) && r.years >= 0 ? r.years : null,
+      note: typeof r.note === 'string' ? r.note.trim() : '',
+    };
+  }
+
   // A two-factor secret in groups of 4, easier to type into an authenticator app.
   function groupSecret(s) { return String(s || '').replace(/\s+/g, '').replace(/(.{4})(?=.)/g, '$1 '); }
   function exportFileName(d) {
@@ -164,7 +179,7 @@ window.SolAccount = (function () {
     forgotOutcome, resetOutcome, verifyOutcome,
     consentVersions, signupPayload,
     storageOf, guideSeen, markGuideSeen,
-    emailNotificationsOn, notificationsPatch, closePayload, closeRefusals,
+    emailNotificationsOn, notificationsPatch, closePayload, closeRefusals, closeSummary,
     groupSecret, exportFileName, callPublic,
   };
 })();
