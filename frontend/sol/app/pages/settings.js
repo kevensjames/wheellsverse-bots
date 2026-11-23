@@ -16,14 +16,19 @@
 //   POST  /account/close               PR #33 api/account.py:180-205
 //   POST  /auth/resend-verification    PR #33 api/auth.py:127-143
 // The two-factor secret and backup codes live only in this page's memory and DOM while
-// they are needed; they are never stored, logged or put in the address bar.
+// they are needed; they are never stored, logged or put in the address bar. Backup codes are
+// needed until the member chooses "I saved my codes": the server has already replaced the old
+// ones, so leaving Settings (even before the answer arrives) must not lose them.
 
 // resendNA: POST /auth/resend-verification answered 404 or 405 (the deployed base has no such
 // route). Kept in memory for this page session, so later visits of the dashboard and Settings
 // show the contact-support note instead of offering the button again. regenNA: the same for
 // POST /auth/2fa/backup-codes/regenerate. regen: the "Get new backup codes" form is open.
-// codesReplaced: the codes shown replace older ones, which no longer work.
-let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, resendNA: false, regenNA: false, enroll: null, regen: false, codes: null, codesReplaced: false, closed: false };
+// codes: backup codes the member has not confirmed saving yet ("I saved my codes"); kept across
+// Settings visits until then. codesReplaced: they replace older ones, which no longer work.
+// codesNews: codes arrived while Settings was not on screen: what to announce (and the two-factor
+// note to show) on the next visit, which also moves focus to them.
+let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, resendNA: false, regenNA: false, enroll: null, regen: false, codes: null, codesReplaced: false, codesNews: null, closed: false };
 const RESEND_NA_TEXT = 'Resending is not available yet. If you need a new link, contact support.';
 
 function setAnnounce(msg) { const el = document.getElementById('settingsLive'); if (el) { el.textContent = ''; el.textContent = msg; } }
@@ -67,15 +72,26 @@ async function reauthPost(path, body) {
 async function loadSettings() {
   const body = document.getElementById('settingsBody');
   if (!body) return;
-  setState.enroll = null; setState.codes = null; setState.regen = false;   // a new visit never shows an old secret or codes
+  // A new visit never shows an old secret or form. Backup codes the member has not confirmed
+  // saving stay (see setState.codes).
+  setState.enroll = null; setState.regen = false;
   body.innerHTML = '<div class="spinner"></div>';
   const [meR, stR] = await Promise.allSettled([api('/auth/me'), api('/account/settings')]);
   if ((meR.status === 'rejected' && _aborted(meR.reason)) || (stR.status === 'rejected' && _aborted(stR.reason))) return;
   if (meR.status === 'fulfilled' && meR.value && typeof meR.value === 'object') me = meR.value;
+  // Two-factor turned off elsewhere since the codes arrived: they no longer work.
+  if (setState.codes && meR.status === 'fulfilled' && me && !me.totp_enabled) _dropBackupCodes();
   setState.settingsOk = stR.status === 'fulfilled' && !!stR.value && typeof stR.value === 'object';
   setState.settings = setState.settingsOk ? stR.value : null;
   setState.settingsNA = stR.status === 'rejected' && SolAccount.notAvailable(stR.reason);
   renderSettings();
+  const news = setState.codesNews;
+  if (news && setState.codes) {
+    setState.codesNews = null;
+    if (news.note) setText('set2faMsg', news.note);
+    setAnnounce(news.say);
+    setFocus('set2faCodesH');
+  }
 }
 
 function renderSettings() {
@@ -204,7 +220,7 @@ function renderTwoFactor() {
     el.innerHTML = `${state}
       <div class="set-warn" role="note">
         <h3 id="set2faCodesH" tabindex="-1">Save your backup codes</h3>
-        <p>Store these codes somewhere safe. Each code works once, if you lose your phone. You will not see them again.</p>
+        <p>Store these codes somewhere safe. Each code works once, if you lose your phone. After you choose "I saved my codes", you will not see them again.</p>
         ${setState.codesReplaced ? '<p>Your old backup codes no longer work.</p>' : ''}
         <ul class="set-codes" id="set2faCodes">${setState.codes.map(c => `<li><code>${esc(c)}</code></li>`).join('')}</ul>
         <div class="set-inline">
@@ -298,11 +314,8 @@ async function confirmTwoFactor() {
     setState.enroll = null;   // the secret leaves the page
     setState.codes = codes.length ? codes : null; setState.codesReplaced = false;
     if (me) { me.totp_enabled = true; me.totp_backup_codes_remaining = codes.length; }
-    renderTwoFactor();
-    setAnnounce('Two-factor sign-in is on.');
     // PR #35 ends every other session when two-factor is turned on (harmless to say on the base).
-    setText('set2faMsg', 'Your other devices may need to sign in again.');
-    setFocus(setState.codes ? 'set2faCodesH' : 'setTwoFactorH');
+    _showTwoFactorNews('Two-factor sign-in is on.', 'Your other devices may need to sign in again.', setState.codes ? 'set2faCodesH' : 'setTwoFactorH');
   } catch (e) {
     if (e && e.status === 400) { setState.enroll = null; renderTwoFactor(); setErr('set2faErr', 'Your setup expired. Please start again.'); setFocus('setTwoFactorH'); }
     else if (e && e.status === 409) { setState.enroll = null; if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); setFocus('setTwoFactorH'); }
@@ -325,9 +338,27 @@ async function copyText(text, okMsg) {
 function copyTwoFactorKey() { if (setState.enroll) copyText(setState.enroll.secret, 'Key copied.'); }
 function copyBackupCodes() { if (setState.codes) copyText(setState.codes.join('\n'), 'Backup codes copied.'); }
 function backupCodesSaved() {
-  setState.codes = null; setState.codesReplaced = false;   // shown once: the codes leave the page
+  _dropBackupCodes();   // saved: the codes leave the page and are not shown again
   renderTwoFactor();
   setFocus('setTwoFactorH');
+}
+function _dropBackupCodes() { setState.codes = null; setState.codesReplaced = false; setState.codesNews = null; }
+// Settings is the page on screen and drawn (not the spinner of a visit still loading).
+function _settingsOnScreen() {
+  const p = document.getElementById('page-settings');
+  return !!p && p.classList.contains('active') && !!document.getElementById('set2faBody');
+}
+// An answer that changed the two-factor card (codes arrived): draw it, then announce it and move
+// focus when Settings is on screen. When the member has gone to another page, nothing is announced
+// and focus stays where it is; the next Settings visit (loadSettings) does both, with the codes.
+function _showTwoFactorNews(say, note, focusId) {
+  renderTwoFactor();
+  if (_settingsOnScreen()) {
+    setState.codesNews = null;
+    setAnnounce(say);
+    if (note) setText('set2faMsg', note);
+    setFocus(focusId);
+  } else setState.codesNews = setState.codes ? { say, note } : null;
 }
 
 // Two-factor was turned off elsewhere (another device) since this page loaded: turning it off or
@@ -335,7 +366,7 @@ function backupCodesSaved() {
 // the status again rather than keep a stale "On".
 function _twoFactorNotOn(e) { return !!(e && e.status === 400 && /not enabled/i.test(typeof e.detail === 'string' ? e.detail : (e.message || ''))); }
 async function twoFactorAlreadyOff() {
-  setState.enroll = null; setState.regen = false; setState.codes = null; setState.codesReplaced = false;
+  setState.enroll = null; setState.regen = false; _dropBackupCodes();
   let m = null;
   try { m = await api('/auth/me'); } catch (e) { m = null; }
   if (m && typeof m === 'object') me = m;
@@ -377,9 +408,8 @@ async function getNewBackupCodes() {
     setState.regen = false;
     setState.codes = codes.length ? codes : null; setState.codesReplaced = !!setState.codes;
     if (me && codes.length) me.totp_backup_codes_remaining = codes.length;
-    renderTwoFactor();
-    if (setState.codes) { setAnnounce('Your new backup codes are ready. Your old codes no longer work.'); setFocus('set2faCodesH'); }
-    else { setErr('set2faErr', "Your old backup codes no longer work, but we couldn't show the new ones. Please get new codes again."); setFocus('setTwoFactorH'); }
+    if (setState.codes) _showTwoFactorNews('Your new backup codes are ready. Your old codes no longer work.', null, 'set2faCodesH');
+    else { renderTwoFactor(); setErr('set2faErr', "Your old backup codes no longer work, but we couldn't show the new ones. Please get new codes again."); setFocus('setTwoFactorH'); }
   } catch (e) {
     if (_twoFactorNotOn(e)) await twoFactorAlreadyOff();
     else if (SolAccount.notAvailable(e)) {
