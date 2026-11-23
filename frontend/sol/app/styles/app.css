@@ -171,6 +171,9 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   .sidebar .logo-wrap img{height:26px;display:block}
   .main{padding:1rem;padding-bottom:5rem}
   .mobile-nav{display:flex}
+  /* The bottom nav (about 62px) is fixed over the bottom of the screen. When focus (Tab, or a
+     script) scrolls a control into view, keep it above the nav, not under it (WCAG 2.4.11). */
+  html{scroll-padding-bottom:5rem}
   h1{font-size:1.2rem}
   .cards{gap:.6rem}
   .card{padding:.9rem}
