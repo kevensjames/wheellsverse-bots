@@ -958,6 +958,16 @@ async function publicPages(browser, leaks) {
   await su.o.page.close();
   su = await signup({ consentOn: true, flags: { c34: true }, over: { 'POST /auth/signup': { status: 422, body: { detail: { code: 'consent_required', problems: { terms: 'not_current' }, current_versions: { terms: '2026-11-23-draft-2', privacy: '2026-11-22-draft-1', esign: '2026-11-22-draft-1' } } } } } }, true);
   T('3e consent on, PR #34 422 consent_required: a plain message, no raw JSON', /terms|review/i.test(await su.o.text('#regErr')) && !/consent_required|\{"/.test(await su.o.text('#regErr')));
+  T('B2 consent on, 422 consent_required: still asks the member to review the terms and agree again', /The terms changed\. Please review them and agree again\./.test(await su.o.text('#regErr')));
+  await su.o.page.close();
+  // B2: the switch is off (no documents, no checkbox) while the backend asks for consent: PR #34 with
+  // its require_consent_at_signup flag on answers 422 {"detail":{"code":"consent_required",…}}
+  // (C34 api/auth.py:56-73). Nothing on this page can fix that, so the message must not ask for it.
+  su = await signup({ over: { 'POST /auth/signup': { status: 422, body: { detail: { code: 'consent_required', problems: { terms: 'missing', privacy: 'missing', esign: 'missing' }, current_versions: { terms: '2026-11-22-draft-1', privacy: '2026-11-22-draft-1', esign: '2026-11-22-draft-1' } } } } } }, false);
+  const offErr = (await su.o.text('#regErr')).trim();
+  T('B2 consent off, 422 consent_required: says new accounts cannot be created right now, to try again later or contact support', /new accounts/i.test(offErr) && /right now/i.test(offErr) && /try again later/i.test(offErr) && /contact support/i.test(offErr));
+  T('B2 consent off, 422 consent_required: does not ask to review or agree to terms the page does not show (no checkbox, no request for the documents)',
+    su.bodies.length === 1 && !/terms|review|agree/i.test(offErr) && !/consent_required|\{"/.test(offErr) && su.box === false && !(await su.o.vis('#regConsent')) && !su.o.recorded.some(r => r.url.startsWith('/legal/documents')));
   await su.o.page.close();
 
   // ── [3b] reset password page (the link is APP_BASE_URL/reset-password?token=, BASE services/email.py:142) ──
