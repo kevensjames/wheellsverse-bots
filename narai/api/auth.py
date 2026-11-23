@@ -3,6 +3,7 @@ Supabase auth, then mints a NarAI-signed JWT with the real user UUID as `sub`.
 """
 import logging
 import os
+import sys
 
 from datetime import datetime, timedelta, timezone
 
@@ -11,7 +12,49 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 log = logging.getLogger("narai.auth")
 
-_SECRET = os.getenv("NARAI_JWT_SECRET", "change-me-in-production-narai-2026")
+# Insecure default values that must not be used in production
+_INSECURE_DEFAULTS = {
+    "change-me-in-production-narai-2026",
+    "change-me-to-a-random-256-bit-string",
+}
+
+
+def _get_jwt_secret() -> str:
+    """Get JWT secret from environment with security validation.
+    
+    Fails fast if the secret is missing or set to a known insecure default.
+    This prevents authentication bypass vulnerabilities in misconfigured deployments.
+    """
+    secret = os.getenv("NARAI_JWT_SECRET", "").strip()
+    
+    if not secret:
+        log.critical(
+            "NARAI_JWT_SECRET environment variable is not set. "
+            "The application cannot start without a secure JWT secret. "
+            "Generate a random secret: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        )
+        sys.exit(1)
+    
+    if secret in _INSECURE_DEFAULTS:
+        log.critical(
+            f"NARAI_JWT_SECRET is set to an insecure default value. "
+            f"This creates an authentication bypass vulnerability. "
+            f"Generate a random secret: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        )
+        sys.exit(1)
+    
+    if len(secret) < 32:
+        log.critical(
+            f"NARAI_JWT_SECRET is too short ({len(secret)} characters). "
+            f"Use at least 32 characters for adequate security. "
+            f"Generate a random secret: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        )
+        sys.exit(1)
+    
+    return secret
+
+
+_SECRET = _get_jwt_secret()
 _ALGORITHM = "HS256"
 _TTL_HOURS = int(os.getenv("NARAI_JWT_TTL_HOURS", "72"))
 
