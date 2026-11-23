@@ -218,7 +218,7 @@ function _mockFetch(resolve) {
 `;
 
 function mockBlock() {
-  // Injected verbatim before core/session.js; runs before the module scripts.
+  // Injected verbatim into the page <head>; runs before every script of the page.
   return `
 <script>
 // ── Enriched mock backend (test harness — NOT committed) ──────────────────────
@@ -392,11 +392,12 @@ window.fetch = _mockFetch((method, path, query, body) => _publicRoute(method, pa
 // Write boot-test.html from the current app.html + mock. Returns the file path.
 export function generateHarness() {
   const appHtml = readFileSync(join(SOL, 'app.html'), 'utf8');
-  // The mock goes before the first core script that reads the session (core/session.js
-  // when app.html has it, else core/state.js).
-  const sessionTag = '<script src="/sol/app/core/session.js"></script>';
-  const marker = appHtml.includes(sessionTag) ? sessionTag : '<script src="/sol/app/core/state.js"></script>';
-  if (!appHtml.includes(marker)) throw new Error('state.js script tag not found in app.html');
+  // The mock goes into <head>, so it runs before every script of the page (all of them are
+  // in <body>) and its SEED (raw ids such as "u2") is never part of document.body. The
+  // privacy checks of journeys.mjs scan document.body.innerHTML for raw ids: with the mock
+  // in <body> they matched the mock's own SEED, not the member markup.
+  const marker = '</head>';
+  if (appHtml.split(marker).length !== 2) throw new Error('app.html must have exactly one </head>');
   let out = appHtml.replace(marker, mockBlock() + marker);
   // Cache-bust every /sol/app asset so a static server with no cache headers
   // can't serve a stale module across edits.
