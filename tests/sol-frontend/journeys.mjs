@@ -132,6 +132,7 @@ async function main() {
   await keyboardFromTop(page);
   await closeAccountSignsOut(browser, leaks);
   await publicPages(browser, leaks);
+  await appShell(browser, leaks);
   // Secrets shown on the Settings page (2FA secret, backup codes) never reach the console.
   T('no 2FA secret or backup code in the console', !allConsole.some(t => SECRETS.some(x => t.includes(x))));
   T('no console errors', consoleErrors.length === 0);
@@ -674,10 +675,58 @@ async function keyboardFromTop(page) {
   T('no page errors after the reload', errs.length === 0);
 }
 
+// ── A1: the app shell at phone width (390x844) and at 1280x720 ──
+// Each viewport runs in its own context. A landmark counts only when it is visible: at phone
+// width the sidebar header is hidden by CSS, so a header in the DOM is not enough.
+async function appShell(browser, leaks) {
+  for (const [label, width, height, navItem] of [['phone 390x844', 390, 844, '.mn[data-mpage="payments"]'], ['desktop 1280x720', 1280, 720, '.nav-item[data-page="payments"]']]) {
+    const ctx = await safeContext(browser, leaks, { viewport: { width, height }, deviceScaleFactor: 1 });
+    const page = await ctx.newPage();
+    const perrs = [];
+    page.on('pageerror', e => perrs.push(String(e)));
+    await page.goto(`http://localhost:${PORT}${HARNESS_URL_PATH}`); await page.waitForTimeout(500);
+    const shell = await ev(page, () => {
+      const shown = e => { if (!e) return false; const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0 && r.top < window.innerHeight && r.bottom > 0; };
+      const banners = [...document.querySelectorAll('header')].filter(h => !h.closest('article,aside,main,nav,section')).concat([...document.querySelectorAll('[role=banner]')]);
+      const navs = [...document.querySelectorAll('nav')].filter(n => (n.getAttribute('aria-label') || '').trim() && shown(n) && [...n.querySelectorAll('button,a[href]')].some(shown));
+      const mains = document.querySelectorAll('main');
+      return { banner: banners.some(shown), nav: navs.map(n => n.getAttribute('aria-label')), main: mains.length === 1 && shown(mains[0]) };
+    });
+    T(`A1 ${label}: a visible header (banner) landmark`, !!shell && shell.banner === true);
+    T(`A1 ${label}: a visible nav landmark with an aria-label`, !!shell && shell.nav.length >= 1);
+    T(`A1 ${label}: one visible main landmark`, !!shell && shell.main === true);
+    // Tab from the top: the skip link, then every item of the visible nav, then the main content.
+    await page.keyboard.press('Tab');
+    T(`A1 ${label}: the first Tab reaches the skip link`, await ev(page, () => !!document.activeElement && document.activeElement.matches('a.skip-link[href]')));
+    await page.keyboard.press('Tab');
+    const navLabel = await ev(page, () => { const n = document.activeElement && document.activeElement.closest('nav[aria-label]'); return n ? n.getAttribute('aria-label') : ''; });
+    T(`A1 ${label}: the next Tab reaches the first item of a visible labelled nav`, !!navLabel && !!shell && shell.nav.includes(navLabel)
+      && await ev(page, l => { const n = document.querySelector(`nav[aria-label="${l}"]`); const first = [...n.querySelectorAll('button,a[href]')].find(e => e.getClientRects().length); return document.activeElement === first; }, navLabel));
+    let visited = 0;
+    while (navLabel && visited < 40 && await ev(page, l => !!document.activeElement && !!document.activeElement.closest(`nav[aria-label="${l}"]`), navLabel)) { visited++; await page.keyboard.press('Tab'); }
+    const items = navLabel ? await ev(page, l => [...document.querySelector(`nav[aria-label="${l}"]`).querySelectorAll('button,a[href]')].filter(e => e.getClientRects().length).length, navLabel) : -1;
+    T(`A1 ${label}: Tab goes through each nav item, then into the main content`, !!navLabel && visited === items && await ev(page, () => !!document.activeElement && !!document.activeElement.closest('main')));
+    // The active item of the visible nav is marked, and only that one.
+    await page.click(navItem, { timeout: 2000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    T(`A1 ${label}: after choosing Payments in the visible nav, that item has aria-current="page" and no other item does`, await ev(page, sel => {
+      const a = document.querySelector(sel); const n = a && a.closest('nav');
+      return !!a && document.getElementById('page-payments').classList.contains('active') && a.getAttribute('aria-current') === 'page' && [...n.querySelectorAll('[aria-current]')].length === 1;
+    }, navItem));
+    if (width < 641) T(`A1 ${label}: the mobile nav stays fixed at the bottom of the screen`, await ev(page, () => { const n = document.getElementById('mobileNav'); const r = n.getBoundingClientRect(); return getComputedStyle(n).position === 'fixed' && Math.abs(r.bottom - window.innerHeight) <= 1; }));
+    for (const p of ['dashboard', 'settings', 'payments']) {
+      await page.evaluate(x => window.nav(x), p); await page.waitForTimeout(400);
+      T(`A1 ${label}: no horizontal scroll on ${p}`, await ev(page, () => document.documentElement.scrollWidth <= window.innerWidth && document.body.scrollWidth <= window.innerWidth));
+    }
+    T(`A1 ${label}: no page errors`, perrs.length === 0 && (await ev(page, () => (window.__errs || []).length)) === 0);
+    await ctx.close();
+  }
+}
+
 // A fresh browser context (its own storage, so a sign-in or sign-out there never reaches the
 // main journey page) with the same safety routes.
-async function safeContext(browser, leaks) {
-  const ctx = await browser.newContext({ acceptDownloads: true });
+async function safeContext(browser, leaks, opts = {}) {
+  const ctx = await browser.newContext({ acceptDownloads: true, ...opts });
   await ctx.route(/^https?:\/\/(sol-api-production\.up\.railway\.app|([^/]*\.)?wheellsverse\.com)(\/|$)/, r => { leaks.push(r.request().url()); return r.abort(); });
   await ctx.route(/^https?:\/\/fonts\.(googleapis|gstatic)\.com\//, r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   return ctx;
