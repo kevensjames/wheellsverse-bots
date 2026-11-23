@@ -594,8 +594,10 @@
           <div class="field"><label for="closePhrase">Type DELETE to confirm</label>
             <input id="closePhrase" class="input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="closeFormChanged()"></div>
           <p class="set-na" id="closeNote" role="status" aria-live="polite"></p>
-          <p class="err" id="closeErr" role="alert" style="display:none"></p>
-          <ul class="bank-remove-list" id="closeReasons"></ul>
+          <div id="closeErrBox" role="alert">
+            <p class="err" id="closeErr" style="display:none"></p>
+            <ul class="bank-remove-list" id="closeReasons"></ul>
+          </div>
           <div class="modal-actions">
             <button type="button" class="btn btn-ghost" id="closeCancel" onclick="closeCloseDialog()">Keep my account</button>
             <button type="submit" class="btn btn-danger" id="closeConfirm" disabled>Close my account</button>

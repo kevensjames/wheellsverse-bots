@@ -23,6 +23,13 @@ function setAnnounce(msg) { const el = document.getElementById('settingsLive'); 
 function setText(id, msg, show) { const el = document.getElementById(id); if (!el) return; el.textContent = msg || ''; if (show !== undefined) el.style.display = msg ? 'block' : 'none'; }
 function setErr(id, msg) { setText(id, msg, true); }
 function setFocus(id) { const el = document.getElementById(id); if (el) { try { el.focus(); } catch (e) {} } }
+// Busy while its request runs, without `disabled`: disabling the focused control (or hiding or
+// re-drawing it) drops keyboard focus to the page body. SolGuard already drops a second click.
+function setBusy(el, busy) {
+  if (!el) return;
+  if (busy) { el.setAttribute('aria-disabled', 'true'); el.setAttribute('aria-busy', 'true'); }
+  else { el.removeAttribute('aria-disabled'); el.removeAttribute('aria-busy'); }
+}
 const setNA = text => `<p class="set-na">${esc(text)}</p>`;
 
 // ── Re-authenticating requests ────────────────────────────────────────────────
@@ -70,7 +77,7 @@ function renderSettings() {
   const verified = !!m.email_verified_at;
   body.innerHTML = `
     <section class="set-card" id="setProfile" aria-labelledby="setProfileH">
-      <h2 id="setProfileH">Profile</h2>
+      <h2 id="setProfileH" tabindex="-1">Profile</h2>
       <div class="field"><label for="setName">Full legal name</label>
         <input id="setName" class="input" type="text" maxlength="255" autocomplete="name" aria-describedby="setNameHelp" value="${esc(m.full_name || '')}"></div>
       <p class="hint-muted" id="setNameHelp">Use your full legal name. We use it for your ID check and when you link a bank account.</p>
@@ -100,7 +107,7 @@ function renderSettings() {
     </section>
 
     <section class="set-card" id="setNotifications" aria-labelledby="setNotificationsH">
-      <h2 id="setNotificationsH">Notifications</h2>
+      <h2 id="setNotificationsH" tabindex="-1">Notifications</h2>
       <div id="setNotifBody"></div>
       <p class="err" id="setNotifErr" role="alert" style="display:none"></p>
     </section>
@@ -112,7 +119,7 @@ function renderSettings() {
     </section>
 
     <section class="set-card" id="setData" aria-labelledby="setDataH">
-      <h2 id="setDataH">Your data</h2>
+      <h2 id="setDataH" tabindex="-1">Your data</h2>
       <p class="hint-muted">Download a copy of your account data as a JSON file.</p>
       <button type="button" class="btn btn-ghost btn--sm" id="setExport" onclick="downloadMyData()">Download my data</button>
       <p class="set-na" id="setExportMsg" role="status" aria-live="polite"></p>
@@ -146,7 +153,7 @@ async function saveDisplayName() {
   if (!name) { setErr('setNameErr', 'Enter a name.'); input.focus(); return; }
   if ([...name].length > 255) { setErr('setNameErr', 'Use 255 characters or fewer.'); input.focus(); return; }
   if (!SolGuard.acquire('settings:name')) return;
-  const btn = document.getElementById('setNameSave'); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const btn = document.getElementById('setNameSave'); if (btn) { setBusy(btn, true); btn.textContent = 'Saving…'; }
   try {
     const d = await api('/account/profile', { method: 'PATCH', body: JSON.stringify({ full_name: name }) });
     const saved = d && typeof d.full_name === 'string' ? d.full_name : name;
@@ -158,14 +165,14 @@ async function saveDisplayName() {
     else setErr('setNameErr', (e && e.message) || "We couldn't save your name. Please try again.");
   } finally {
     SolGuard.release('settings:name');
-    if (btn) { btn.disabled = false; btn.textContent = 'Save name'; }
+    if (btn) { setBusy(btn, false); btn.textContent = 'Save name'; }
   }
 }
 
 // ── Password: there is no change-password route; the reset email is the way ─────
 async function emailResetLink() {
   if (!me || !me.email || !SolGuard.acquire('settings:pwreset')) return;
-  const btn = document.getElementById('setPwReset'); if (btn) btn.disabled = true;
+  const btn = document.getElementById('setPwReset'); setBusy(btn, true);
   setText('setPwMsg', '');
   try {
     await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email: me.email }) });
@@ -174,7 +181,7 @@ async function emailResetLink() {
     setText('setPwMsg', SolAccount.rateLimited(e) ? 'Too many requests. Please try again later.' : "We couldn't send the link. Please try again.");
   } finally {
     SolGuard.release('settings:pwreset');
-    if (btn) btn.disabled = false;
+    setBusy(btn, false);
   }
 }
 
@@ -249,7 +256,7 @@ async function startTwoFactor() {
     renderTwoFactor();
     setFocus('set2faSetupH');
   } catch (e) {
-    if (e && e.status === 409) { if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); }
+    if (e && e.status === 409) { if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); setFocus('setTwoFactorH'); }
     else if (SolAccount.notAvailable(e)) setText('set2faMsg', 'Two-factor sign-in is not available yet.');
     else setErr('set2faErr', twoFactorError(e, "We couldn't start two-factor setup. Please try again."));
   } finally { SolGuard.release('settings:2fa'); }
@@ -260,7 +267,7 @@ async function confirmTwoFactor() {
   setErr('set2faErr', '');
   if (!/^\d{6}$/.test(code)) { setErr('set2faErr', 'Enter the 6-digit code from your app.'); if (input) input.focus(); return; }
   if (!SolGuard.acquire('settings:2fa')) return;
-  const btn = document.getElementById('set2faConfirm'); if (btn) btn.disabled = true;
+  setBusy(document.getElementById('set2faConfirm'), true);
   try {
     const d = await reauthPost('/auth/2fa/activate', { code });
     const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
@@ -271,12 +278,12 @@ async function confirmTwoFactor() {
     setAnnounce('Two-factor sign-in is on.');
     setFocus(setState.codes ? 'set2faCodesH' : 'setTwoFactorH');
   } catch (e) {
-    if (e && e.status === 400) { setState.enroll = null; renderTwoFactor(); setErr('set2faErr', 'Your setup expired. Please start again.'); }
-    else if (e && e.status === 409) { setState.enroll = null; if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); }
+    if (e && e.status === 400) { setState.enroll = null; renderTwoFactor(); setErr('set2faErr', 'Your setup expired. Please start again.'); setFocus('setTwoFactorH'); }
+    else if (e && e.status === 409) { setState.enroll = null; if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); setFocus('setTwoFactorH'); }
     else { setErr('set2faErr', twoFactorError(e, "We couldn't turn on two-factor. Please try again.")); if (input) { input.value = ''; input.focus(); } }
   } finally {
     SolGuard.release('settings:2fa');
-    const b = document.getElementById('set2faConfirm'); if (b) b.disabled = false;
+    setBusy(document.getElementById('set2faConfirm'), false);
   }
 }
 function cancelTwoFactor() {
@@ -303,7 +310,7 @@ async function disableTwoFactor() {
   if (!password) { setErr('set2faErr', 'Enter your password.'); if (pw) pw.focus(); return; }
   if (!/^\d{6}$/.test(code)) { setErr('set2faErr', 'Enter the 6-digit code from your app.'); if (codeEl) codeEl.focus(); return; }
   if (!SolGuard.acquire('settings:2fa')) return;
-  const btn = document.getElementById('set2faOff'); if (btn) btn.disabled = true;
+  setBusy(document.getElementById('set2faOff'), true);
   try {
     await reauthPost('/auth/2fa/disable', { password, code });
     if (me) me.totp_enabled = false;
@@ -316,7 +323,7 @@ async function disableTwoFactor() {
   } finally {
     SolGuard.release('settings:2fa');
     if (pw) pw.value = '';
-    const b = document.getElementById('set2faOff'); if (b) b.disabled = false;
+    setBusy(document.getElementById('set2faOff'), false);
   }
 }
 
@@ -335,18 +342,18 @@ async function saveNotifications(box) {
   if (!box || !setState.settingsOk) return;
   if (!SolGuard.acquire('settings:notif')) { box.checked = !box.checked; return; }
   setErr('setNotifErr', '');
-  box.disabled = true;
+  setBusy(box, true);
   try {
     const d = await api('/account/settings', { method: 'PATCH', body: JSON.stringify(SolAccount.notificationsPatch(setState.settings.preferences, box.checked)) });
     if (d && typeof d === 'object' && d.preferences) setState.settings = Object.assign({}, setState.settings, d);
     setAnnounce('Notification setting saved.');
   } catch (e) {
     box.checked = !box.checked;
-    if (SolAccount.notAvailable(e)) { setState.settingsNA = true; renderNotifications(); }
+    if (SolAccount.notAvailable(e)) { setState.settingsNA = true; renderNotifications(); setFocus('setNotificationsH'); }
     else setErr('setNotifErr', (e && e.message) || "We couldn't save this setting. Please try again.");
   } finally {
     SolGuard.release('settings:notif');
-    box.disabled = false;
+    setBusy(box, false);
   }
 }
 
@@ -371,7 +378,7 @@ async function saveAiConsent(box) {
   if (!box) return;
   if (!SolGuard.acquire('settings:ai')) { box.checked = !box.checked; return; }
   setErr('setAiErr', '');
-  box.disabled = true;
+  setBusy(box, true);
   try {
     const d = await api('/account/settings', { method: 'PATCH', body: JSON.stringify({ ai_assistant_consent: box.checked }) });
     if (d && typeof d === 'object') setState.settings = Object.assign({}, setState.settings, d);
@@ -382,17 +389,18 @@ async function saveAiConsent(box) {
       setState.aiHidden = true;   // the backend does not know this setting: hide it
       renderAiConsent();
       setAnnounce('The AI assistant setting is not available yet.');
+      setFocus('setDataH');   // the next section: the hidden checkbox had focus
     } else setErr('setAiErr', (e && e.message) || "We couldn't save this setting. Please try again.");
   } finally {
     SolGuard.release('settings:ai');
-    box.disabled = false;
+    setBusy(box, false);
   }
 }
 
 // ── Your data: export (PR #33) ────────────────────────────────────────────────
 async function downloadMyData() {
   if (!SolGuard.acquire('settings:export')) return;
-  const btn = document.getElementById('setExport'); if (btn) btn.disabled = true;
+  const btn = document.getElementById('setExport'); setBusy(btn, true);
   setText('setExportMsg', ''); setErr('setExportErr', '');
   try {
     const data = await api('/account/export');
@@ -410,7 +418,7 @@ async function downloadMyData() {
     else setErr('setExportErr', (e && e.message) || "We couldn't prepare your data. Please try again.");
   } finally {
     SolGuard.release('settings:export');
-    if (btn) btn.disabled = false;
+    setBusy(btn, false);
   }
 }
 
@@ -471,7 +479,7 @@ async function confirmCloseAccount(e) {
   const body = SolAccount.closePayload((document.getElementById('closePw') || {}).value, (document.getElementById('closeCode') || {}).value, totpOn);
   setText('closeNote', ''); setErr('closeErr', '');
   const ul = document.getElementById('closeReasons'); if (ul) ul.innerHTML = '';
-  btn.disabled = true; btn.textContent = 'Closing…';
+  setBusy(btn, true); btn.textContent = 'Closing…';
   let closed = false;
   try {
     const d = await reauthPost('/account/close', body);
@@ -496,6 +504,7 @@ async function confirmCloseAccount(e) {
     }
   } finally {
     SolGuard.release('settings:close');
+    setBusy(btn, false);
     if (!closed) { btn.textContent = 'Close my account'; closeFormChanged(); }
   }
 }
@@ -506,7 +515,7 @@ function renderVerifyBanner() {
   if (!el) return;
   if (!me || me.email_verified_at || !me.email) { el.innerHTML = ''; return; }
   el.innerHTML = `<section class="verify-banner" aria-labelledby="verifyBannerTitle">
-      <div class="verify-banner__text"><h2 id="verifyBannerTitle" class="verify-banner__title">Please verify your email address</h2>
+      <div class="verify-banner__text"><h2 id="verifyBannerTitle" class="verify-banner__title" tabindex="-1">Please verify your email address</h2>
         <p>Open the link we sent to <strong>${esc(me.email)}</strong> to confirm this address is yours.</p>
         <p class="hint-muted" id="verifyMsg" role="status" aria-live="polite"></p></div>
       <button type="button" class="btn btn-ghost btn--sm" id="verifyResend" onclick="resendVerification('verify')">Resend email</button>
@@ -518,7 +527,7 @@ async function resendVerification(scope) {
   const btn = document.getElementById(scope === 'set' ? 'setResend' : 'verifyResend');
   const msgId = scope === 'set' ? 'setResendMsg' : 'verifyMsg';
   if (!SolGuard.acquire('verify:resend')) return;
-  if (btn) btn.disabled = true;
+  setBusy(btn, true);
   setText(msgId, '');
   let hide = false;
   try {
@@ -531,6 +540,11 @@ async function resendVerification(scope) {
     else setText(msgId, "We couldn't send the email. Please try again.");
   } finally {
     SolGuard.release('verify:resend');
-    if (btn) { if (hide) btn.hidden = true; btn.disabled = false; }
+    setBusy(btn, false);
+    if (btn && hide) {
+      const hadFocus = document.activeElement === btn;
+      btn.hidden = true;
+      if (hadFocus) setFocus(scope === 'set' ? 'setProfileH' : 'verifyBannerTitle');   // the button is gone
+    }
   }
 }

@@ -414,7 +414,8 @@ async function handleForgot(e) {
   msg.textContent = ''; err.style.display = 'none';
   if (!email) { err.textContent = 'Enter your email address.'; err.style.display = 'block'; return; }
   _forgotBusy = true;
-  btn.textContent = 'Sending…'; btn.disabled = true;
+  // aria-disabled, not disabled: disabling the focused button drops focus out of the modal.
+  btn.textContent = 'Sending…'; btn.setAttribute('aria-disabled', 'true'); btn.setAttribute('aria-busy', 'true');
   try {
     const r = await SolAccount.callPublic(API, '/auth/forgot-password', { method: 'POST', body: { email } });
     const out = SolAccount.forgotOutcome(r.status);
@@ -423,7 +424,7 @@ async function handleForgot(e) {
       err.textContent = out === 'limited' ? 'Too many requests. Please try again later.' : "We couldn't reach MySol. Check your connection and try again.";
       err.style.display = 'block';
     }
-  } finally { _forgotBusy = false; btn.textContent = 'Send reset link'; btn.disabled = false; }
+  } finally { _forgotBusy = false; btn.textContent = 'Send reset link'; btn.removeAttribute('aria-disabled'); btn.removeAttribute('aria-busy'); }
 }
 
 // /sol/?forgot opens the forgot-password form (the reset page links here when a link has
