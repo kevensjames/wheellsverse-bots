@@ -25,6 +25,30 @@ function setErr(id, msg) { setText(id, msg, true); }
 function setFocus(id) { const el = document.getElementById(id); if (el) { try { el.focus(); } catch (e) {} } }
 const setNA = text => `<p class="set-na">${esc(text)}</p>`;
 
+// ── Re-authenticating requests ────────────────────────────────────────────────
+// POST /auth/2fa/activate, /auth/2fa/disable and /account/close (PR #33) answer a wrong code
+// or password with 401 ("Invalid code", "Invalid password", "2FA code required"). api() reads
+// every first 401 as an expired access token: it renews the session (POST /auth/refresh, 5 per
+// 15 minutes per IP) and sends the request again. A typo would then cost a refresh and count
+// twice against the route's own limit, and right after a 2FA disable (which ends every refresh
+// session) it would sign the member out. So these requests make sure the access token is fresh
+// first, through an ordinary GET that renews it the usual way when it must, and are then sent
+// once with _retry, so a 401 comes back as an error. Only a 401 about the token itself (e.g.
+// this device's clock is wrong) renews the session, once, and sends the request again.
+const REAUTH_REFUSAL = /^(Invalid code|Invalid password|2FA code required)$/;
+async function _reauthSessionFresh() { await api('/auth/me', { noAbort: true }); }
+async function reauthPost(path, body) {
+  const send = () => api(path, { method: 'POST', body: JSON.stringify(body), _retry: true });
+  if (_expiresSoon(token)) await _reauthSessionFresh();
+  try {
+    return await send();
+  } catch (e) {
+    if (!e || e.status !== 401 || REAUTH_REFUSAL.test(typeof e.detail === 'string' ? e.detail : '')) throw e;
+    await _reauthSessionFresh();
+    return send();
+  }
+}
+
 async function loadSettings() {
   const body = document.getElementById('settingsBody');
   if (!body) return;
@@ -235,7 +259,7 @@ async function confirmTwoFactor() {
   if (!SolGuard.acquire('settings:2fa')) return;
   const btn = document.getElementById('set2faConfirm'); if (btn) btn.disabled = true;
   try {
-    const d = await api('/auth/2fa/activate', { method: 'POST', body: JSON.stringify({ code }) });
+    const d = await reauthPost('/auth/2fa/activate', { code });
     const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
     setState.enroll = null;   // the secret leaves the page
     setState.codes = codes.length ? codes : null;
@@ -278,7 +302,7 @@ async function disableTwoFactor() {
   if (!SolGuard.acquire('settings:2fa')) return;
   const btn = document.getElementById('set2faOff'); if (btn) btn.disabled = true;
   try {
-    await api('/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ password, code }) });
+    await reauthPost('/auth/2fa/disable', { password, code });
     if (me) me.totp_enabled = false;
     renderTwoFactor();
     // The backend ends every session, this one included (services/auth.py:412).
@@ -429,7 +453,7 @@ async function confirmCloseAccount(e) {
   btn.disabled = true; btn.textContent = 'Closing…';
   let closed = false;
   try {
-    const d = await api('/account/close', { method: 'POST', body: JSON.stringify(body) });
+    const d = await reauthPost('/account/close', body);
     closed = true;
     const note = d && d.retention && typeof d.retention.note === 'string' ? d.retention.note + ' ' : '';
     setText('closeNote', 'Your account is closed. ' + note + 'Signing you out…');
