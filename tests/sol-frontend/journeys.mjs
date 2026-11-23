@@ -289,6 +289,36 @@ async function memberPages(page) {
   await page.evaluate(() => window.nav('settings')); await wait(300);
   T('C4 settings (404): the profile card does not offer Resend either, and says to contact support', !(await vis('#setResend')) && /resending is not available yet/i.test(await text('#setProfile')));
   T('C4 (404): no further POST /auth/resend-verification', countOf(await reqs(), '/auth/resend-verification') === 0);
+  // R3-C2: a 405 (Method Not Allowed) is remembered the same way, whether the dashboard banner or
+  // the Settings profile card got it. Each walk starts a fresh memory (setState.resendNA = false).
+  const resendPosts = async () => countOf(await reqs(), '/auth/resend-verification');
+  await page.evaluate(() => { setState.resendNA = false; window.__mockSet('POST /auth/resend-verification', 405, { detail: 'Method Not Allowed' }); window.nav('dashboard'); });
+  await wait(300);
+  await clearReqs();
+  await click('#verifyResend'); await wait(200);
+  T('R3-C2 banner (405): one POST; the button is hidden and the banner says to contact support, with no error alert',
+    (await resendPosts()) === 1 && !(await vis('#verifyResend')) && /contact support/i.test(await text('#dashVerify')) && (await alertText('#dashVerify')) === '');
+  await clearReqs();
+  await page.evaluate(() => window.nav('dashboard')); await wait(300);
+  T('R3-C2 banner (405): a later dashboard visit shows the contact-support note and does not offer Resend again', await vis('#dashVerify .verify-banner') && !(await vis('#verifyResend')) && /contact support/i.test(await text('#dashVerify')));
+  await page.evaluate(() => window.nav('settings')); await wait(300);
+  T('R3-C2 settings (405 on the banner): the profile card does not offer Resend either, and says resending is not available yet', !(await vis('#setResend')) && /resending is not available yet/i.test(await text('#setProfile')));
+  await click('#setResend');   // (sends nothing: there is no Resend button to click)
+  T('R3-C2 banner (405): no further POST /auth/resend-verification in that page session', (await resendPosts()) === 0);
+  await page.evaluate(() => { setState.resendNA = false; window.nav('settings'); });   // the route still answers 405
+  await wait(300);
+  await clearReqs();
+  await click('#setResend'); await wait(200);
+  T('R3-C2 settings card (405): one POST; the button is hidden and the card says resending is not available yet, with no error alert',
+    (await resendPosts()) === 1 && !(await vis('#setResend')) && /resending is not available yet/i.test(await text('#setProfile')) && (await alertText('#setProfile')) === '');
+  await clearReqs();
+  await page.evaluate(() => window.nav('settings')); await wait(300);
+  T('R3-C2 settings card (405): a later Settings visit does not offer Resend again', !(await vis('#setResend')) && /resending is not available yet/i.test(await text('#setProfile')));
+  await page.evaluate(() => window.nav('dashboard')); await wait(300);
+  T('R3-C2 dashboard (405 on the Settings card): the banner does not offer Resend either, and says to contact support', await vis('#dashVerify .verify-banner') && !(await vis('#verifyResend')) && /contact support/i.test(await text('#dashVerify')));
+  await click('#verifyResend');   // (sends nothing: there is no Resend button to click)
+  T('R3-C2 settings card (405): no further POST /auth/resend-verification in that page session', (await resendPosts()) === 0);
+  await page.evaluate(() => { delete window.__mock.over['POST /auth/resend-verification']; });
   // A new page session starts without that memory (setState.resendNA, pages/settings.js).
   await page.evaluate(() => { setState.resendNA = false; window.__mock.a33 = true; window.nav('dashboard'); });
   await wait(300);
