@@ -163,8 +163,19 @@ function _publicRoute(method, path, query, body) {
   // POST /auth/reset-password {token, new_password 8..128} -> 200 (BASE api/auth.py:135-145;
   // schemas/auth.py:77-81); 400 "Invalid or expired token" (BASE services/auth.py:497-499).
   if (method === 'POST' && path === '/auth/reset-password') return R(200, { detail: 'Password updated' });
-  // POST /auth/verify-email?token= (query string, no body) -> 200 (BASE api/auth.py:113-121; A33 api/auth.py:116-124 is identical).
-  if (method === 'POST' && path === '/auth/verify-email') return /(^|&)token=./.test(query) ? R(200, { detail: 'Email verified' }) : R(422, { detail: [{ type: 'missing', loc: ['query', 'token'], msg: 'Field required' }] });
+  // POST /auth/verify-email {token} -> 200; an empty token -> 400 "Invalid or expired token".
+  // The token goes in the JSON body, as for /auth/reset-password: a URL lands in proxy and
+  // access logs. BASE api/auth.py:113-121 (and A33 api/auth.py:116-124) still read it from the
+  // query string; the backend change "keep email-verify tokens out of sol-api logs" is to read it
+  // from this body. Extra keys are refused, as in the other auth bodies (BASE schemas/auth.py).
+  // A query string is not read here: a request without the body is a 422, so a page that still
+  // sends ?token= does not verify against this mock.
+  if (method === 'POST' && path === '/auth/verify-email') {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return R(422, { detail: [{ type: 'missing', loc: ['body'], msg: 'Field required' }] });
+    for (const k of Object.keys(body)) if (k !== 'token') return EXTRA(k);
+    if (typeof body.token !== 'string') return R(422, { detail: [{ type: 'missing', loc: ['body', 'token'], msg: 'Field required' }] });
+    return body.token ? R(200, { detail: 'Email verified' }) : R(400, { detail: 'Invalid or expired token' });
+  }
   // POST /auth/signup -> 201 tokens (BASE api/auth.py:48-64). Extra keys are forbidden on BASE
   // (schemas/auth.py:9-15); C34 adds accepted_terms_version, accepted_privacy_version and
   // esign_consent (C34 schemas/auth.py:16-20).

@@ -1861,8 +1861,15 @@ async function publicPages(browser, leaks) {
   const open = async (path, opts = {}) => {
     const page = await ctx.newPage();
     const logs = []; const perrs = []; const recorded = [];
+    // Every request the browser sends for the page (the page itself, its CSS, scripts and
+    // images), with its Referer header, so a check can tell whether the token travelled in one.
+    const net = []; const netPending = [];
     page.on('console', m => logs.push(m.text()));
     page.on('pageerror', e => perrs.push(String(e)));
+    page.on('request', r => {
+      const nav = r.isNavigationRequest() && r.frame() === page.mainFrame();
+      netPending.push(r.allHeaders().then(h => { net.push({ url: r.url(), referer: h.referer || '', nav }); }, () => { net.push({ url: r.url(), referer: '', nav, noHeaders: true }); }));
+    });
     await page.exposeFunction('__recordReq', e => { recorded.push(e); });
     await page.addInitScript({ content: publicMockScript({ flags: opts.flags || {}, over: opts.over || {} }) });
     if (opts.consentOn) {
@@ -1870,9 +1877,22 @@ async function publicPages(browser, leaks) {
     }
     await page.goto(`http://localhost:${PORT}${path}`);
     await page.waitForTimeout(300);
-    return { page, logs, perrs, recorded, ...helpers(page) };
+    return { page, logs, perrs, recorded, net, netPending, ...helpers(page) };
   };
   const storageHas = (page, v) => page.evaluate(x => (JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage })).includes(x), v).catch(() => false);
+  // Where an email-link token travelled in a request: the URL of an API call (the mock's log), or
+  // the URL or Referer header of anything the browser sent (CSS, scripts, images). The navigation
+  // to the email link itself is the one request whose URL holds the token. Proxies, the API's
+  // access log and the host's HTTP logs record URLs, and a Referer carries the page address.
+  // Also says how many files the browser loaded, so the Referer check is not vacuous.
+  const tokenTravels = async (o, v) => {
+    await Promise.race([Promise.all(o.netPending), o.wait(2000)]);
+    const where = o.recorded.filter(r => String(r.url).includes(v)).map(r => 'API URL ' + r.url)
+      .concat(o.net.filter(n => !n.nav && n.url.includes(v)).map(n => 'URL ' + n.url))
+      .concat(o.net.filter(n => n.referer.includes(v)).map(n => 'Referer of ' + n.url));
+    return { where, files: o.net.filter(n => !n.nav).length, headersRead: o.net.every(n => !n.noHeaders) };
+  };
+  const travelOk = t => t.where.length === 0 && t.files >= 3 && t.headersRead;
 
   // ── [3a] forgot password in the sign-in modal (POST /auth/forgot-password, BASE api/auth.py:124-132) ──
   const NEUTRAL = 'If an account exists for that address, we sent a link.';
@@ -2058,10 +2078,13 @@ async function publicPages(browser, leaks) {
   await keyboardOrder(rm.page, 'reset page', 'header nav');
   await rm.page.close();
 
-  // ── [3c] verify email page (APP_BASE_URL/verify?token=, BASE services/email.py:129; POST /auth/verify-email?token=) ──
+  // ── [3c] verify email page (APP_BASE_URL/verify?token=, BASE services/email.py:129; POST /auth/verify-email {token}) ──
   // SEC-5: nothing is sent on load (a mail scanner that runs scripts would use up the one-time
   // token); the page shows one "Verify my email" button and sends the POST on its click only.
+  // TOKEN-BODY: the POST carries the token in its JSON body, exactly {token}; its URL is the bare
+  // route, with no query string (proxies and access logs record URLs).
   const verifyPosts = o => o.recorded.filter(r => r.url.startsWith('/auth/verify-email'));
+  const bodyForm = r => !!r && r.method === 'POST' && r.url === '/auth/verify-email' && !/token/i.test(r.url) && exactKeys(r.body, ['token']) && r.body.token === VERIFY_TOKEN;
   // Keyboard: the password typed, Enter in the confirm field saves it; focus goes to the heading.
   const rk = await open(`/sol/reset-password.html?token=${RESET_TOKEN}`);
   await rk.page.focus('#resetPassword', { timeout: 1000 }).catch(() => {}); await rk.page.keyboard.type('synthetic-new-pass');
@@ -2082,9 +2105,14 @@ async function publicPages(browser, leaks) {
   reportAudit('6c a11y verify page (before the click): labels, names, one h1, landmarks, no positive tabindex, alt text', await vp.page.evaluate(auditPage, 'doc'));
   await vp.click('#verifyGo'); await vp.wait(250);
   const vr = verifyPosts(vp);
-  T('3c verify: the click sends POST /auth/verify-email?token=… with the token in the query and no body', vr.length === 1 && vr[0].method === 'POST' && vr[0].url === '/auth/verify-email?token=' + VERIFY_TOKEN && vr[0].body === null);
+  T('3c verify: the click sends POST /auth/verify-email with the token in the JSON body, exactly {token}', vr.length === 1 && vr[0].method === 'POST' && exactKeys(vr[0].body, ['token']) && vr[0].body.token === VERIFY_TOKEN);
+  T('TOKEN-BODY verify: the request URL holds no token: exactly /auth/verify-email, no query string, no "token"', vr.length === 1 && vr[0].url === '/auth/verify-email' && !vr[0].url.includes('?') && !/token/i.test(vr[0].url));
   T('3c verify: success says so and links to the app', await vp.vis('#verifyDone') && /verified/i.test(await vp.text('#verifyDone')) && await ev(vp.page, () => [...document.querySelectorAll('#verifyDone a[href]')].some(a => a.getAttribute('href') === '/sol/app')));
   T('3c verify: the token never reaches the console', !vp.logs.some(t => t.includes(VERIFY_TOKEN)));
+  const vpt = await tokenTravels(vp, VERIFY_TOKEN);
+  T(`TOKEN-BODY verify: no request of the page has the token in its URL or Referer header (the API call, and the ${vpt.files} files the browser loaded)`, travelOk(vpt));
+  if (vpt.where.length) console.log('    token found in:', JSON.stringify(vpt.where.slice(0, 4)));
+  T('TOKEN-BODY verify: the token is in no storage, cookie, history state or address after the click', !(await storageHas(vp.page, VERIFY_TOKEN)) && !(await ev(vp.page, x => [document.cookie, JSON.stringify(history.state), location.href].some(s => s.includes(x)), VERIFY_TOKEN)));
   reportAudit('6c a11y verify page: labels, names, one h1, landmarks, no positive tabindex, alt text', await vp.page.evaluate(auditPage, 'doc'));
   await vp.page.close();
   // A double click while the answer takes 150 ms: one POST.
@@ -2094,6 +2122,7 @@ async function publicPages(browser, leaks) {
   await vd.page.dblclick('#verifyGo', { timeout: 2000 }).catch(() => {});
   await vd.wait(600);
   T('SEC-5 verify: no POST before the click, exactly one POST after a double click', beforeClick === 0 && verifyPosts(vd).length === 1 && await vd.vis('#verifyDone'));
+  T('TOKEN-BODY verify (double click): that one POST has the bare URL and carries the token in its body only', verifyPosts(vd).length === 1 && bodyForm(verifyPosts(vd)[0]));
   await vd.page.close();
   // Keyboard: Enter on the button keeps focus on the page while it runs, then the heading has it.
   const vk = await open(`/sol/verify.html?token=${VERIFY_TOKEN}`, { flags: { delay: 150 } });
@@ -2144,6 +2173,7 @@ async function publicPages(browser, leaks) {
       await vr1.page.keyboard.press('Enter'); await vr1.wait(500);
       T('VERIFY-1 verify (429): "Try again" that fails again announces the reason again', !!got && verifyPosts(vr1).length === 2 && await ev(vr1.page, m => window.__live.includes(m), got.msg)
         && await ev(vr1.page, () => document.activeElement === document.querySelector('h1')));
+      T('TOKEN-BODY verify (429, then "Try again"): both POSTs have the bare URL and carry the token in their body only', verifyPosts(vr1).length === 2 && verifyPosts(vr1).every(bodyForm));
     }
     await vr1.page.close();
   }
@@ -2165,7 +2195,11 @@ async function publicPages(browser, leaks) {
   T('A2 /sol/verify: nothing stores the token (storage, cookies, history state)', await scriptRan(cv.page) && !(await kept(cv.page, VERIFY_TOKEN)));
   await cv.click('#verifyGo'); await cv.wait(250);
   const cvr = cv.recorded.filter(r => r.url.startsWith('/auth/verify-email'));
-  T('A2 /sol/verify: the click verifies with the token kept in memory, and still nothing stores it', cvr.length === 1 && cvr[0].url === '/auth/verify-email?token=' + VERIFY_TOKEN && await cv.vis('#verifyDone') && !(await kept(cv.page, VERIFY_TOKEN)));
+  T('A2 /sol/verify: the click verifies with the token kept in memory, and still nothing stores it', cvr.length === 1 && cvr[0].body && cvr[0].body.token === VERIFY_TOKEN && await cv.vis('#verifyDone') && !(await kept(cv.page, VERIFY_TOKEN)));
+  T('TOKEN-BODY A2 /sol/verify: the POST has the bare URL /auth/verify-email and carries the token in its body only, exactly {token}', cvr.length === 1 && bodyForm(cvr[0]));
+  const cvt = await tokenTravels(cv, VERIFY_TOKEN);
+  T(`TOKEN-BODY A2 /sol/verify: no request of the page has the token in its URL or Referer header (the API call, and the ${cvt.files} files the browser loaded)`, travelOk(cvt));
+  if (cvt.where.length) console.log('    token found in:', JSON.stringify(cvt.where.slice(0, 4)));
   T('A2 /sol/verify: no page errors, and the token never reaches the console', cv.perrs.length === 0 && !cv.logs.some(t => t.includes(VERIFY_TOKEN)));
   await cv.page.close();
   const cr = await open(`/sol/reset-password?token=${RESET_TOKEN}&from=mail`);
@@ -2175,6 +2209,9 @@ async function publicPages(browser, leaks) {
   await cr.fill('#resetPassword', 'synthetic-new-pass'); await cr.fill('#resetConfirm', 'synthetic-new-pass'); await cr.click('#resetBtn'); await cr.wait(250);
   const crr = cr.recorded.filter(r => r.url === '/auth/reset-password');
   T('A2 /sol/reset-password: the form sends the token kept in memory, and still nothing stores it', crr.length === 1 && crr[0].body && crr[0].body.token === RESET_TOKEN && await cr.vis('#resetDone') && !(await kept(cr.page, RESET_TOKEN)));
+  const crt = await tokenTravels(cr, RESET_TOKEN);
+  T(`TOKEN-BODY A2 /sol/reset-password: no request of the page has the token in its URL or Referer header (the API call, and the ${crt.files} files the browser loaded)`, travelOk(crt));
+  if (crt.where.length) console.log('    token found in:', JSON.stringify(crt.where.slice(0, 4)));
   T('A2 /sol/reset-password: no page errors, and the token never reaches the console', cr.perrs.length === 0 && !cr.logs.some(t => t.includes(RESET_TOKEN)));
   await cr.page.close();
   await ctx.close();

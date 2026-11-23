@@ -6,7 +6,7 @@
 // but NOT sufficient — two files each declaring a top-level `let x` parse alone
 // yet throw "Identifier 'x' has already been declared" when the browser loads
 // them together. These checks catch exactly that, on every change.
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -146,6 +146,43 @@ redirectsSrc.split('\n').forEach((line, i) => {
   if (hit.length) { linkRules++; fail(`_redirects:${i + 1}: rule "${source}" matches ${hit.join(', ')} (these pages need no rule: Cloudflare serves them at their clean paths, and a rule can loop with that)`); }
 });
 if (redirectsSrc && !linkRules) ok(`_redirects has no rule for ${LINK_PATHS.join(', ')}`);
+
+// 8. A one-time email-link token (email verification, password reset) never travels in a
+// request URL: proxies, the API's access log and the host's HTTP logs record URLs, so the token
+// goes in a JSON body ({token}). No script of the member pages builds a string with a token
+// query parameter ("?token=" or "&token=" inside a string literal; comments are skipped). The
+// pages an email link opens also keep `<meta name="referrer" content="no-referrer">`: until
+// their script removes it, the token is in the page address, and every file the page loads
+// would otherwise carry that address in its Referer header.
+console.log('\n[7] email-link tokens: never in a request URL; no referrer');
+const stripComments = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+const TOKEN_QUERY = /(['"`])[^'"`\n]*[?&]token=/g;
+const solFiles = [];
+const walkSol = dir => {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walkSol(p);
+    else if (/\.(js|html)$/.test(name) && name !== 'boot-test.html') solFiles.push(p);
+  }
+};
+walkSol(SOL_DIR);
+let tokenUrls = 0;
+for (const file of solFiles) {
+  const raw = readFileSync(file, 'utf8');
+  const code = stripComments(file.endsWith('.html') ? inlineScripts(raw).join('\n') : raw);
+  for (const m of code.matchAll(TOKEN_QUERY)) {
+    tokenUrls++;
+    const line = code.slice(0, m.index).split('\n').length;
+    fail(`${file.slice(SOL_DIR.length + 1)}: a string with a token query parameter (script line ${line}): "${code.split('\n')[line - 1].trim().slice(0, 120)}"; send the token in the JSON body instead`);
+  }
+}
+if (solFiles.length < 20) fail(`expected the member pages under frontend/sol, found ${solFiles.length} files`);
+else if (!tokenUrls) ok(`no script builds a URL with a token query parameter (${solFiles.length} files under frontend/sol)`);
+for (const file of ['verify.html', 'reset-password.html']) {
+  const src = readFileSync(join(SOL_DIR, file), 'utf8');
+  if (!/<meta name="referrer" content="no-referrer">/.test(src)) fail(`${file}: must keep <meta name="referrer" content="no-referrer"> (the token is in the address until its script removes it)`);
+  else ok(`${file}: sends no referrer`);
+}
 
 console.log(`\n${fails ? '✗ ' + fails + ' FAILURE(S)' : '✓ all static checks passed'}`);
 process.exit(fails ? 1 : 0);
