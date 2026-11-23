@@ -171,6 +171,11 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   /* A sheet fixed just above the bottom nav, not under it, so its last control stays visible and a
      tap reaches it (pages/circles.js closes it when focus leaves it). */
   .circles-filters__panel{position:fixed;left:0;right:0;bottom:calc(var(--mobile-nav-h) + env(safe-area-inset-bottom,0px));top:auto;width:auto;max-height:calc(100vh - var(--mobile-nav-h) - 4rem);max-height:calc(100dvh - var(--mobile-nav-h) - 4rem);overflow-y:auto;border-radius:1rem 1rem 0 0;box-shadow:0 -8px 32px rgba(14,23,38,.18)}
+  /* While the sheet is open (pages/circles.js sets the class and the room: the sheet and the nav,
+     plus a gap): the page has room below its content to scroll "Filters & sort" above the sheet,
+     and focus scrolls controls clear of the sheet, not under it. */
+  html.circles-sheet-open{scroll-padding-bottom:var(--circles-sheet-room,5rem)}
+  html.circles-sheet-open .main{padding-bottom:var(--circles-sheet-room,5rem)}
 }
 @media(max-width:640px){
   /* Phones: the sidebar header becomes a small bar at the top (the page's banner landmark)
