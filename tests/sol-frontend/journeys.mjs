@@ -884,6 +884,14 @@ async function memberPages(page) {
   T('B1 payouts: those rows show the date the payout started instead', pReturned.text.includes('Started ' + await dateOf('2026-10-15T00:00:00Z')) && pReversed.text.includes('Started ' + await dateOf('2026-10-28T00:00:00Z')) && pReview.text.includes('Started ' + await dateOf('2026-09-15T00:00:00Z')));
   T('B1 payouts: SUCCESS still reads "Settled <date>"', await ev(page, d => [...document.querySelectorAll('#payoutsList li.payout-row')].some(l => l.innerText.includes('$1,080.00') && l.innerText.includes('Settled ' + d)), await dateOf('2026-06-20T00:00:00Z')));
   T('B1 payouts: no raw id of the other payouts in the page', !(await ev(page, ids => { const h = document.getElementById('page-payments').innerHTML; return ids.some(i => h.includes(i)); }, ['99990000-0000-4000-8000-999999999995', '99990000-0000-4000-8000-999999999997', '99990000-0000-4000-8000-999999999999', '99990000-0000-4000-8000-99999999999b', '99990000-0000-4000-8000-99999999999c'])));
+  // D2: the legacy flow sets SUCCESS without a settled_at (BASE services/payout.py:597-599; only the
+  // gated SETTLED path sets it, :795-796), and the member endpoint then sends settled_at null and
+  // created_at (BASE api/payments.py:384-397). The row may say it settled (the legacy flow counts the
+  // accepted transfer as paid), but the only date it has is when the payout started.
+  const pLegacy = await ev(page, () => { const li = [...document.querySelectorAll('#payoutsList li.payout-row')].find(l => l.innerText.includes('$544.00')); return li ? { chip: (li.querySelector('.status') || {}).outerHTML || '', date: (li.querySelector('.payout-row__date') || {}).textContent || '', text: li.innerText } : null; });
+  T('D2 payouts: a legacy SUCCESS payout with no settled_at is listed with the same green "Settled" chip', !!pLegacy && pLegacy.chip === chip('active', 'Settled'));
+  T('D2 payouts: it shows no settlement date it does not have: its date reads exactly "Started <created_at>"', !!pLegacy && pLegacy.date === 'Started ' + await dateOf('2026-05-15T00:00:00Z') && !/invalid|undefined|null|NaN/i.test(pLegacy.text));
+  T('D2 payouts: no raw id of the legacy row in the page', !(await ev(page, ids => { const h = document.getElementById('page-payments').innerHTML; return ids.some(i => h.includes(i)); }, ['99990000-0000-4000-8000-99999999999d', '99990000-0000-4000-8000-99999999999e'])));
   // statusChip() also draws circle, cycle, member, payment and participant states (circle-detail.js,
   // timeline.js, admin.js): the payout keys are additive, and every key it had before is unchanged.
   const before = [['ACTIVE', 'active', 'Active'], ['VERIFIED', 'verified', 'Verified'], ['SUCCESS', 'active', 'Settled'], ['FORMING', 'forming', 'Forming'],
