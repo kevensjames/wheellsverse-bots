@@ -6,7 +6,7 @@
 // but NOT sufficient — two files each declaring a top-level `let x` parse alone
 // yet throw "Identifier 'x' has already been declared" when the browser loads
 // them together. These checks catch exactly that, on every change.
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -91,6 +91,98 @@ for (const rel of order) {
   if (all > inAllowed) { deletes++; fail(`${rel}: deletes a stored member token outside ${JSON.stringify(allowed[rel] || [])} (${all - inAllowed} place(s))`); }
 }
 if (!deletes) ok('stored member tokens are deleted only by logout() and when a sign-in replaces them');
+
+// 6. The member account pages. The pages an email link opens (reset-password.html,
+// verify.html) hold a one-time token in memory: their own scripts never log it or store it.
+// Every page that uses window.SolAccount (core/account.js) loads it first, and the inline
+// scripts of the standalone pages parse.
+console.log('\n[5] member account pages');
+const SOL_DIR = join(APP, '..');
+const ACCOUNT_TAG = '<script src="/sol/app/core/account.js"></script>';
+const accIdx = order.indexOf('core/account.js');
+const usesAccount = ['pages/settings.js', 'pages/onboarding.js', 'pages/dashboard.js'].map(r => order.indexOf(r)).filter(i => i !== -1);
+if (accIdx === -1) fail('app.html must load core/account.js');
+else if (usesAccount.some(i => i < accIdx)) fail('app.html must load core/account.js before the pages that use it');
+else ok('app.html loads core/account.js before the pages that use it');
+for (const rel of ['pages/settings.js', 'pages/onboarding.js', 'core/a11y.js']) {
+  if (order.indexOf(rel) === -1) fail(`app.html must load ${rel}`);
+}
+const inlineScripts = src => [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+for (const [file, mustHoldToken] of [['index.html', false], ['reset-password.html', true], ['verify.html', true]]) {
+  let src;
+  try { src = readFileSync(join(SOL_DIR, file), 'utf8'); } catch { fail(`frontend/sol/${file} is missing`); continue; }
+  const tagAt = src.indexOf(ACCOUNT_TAG), inlineAt = src.search(/<script>/);
+  if (tagAt === -1 || inlineAt === -1 || tagAt > inlineAt) { fail(`${file}: must load core/account.js before its own script`); continue; }
+  const inline = inlineScripts(src).join('\n');
+  const tmpInline = join(HERE, '.inline.tmp.js');
+  try { writeFileSync(tmpInline, inline); check(tmpInline); }
+  catch (e) { fail(`${file}: inline script does not parse\n${e.stderr}`); continue; }
+  finally { try { unlinkSync(tmpInline); } catch {} }
+  if (mustHoldToken && /\bconsole\s*\.|\blocalStorage\b|\bsessionStorage\b|\bdocument\.cookie\b/.test(inline)) { fail(`${file}: the page holds an email-link token; its script must not use console, localStorage, sessionStorage or cookies`); continue; }
+  ok(`${file}: loads core/account.js first; inline script parses${mustHoldToken ? '; no console or storage use' : ''}`);
+}
+
+// 7. The email links land on the clean paths /sol/verify and /sol/reset-password (the backend
+// builds APP_BASE_URL/verify?token= and /reset-password?token=). Cloudflare Pages serves
+// verify.html and reset-password.html there by itself and 308-redirects the .html paths to them.
+// A _redirects rule for these paths (say "/sol/verify /sol/verify.html 200") composes with that
+// into a redirect loop, as it once did for /sol/app, and a redirect would also carry the token
+// to another address. So no rule may match them, exactly or through a splat or placeholder.
+console.log('\n[6] email-link pages: no _redirects rule');
+const REDIRECTS = join(APP, '..', '..', '_redirects');                // frontend/_redirects
+const LINK_PATHS = ['/sol/verify', '/sol/verify.html', '/sol/reset-password', '/sol/reset-password.html'];
+let redirectsSrc = '';
+try { redirectsSrc = readFileSync(REDIRECTS, 'utf8'); } catch { fail('frontend/_redirects is missing'); }
+const ruleMatches = (source, path) => {
+  const src = source.length > 1 ? source.replace(/\/+$/, '') : source;   // "/sol/verify/" also counts
+  const re = '^' + src.split('/').map(seg => (seg === '*' ? '.*' : seg.startsWith(':') ? '[^/]+' : seg.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*'))).join('/') + '/?$';
+  return new RegExp(re).test(path);
+};
+let linkRules = 0;
+redirectsSrc.split('\n').forEach((line, i) => {
+  const source = line.replace(/#.*/, '').trim().split(/\s+/)[0];
+  if (!source) return;
+  const hit = LINK_PATHS.filter(p => ruleMatches(source, p));
+  if (hit.length) { linkRules++; fail(`_redirects:${i + 1}: rule "${source}" matches ${hit.join(', ')} (these pages need no rule: Cloudflare serves them at their clean paths, and a rule can loop with that)`); }
+});
+if (redirectsSrc && !linkRules) ok(`_redirects has no rule for ${LINK_PATHS.join(', ')}`);
+
+// 8. A one-time email-link token (email verification, password reset) never travels in a
+// request URL: proxies, the API's access log and the host's HTTP logs record URLs, so the token
+// goes in a JSON body ({token}). No script of the member pages builds a string with a token
+// query parameter ("?token=" or "&token=" inside a string literal; comments are skipped). The
+// pages an email link opens also keep `<meta name="referrer" content="no-referrer">`: until
+// their script removes it, the token is in the page address, and every file the page loads
+// would otherwise carry that address in its Referer header.
+console.log('\n[7] email-link tokens: never in a request URL; no referrer');
+const stripComments = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+const TOKEN_QUERY = /(['"`])[^'"`\n]*[?&]token=/g;
+const solFiles = [];
+const walkSol = dir => {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walkSol(p);
+    else if (/\.(js|html)$/.test(name) && name !== 'boot-test.html') solFiles.push(p);
+  }
+};
+walkSol(SOL_DIR);
+let tokenUrls = 0;
+for (const file of solFiles) {
+  const raw = readFileSync(file, 'utf8');
+  const code = stripComments(file.endsWith('.html') ? inlineScripts(raw).join('\n') : raw);
+  for (const m of code.matchAll(TOKEN_QUERY)) {
+    tokenUrls++;
+    const line = code.slice(0, m.index).split('\n').length;
+    fail(`${file.slice(SOL_DIR.length + 1)}: a string with a token query parameter (script line ${line}): "${code.split('\n')[line - 1].trim().slice(0, 120)}"; send the token in the JSON body instead`);
+  }
+}
+if (solFiles.length < 20) fail(`expected the member pages under frontend/sol, found ${solFiles.length} files`);
+else if (!tokenUrls) ok(`no script builds a URL with a token query parameter (${solFiles.length} files under frontend/sol)`);
+for (const file of ['verify.html', 'reset-password.html']) {
+  const src = readFileSync(join(SOL_DIR, file), 'utf8');
+  if (!/<meta name="referrer" content="no-referrer">/.test(src)) fail(`${file}: must keep <meta name="referrer" content="no-referrer"> (the token is in the address until its script removes it)`);
+  else ok(`${file}: sends no referrer`);
+}
 
 console.log(`\n${fails ? '✗ ' + fails + ' FAILURE(S)' : '✓ all static checks passed'}`);
 process.exit(fails ? 1 : 0);

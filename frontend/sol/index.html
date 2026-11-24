@@ -24,8 +24,12 @@ body{background:var(--paper);color:var(--ink-900)}
     radial-gradient(70% 55% at 78% 18%, rgba(244,169,60,.22) 0%, transparent 60%),
     radial-gradient(60% 50% at 12% 8%, rgba(229,101,75,.10) 0%, transparent 55%)}
 
-nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
-  padding:.9rem 1.5rem;background:rgba(251,250,247,.82);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.topbar{position:sticky;top:0;z-index:50;background:rgba(251,250,247,.82);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.topbar nav{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.5rem}
+/* Skip link: off screen until it has keyboard focus. */
+.skip-link{position:fixed;left:1rem;top:-4rem;z-index:200;background:var(--surface);color:var(--ink-900);border:2px solid var(--focus-ring);border-radius:var(--r-md);padding:.55rem .95rem;font-family:var(--font-display);font-weight:600}
+.skip-link:focus{top:1rem}
+main:focus{outline:none}
 nav .brand{display:flex;align-items:center;gap:.5rem}
 nav .brand img{height:30px}
 .nav-links{display:flex;gap:.75rem;align-items:center}
@@ -34,7 +38,7 @@ nav .brand img{height:30px}
 .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:2.5rem;align-items:center;
   max-width:72rem;margin:0 auto;padding:4.5rem 1.5rem 3rem}
 .hero h1{font-size:clamp(2.3rem,5vw,3.6rem);line-height:1.08;letter-spacing:-.02em;margin-bottom:1rem}
-.hero h1 .grad{color:var(--sol-600);background:linear-gradient(120deg,var(--sol-600),var(--sol-400));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero h1 .grad{color:var(--sol-600);background:linear-gradient(120deg,var(--sol-700),var(--sol-600));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 @supports not ((-webkit-background-clip:text) or (background-clip:text)){.hero h1 .grad{-webkit-text-fill-color:var(--sol-600)}}
 .hero p.lede{font-size:1.15rem;color:var(--ink-700);max-width:34rem;margin-bottom:1.75rem}
 .hero-cta{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem}
@@ -55,7 +59,7 @@ section.band{position:relative;z-index:1;max-width:72rem;margin:0 auto;padding:3
 
 .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem}
 .stepc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.6rem;box-shadow:var(--shadow-1)}
-.stepc .n{width:2.1rem;height:2.1rem;border-radius:50%;background:linear-gradient(135deg,var(--sol-400),var(--sol-600));
+.stepc .n{width:2.1rem;height:2.1rem;border-radius:50%;background:linear-gradient(135deg,var(--sol-600),var(--sol-700));
   color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;margin-bottom:.9rem}
 .stepc h3{font-size:1.05rem;margin-bottom:.4rem}
 .stepc p{color:var(--ink-500);font-size:.9rem;margin:0;line-height:1.55}
@@ -95,19 +99,36 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
   -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:1rem}
 .modal-bg.open{display:flex}
 .modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
-  padding:2rem;width:100%;max-width:400px;position:relative;box-shadow:var(--shadow-2)}
+  padding:2rem;width:100%;max-width:400px;position:relative;box-shadow:var(--shadow-2);
+  max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem);overflow-y:auto}
 .modal h2{font-size:1.25rem;margin-bottom:1.25rem}
 .modal .close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--ink-300);font-size:1.25rem;cursor:pointer;line-height:1}
 .modal .field{margin-bottom:1rem}
 .modal .field label{display:block;font-size:.8rem;color:var(--ink-700);margin-bottom:.35rem}
 .modal .field input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
   padding:.6rem .85rem;color:var(--ink-900);font:inherit;outline:none}
-.modal .field input:focus{border-color:var(--sol-500);box-shadow:0 0 0 3px var(--sol-200)}
+.modal .field input:focus{border-color:var(--focus-ring);box-shadow:0 0 0 3px var(--sol-200)}
 .err{color:var(--danger-700);font-size:.8rem;margin-bottom:.75rem;display:none}
 .tab-row{display:flex;gap:.5rem;margin-bottom:1.5rem}
 .tab{flex:1;padding:.55rem;border-radius:var(--r-md);background:transparent;border:1px solid var(--line);
   color:var(--ink-500);cursor:pointer;font-family:var(--font-display);font-size:.9rem}
-.tab.active{background:var(--sol-200);border-color:var(--sol-500);color:var(--sol-600)}
+.tab.active{background:var(--sol-200);border-color:var(--sol-500);color:var(--sol-700)}
+.link-btn{background:none;border:0;padding:0;font:inherit;font-size:.85rem;color:var(--sol-700);text-decoration:underline;cursor:pointer}
+.form-note{color:var(--ink-700);font-size:.9rem;margin:-.25rem 0 1rem}
+.ok-note{color:var(--ink-900);background:var(--sol-50);border:1px solid var(--sol-200);border-radius:var(--r-md);padding:.6rem .75rem;font-size:.85rem;margin-bottom:.75rem}
+.ok-note:empty{padding:0;border:0;margin:0}   /* rendered while empty: a status region must be in the accessibility tree before its message */
+.forgot-row{margin:-.4rem 0 1rem}
+.consent-field{font-size:.85rem;color:var(--ink-800)}
+.consent-field[hidden]{display:none}
+.consent-docs{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.7rem}
+.consent-doc{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface-2)}
+.consent-doc summary{cursor:pointer;padding:.5rem .7rem;font-weight:600;color:var(--ink-900)}
+.consent-doc__text{max-height:12rem;overflow-y:auto;margin:0 .7rem .7rem;white-space:pre-wrap;font-size:.8rem;line-height:1.5;color:var(--ink-800)}
+.consent-doc summary:focus-visible,.consent-doc__text:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;border-radius:var(--r-sm)}
+.consent-check{display:flex;gap:.55rem;align-items:flex-start}
+.modal .consent-check input{width:1.05rem;height:1.05rem;padding:0;margin-top:.15rem;flex-shrink:0}
+.consent-state{font-size:.85rem;color:var(--ink-700);margin:0 0 .75rem}
+.consent-state:empty{margin:0}
 
 @media (max-width:760px){
   .hero{grid-template-columns:1fr;padding-top:2.5rem}
@@ -116,17 +137,21 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 <div class="sunrise"></div>
 <div class="wrap">
 
-<nav>
+<header class="topbar">
+<nav aria-label="Main">
   <span class="brand"><img src="/sol/assets/sol-logo.svg" alt="Sol"></span>
   <div class="nav-links">
     <a href="#how" class="btn btn-ghost btn--sm">How it works</a>
-    <button class="btn btn-primary btn--sm" onclick="openModal('login')">Sign in</button>
+    <button type="button" class="btn btn-primary btn--sm" onclick="openModal('login')">Sign in</button>
   </div>
 </nav>
+</header>
 
+<main id="main" tabindex="-1">
 <section class="hero">
   <div>
     <h1>Save together.<br><span class="grad">Get paid in turn.</span></h1>
@@ -208,6 +233,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
   <p>Create an account in under 2 minutes. No credit check required.</p>
   <button class="btn btn-primary" style="padding:.8rem 2.5rem;font-size:1rem" onclick="openModal('register')">Create free account</button>
 </div>
+</main>
 
 <footer>
   <span>© 2026 WheellsVerse · Sol</span>
@@ -223,19 +249,20 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 <!-- Auth Modal (markup preserved verbatim; restyled via CSS only) -->
 <div class="modal-bg" id="authModal">
   <div class="modal" role="dialog" aria-modal="true" aria-label="Sign in or create your Sol account">
-    <button class="close" onclick="closeModal()" aria-label="Close">✕</button>
+    <button type="button" class="close" onclick="closeModal()" aria-label="Close">✕</button>
     <div class="tab-row">
-      <button class="tab active" id="tabLogin" onclick="switchTab('login')">Sign in</button>
-      <button class="tab" id="tabRegister" onclick="switchTab('register')">Register</button>
+      <button type="button" class="tab active" id="tabLogin" aria-pressed="true" onclick="switchTab('login')">Sign in</button>
+      <button type="button" class="tab" id="tabRegister" aria-pressed="false" onclick="switchTab('register')">Register</button>
     </div>
 
     <!-- Login form -->
     <form id="loginForm" onsubmit="handleLogin(event)">
       <h2>Welcome back</h2>
-      <div class="field"><label>Email</label>
+      <div class="field"><label for="loginEmail">Email</label>
         <input type="email" id="loginEmail" placeholder="you@example.com" required></div>
-      <div class="field"><label>Password</label>
+      <div class="field"><label for="loginPassword">Password</label>
         <input type="password" id="loginPassword" placeholder="Your password" required></div>
+      <p class="forgot-row"><button type="button" class="link-btn" id="forgotLink" onclick="showForgot()">Forgot password?</button></p>
       <p class="err" id="loginErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="loginBtn">Sign in</button>
     </form>
@@ -243,48 +270,95 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
     <!-- Register form -->
     <form id="registerForm" style="display:none" onsubmit="handleRegister(event)">
       <h2>Create account</h2>
-      <div class="field"><label>Full name</label>
+      <div class="field"><label for="regName">Full name</label>
         <input type="text" id="regName" placeholder="Jane Doe" required></div>
-      <div class="field"><label>Email</label>
+      <div class="field"><label for="regEmail">Email</label>
         <input type="email" id="regEmail" placeholder="you@example.com" required></div>
-      <div class="field"><label>Password</label>
+      <div class="field"><label for="regPassword">Password</label>
         <input type="password" id="regPassword" placeholder="Min 8 characters" minlength="8" required></div>
+      <!-- Consent at sign-up: shown only when LANDING_FEATURES.signup_consent is on and the
+           backend serves GET /legal/documents. The texts shown are the ones sign-up records. -->
+      <div class="field consent-field" id="regConsentField" hidden>
+        <div class="consent-docs" id="regConsentDocs"></div>
+        <div class="consent-check">
+          <input type="checkbox" id="regConsent">
+          <label for="regConsent" id="regConsentLabel">I agree to the documents above.</label>
+        </div>
+      </div>
+      <p class="consent-state" id="regConsentState" role="status" aria-live="polite"></p>
       <p class="err" id="regErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="regBtn">Create account</button>
+    </form>
+
+    <!-- Forgot password: POST /auth/forgot-password. The same message whatever the answer,
+         so the page never shows whether an account exists. -->
+    <form id="forgotForm" style="display:none" onsubmit="handleForgot(event)">
+      <h2>Reset your password</h2>
+      <p class="form-note">Enter your email address. If it matches an account, we send a link to set a new password.</p>
+      <div class="field"><label for="forgotEmail">Email</label>
+        <input type="email" id="forgotEmail" autocomplete="email" placeholder="you@example.com" required></div>
+      <p class="ok-note" id="forgotMsg" role="status" aria-live="polite"></p>
+      <p class="err" id="forgotErr" role="alert" aria-live="assertive"></p>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="forgotBtn">Send reset link</button>
+      <button type="button" class="btn" id="forgotBack" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--ink-700)" onclick="backToSignIn()">← Back to sign in</button>
     </form>
 
     <!-- 2FA / TOTP step — shown when /auth/login returns totp_required -->
     <form id="totpForm" style="display:none" onsubmit="handleTotp(event)">
       <h2>Two-factor code</h2>
-      <p style="color:var(--muted);font-size:.9rem;margin:-.25rem 0 1rem">Enter the 6-digit code from your authenticator app to finish signing in.</p>
-      <div class="field"><label>Authentication code</label>
-        <input type="text" id="totpCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="123456" required></div>
+      <p style="color:var(--muted);font-size:.9rem;margin:-.25rem 0 1rem">Enter the 6-digit code from your authenticator app to finish signing in. Lost your phone? Enter one of your backup codes instead.</p>
+      <div class="field"><label for="totpCode">Authentication code</label>
+        <input type="text" id="totpCode" autocomplete="one-time-code" maxlength="12" placeholder="123456" required></div>
       <p class="err" id="totpErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="totpBtn">Verify</button>
-      <button type="button" class="btn" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--muted)" onclick="switchTab('login')">← Back to sign in</button>
+      <button type="button" class="btn" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--muted)" onclick="backToSignIn()">← Back to sign in</button>
     </form>
   </div>
 </div>
 
 <script src="/sol/app/core/session.js"></script>
+<script src="/sol/app/core/dialog.js"></script>
+<script src="/sol/app/core/account.js"></script>
 <script>
 const API = 'https://sol-api-production.up.railway.app';
+// Off by default, like SOL_FEATURES.signup_consent in core/features.js (the member app).
+// On: the register form shows the documents GET /legal/documents returns and a required
+// consent checkbox, sent in the shape draft backend PR #34 expects. Turn both on together,
+// only once the backend records consent and serves the owner-approved texts.
+const LANDING_FEATURES = { signup_consent: false };
 
+// The modal is a SolDialog (core/dialog.js): focus moves into it and stays there on Tab,
+// Escape closes it, and focus returns to the button that opened it.
 function openModal(tab) {
-  document.getElementById('authModal').classList.add('open');
   switchTab(tab);
+  if (window.SolDialog && SolDialog.isOpen('authModal')) return;
+  if (window.SolDialog) SolDialog.open('authModal', { openClass: 'open', getInitialFocus: d => [...d.querySelectorAll('input')].find(i => i.offsetParent !== null) });
+  else document.getElementById('authModal').classList.add('open');
 }
 function closeModal() {
-  document.getElementById('authModal').classList.remove('open');
+  if (window.SolDialog && SolDialog.isOpen('authModal')) SolDialog.close('authModal');
+  else document.getElementById('authModal').classList.remove('open');
 }
 function switchTab(tab) {
-  // Leaving the 2FA step (e.g. "Back to sign in") restores the normal tabs.
+  // Leaving the 2FA step (e.g. "Back to sign in") restores the normal tabs. The
+  // forgot-password form ('forgot') hides them, like the 2FA step.
   const totp = document.getElementById('totpForm'); if (totp) totp.style.display = 'none';
-  const tabs = document.querySelector('.tab-row'); if (tabs) tabs.style.display = '';
+  const forgot = document.getElementById('forgotForm'); if (forgot) forgot.style.display = tab === 'forgot' ? '' : 'none';
+  const tabs = document.querySelector('.tab-row'); if (tabs) tabs.style.display = tab === 'forgot' ? 'none' : '';
   document.getElementById('loginForm').style.display = tab === 'login' ? '' : 'none';
   document.getElementById('registerForm').style.display = tab === 'register' ? '' : 'none';
   document.getElementById('tabLogin').className = 'tab' + (tab === 'login' ? ' active' : '');
   document.getElementById('tabRegister').className = 'tab' + (tab === 'register' ? ' active' : '');
+  document.getElementById('tabLogin').setAttribute('aria-pressed', tab === 'login' ? 'true' : 'false');
+  document.getElementById('tabRegister').setAttribute('aria-pressed', tab === 'register' ? 'true' : 'false');
+  if (tab === 'register' && LANDING_FEATURES.signup_consent === true) loadConsent();
+}
+// "Back to sign in" (forgot-password form and two-factor step): the sign-in form, with focus on its
+// email field. The button that had focus is hidden now, so focus would otherwise fall to the page.
+function backToSignIn() {
+  switchTab('login');
+  const le = document.getElementById('loginEmail');
+  if (le) le.focus();
 }
 document.getElementById('authModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
@@ -317,8 +391,57 @@ async function apiPost(path, body) {
     body: JSON.stringify(body)
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(formatApiError(data, r.statusText));
+  if (!r.ok) {
+    const err = new Error(formatApiError(data, r.statusText));
+    err.status = r.status;
+    err.detail = data && data.detail;
+    throw err;
+  }
   return data;
+}
+
+// Forgot password (POST /auth/forgot-password {email}; backend api/auth.py:124-132). The
+// backend answers the same for unknown addresses, and so does this page: one neutral
+// message for any answer, except a rate limit (429) or no answer at all.
+const FORGOT_SENT = 'If an account exists for that address, we sent a link.';
+let _forgotBusy = false;
+function showForgot() {
+  switchTab('forgot');
+  const f = document.getElementById('forgotEmail'), le = document.getElementById('loginEmail');
+  if (f && le && !f.value && le.value) f.value = le.value;
+  document.getElementById('forgotMsg').textContent = '';
+  document.getElementById('forgotErr').style.display = 'none';
+  if (f) f.focus();
+}
+async function handleForgot(e) {
+  e.preventDefault();
+  if (_forgotBusy) return;
+  const btn = document.getElementById('forgotBtn'), msg = document.getElementById('forgotMsg'), err = document.getElementById('forgotErr');
+  const email = document.getElementById('forgotEmail').value.trim();
+  msg.textContent = ''; err.style.display = 'none';
+  if (!email) { err.textContent = 'Enter your email address.'; err.style.display = 'block'; return; }
+  _forgotBusy = true;
+  // aria-disabled, not disabled: disabling the focused button drops focus out of the modal.
+  btn.textContent = 'Sending…'; btn.setAttribute('aria-disabled', 'true'); btn.setAttribute('aria-busy', 'true');
+  try {
+    const r = await SolAccount.callPublic(API, '/auth/forgot-password', { method: 'POST', body: { email } });
+    const out = SolAccount.forgotOutcome(r.status);
+    if (out === 'sent') msg.textContent = FORGOT_SENT;
+    else {
+      err.textContent = out === 'limited' ? 'Too many requests. Please try again later.' : "We couldn't reach MySol. Check your connection and try again.";
+      err.style.display = 'block';
+    }
+  } finally { _forgotBusy = false; btn.textContent = 'Send reset link'; btn.removeAttribute('aria-disabled'); btn.removeAttribute('aria-busy'); }
+}
+
+// /sol/?forgot opens the forgot-password form (the reset page links here when a link has
+// expired); /sol/?signin opens the sign-in form (after a password reset).
+const _landingParams = new URLSearchParams(window.location.search);
+if (_landingParams.has('forgot') || _landingParams.has('signin')) {
+  window.addEventListener('DOMContentLoaded', () => {
+    if (_landingParams.has('forgot')) { openModal('login'); showForgot(); }
+    else { openModal('login'); const le = document.getElementById('loginEmail'); if (le) le.focus(); }
+  });
 }
 
 // If the landing URL has ?invite=XYZ, persist it through signup/login so the
@@ -401,6 +524,14 @@ async function handleLogin(e) {
     }
     finishAuth(data);
   } catch(ex) {
+    // The backend asks for the second step with 428 {"detail": {"totp_required": true,
+    // "challenge_token": …}} (services/auth.py:176-182). Never show that answer.
+    const d = ex && ex.detail;
+    if (ex && ex.status === 428 && d && d.totp_required === true && typeof d.challenge_token === 'string') {
+      _totpChallenge = d.challenge_token;
+      showTotpStep();
+      return;
+    }
     err.textContent = ex.message; err.style.display = 'block';
   } finally { btn.textContent = 'Sign in'; btn.disabled = false; }
 }
@@ -422,22 +553,106 @@ async function handleTotp(e) {
   } finally { btn.textContent = 'Verify'; btn.disabled = false; }
 }
 
+// Consent switch on: the register form shows the documents GET /legal/documents returns
+// (PR #34 api/legal.py:13-16): the exact titles and texts of the terms, the privacy policy and
+// the e-sign disclosure that sign-up records consent to, then a required, unticked checkbox.
+// Nothing links /terms.html or /privacy.html: those are another product's pages. A backend
+// without the route (404/405, the deployed one) cannot record consent and forbids the fields:
+// then nothing is shown and sign-up sends the plain body.
+let _consentDocs = null;   // the documents shown (SolAccount.consentDocs): { terms, privacy, esign }
+let _consentNA = false;    // the backend has no /legal/documents
+let _consentLoad = null;   // the request in flight
+function renderConsent(docs) {
+  const field = document.getElementById('regConsentField'), list = document.getElementById('regConsentDocs');
+  const box = document.getElementById('regConsent'), label = document.getElementById('regConsentLabel');
+  if (!field || !list || !box || !label) return;
+  list.textContent = '';
+  for (const kind of ['terms', 'privacy', 'esign']) {
+    const d = docs[kind];
+    const det = document.createElement('details'); det.className = 'consent-doc';
+    const sum = document.createElement('summary'); sum.textContent = d.title;
+    const txt = document.createElement('div'); txt.className = 'consent-doc__text'; txt.tabIndex = 0;
+    txt.setAttribute('role', 'region'); txt.setAttribute('aria-label', d.title); txt.textContent = d.text;
+    det.append(sum, txt); list.appendChild(det);
+  }
+  label.textContent = 'I agree to the ' + docs.terms.title + ', the ' + docs.privacy.title + ' and the ' + docs.esign.title + '.';
+  box.checked = false; box.required = true;
+  field.hidden = false;
+}
+async function loadConsent() {
+  if (_consentDocs || _consentNA) return;
+  if (!_consentLoad) {
+    const state = document.getElementById('regConsentState');
+    _consentLoad = (async () => {
+      if (state) state.textContent = 'Loading the terms…';
+      const r = await SolAccount.callPublic(API, '/legal/documents', { method: 'GET' });
+      const docs = r.ok ? SolAccount.consentDocs(r.data) : null;
+      if (docs) { _consentDocs = docs; renderConsent(docs); }
+      else if (!r.ok && (r.status === 404 || r.status === 405)) _consentNA = true;
+      if (state) state.textContent = (docs || _consentNA) ? '' : "We couldn't load the terms. Please try again in a moment.";
+    })().finally(() => { _consentLoad = null; });
+  }
+  return _consentLoad;
+}
+
 async function handleRegister(e) {
   e.preventDefault();
   const btn = document.getElementById('regBtn');
   const err = document.getElementById('regErr');
   err.style.display = 'none';
+  const consentOn = LANDING_FEATURES.signup_consent === true;
+  const box = document.getElementById('regConsent');
+  if (consentOn && !_consentNA) {
+    if (!_consentDocs) await loadConsent();   // not loaded yet, or it failed: try once more
+    if (!_consentNA && !_consentDocs) {
+      err.textContent = "We couldn't load the terms. Please try again."; err.style.display = 'block';
+      return;
+    }
+    if (_consentDocs && !(box && box.checked)) {
+      err.textContent = 'Please agree to the documents above to create an account.'; err.style.display = 'block';
+      if (box) box.focus();
+      return;
+    }
+  }
   btn.textContent = 'Creating…'; btn.disabled = true;
+  let changed = false;
   try {
-    const data = await apiPost('/auth/signup', {
+    // PR #34 records consent at the current document versions through
+    // accepted_terms_version, accepted_privacy_version and esign_consent (schemas/auth.py:16-20;
+    // the e-sign disclosure has no version in the body: it is recorded at the current one). So
+    // the current versions are read again and sign-up goes ahead only if they are the ones shown.
+    let versions = null;
+    if (consentOn && _consentDocs) {
+      const r = await SolAccount.callPublic(API, '/legal/documents', { method: 'GET' });
+      const now = r.ok ? SolAccount.consentDocs(r.data) : null;
+      if (!now) throw new Error("We couldn't load the current terms. Please try again.");
+      if (!SolAccount.sameConsentVersions(_consentDocs, now)) {
+        _consentDocs = now; renderConsent(now); changed = true;
+        throw new Error('These documents changed since you opened them. Please review them and agree again.');
+      }
+      versions = { terms: _consentDocs.terms.version, privacy: _consentDocs.privacy.version };
+    }
+    const data = await apiPost('/auth/signup', SolAccount.signupPayload({
       email: document.getElementById('regEmail').value,
       password: document.getElementById('regPassword').value,
-      full_name: document.getElementById('regName').value
-    });
+      fullName: document.getElementById('regName').value
+    }, versions));
     finishAuth(data);
   } catch(ex) {
-    err.textContent = ex.message; err.style.display = 'block';
-  } finally { btn.textContent = 'Create account'; btn.disabled = false; }
+    const d = ex && ex.detail;
+    const required = !!(ex && ex.status === 422 && d && d.code === 'consent_required');
+    // With the switch off this page shows no documents and no checkbox, so the member cannot
+    // agree here: say what they can do instead.
+    err.textContent = required
+      ? (consentOn ? 'The terms changed. Please review them and agree again.' : "We can't create new accounts right now. Please try again later, or contact support.")
+      : ex.message;
+    err.style.display = 'block';
+    // The backend wants consent to newer versions: show those (the checkbox is unticked again).
+    if (required && consentOn) { _consentDocs = null; loadConsent(); }
+  } finally {
+    btn.textContent = 'Create account'; btn.disabled = false;
+    if (changed && box) box.focus();
+  }
 }
 </script>
 </body>

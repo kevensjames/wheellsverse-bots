@@ -1,0 +1,793 @@
+// SOL member app — pages/settings.js
+// Classic script (shared global scope); loaded in order by app.html.
+//
+// Settings: profile, password, two-factor sign-in, notifications, the AI assistant opt-in,
+// your data (export, close account) and the first-run guide. Also the dashboard's
+// verify-email banner. Routes (BASE = deployed c218dfb; PR = draft backend PR, not
+// deployed). Each section degrades on 404/405 ("not available yet"), with no error alert:
+//   GET   /auth/me                     BASE (email_verified_at, totp_enabled, …)
+//   PATCH /account/profile {full_name} BASE api/account.py:72-84
+//   POST  /auth/forgot-password        BASE api/auth.py:124-132 (no change-password route exists)
+//   POST  /auth/2fa/setup|activate|disable  BASE api/auth.py:167-232
+//   POST  /auth/2fa/backup-codes/regenerate {password, code}  BASE api/auth.py:162-164, 205-218
+//   GET/PATCH /account/settings        BASE api/account.py:87-125 (preferences, shallow merge)
+//     ai_assistant_consent             PR #35 api/account.py:60, 76-83
+//   GET   /account/export              PR #33 api/account.py:164-175
+//   POST  /account/close               PR #33 api/account.py:180-205
+//   POST  /auth/resend-verification    PR #33 api/auth.py:127-143
+// The two-factor secret and backup codes live only in this page's memory and DOM while
+// they are needed; they are never stored, logged or put in the address bar. Backup codes are
+// shown once: on the Settings page, until the member chooses "I saved my codes" or leaves. The
+// server has already replaced the old ones when it answers, so codes that arrive while the member
+// is on another page (they left before the answer) wait for that one showing: a notice above
+// every page says so, and a reload or tab close asks first. Codes that arrive while something
+// covers Settings (the phone More sheet or another dialog open over it, or the tab hidden) wait
+// the same way: the cover closing back onto Settings is their showing; another page chosen from
+// the More sheet gets the notice.
+
+// resendNA: POST /auth/resend-verification answered 404 or 405 (the deployed base has no such
+// route). Kept in memory for this page session, so later visits of the dashboard and Settings
+// show the contact-support note instead of offering the button again. regenNA: the same for
+// POST /auth/2fa/backup-codes/regenerate. regen: the "Get new backup codes" form is open.
+// codes: backup codes the member has not confirmed saving yet ("I saved my codes").
+// codesReplaced: they replace older ones, which no longer work. codesSeen: they were drawn on the
+// Settings page while it was on screen (_settingsOnScreen: no dialog over it, the tab shown); the
+// next Settings visit drops them. codesNews: codes arrived while Settings was not on screen and
+// wait for their first showing: what to announce (and the two-factor note to show) then, and the
+// text of the notice shown meanwhile.
+let setState = { settings: null, settingsOk: false, settingsNA: false, aiHidden: false, resendNA: false, regenNA: false, enroll: null, regen: false, codes: null, codesReplaced: false, codesSeen: false, codesNews: null, closed: false };
+const RESEND_NA_TEXT = 'Resending is not available yet. If you need a new link, contact support.';
+
+function setAnnounce(msg) { const el = document.getElementById('settingsLive'); if (el) { el.textContent = ''; el.textContent = msg; } }
+function setText(id, msg, show) { const el = document.getElementById(id); if (!el) return; el.textContent = msg || ''; if (show !== undefined) el.style.display = msg ? 'block' : 'none'; }
+function setErr(id, msg) { setText(id, msg, true); }
+// A modal dialog or sheet open over the page: the phone More sheet (class "open"), the first-run
+// guide, the close-account dialog and the other dialogs (class "is-open"), all aria-modal.
+const SET_MODAL_OPEN = '[aria-modal="true"].open, [aria-modal="true"].is-open';
+// Focus never moves under an open modal: an answer that lands while one is open leaves focus
+// where the member is (a control inside that modal still gets it).
+function setFocus(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const m = document.querySelector(SET_MODAL_OPEN);
+  if (m && !m.contains(el)) return;
+  try { el.focus(); } catch (e) {}
+}
+// Busy while its request runs, without `disabled`: disabling the focused control (or hiding or
+// re-drawing it) drops keyboard focus to the page body. SolGuard already drops a second click.
+function setBusy(el, busy) {
+  if (!el) return;
+  if (busy) { el.setAttribute('aria-disabled', 'true'); el.setAttribute('aria-busy', 'true'); }
+  else { el.removeAttribute('aria-disabled'); el.removeAttribute('aria-busy'); }
+}
+const setNA = text => `<p class="set-na">${esc(text)}</p>`;
+
+// ── Re-authenticating requests ────────────────────────────────────────────────
+// POST /auth/2fa/activate, /auth/2fa/disable, /auth/2fa/backup-codes/regenerate and
+// /account/close (PR #33) answer a wrong code
+// or password with 401 ("Invalid code", "Invalid password", "2FA code required"). api() reads
+// every first 401 as an expired access token: it renews the session (POST /auth/refresh, 5 per
+// 15 minutes per IP) and sends the request again. A typo would then cost a refresh and count
+// twice against the route's own limit, and right after a 2FA disable (which ends every refresh
+// session) it would sign the member out. So these requests make sure the access token is fresh
+// first, through an ordinary GET that renews it the usual way when it must, and are then sent
+// once with _retry, so a 401 comes back as an error. Only a 401 about the token itself (e.g.
+// this device's clock is wrong) renews the session, once, and sends the request again.
+const REAUTH_REFUSAL = /^(Invalid code|Invalid password|2FA code required)$/;
+async function _reauthSessionFresh() { await api('/auth/me', { noAbort: true }); }
+async function reauthPost(path, body) {
+  const send = () => api(path, { method: 'POST', body: JSON.stringify(body), _retry: true });
+  if (_expiresSoon(token)) await _reauthSessionFresh();
+  try {
+    return await send();
+  } catch (e) {
+    if (!e || e.status !== 401 || REAUTH_REFUSAL.test(typeof e.detail === 'string' ? e.detail : '')) throw e;
+    await _reauthSessionFresh();
+    return send();
+  }
+}
+
+// Counts backup-code answers (turning two-factor on, new codes). A Settings visit compares it
+// before and after its GET /auth/me, to tell whether codes arrived while that read was on its way.
+let _codesGen = 0;
+// again: the Retry of a section that did not load, on the same visit (codes on screen stay).
+async function loadSettings(again) {
+  const body = document.getElementById('settingsBody');
+  if (!body) return;
+  // A new visit never shows an old secret or form, nor backup codes the member has already seen
+  // here. Codes that arrived while the member was on another page wait for this first showing.
+  setState.enroll = null; setState.regen = false;
+  if (!again && setState.codes && setState.codesSeen) _dropBackupCodes();
+  body.innerHTML = '<div class="spinner"></div>';
+  const codesGen = _codesGen;
+  const [meR, stR] = await Promise.allSettled([api('/auth/me'), api('/account/settings')]);
+  if ((meR.status === 'rejected' && _aborted(meR.reason)) || (stR.status === 'rejected' && _aborted(stR.reason))) {
+    // The member left while this visit loaded: codes that arrived meanwhile still wait.
+    if (setState.codesNews && setState.codes && !_settingsActive()) _codesNotice(setState.codesNews.notice);
+    return;
+  }
+  if (meR.status === 'fulfilled' && meR.value && typeof meR.value === 'object') {
+    // Codes that arrived while this GET /auth/me was on its way came with a newer answer: two-factor
+    // is on. The read may predate it, so it does not turn the state back off or drop the codes
+    // before their one showing. The next visit reads the state again.
+    me = _codesGen !== codesGen && setState.codes && me && me.totp_enabled
+      ? Object.assign({}, meR.value, { totp_enabled: true, totp_backup_codes_remaining: me.totp_backup_codes_remaining })
+      : meR.value;
+  }
+  // Two-factor turned off elsewhere since the codes arrived: they no longer work.
+  if (setState.codes && meR.status === 'fulfilled' && me && !me.totp_enabled) _dropBackupCodes();
+  setState.settingsOk = stR.status === 'fulfilled' && !!stR.value && typeof stR.value === 'object';
+  setState.settings = setState.settingsOk ? stR.value : null;
+  setState.settingsNA = stR.status === 'rejected' && SolAccount.notAvailable(stR.reason);
+  renderSettings();
+  if (setState.codesNews && setState.codes) {
+    if (_settingsOnScreen()) _codesShowNow();
+    else _codesWaitCover();   // a dialog opened over Settings while it loaded, or the tab is hidden
+  }
+}
+
+function renderSettings() {
+  const body = document.getElementById('settingsBody');
+  if (!body) return;
+  const m = me || {};
+  const verified = !!m.email_verified_at;
+  body.innerHTML = `
+    <section class="set-card" id="setProfile" aria-labelledby="setProfileH">
+      <h2 id="setProfileH" tabindex="-1">Profile</h2>
+      <div class="field"><label for="setName">Full legal name</label>
+        <input id="setName" class="input" type="text" maxlength="255" autocomplete="name" aria-describedby="setNameHelp" value="${esc(m.full_name || '')}"></div>
+      <p class="hint-muted" id="setNameHelp">Use your full legal name. We use it for your ID check and when you link a bank account.</p>
+      <p class="err" id="setNameErr" role="alert" style="display:none"></p>
+      <p class="set-na" id="setNameNote" style="display:none"></p>
+      <button type="button" class="btn btn-primary btn--sm" id="setNameSave" onclick="saveDisplayName()">Save name</button>
+      <div class="set-row"><span class="set-label">Email</span>
+        <span class="set-value" id="setEmail">${esc(m.email || '')}</span>
+        <span id="setEmailStatus">${verified ? '<span class="status status--verified">Verified</span>' : '<span class="status status--pending">Not verified</span>'}</span></div>
+      ${verified ? '' : setState.resendNA ? `<p class="hint-muted" id="setResendNA">${esc(RESEND_NA_TEXT)}</p>`
+        : `<div class="set-inline" id="setResendWrap"><button type="button" class="btn btn-ghost btn--sm" id="setResend" onclick="resendVerification('set')">Resend email</button>
+        <p class="hint-muted" id="setResendMsg" role="status" aria-live="polite"></p></div>`}
+      <p class="hint-muted">To change your email address, contact support.</p>
+    </section>
+
+    <section class="set-card" id="setPassword" aria-labelledby="setPasswordH">
+      <h2 id="setPasswordH">Password</h2>
+      <p class="set-na">Changing your password here is not available yet. We can email you a link to set a new one.</p>
+      <button type="button" class="btn btn-ghost btn--sm" id="setPwReset" onclick="emailResetLink()">Email me a reset link</button>
+      <p class="hint-muted" id="setPwMsg" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="set-card" id="setTwoFactor" aria-labelledby="setTwoFactorH">
+      <h2 id="setTwoFactorH" tabindex="-1">Two-factor sign-in</h2>
+      <div id="set2faBody"></div>
+      <p class="err" id="set2faErr" role="alert" style="display:none"></p>
+      <p class="hint-muted" id="set2faMsg" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="set-card" id="setNotifications" aria-labelledby="setNotificationsH">
+      <h2 id="setNotificationsH" tabindex="-1">Notifications</h2>
+      <div id="setNotifBody"></div>
+      <p class="err" id="setNotifErr" role="alert" style="display:none"></p>
+    </section>
+
+    <section class="set-card" id="setAi" aria-labelledby="setAiH" hidden>
+      <h2 id="setAiH">AI assistant</h2>
+      <div id="setAiBody"></div>
+      <p class="err" id="setAiErr" role="alert" style="display:none"></p>
+    </section>
+
+    <section class="set-card" id="setData" aria-labelledby="setDataH">
+      <h2 id="setDataH" tabindex="-1">Your data</h2>
+      <p class="hint-muted">Download a copy of your account data as a JSON file.</p>
+      <button type="button" class="btn btn-ghost btn--sm" id="setExport" onclick="downloadMyData()">Download my data</button>
+      <p class="set-na" id="setExportMsg" role="status" aria-live="polite"></p>
+      <p class="err" id="setExportErr" role="alert" style="display:none"></p>
+      <div class="set-danger">
+        <h3>Close account</h3>
+        <p class="hint-muted">Closing your account is permanent. Some money records are kept.</p>
+        <button type="button" class="btn btn-danger btn--sm" id="setCloseOpen" onclick="openCloseDialog()">Close account</button>
+      </div>
+    </section>
+
+    <section class="set-card" id="setHelp" aria-labelledby="setHelpH">
+      <h2 id="setHelpH">How MySol works</h2>
+      <p class="hint-muted">A short guide to circles, payouts and the checks we run.</p>
+      <button type="button" class="btn btn-ghost btn--sm" id="setGuide" onclick="openGuide()">Show the guide</button>
+    </section>`;
+  renderTwoFactor();
+  renderNotifications();
+  renderAiConsent();
+}
+
+// ── Profile ───────────────────────────────────────────────────────────────────
+// full_name is the legal name the backend sends to the ID check (BASE services/kyc.py:33) and,
+// at the first bank link, to the bank provider's customer record (BASE services/bank.py:110-114).
+async function saveDisplayName() {
+  const input = document.getElementById('setName');
+  if (!input) return;
+  const name = input.value.trim();
+  setErr('setNameErr', ''); setText('setNameNote', '', true);
+  // The backend writes full_name to a NOT NULL column: never send an empty or null name.
+  if (!name) { setErr('setNameErr', 'Enter a name.'); input.focus(); return; }
+  if ([...name].length > 255) { setErr('setNameErr', 'Use 255 characters or fewer.'); input.focus(); return; }
+  if (!SolGuard.acquire('settings:name')) return;
+  const btn = document.getElementById('setNameSave'); if (btn) { setBusy(btn, true); btn.textContent = 'Saving…'; }
+  try {
+    const d = await api('/account/profile', { method: 'PATCH', body: JSON.stringify({ full_name: name }) });
+    const saved = d && typeof d.full_name === 'string' ? d.full_name : name;
+    if (me) me.full_name = saved;
+    input.value = saved;
+    setAnnounce('Name saved.');
+  } catch (e) {
+    if (SolAccount.notAvailable(e)) setText('setNameNote', 'Changing your name is not available yet.', true);
+    else setErr('setNameErr', (e && e.message) || "We couldn't save your name. Please try again.");
+  } finally {
+    SolGuard.release('settings:name');
+    if (btn) { setBusy(btn, false); btn.textContent = 'Save name'; }
+  }
+}
+
+// ── Password: there is no change-password route; the reset email is the way ─────
+async function emailResetLink() {
+  if (!me || !me.email || !SolGuard.acquire('settings:pwreset')) return;
+  const btn = document.getElementById('setPwReset'); setBusy(btn, true);
+  setText('setPwMsg', '');
+  try {
+    await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email: me.email }) });
+    setText('setPwMsg', 'Check your email for a link to set a new password.');
+  } catch (e) {
+    setText('setPwMsg', SolAccount.rateLimited(e) ? 'Too many requests. Please try again later.' : "We couldn't send the link. Please try again.");
+  } finally {
+    SolGuard.release('settings:pwreset');
+    setBusy(btn, false);
+  }
+}
+
+// ── Two-factor ────────────────────────────────────────────────────────────────
+function renderTwoFactor() {
+  const el = document.getElementById('set2faBody');
+  if (!el) return;
+  const on = !!(me && me.totp_enabled);
+  const state = `<p class="set-row"><span class="set-label">Status</span><strong id="set2faState">${on ? 'On' : 'Off'}</strong></p>`;
+  if (setState.codes) {
+    el.innerHTML = `${state}
+      <div class="set-warn" role="note">
+        <h3 id="set2faCodesH" tabindex="-1">Save your backup codes</h3>
+        <p>Store these codes somewhere safe. Each code works once, if you lose your phone. You will see these codes only once. Save them now.</p>
+        ${setState.codesReplaced ? '<p>Your old backup codes no longer work.</p>' : ''}
+        <ul class="set-codes" id="set2faCodes">${setState.codes.map(c => `<li><code>${esc(c)}</code></li>`).join('')}</ul>
+        <div class="set-inline">
+          <button type="button" class="btn btn-ghost btn--sm" id="set2faCopyCodes" onclick="copyBackupCodes()">Copy codes</button>
+          <button type="button" class="btn btn-primary btn--sm" id="set2faSaved" onclick="backupCodesSaved()">I saved my codes</button>
+        </div>
+      </div>`;
+    if (_settingsOnScreen()) _backupCodesShown();   // their one showing
+    return;
+  }
+  if (setState.enroll) {
+    const qr = setState.enroll.qr ? `<img id="set2faQr" class="set-qr" src="${esc(setState.enroll.qr)}" alt="QR code to add MySol to your authenticator app" width="160" height="160">` : '';
+    el.innerHTML = `${state}
+      <h3 id="set2faSetupH" tabindex="-1">Set up your authenticator app</h3>
+      <ol class="set-steps">
+        <li>Open your authenticator app and add an account. ${qr ? 'Scan the QR code, or type this key:' : 'Type this key:'}
+          ${qr}
+          <p><code class="set-secret" id="set2faSecret">${esc(SolAccount.groupSecret(setState.enroll.secret))}</code>
+          <button type="button" class="btn btn-ghost btn--sm" id="set2faCopySecret" onclick="copyTwoFactorKey()">Copy key</button></p></li>
+        <li><div class="field"><label for="set2faCode">Enter the 6-digit code the app shows</label>
+          <input id="set2faCode" class="input set-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div></li>
+      </ol>
+      <div class="set-inline">
+        <button type="button" class="btn btn-primary btn--sm" id="set2faConfirm" onclick="confirmTwoFactor()">Turn on</button>
+        <button type="button" class="btn btn-ghost btn--sm" id="set2faCancel" onclick="cancelTwoFactor()">Cancel</button>
+      </div>`;
+    return;
+  }
+  if (on && setState.regen) {
+    el.innerHTML = `${state}
+      <h3 id="set2faRegenH" tabindex="-1">Get new backup codes</h3>
+      <p class="hint-muted">Enter your password and a code from your app. We will show you 10 new codes. Your old backup codes stop working.</p>
+      <div class="field"><label for="set2faRegenPw">Password</label><input id="set2faRegenPw" class="input" type="password" autocomplete="current-password"></div>
+      <div class="field"><label for="set2faRegenCode">6-digit code from your app</label><input id="set2faRegenCode" class="input set-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+      <div class="set-inline">
+        <button type="button" class="btn btn-primary btn--sm" id="set2faRegenGo" onclick="getNewBackupCodes()">Get new codes</button>
+        <button type="button" class="btn btn-ghost btn--sm" id="set2faRegenCancel" onclick="cancelNewBackupCodes()">Cancel</button>
+      </div>`;
+    return;
+  }
+  if (on) {
+    const left = me && Number.isInteger(me.totp_backup_codes_remaining) ? me.totp_backup_codes_remaining : null;
+    el.innerHTML = `${state}
+      ${left !== null ? `<p class="hint-muted">Backup codes left: <span class="tnum">${esc(left)}</span></p>` : ''}
+      ${setState.regenNA ? `<p class="set-na" id="set2faNewCodesNA">${esc(REGEN_NA_TEXT)}</p>`
+        : '<p><button type="button" class="btn btn-ghost btn--sm" id="set2faNewCodes" onclick="startNewBackupCodes()">Get new backup codes</button></p>'}
+      <p class="hint-muted">To turn off two-factor sign-in, enter your password and a code from your app. This signs you out on all devices.</p>
+      <div class="field"><label for="set2faPw">Password</label><input id="set2faPw" class="input" type="password" autocomplete="current-password"></div>
+      <div class="field"><label for="set2faOffCode">6-digit code from your app</label><input id="set2faOffCode" class="input set-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+      <button type="button" class="btn btn-ghost btn--sm" id="set2faOff" onclick="disableTwoFactor()">Turn off two-factor</button>`;
+    return;
+  }
+  el.innerHTML = `${state}
+    <p class="hint-muted">Two-factor sign-in asks for a code from an authenticator app each time you sign in.</p>
+    <button type="button" class="btn btn-primary btn--sm" id="set2faStart" onclick="startTwoFactor()">Turn on two-factor</button>`;
+}
+function twoFactorError(e, fallback) {
+  if (SolAccount.notAvailable(e)) return 'Two-factor sign-in is not available yet.';
+  if (SolAccount.rateLimited(e)) return 'Too many tries. Please wait a few minutes and try again.';
+  const m = (e && e.message) || '';
+  if (/invalid code/i.test(m)) return 'That code did not work. Check the time on your phone and try again.';
+  if (/invalid password/i.test(m)) return 'That password is not right.';
+  return m || fallback;
+}
+async function startTwoFactor() {
+  if (!SolGuard.acquire('settings:2fa')) return;
+  setErr('set2faErr', ''); setText('set2faMsg', '');
+  try {
+    const d = await api('/auth/2fa/setup', { method: 'POST' });
+    const secret = d && typeof d.secret === 'string' ? d.secret : '';
+    if (!secret) throw new Error("We couldn't start two-factor setup. Please try again.");
+    const qr = typeof d.qr_data_url === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(d.qr_data_url) ? d.qr_data_url : null;
+    setState.enroll = { secret, qr };
+    renderTwoFactor();
+    setFocus('set2faSetupH');
+  } catch (e) {
+    if (e && e.status === 409) { if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); setFocus('setTwoFactorH'); }
+    else if (SolAccount.notAvailable(e)) setText('set2faMsg', 'Two-factor sign-in is not available yet.');
+    else setErr('set2faErr', twoFactorError(e, "We couldn't start two-factor setup. Please try again."));
+  } finally { SolGuard.release('settings:2fa'); }
+}
+async function confirmTwoFactor() {
+  const input = document.getElementById('set2faCode');
+  const code = input ? input.value.trim() : '';
+  setErr('set2faErr', '');
+  if (!/^\d{6}$/.test(code)) { setErr('set2faErr', 'Enter the 6-digit code from your app.'); if (input) input.focus(); return; }
+  if (!SolGuard.acquire('settings:2fa')) return;
+  setBusy(document.getElementById('set2faConfirm'), true);
+  try {
+    const d = await reauthPost('/auth/2fa/activate', { code });
+    const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
+    setState.enroll = null;   // the secret leaves the page
+    setState.codes = codes.length ? codes : null; setState.codesReplaced = false; setState.codesSeen = false; _codesGen++;
+    if (me) { me.totp_enabled = true; me.totp_backup_codes_remaining = codes.length; }
+    // PR #35 ends every other session when two-factor is turned on (harmless to say on the base).
+    _showTwoFactorNews('Two-factor sign-in is on.', 'Your other devices may need to sign in again.', setState.codes ? 'set2faCodesH' : 'setTwoFactorH',
+      'Two-factor sign-in is on. Your backup codes are ready. Open Settings to see and save them.');
+  } catch (e) {
+    if (e && e.status === 400) { setState.enroll = null; renderTwoFactor(); setErr('set2faErr', 'Your setup expired. Please start again.'); setFocus('setTwoFactorH'); }
+    else if (e && e.status === 409) { setState.enroll = null; if (me) me.totp_enabled = true; renderTwoFactor(); setText('set2faMsg', 'Two-factor sign-in is already on.'); setFocus('setTwoFactorH'); }
+    else { setErr('set2faErr', twoFactorError(e, "We couldn't turn on two-factor. Please try again.")); if (input) input.value = ''; setFocus('set2faCode'); }
+  } finally {
+    SolGuard.release('settings:2fa');
+    setBusy(document.getElementById('set2faConfirm'), false);
+  }
+}
+function cancelTwoFactor() {
+  setState.enroll = null;
+  setErr('set2faErr', '');
+  renderTwoFactor();
+  setFocus('set2faStart');
+}
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); setAnnounce(okMsg); return true; }
+  catch (e) { setAnnounce('Copying is not available here. Select the text and copy it.'); return false; }
+}
+function copyTwoFactorKey() { if (setState.enroll) copyText(setState.enroll.secret, 'Key copied.'); }
+function copyBackupCodes() { if (setState.codes) copyText(setState.codes.join('\n'), 'Backup codes copied.'); }
+function backupCodesSaved() {
+  _dropBackupCodes();   // saved: the codes leave the page and are not shown again
+  renderTwoFactor();
+  setFocus('setTwoFactorH');
+}
+// The codes leave the page, with the line about other devices that came with them.
+function _dropBackupCodes() {
+  setState.codes = null; setState.codesReplaced = false; setState.codesSeen = false; setState.codesNews = null;
+  _codesWaitEnd();
+  setText('set2faMsg', '');
+}
+// Settings is the active page (it may still be loading).
+function _settingsActive() { const p = document.getElementById('page-settings'); return !!p && p.classList.contains('active'); }
+// Settings is the page the member sees: the active page, drawn (not the spinner of a visit still
+// loading), with no modal open over it (at phone width the More sheet covers it while Settings is
+// still the active page), in a tab that is shown.
+function _settingsOnScreen() {
+  return _settingsActive() && !!document.getElementById('set2faBody') && !document.querySelector(SET_MODAL_OPEN) && document.visibilityState !== 'hidden';
+}
+// The codes were just drawn on screen: their one showing. The next Settings visit drops them.
+function _backupCodesShown() { setState.codesSeen = true; _codesWaitEnd(); }
+// An answer that changed the two-factor card (codes arrived): draw it, then announce it and move
+// focus when Settings is on screen. Otherwise nothing is announced and focus stays where it is, and
+// the codes wait for their first showing, while a reload or tab close asks first. When the member
+// has gone to another page, the notice says so on every page (`notice`) and the next Settings visit
+// (loadSettings) shows, announces and focuses them. When Settings is drawn under a modal (the More
+// sheet, a dialog) or in a hidden tab, that cover closing back onto Settings shows them, and another
+// page chosen from the More sheet gets the notice (_codesCoverEnded).
+function _showTwoFactorNews(say, note, focusId, notice) {
+  renderTwoFactor();
+  if (_settingsOnScreen()) {
+    setState.codesNews = null;
+    setAnnounce(say);
+    if (note) setText('set2faMsg', note);
+    setFocus(focusId);
+  } else if (setState.codes) {
+    setState.codesNews = { say, note, notice };
+    // (Settings still loading: that visit shows them, unless the member leaves first; see loadSettings.)
+    if (!_settingsActive()) _codesNotice(notice);
+    else _codesWaitCover();
+    window.addEventListener('beforeunload', _codesBeforeUnload);
+  } else setState.codesNews = null;
+}
+// Their one showing, with Settings on screen: the line that came with them, the announcement, and
+// focus on them.
+function _codesShowNow() {
+  const news = setState.codesNews;
+  setState.codesNews = null;
+  _backupCodesShown();
+  if (news && news.note) setText('set2faMsg', news.note);
+  if (news) setAnnounce(news.say);
+  setFocus('set2faCodesH');
+}
+// Codes drawn on Settings under a modal (or in a hidden tab) wait for it to close: a change of an
+// aria-modal element's class (SolDialog adds and removes its open class) or the tab shown again
+// (the visibilitychange listener below). The observer lives only while they wait.
+let _codesCoverObs = null;
+function _codesWaitCover() {
+  if (_codesCoverObs || typeof MutationObserver === 'undefined') return;
+  _codesCoverObs = new MutationObserver(() => setTimeout(_codesCoverEnded, 0));
+  document.querySelectorAll('[aria-modal="true"]').forEach(d => _codesCoverObs.observe(d, { attributes: true, attributeFilter: ['class'] }));
+}
+function _codesCoverStop() { if (_codesCoverObs) { _codesCoverObs.disconnect(); _codesCoverObs = null; } }
+// The cover went away (checked after the task that closed it, so a More sheet item has already
+// opened its page). Back on Settings: their one showing. On another page: the notice. A new
+// Settings visit still loading (Settings chosen from the sheet) shows them itself, and nothing is
+// shown while the session is ending (Sign out in the sheet).
+function _codesCoverEnded() {
+  if (!setState.codesNews || !setState.codes) { _codesCoverStop(); return; }
+  if (document.querySelector(SET_MODAL_OPEN) || document.visibilityState === 'hidden') return;   // still covered
+  _codesCoverStop();
+  if (_settingsOnScreen()) { if (token) _codesShowNow(); }
+  else if (!_settingsActive() && !setState.codesSeen) _codesNotice(setState.codesNews.notice);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'hidden') _codesCoverEnded(); });
+// The notice above every page (app.html #codesNotice) while codes wait for their first showing.
+// Its status region gets its text once, so it is announced once; its button opens Settings.
+function _codesNotice(text) {
+  const box = document.getElementById('codesNotice'), msg = document.getElementById('codesNoticeText'), btn = document.getElementById('codesNoticeOpen');
+  if (!box || !msg || !btn) return;
+  if (text) {
+    if (box.classList.contains('is-on')) return;   // already shown and announced
+    box.classList.add('is-on');
+    btn.hidden = false;
+    msg.textContent = text;
+  } else {
+    box.classList.remove('is-on');
+    btn.hidden = true;
+    msg.textContent = '';
+  }
+}
+function _codesWaitEnd() { _codesNotice(null); _codesCoverStop(); window.removeEventListener('beforeunload', _codesBeforeUnload); }
+// A reload or tab close asks first while codes wait. Not once the session has ended (logout() and
+// a sign-out in another tab clear the token before leaving, and _leaving is set then): a sign-out
+// still loses the codes, and the notice is the warning.
+function _codesBeforeUnload(e) {
+  if (!setState.codes || setState.codesSeen || !token || (typeof _leaving !== 'undefined' && _leaving)) return;
+  e.preventDefault();
+  e.returnValue = true;   // browsers before preventDefault() asked here
+}
+
+// Two-factor was turned off elsewhere (another device) since this page loaded: turning it off or
+// getting new codes answers 400 "2FA not enabled" (BASE services/auth.py:334-335, 400-401). Read
+// the status again rather than keep a stale "On".
+function _twoFactorNotOn(e) { return !!(e && e.status === 400 && /not enabled/i.test(typeof e.detail === 'string' ? e.detail : (e.message || ''))); }
+async function twoFactorAlreadyOff() {
+  setState.enroll = null; setState.regen = false; _dropBackupCodes();
+  let m = null;
+  try { m = await api('/auth/me'); } catch (e) { m = null; }
+  if (m && typeof m === 'object') me = m;
+  else if (me) me.totp_enabled = false;   // the backend just said so
+  renderTwoFactor();
+  if (me && me.totp_enabled) setErr('set2faErr', 'Two-factor sign-in changed on another device. Please try again.');
+  else setText('set2faMsg', 'Two-factor sign-in is already off.');
+  setFocus('setTwoFactorH');
+}
+
+// ── New backup codes: POST /auth/2fa/backup-codes/regenerate {password, code} (BASE api/auth.py:
+// 162-164, 205-218; services/auth.py:326-345). 200 {backup_codes: [10]}: the old codes stop working.
+// 401 "Invalid password" / "Invalid code" (re-authenticated like turning off: never a refresh).
+// The new codes are shown once, like at activation, and are never stored or logged.
+const REGEN_NA_TEXT = 'Getting new backup codes here is not available yet.';
+function startNewBackupCodes() {
+  setState.regen = true;
+  setErr('set2faErr', ''); setText('set2faMsg', '');
+  renderTwoFactor();
+  setFocus('set2faRegenH');
+}
+function cancelNewBackupCodes() {
+  setState.regen = false;   // the form and its password leave the page
+  setErr('set2faErr', '');
+  renderTwoFactor();
+  setFocus('set2faNewCodes');
+}
+async function getNewBackupCodes() {
+  const pw = document.getElementById('set2faRegenPw'), codeEl = document.getElementById('set2faRegenCode');
+  const password = pw ? pw.value : '', code = codeEl ? codeEl.value.trim() : '';
+  setErr('set2faErr', ''); setText('set2faMsg', '');
+  if (!password) { setErr('set2faErr', 'Enter your password.'); if (pw) pw.focus(); return; }
+  if (!/^\d{6}$/.test(code)) { setErr('set2faErr', 'Enter the 6-digit code from your app.'); if (codeEl) codeEl.focus(); return; }
+  if (!SolGuard.acquire('settings:2fa')) return;
+  setBusy(document.getElementById('set2faRegenGo'), true);
+  try {
+    const d = await reauthPost('/auth/2fa/backup-codes/regenerate', { password, code });
+    const codes = d && Array.isArray(d.backup_codes) ? d.backup_codes.filter(c => typeof c === 'string') : [];
+    setState.regen = false;
+    setState.codes = codes.length ? codes : null; setState.codesReplaced = !!setState.codes; setState.codesSeen = false; _codesGen++;
+    if (me && codes.length) me.totp_backup_codes_remaining = codes.length;
+    if (setState.codes) _showTwoFactorNews('Your new backup codes are ready. Your old codes no longer work.', null, 'set2faCodesH',
+      'Your new backup codes are ready. Open Settings to see and save them.');
+    else { renderTwoFactor(); setErr('set2faErr', "Your old backup codes no longer work, but we couldn't show the new ones. Please get new codes again."); setFocus('setTwoFactorH'); }
+  } catch (e) {
+    if (_twoFactorNotOn(e)) await twoFactorAlreadyOff();
+    else if (SolAccount.notAvailable(e)) {
+      setState.regenNA = true; setState.regen = false;   // remembered for this page session
+      renderTwoFactor();   // the note takes the button's place
+      setAnnounce(REGEN_NA_TEXT);
+      setFocus('setTwoFactorH');   // the form is gone
+    } else setErr('set2faErr', twoFactorError(e, "We couldn't get new backup codes. Please try again."));
+  } finally {
+    SolGuard.release('settings:2fa');
+    if (pw) pw.value = '';
+    setBusy(document.getElementById('set2faRegenGo'), false);
+  }
+}
+async function disableTwoFactor() {
+  const pw = document.getElementById('set2faPw'), codeEl = document.getElementById('set2faOffCode');
+  const password = pw ? pw.value : '', code = codeEl ? codeEl.value.trim() : '';
+  setErr('set2faErr', ''); setText('set2faMsg', '');
+  if (!password) { setErr('set2faErr', 'Enter your password.'); if (pw) pw.focus(); return; }
+  if (!/^\d{6}$/.test(code)) { setErr('set2faErr', 'Enter the 6-digit code from your app.'); if (codeEl) codeEl.focus(); return; }
+  if (!SolGuard.acquire('settings:2fa')) return;
+  setBusy(document.getElementById('set2faOff'), true);
+  try {
+    await reauthPost('/auth/2fa/disable', { password, code });
+    if (me) me.totp_enabled = false;
+    renderTwoFactor();
+    // The backend ends every session, this one included (services/auth.py:412).
+    setText('set2faMsg', 'Two-factor sign-in is off. For your safety, you were signed out on all devices. You may be asked to sign in again soon.');
+    setFocus('setTwoFactorH');
+  } catch (e) {
+    if (_twoFactorNotOn(e)) await twoFactorAlreadyOff();
+    else setErr('set2faErr', twoFactorError(e, "We couldn't turn off two-factor. Please try again."));
+  } finally {
+    SolGuard.release('settings:2fa');
+    if (pw) pw.value = '';
+    setBusy(document.getElementById('set2faOff'), false);
+  }
+}
+
+// ── Notifications (preferences.notifications; nothing in the backend reads it yet) ──
+function renderNotifications() {
+  const el = document.getElementById('setNotifBody');
+  if (!el) return;
+  if (setState.settingsNA) { el.innerHTML = setNA('Notification settings are not available yet.'); return; }
+  if (!setState.settingsOk) { el.innerHTML = `<p class="hint-muted">We couldn't load your notification settings.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadSettings(true)">Retry</button>`; return; }
+  const on = SolAccount.emailNotificationsOn(setState.settings.preferences);
+  el.innerHTML = `<div class="set-check"><input type="checkbox" id="setNotifEmail"${on ? ' checked' : ''} onchange="saveNotifications(this)">
+      <label for="setNotifEmail">Email updates about my circles and payments</label></div>
+    <p class="hint-muted">We save this choice to your account. MySol does not use it to stop emails yet.</p>`;
+}
+async function saveNotifications(box) {
+  if (!box || !setState.settingsOk) return;
+  if (!SolGuard.acquire('settings:notif')) { box.checked = !box.checked; return; }
+  setErr('setNotifErr', '');
+  setBusy(box, true);
+  try {
+    const d = await api('/account/settings', { method: 'PATCH', body: JSON.stringify(SolAccount.notificationsPatch(setState.settings.preferences, box.checked)) });
+    if (d && typeof d === 'object' && d.preferences) setState.settings = Object.assign({}, setState.settings, d);
+    setAnnounce('Notification setting saved.');
+  } catch (e) {
+    box.checked = !box.checked;
+    if (SolAccount.notAvailable(e)) { setState.settingsNA = true; renderNotifications(); setFocus('setNotificationsH'); }
+    else setErr('setNotifErr', (e && e.message) || "We couldn't save this setting. Please try again.");
+  } finally {
+    SolGuard.release('settings:notif');
+    setBusy(box, false);
+  }
+}
+
+// ── AI assistant opt-in (PR #35): shown only when the settings carry the key ────
+function renderAiConsent() {
+  const sec = document.getElementById('setAi'), el = document.getElementById('setAiBody');
+  if (!sec || !el) return;
+  const s = setState.settings;
+  const has = !setState.aiHidden && setState.settingsOk && s && typeof s.ai_assistant_consent === 'boolean';
+  sec.hidden = !has;
+  if (!has) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="set-check"><input type="checkbox" id="setAiConsent"${s.ai_assistant_consent ? ' checked' : ''} onchange="saveAiConsent(this)">
+      <label for="setAiConsent">Let the assistant use AI to answer my questions</label></div>
+    <p class="hint-muted">Off by default. With it off, the assistant still answers common questions from your account data.</p>`;
+}
+function _unknownKey(e, key) {
+  if (!e || e.status !== 422) return false;
+  if (Array.isArray(e.detail)) return e.detail.some(d => d && d.type === 'extra_forbidden' && Array.isArray(d.loc) && d.loc.includes(key));
+  return new RegExp(key + '.*(extra|not permitted)', 'i').test(e.message || '');
+}
+async function saveAiConsent(box) {
+  if (!box) return;
+  if (!SolGuard.acquire('settings:ai')) { box.checked = !box.checked; return; }
+  setErr('setAiErr', '');
+  setBusy(box, true);
+  try {
+    const d = await api('/account/settings', { method: 'PATCH', body: JSON.stringify({ ai_assistant_consent: box.checked }) });
+    if (d && typeof d === 'object') setState.settings = Object.assign({}, setState.settings, d);
+    setAnnounce(box.checked ? 'AI answers are on.' : 'AI answers are off.');
+  } catch (e) {
+    box.checked = !box.checked;
+    if (_unknownKey(e, 'ai_assistant_consent') || SolAccount.notAvailable(e)) {
+      setState.aiHidden = true;   // the backend does not know this setting: hide it
+      renderAiConsent();
+      setAnnounce('The AI assistant setting is not available yet.');
+      setFocus('setDataH');   // the next section: the hidden checkbox had focus
+    } else setErr('setAiErr', (e && e.message) || "We couldn't save this setting. Please try again.");
+  } finally {
+    SolGuard.release('settings:ai');
+    setBusy(box, false);
+  }
+}
+
+// ── Your data: export (PR #33) ────────────────────────────────────────────────
+async function downloadMyData() {
+  if (!SolGuard.acquire('settings:export')) return;
+  const btn = document.getElementById('setExport'); setBusy(btn, true);
+  setText('setExportMsg', ''); setErr('setExportErr', '');
+  try {
+    const data = await api('/account/export');
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = SolAccount.exportFileName(new Date()); a.hidden = true;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setText('setExportMsg', 'Your data file is downloading.');
+  } catch (e) {
+    if (_aborted(e)) return;
+    if (SolAccount.notAvailable(e)) setText('setExportMsg', 'Downloading your data is not available yet.');
+    else if (SolAccount.rateLimited(e)) setText('setExportMsg', 'You downloaded your data several times recently. Please try again later.');
+    else setErr('setExportErr', (e && e.message) || "We couldn't prepare your data. Please try again.");
+  } finally {
+    SolGuard.release('settings:export');
+    setBusy(btn, false);
+  }
+}
+
+// ── Close account (PR #33) ────────────────────────────────────────────────────
+function closeFormReset() {
+  ['closePw', 'closeCode', 'closePhrase'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  setText('closeNote', ''); setErr('closeErr', '');
+  const ul = document.getElementById('closeReasons'); if (ul) ul.innerHTML = '';
+  closeFormChanged();
+}
+function closeFormChanged() {
+  const pw = (document.getElementById('closePw') || {}).value || '';
+  const phrase = (document.getElementById('closePhrase') || {}).value || '';
+  const code = ((document.getElementById('closeCode') || {}).value || '').trim();
+  const needCode = !!(me && me.totp_enabled);
+  const btn = document.getElementById('closeConfirm');
+  if (btn && !SolGuard.isLocked('settings:close')) btn.disabled = !(pw && phrase === 'DELETE' && (!needCode || /^\d{6}$/.test(code)));
+}
+function openCloseDialog() {
+  const field = document.getElementById('closeCodeField');
+  if (field) field.hidden = !(me && me.totp_enabled);
+  closeFormReset();
+  // Focus starts on the title, so the dialog opens at its top (focus on the password field
+  // scrolled the title and the first points out of view); the first Tab reaches the password.
+  SolDialog.open('closeAccountDialog', {
+    opener: document.getElementById('setCloseOpen'),
+    initialFocus: '#closeTitle',
+    canClose: () => !SolGuard.isLocked('settings:close'),
+    // Once the account is closed, every way out of the dialog signs out.
+    onClose: () => { if (setState.closed) logout(); else closeFormReset(); },
+  });
+}
+// After a close (PR #33, 200): the response's own lists of what was removed and what is kept,
+// and the retention period it gives (a backend setting, 5 years by default). The member reads
+// it, then signs out with the button (or Escape).
+function showCloseSummary(d) {
+  const sum = SolAccount.closeSummary(d);
+  const list = (id, items) => (items.length ? `<ul class="bank-remove-list" id="${id}">${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '');
+  const years = sum.years === null ? '' : ` for ${sum.years} ${sum.years === 1 ? 'year' : 'years'}`;
+  const body = document.getElementById('closeDoneBody');
+  if (body) body.innerHTML = `<p>Every session has ended. Here is what we removed and what we keep.</p>
+    ${sum.removed.length ? `<h4>What we removed</h4>${list('closeDoneRemoved', sum.removed)}` : ''}
+    ${sum.kept.length ? `<h4>What we keep${esc(years)}</h4>${list('closeDoneKept', sum.kept)}` : ''}
+    ${sum.note ? `<p>${esc(sum.note)}</p>` : ''}`;
+  ['closeIntro', 'closeForm'].forEach(id => { const el = document.getElementById(id); if (el) el.hidden = true; });
+  const done = document.getElementById('closeDone'); if (done) done.hidden = false;
+  const title = document.getElementById('closeTitle');
+  if (title) { title.textContent = 'Your account is closed'; try { title.focus(); } catch (e) {} }
+}
+function closeCloseDialog() {
+  if (SolGuard.isLocked('settings:close')) return;
+  SolDialog.close('closeAccountDialog');
+}
+async function confirmCloseAccount(e) {
+  if (e) e.preventDefault();
+  closeFormChanged();
+  const btn = document.getElementById('closeConfirm');
+  if (!btn || btn.disabled || !SolGuard.acquire('settings:close')) return;
+  const totpOn = !!(me && me.totp_enabled);
+  const body = SolAccount.closePayload((document.getElementById('closePw') || {}).value, (document.getElementById('closeCode') || {}).value, totpOn);
+  setText('closeNote', ''); setErr('closeErr', '');
+  const ul = document.getElementById('closeReasons'); if (ul) ul.innerHTML = '';
+  setBusy(btn, true); btn.textContent = 'Closing…';
+  let closed = false;
+  try {
+    const d = await reauthPost('/account/close', body);
+    closed = true;
+    setState.closed = true;
+    const pw = document.getElementById('closePw'); if (pw) pw.value = '';
+    showCloseSummary(d);
+  } catch (err) {
+    const d = err && err.detail;
+    if (SolAccount.notAvailable(err)) setText('closeNote', 'Closing your account here is not available yet. Contact support if you need help.');
+    else if (err && err.status === 403 && d && d.error === 'account_close_disabled') setText('closeNote', typeof d.message === 'string' ? d.message : 'Closing an account is not available yet.');
+    else if (err && err.status === 409) {
+      setErr('closeErr', d && typeof d.message === 'string' ? d.message : 'Your account cannot be closed yet.');
+      if (ul) ul.innerHTML = SolAccount.closeRefusals(d).map(r => `<li>${esc(r)}</li>`).join('');
+    } else if (SolAccount.rateLimited(err)) setErr('closeErr', 'Too many tries. Please try again later.');
+    else {
+      const m = (err && err.message) || '';
+      if (/2FA code required/i.test(m)) {
+        // Two-factor was turned on since this page loaded: ask for the code and send it next time.
+        if (me) me.totp_enabled = true;
+        const f = document.getElementById('closeCodeField'); if (f) f.hidden = false;
+        setErr('closeErr', 'Enter the 6-digit code from your authenticator app.');
+        setFocus('closeCode');
+      }
+      else if (/invalid password/i.test(m)) setErr('closeErr', 'That password is not right.');
+      else if (/invalid code/i.test(m)) setErr('closeErr', 'That code did not work.');
+      else setErr('closeErr', m || "We couldn't close your account. Please try again.");
+    }
+  } finally {
+    SolGuard.release('settings:close');
+    setBusy(btn, false);
+    if (!closed) { btn.textContent = 'Close my account'; closeFormChanged(); }
+  }
+}
+
+// ── Dashboard: verify-email banner ────────────────────────────────────────────
+function renderVerifyBanner() {
+  const el = document.getElementById('dashVerify');
+  if (!el) return;
+  if (!me || me.email_verified_at || !me.email) { el.innerHTML = ''; return; }
+  el.innerHTML = `<section class="verify-banner" aria-labelledby="verifyBannerTitle">
+      <div class="verify-banner__text"><h2 id="verifyBannerTitle" class="verify-banner__title" tabindex="-1">Please verify your email address</h2>
+        <p>Open the link we sent to <strong>${esc(me.email)}</strong> to confirm this address is yours.</p>
+        ${setState.resendNA ? `<p class="hint-muted" id="verifyNA">${esc(RESEND_NA_TEXT)}</p>` : ''}
+        <p class="hint-muted" id="verifyMsg" role="status" aria-live="polite"></p></div>
+      ${setState.resendNA ? '' : `<button type="button" class="btn btn-ghost btn--sm" id="verifyResend" onclick="resendVerification('verify')">Resend email</button>`}
+    </section>`;
+}
+// POST /auth/resend-verification (PR #33): 202 sent, 200 already verified, 3/hour.
+// scope 'verify' = the dashboard banner, 'set' = the Settings profile card.
+async function resendVerification(scope) {
+  const btn = document.getElementById(scope === 'set' ? 'setResend' : 'verifyResend');
+  const msgId = scope === 'set' ? 'setResendMsg' : 'verifyMsg';
+  if (!SolGuard.acquire('verify:resend')) return;
+  setBusy(btn, true);
+  setText(msgId, '');
+  let hide = false;
+  try {
+    const d = await api('/auth/resend-verification', { method: 'POST' });
+    if (d && d.already_verified === true) { setText(msgId, 'Your email is already verified.'); hide = true; }
+    else setText(msgId, 'We sent a new link. Check your inbox.');
+  } catch (e) {
+    if (SolAccount.notAvailable(e)) { setState.resendNA = true; setText(msgId, RESEND_NA_TEXT); hide = true; }
+    else if (SolAccount.rateLimited(e)) setText(msgId, 'You asked for several emails. Please try again later.');
+    else setText(msgId, "We couldn't send the email. Please try again.");
+  } finally {
+    SolGuard.release('verify:resend');
+    setBusy(btn, false);
+    if (btn && hide) {
+      const hadFocus = document.activeElement === btn;
+      btn.hidden = true;
+      if (hadFocus) setFocus(scope === 'set' ? 'setProfileH' : 'verifyBannerTitle');   // the button is gone
+    }
+  }
+}

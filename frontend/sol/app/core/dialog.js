@@ -8,7 +8,7 @@
 // Contract (preserved from the audited dialogs):
 //   • visible-only focus boundaries (offsetParent !== null; disabled excluded)
 //   • radio groups collapse to ONE tab stop (checked, else first) — no-op if none
-//   • Tab / Shift+Tab loop first<->last; escaped focus is pulled back in
+//   • Tab / Shift+Tab loop first<->last (also from a focused title or panel); escaped focus is pulled back in
 //   • Escape closes ONLY when canClose() allows (busy-guarded)
 //   • focus enters the dialog on open; restores to a connected+visible opener on close
 //   • exactly one keydown listener at a time (no duplicates on repeated open)
@@ -63,6 +63,13 @@ window.SolDialog = (function () {
     if (!d.contains(a)) { e.preventDefault(); first.focus(); return; }   // pull escaped focus back
     let cur = a;
     if (a.type === 'radio' && a.name) cur = f.find((x) => x.type === 'radio' && x.name === a.name) || a;
+    // Focus on something inside that is not one of its controls (a title or the panel itself, with
+    // tabindex -1): from before the first control Shift+Tab wraps to the last, and from after the
+    // last control Tab wraps to the first, instead of leaving the dialog.
+    if (!f.includes(cur)) {
+      if (e.shiftKey && (cur.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING)) { e.preventDefault(); last.focus(); return; }
+      if (!e.shiftKey && (cur.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_PRECEDING)) { e.preventDefault(); first.focus(); return; }
+    }
     if (e.shiftKey && cur === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus(); }
   }

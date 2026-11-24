@@ -5,6 +5,9 @@
   --muted:var(--ink-500);
   --cyan:var(--sol-500); --purple:var(--sol-600);
   --green:var(--success-600); --gold:var(--sol-600);
+  /* The phone bottom nav's height (.mobile-nav below): a 48px button, .4rem padding above and
+     below it, and a 1px top border. */
+  --mobile-nav-h:calc(48px + .8rem + 1px);
 }
 *{box-sizing:border-box}
 body{background:var(--paper);color:var(--ink-900);font-family:var(--font-body);display:flex;min-height:100vh;margin:0}
@@ -27,8 +30,18 @@ body{background:var(--paper);color:var(--ink-900);font-family:var(--font-body);d
 .nav-item.logout.active::before{display:none}
 /* Main */
 .main{flex:1;padding:2rem;overflow-y:auto;min-width:0}
+.main:focus{outline:none}
+/* Skip link: off screen until it has keyboard focus. */
+.skip-link{position:fixed;left:1rem;top:-4rem;z-index:400;background:var(--surface);color:var(--ink-900);border:2px solid var(--focus-ring);border-radius:var(--r-md);padding:.55rem .95rem;font-family:var(--font-display);font-weight:600;text-decoration:none}
+.skip-link:focus{top:1rem}
 .page{display:none}.page.active{display:block}
 h1{font-family:var(--font-display);font-size:1.5rem;font-weight:700;margin:0 0 .25rem}
+/* Headings and sections that script focuses (tabindex -1: a page's h1 after navigation, the
+   dashboard's starting point after the guide): a ring set off from the letters instead of the
+   browser's default one, which cuts through their tops, and room above it when focus scrolls it
+   into view. Rules further down remove the outline only for a focus that is not keyboard focus. */
+:where(h1,h2,h3,section)[tabindex="-1"]:focus-visible{outline:2px solid var(--focus-ring);outline-offset:4px}
+:where(h1,h2,h3,section)[tabindex="-1"]{scroll-margin-top:1rem}
 .sub{color:var(--ink-500);font-size:.9rem;margin-bottom:2rem}
 /* Cards */
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem}
@@ -40,7 +53,7 @@ h1{font-family:var(--font-display);font-size:1.5rem;font-weight:700;margin:0 0 .
    .badge-green/yellow/cyan/gray status colours were removed with badge(). */
 .badge{display:inline-block;padding:.2rem .6rem;border-radius:9999px;font-size:.72rem;font-weight:600}
 .badge-red{background:var(--danger-100);color:var(--danger-700)}
-.badge-gold{background:var(--sol-200);color:var(--sol-600)}
+.badge-gold{background:var(--sol-200);color:var(--sol-700)}
 /* Groups */
 .group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
 .group-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.25rem;cursor:pointer;transition:.2s;text-decoration:none;color:var(--ink-900);display:block;box-shadow:var(--shadow-1)}
@@ -52,7 +65,7 @@ h1{font-family:var(--font-display);font-size:1.5rem;font-weight:700;margin:0 0 .
 .field{margin-bottom:1rem}
 .field label{display:block;font-size:.8rem;color:var(--ink-700);margin-bottom:.35rem}
 .field input,.field select,.field textarea,.input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:.6rem .85rem;color:var(--ink-900);font-size:.9rem;font-family:inherit;outline:none}
-.field input:focus,.field select:focus,.field textarea:focus,.input:focus{border-color:var(--sol-500);box-shadow:0 0 0 3px var(--sol-200)}
+.field input:focus,.field select:focus,.field textarea:focus,.input:focus{border-color:var(--focus-ring);box-shadow:0 0 0 3px var(--sol-200)}
 .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem 1.25rem;border-radius:var(--r-md);font-size:.875rem;font-weight:600;cursor:pointer;border:none;font-family:var(--font-display);transition:.15s}
 .btn-primary{background:var(--sol-500);color:var(--ink-900)}
 .btn-primary:hover{background:var(--sol-400);box-shadow:var(--shadow-glow)}
@@ -86,6 +99,8 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .more-item{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.7rem .3rem;border-radius:var(--r-md);background:var(--surface-2);border:none;color:var(--ink-700);font-size:.68rem;font-family:var(--font-display);cursor:pointer;min-height:66px;justify-content:center}
 .more-item:active{background:var(--sol-200)}
 .more-item .ic{width:20px;height:20px}
+.more-signout{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;min-height:44px;margin-top:.75rem;padding:.6rem 1rem;border:1px solid var(--line);border-radius:var(--r-md);background:transparent;color:var(--ink-700);font-size:.85rem;font-weight:600;font-family:var(--font-display);cursor:pointer}
+.more-signout:active{background:var(--surface-2)}
 /* ── Circles page ─────────────────────────────────────────────────────────── */
 .circles-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
 .circles-head .sub{margin-bottom:0}
@@ -104,7 +119,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .field-inline .input{width:100%}
 .circles-filters>summary{list-style:none;cursor:pointer;display:inline-flex}
 .circles-filters>summary::-webkit-details-marker{display:none}
-.circles-filters>summary:focus-visible{outline:2px solid var(--sol-500);outline-offset:2px}
+.circles-filters>summary:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 .circles-filters{position:relative}
 .circles-filters__panel{position:absolute;right:0;top:calc(100% + .4rem);z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-2);padding:1rem;width:min(90vw,240px);display:flex;flex-direction:column;gap:.7rem}
 .circles-filters__panel .field{margin-bottom:0}
@@ -153,12 +168,28 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   .circles-head__actions{width:100%}.circles-head__actions .btn{flex:1}
   .circle-card__acts .btn{min-height:44px}
   .ctab{min-height:44px}
-  .circles-filters__panel{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;border-radius:1rem 1rem 0 0;box-shadow:0 -8px 32px rgba(14,23,38,.18)}
+  /* A sheet fixed just above the bottom nav, not under it, so its last control stays visible and a
+     tap reaches it (pages/circles.js closes it when focus leaves it). */
+  .circles-filters__panel{position:fixed;left:0;right:0;bottom:calc(var(--mobile-nav-h) + env(safe-area-inset-bottom,0px));top:auto;width:auto;max-height:calc(100vh - var(--mobile-nav-h) - 4rem);max-height:calc(100dvh - var(--mobile-nav-h) - 4rem);overflow-y:auto;border-radius:1rem 1rem 0 0;box-shadow:0 -8px 32px rgba(14,23,38,.18)}
+  /* While the sheet is open (pages/circles.js sets the class and the room: the sheet and the nav,
+     plus a gap): the page has room below its content to scroll "Filters & sort" above the sheet,
+     and focus scrolls controls clear of the sheet, not under it. */
+  html.circles-sheet-open{scroll-padding-bottom:var(--circles-sheet-room,5rem)}
+  html.circles-sheet-open .main{padding-bottom:var(--circles-sheet-room,5rem)}
 }
 @media(max-width:640px){
-  .sidebar{display:none}
+  /* Phones: the sidebar header becomes a small bar at the top (the page's banner landmark)
+     showing only the logo; the bottom nav (#mobileNav) takes the place of its nav. */
+  body{flex-direction:column}
+  .sidebar{width:auto;min-height:0;flex-direction:row;align-items:center;padding:.6rem 1rem;border-right:none;border-bottom:1px solid var(--line)}
+  .sidebar .user-info,.sidebar .nav-groups{display:none}
+  .sidebar .logo-wrap{padding:0}
+  .sidebar .logo-wrap img{height:26px;display:block}
   .main{padding:1rem;padding-bottom:5rem}
   .mobile-nav{display:flex}
+  /* The bottom nav (about 62px) is fixed over the bottom of the screen. When focus (Tab, or a
+     script) scrolls a control into view, keep it above the nav, not under it (WCAG 2.4.11). */
+  html{scroll-padding-bottom:5rem}
   h1{font-size:1.2rem}
   .cards{gap:.6rem}
   .card{padding:.9rem}
@@ -217,9 +248,11 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .premium-card h3{color:#fff}
 .premium-card .hint-muted{color:rgba(255,255,255,.65)}
 .premium-card:hover{transform:perspective(700px) rotateX(2deg) translateY(-2px)}
-.premium-card:focus-visible{outline:2px solid var(--sol-500);outline-offset:2px}
+.premium-card:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 .premium-card__sheen{position:absolute;inset:0;background:radial-gradient(140px 90px at 82% 0%,rgba(244,169,60,.25),transparent);pointer-events:none}
 .premium-card .btn-ghost{border-color:rgba(255,255,255,.32);color:#fff}
+/* On the dark hero and Premium card the light-surface ring (--sol-700) is about 2:1: use the light one. */
+.dash-hero :focus-visible,.premium-card :focus-visible{outline-color:var(--focus-ring-on-dark)}
 .premium-card .btn-ghost:hover{background:rgba(255,255,255,.12)}
 .premium-card>*{position:relative;z-index:1}
 .premium-price{font-family:var(--font-display);margin:.3rem 0 .5rem}
@@ -612,8 +645,8 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .pay-tl__step.is-fail{color:var(--danger-700);font-weight:600}
 .pay-tl__step.is-fail .pay-tl__dot{background:var(--danger-600);box-shadow:none}
 .pay-card.is-skeleton{pointer-events:none;display:flex;flex-direction:column;gap:.5rem}
-.ptab:focus-visible,#paymentsList:focus-visible{outline:2px solid var(--sol-500);outline-offset:-2px;border-radius:var(--r-sm)}
-.pay-card .btn:focus-visible,.circles-head__actions .btn:focus-visible{outline:2px solid var(--sol-500);outline-offset:2px}
+.ptab:focus-visible,#paymentsList:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px;border-radius:var(--r-sm)}
+.pay-card .btn:focus-visible,.circles-head__actions .btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 @media(prefers-reduced-motion:reduce){.pay-card{animation:none}}
 @media(max-width:640px){
   .pay-card__row{align-items:flex-start}
@@ -685,3 +718,72 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .admin-fld--check{display:flex;align-items:center;gap:.5rem}
 .admin-fld--check input{width:auto}
 .admin-fld--check>span{margin:0;font-size:.85rem;color:var(--ink-900)}
+/* The hidden attribute always hides, also on elements whose class sets display
+   (e.g. .nav-item, .btn): flag-gated nav entries and Settings controls rely on it. */
+[hidden]{display:none!important}
+/* ═══ Settings (pages/settings.js) and the dashboard verify-email banner ═══ */
+.set-grid{display:grid;gap:1rem;max-width:46rem}
+.set-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.25rem 1.35rem;box-shadow:var(--shadow-1)}
+.set-card h2{font-size:1.1rem;margin:0 0 .75rem}
+.set-card h3{font-size:.98rem;margin:.25rem 0 .5rem}
+/* Headings that take focus after an action keep the ring of the rule near the top (keyboard);
+   only a focus that is not keyboard focus drops the outline. */
+.set-card h2:focus:not(:focus-visible),.set-card h3:focus:not(:focus-visible){outline:none}
+.set-card .field{max-width:26rem}
+.set-row{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin:.9rem 0 .4rem}
+.set-label{font-size:.8rem;color:var(--ink-700);min-width:4.5rem}
+.set-value{font-weight:600;word-break:break-all}
+.set-inline{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin:.6rem 0}
+.set-na{font-size:.85rem;color:var(--ink-700);margin:.5rem 0}
+/* Empty, but still rendered: a polite status region that is display:none is not in the
+   accessibility tree when its message arrives, so screen readers may never read it. */
+.set-na:empty{margin:0}
+.set-check{display:flex;align-items:flex-start;gap:.55rem}
+.set-check input{width:1.1rem;height:1.1rem;margin-top:.15rem;flex-shrink:0}
+.set-check label{font-size:.9rem}
+.set-steps{padding-left:1.2rem;margin:.4rem 0 .6rem}
+.set-steps li{margin-bottom:.8rem}
+.set-qr{display:block;margin:.6rem 0;border:1px solid var(--line);border-radius:var(--r-sm);image-rendering:pixelated}
+.set-secret{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1rem;letter-spacing:.06em;background:var(--surface-2);padding:.35rem .6rem;border-radius:var(--r-sm);margin-right:.4rem;word-break:break-all}
+.set-code{max-width:9rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em}
+.set-warn{border:1px solid var(--sol-300);background:var(--sol-50);border-radius:var(--r-md);padding:.9rem 1rem;margin-top:.6rem}
+.set-codes{list-style:none;padding:0;margin:.6rem 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem .8rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.set-danger{border-top:1px solid var(--line);margin-top:1rem;padding-top:.9rem}
+.set-card .btn,.bank-modal #closeForm .btn,#closeDone .btn{min-height:44px}
+/* The close-account dialog is long: it scrolls inside the screen, so its buttons stay reachable. */
+#closeAccountDialog .modal{max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem);overflow-y:auto}
+#closeAccountDialog h3:focus:not(:focus-visible){outline:none}
+#closeDone h4{font-size:.95rem;margin:.9rem 0 .35rem}
+.verify-banner{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border:1px solid var(--sol-300);background:var(--sol-50);border-radius:var(--r-lg);padding:.9rem 1.1rem;margin-bottom:1rem}
+.verify-banner__title{font-size:1rem;margin:0 0 .25rem}
+.verify-banner p{margin:0;font-size:.88rem;color:var(--ink-800)}
+.verify-banner .btn{min-height:44px}
+/* Backup codes waiting for Settings (app.html #codesNotice, pages/settings.js _codesNotice). */
+.app-notice__text{margin:0}
+.app-notice.is-on{display:flex;align-items:center;justify-content:space-between;gap:.75rem 1rem;flex-wrap:wrap;border:1px solid var(--sol-300);background:var(--sol-50);border-radius:var(--r-lg);padding:.8rem 1.1rem;margin-bottom:1rem}
+.app-notice.is-on .app-notice__text{flex:1 1 16rem;font-size:.9rem;font-weight:600;color:var(--ink-800)}
+.app-notice .btn{min-height:44px}
+@media(max-width:560px){.set-codes{grid-template-columns:1fr}.set-card{padding:1rem}}
+/* Payouts to you (pages/payments.js renderPayouts) */
+.pay-payouts{margin-top:2rem}
+.payout-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.6rem}
+.payout-row{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:.85rem 1.1rem;box-shadow:var(--shadow-1)}
+.payout-row__lead,.payout-row__end{display:flex;flex-direction:column;gap:.15rem}
+.payout-row__end{align-items:flex-end}
+.payout-row__amt{font-family:var(--font-display);font-weight:700;font-size:1.1rem}
+.payout-row__meta,.payout-row__date{font-size:.8rem;color:var(--ink-700)}
+@media(max-width:560px){.payout-row__end{align-items:flex-start}}
+/* First-run guide (pages/onboarding.js) */
+.guide-modal{z-index:300}
+.guide-modal .modal.guide{max-width:30rem;position:relative;padding-top:1.6rem}
+.guide__close{position:absolute;top:.6rem;right:.6rem;width:44px;height:44px;display:grid;place-items:center;background:none;border:0;border-radius:var(--r-md);color:var(--ink-700);cursor:pointer}
+.guide__close:hover{background:var(--surface-2)}
+.guide__count{font-size:.78rem;color:var(--ink-700);margin:0 0 .25rem;font-weight:600}
+.guide__title{font-size:1.3rem;margin:0 0 .75rem}
+.guide__title:focus:not(:focus-visible){outline:none}
+.guide__body p,.guide__list li{font-size:.92rem;color:var(--ink-800)}
+.guide__list{padding-left:1.1rem;margin:0 0 .5rem}
+.guide__list li{margin-bottom:.35rem}
+.guide__actions{list-style:none;padding:0;margin:.5rem 0 0;display:flex;flex-direction:column;gap:.5rem}
+.guide__actions .btn{width:100%;justify-content:center;min-height:44px}
+.guide-modal .modal-actions .btn{min-height:44px}

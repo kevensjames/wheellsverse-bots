@@ -189,6 +189,40 @@ function circlesClearFilters() {
 }
 function circlesLoadMore() { circles.limit += CIRCLE_PAGE; renderCircles(); }
 
+// Phones (app.css, max-width 640px): "Filters & sort" opens as a sheet fixed just above the bottom
+// nav. It closes when focus leaves it (Tab past "Sort by", or a tap anywhere else; the panel has
+// tabindex -1, so a tap on its own blank space keeps it open), so it never covers the control that
+// has focus. Escape closes it and returns focus to "Filters & sort". Desktop keeps its dropdown.
+// The sheet must not cover "Filters & sort" itself, which opened it and closes it: when the toolbar
+// sits lower than the sheet's top (a short phone, or the backup-codes notice above the page), the
+// page scrolls it above the sheet on open. While the sheet is open, html.circles-sheet-open gives the
+// page room below its content for that scroll, and keyboard focus scrolls controls clear of the
+// sheet (scroll-padding, app.css).
+(function circlesFiltersSheet() {
+  const d = document.querySelector('.circles-filters');
+  if (!d) return;
+  const sheet = () => !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
+  d.addEventListener('focusout', () => {
+    setTimeout(() => { if (d.open && sheet() && !d.contains(document.activeElement)) d.open = false; }, 0);
+  });
+  d.addEventListener('toggle', () => {
+    const root = document.documentElement, panel = d.querySelector('.circles-filters__panel'), s = d.querySelector('summary');
+    if (!d.open || !sheet() || !panel || !s) { root.classList.remove('circles-sheet-open'); root.style.removeProperty('--circles-sheet-room'); return; }
+    const gap = 8, top = panel.getBoundingClientRect().top;
+    root.style.setProperty('--circles-sheet-room', Math.ceil(window.innerHeight - top + gap) + 'px');
+    root.classList.add('circles-sheet-open');
+    const over = s.getBoundingClientRect().bottom - (top - gap);
+    if (over > 0) window.scrollBy(0, Math.ceil(over));
+  });
+  d.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !d.open || !sheet()) return;
+    e.preventDefault();
+    d.open = false;
+    const s = d.querySelector('summary');
+    if (s) s.focus();
+  });
+})();
+
 function syncCirclesToURL() {
   const p = new URLSearchParams();
   if (circles.tab !== 'mine') p.set('tab', circles.tab);

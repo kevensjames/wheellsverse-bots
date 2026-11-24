@@ -8,6 +8,7 @@
 const DASH_ACTIVE = ['ACTIVE', 'COLLECTING', 'SETTLING'];
 
 async function loadDashboard() {
+  renderVerifyBanner();   // pages/settings.js: shown while me.email_verified_at is empty
   renderDashSkeletons();
   const R = await Promise.allSettled([
     api('/subscriptions/me'), api('/groups'), api('/trust/me'),
@@ -22,6 +23,7 @@ async function loadDashboard() {
   renderDashHero(D); renderDashAttention(D); renderDashSummary(D);
   renderDashCircles(D); renderDashTimeline(D);
   renderDashScore(D); renderDashPremium(D); renderDashGoals(D); renderDashTrust(D);
+  maybeShowGuide();   // pages/onboarding.js: the first-run guide, once per member
 }
 
 function dashGreeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }

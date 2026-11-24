@@ -12,23 +12,36 @@
 :root {
   /* Trust base — structure, text, app/admin chrome */
   --ink-900:#0E1726; --ink-800:#14223A; --ink-700:#1E3050;
-  --ink-500:#46577A; --ink-300:#8A96AD; --ink-100:#E5E9F0;
+  --ink-500:#46577A; --ink-300:#646F87; --ink-100:#E5E9F0;
   --paper:#FBFAF7;            /* warm off-white, never cold #fff */
   --surface:#FFFFFF; --surface-2:#F4F2EC; --line:#E7E2D7;
 
   /* Sol warm accent — sunrise */
-  --sol-700:#8A4D0E; --sol-600:#C9781F; --sol-500:#E89324; --sol-400:#F4A93C;
+  --sol-700:#8A4D0E; --sol-600:#A15E12; --sol-500:#E89324; --sol-400:#F4A93C;
   --sol-300:#F4C88A; --sol-200:#FBD9A2; --sol-100:#FCE9CE; --sol-50:#FFF5EA;
   --coral-500:#E5654B;
 
   /* Semantic — money states */
-  --success-600:#1E9E6A; --success-100:#DCF3E8;
-  --warn-600:#C98A14;     --warn-100:#FBEFD2;
+  --success-600:#177A51; --success-100:#DCF3E8;
+  --warn-600:#8A5A0C;     --warn-100:#FBEFD2;
   --danger-600:#D33A3A;   --danger-700:#B02525; --danger-100:#FBE3E1;
 
   /* Ergonomic aliases */
   --bg:var(--paper); --text:var(--ink-900); --text-muted:var(--ink-500);
   --border:var(--line); --brand:var(--sol-500); --brand-strong:var(--sol-600);
+  --focus-ring:var(--sol-700);   /* focus outlines and focused field borders: >=3:1 on the light surfaces */
+  --focus-ring-on-dark:var(--sol-400);   /* the same on the dark dashboard hero and Premium card */
+
+  /* WCAG AA (2026-11): text tokens that failed against their backgrounds were darkened
+     the least that passes on surface #FFF, paper #FBFAF7 and surface-2 #F4F2EC (4.5:1):
+       --ink-300     #8A96AD -> #646F87  (2.98/2.86/2.66 -> 5.04/4.83/4.50)
+       --sol-600     #C9781F -> #A15E12  (3.39/3.25/3.03 -> 5.09/4.88/4.55; #FFF text on it 3.39 -> 5.09)
+       --success-600 #1E9E6A -> #177A51  (3.41 -> 5.33; on --success-100 2.93 -> 4.58)
+       --warn-600    #C98A14 -> #8A5A0C  (on --warn-100 2.58 -> 5.18)
+       --st-cancelled #5E6B85 -> #5C6983 (on its chip 4.49 -> 4.63)
+     The focus ring moved from --sol-500 (2.43:1 on #FFF) to --focus-ring = --sol-700 (6.67:1).
+     On the dark hero and Premium card (#0E1726 to #3A2A1A) --sol-700 is about 2:1, so controls
+     there use --focus-ring-on-dark = --sol-400 (6.94:1 or more on every colour of them). */
 
   /* Type */
   --font-display:"Space Grotesk",system-ui,-apple-system,sans-serif;
@@ -59,7 +72,7 @@ h1,h2,h3,h4{font-family:var(--font-display); line-height:var(--lh-tight); margin
 h1{font-size:var(--step-5)} h2{font-size:var(--step-4)} h3{font-size:var(--step-2)} h4{font-size:var(--step-1)}
 p{margin:0 0 var(--s-4)}
 a{color:var(--brand-strong); text-decoration:none} a:hover{text-decoration:underline}
-:where(button,a,input,select,textarea):focus-visible{outline:2px solid var(--sol-500); outline-offset:2px; border-radius:var(--r-sm)}
+:where(button,a,input,select,textarea):focus-visible{outline:2px solid var(--focus-ring); outline-offset:2px; border-radius:var(--r-sm)}
 .tnum{font-variant-numeric:tabular-nums}            /* all money figures */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
@@ -98,7 +111,7 @@ a{color:var(--brand-strong); text-decoration:none} a:hover{text-decoration:under
   padding:.6rem .75rem; border:1px solid var(--line); border-radius:var(--r-md);
   transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease);
 }
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--sol-500); box-shadow:0 0 0 3px var(--sol-200); outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--focus-ring); box-shadow:0 0 0 3px var(--sol-200); outline:none}
 .field .hint{font-size:var(--step--1); color:var(--text-muted); margin-top:var(--s-1)}
 .field .error{font-size:var(--step--1); color:var(--danger-700); margin-top:var(--s-1); display:none}
 .field--error input,.field--error select,.field--error textarea{border-color:var(--danger-600)}
@@ -144,7 +157,7 @@ a{color:var(--brand-strong); text-decoration:none} a:hover{text-decoration:under
   --st-forming:#7A5309;   --st-forming-bg:#FBEFD2;
   --st-completed:#3B4A66; --st-completed-bg:#E5E9F0;
   --st-failed:#B02525;    --st-failed-bg:#FBE3E1;
-  --st-cancelled:#5E6B85; --st-cancelled-bg:#EDEBE4;
+  --st-cancelled:#5C6983; --st-cancelled-bg:#EDEBE4;
   --st-pending:#7A4600;   --st-pending-bg:#FBD9A2;
   --st-overdue:#B02525;   --st-overdue-bg:#FBE3E1;
   --st-verified:#1E7A54;  --st-verified-bg:#DCF3E8;

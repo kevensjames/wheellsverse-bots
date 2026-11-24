@@ -70,6 +70,7 @@ async function api(path, opts = {}) {
   if (!r.ok) {
     const err = new Error(formatApiError(d, r.statusText));
     err.status = r.status;
+    err.detail = d ? d.detail : undefined;   // the raw detail (an object for some refusals, e.g. 409 reasons)
     throw err;
   }
   return d;
@@ -343,8 +344,10 @@ function formatApiError(d, fallback) {
 // enum to a canonical label + a semantic .status--* variant (tinted pill + dot +
 // text, never colour-only — see DESIGN_SYSTEM.md). Payment states mirror
 // PAY_STATE severity (RETURNED reads as a failure). Generic across
-// circle/cycle/member/payment, so PENDING stays neutral "Pending" (the Payments
-// page's richer PAY_STATE uses the payment-specific "Due").
+// circle/cycle/member/payment/payout, so PENDING stays neutral "Pending" (the Payments
+// page's richer PAY_STATE uses the payment-specific "Due"). Payouts (PayoutStatus, backend
+// models/payout.py:24-36) add SETTLED (settled in the settlement-gated flow, like SUCCESS in
+// the legacy one), REVERSED (a returned payout reversed by an admin) and MANUAL_REVIEW.
 function statusChip(status) {
   const variant = {
     ACTIVE:'active', VERIFIED:'verified', SUCCESS:'active',
@@ -352,12 +355,14 @@ function statusChip(status) {
     COLLECTING:'active', SETTLING:'active', PROCESSING:'pending', COMPLETED:'completed',
     FAILED:'failed', DELINQUENT:'failed', SUSPENDED:'blocked', CLOSED:'cancelled', RETURNED:'failed',
     CANCELLED:'cancelled', PAUSED:'warning',
+    SETTLED:'active', REVERSED:'failed', MANUAL_REVIEW:'pending',
   };
   const label = {
     ACTIVE:'Active', VERIFIED:'Verified', SUCCESS:'Settled',
     FORMING:'Forming', PENDING:'Pending', SUBMITTED:'Under review', INITIATED:'Submitted',
     COLLECTING:'Active', SETTLING:'Active', PROCESSING:'Processing', COMPLETED:'Completed',
     FAILED:'Failed', DELINQUENT:'Action required', SUSPENDED:'Suspended', CLOSED:'Closed', RETURNED:'Returned',
+    SETTLED:'Settled', REVERSED:'Reversed', MANUAL_REVIEW:'Under review',
   };
   const key = String(status || '').toUpperCase();
   const text = label[key] || (key ? key.charAt(0) + key.slice(1).toLowerCase() : '—');

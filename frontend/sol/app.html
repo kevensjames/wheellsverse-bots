@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/sol/app/styles/app.css">
 </head>
 <body>
+<a class="skip-link" href="#main" onclick="return skipToContent(event)">Skip to content</a>
 
 <!-- Icon sprite: one stroke-based line-icon set, referenced via <use>. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
@@ -28,9 +29,10 @@
   <symbol id="ic-premium" viewBox="0 0 24 24"><path d="M5 8l3-4h8l3 4-7 12z"/><path d="M5 8h14M9.5 4l-1.5 4 4 12 4-12-1.5-4"/></symbol>
   <symbol id="ic-signout" viewBox="0 0 24 24"><path d="M15 17l5-5-5-5M20 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></symbol>
   <symbol id="ic-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="ic-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
 </defs></svg>
 
-<aside class="sidebar">
+<header class="sidebar">
   <div class="logo-wrap"><img src="/sol/assets/sol-logo.svg" alt="Sol"></div>
   <div class="user-info"><div class="user-email" id="userEmail">Loading…</div></div>
   <nav class="nav-groups" aria-label="Primary">
@@ -58,15 +60,35 @@
 
     <div class="nav-section">Account</div>
     <button type="button" class="nav-item" data-page="premium" onclick="nav('premium')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-premium"/></svg> Premium</button>
+    <button type="button" class="nav-item" data-page="settings" onclick="nav('settings')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-settings"/></svg> Settings</button>
     <button type="button" class="nav-item" data-page="admin" data-feature="catalog" data-admin hidden onclick="nav('admin')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-circles"/></svg> Circle admin</button>
     <button type="button" class="nav-item logout" onclick="logout()"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-signout"/></svg> Sign out</button>
   </nav>
-</aside>
+</header>
 
-<main class="main">
+<!-- Mobile bottom nav (hidden on desktop via media query). It comes before <main> in the DOM,
+     so Tab reaches it before the page content; CSS keeps it fixed at the bottom of the screen. -->
+<nav class="mobile-nav" id="mobileNav" aria-label="Primary mobile">
+  <button type="button" class="mn active" data-mpage="dashboard" onclick="nav('dashboard')" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#ic-dashboard"/></svg>Home</button>
+  <button type="button" class="mn" data-mpage="groups" onclick="nav('groups')"><svg class="ic" aria-hidden="true"><use href="#ic-circles"/></svg>Circles</button>
+  <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><svg class="ic" aria-hidden="true"><use href="#ic-payments"/></svg>Pay</button>
+  <button type="button" class="mn" data-mpage="notifications" onclick="nav('notifications')"><svg class="ic" aria-hidden="true"><use href="#ic-alerts"/></svg>Alerts</button>
+  <button type="button" class="mn" onclick="openMore()" aria-haspopup="dialog" aria-controls="moreSheet"><svg class="ic" aria-hidden="true"><use href="#ic-menu"/></svg>More</button>
+</nav>
+
+<main class="main" id="main" tabindex="-1">
+  <!-- Backup codes that arrived while the member was on another page (pages/settings.js
+       _codesNotice): shown above every page until Settings shows them. Empty, it takes no space,
+       and its status region stays in the accessibility tree so its one message is read. -->
+  <div class="app-notice" id="codesNotice">
+    <p class="app-notice__text" id="codesNoticeText" role="status" aria-live="polite"></p>
+    <button type="button" class="btn btn-primary btn--sm" id="codesNoticeOpen" hidden onclick="nav('settings')">Open Settings</button>
+  </div>
+
   <!-- Dashboard -->
   <div class="page active" id="page-dashboard">
-    <h1 class="sr-only">Dashboard</h1>
+    <h1 class="sr-only" tabindex="-1">Dashboard</h1>
+    <div id="dashVerify"></div>
     <section class="dash-hero" id="dashHero" aria-label="Overview"></section>
     <div id="dashAttention"></div>
     <div class="dash-summary" id="dashSummary" aria-label="Financial summary"></div>
@@ -88,7 +110,7 @@
   <div class="page" id="page-groups">
     <div class="circles-head">
       <div>
-        <h1>Savings circles</h1>
+        <h1 tabindex="-1">Savings circles</h1>
         <p class="sub">Manage your circles, track contributions, and plan upcoming payouts.</p>
       </div>
       <div class="circles-head__actions">
@@ -101,9 +123,9 @@
       <div class="form-box">
         <div style="font-weight:600;margin-bottom:.5rem">Join a private circle</div>
         <div style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">Paste the invite code a friend shared with you.</div>
-        <div class="field"><label>Invite code</label>
+        <div class="field"><label for="jbcCode">Invite code</label>
           <input type="text" id="jbcCode" placeholder="e.g. aB3cD4eF"></div>
-        <p class="err" id="jbcErr" style="display:none"></p>
+        <p class="err" id="jbcErr" role="alert" style="display:none"></p>
         <div style="display:flex;gap:.5rem">
           <button type="button" class="btn btn-primary" id="jbcBtn" onclick="joinByCode()">Join circle</button>
           <button type="button" class="btn btn-ghost" onclick="toggleJoinByCode()">Cancel</button>
@@ -113,17 +135,17 @@
     <div id="createForm" style="display:none;margin-bottom:1.5rem">
       <div class="form-box">
         <div style="font-weight:600;margin-bottom:1rem">Create a circle</div>
-        <div class="field"><label>Circle name</label>
+        <div class="field"><label for="cName">Circle name</label>
           <input type="text" id="cName" placeholder="My savings group"></div>
-        <div class="field"><label>Members (2–20)</label>
+        <div class="field"><label for="cMax">Members (2–20)</label>
           <input type="number" id="cMax" min="2" max="20" value="20"></div>
-        <div class="field"><label>Payout day of month (1–28)</label>
+        <div class="field"><label for="cDay">Payout day of month (1–28)</label>
           <input type="number" id="cDay" min="1" max="28" value="1"></div>
         <div class="field" style="display:flex;align-items:center;gap:.5rem">
           <input type="checkbox" id="cPrivate" style="width:auto;margin:0">
           <label for="cPrivate" style="margin:0;cursor:pointer">Private — only people with my invite link can join</label>
         </div>
-        <p class="err" id="cErr" style="display:none"></p>
+        <p class="err" id="cErr" role="alert" style="display:none"></p>
         <div style="display:flex;gap:.5rem">
           <button type="button" class="btn btn-primary" id="cBtn" onclick="createGroup()">Create</button>
           <button class="btn btn-ghost" onclick="toggleCreateForm()">Cancel</button>
@@ -144,7 +166,7 @@
       </div>
       <details class="circles-filters">
         <summary class="btn btn-ghost btn--sm">Filters &amp; sort</summary>
-        <div class="circles-filters__panel">
+        <div class="circles-filters__panel" tabindex="-1">
           <div class="field"><label for="circlesStatus">Status</label>
             <select id="circlesStatus" onchange="circlesSetFilter()">
               <option value="all">All statuses</option><option value="forming">Forming</option><option value="active">Active</option><option value="completed">Completed</option><option value="failed">Failed</option><option value="cancelled">Cancelled</option>
@@ -168,7 +190,7 @@
   <div class="page" id="page-catalog">
     <div id="catalogLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Circle Catalog</h1><p class="sub">Browse SOL Circle offerings — browsing is open to everyone.</p></div>
+      <div><h1 tabindex="-1">Circle Catalog</h1><p class="sub">Browse SOL Circle offerings — browsing is open to everyone.</p></div>
     </div>
     <div id="catalogList"></div>
     <!-- Circle detail + join dialog (lives in #page-catalog so it's shown when the catalog is active) -->
@@ -190,7 +212,7 @@
   <div class="page" id="page-admin">
     <div id="adminLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Circle admin</h1><p class="sub">Create and manage admin-defined catalog circles.</p></div>
+      <div><h1 tabindex="-1">Circle admin</h1><p class="sub">Create and manage admin-defined catalog circles.</p></div>
       <div class="circles-head__actions"><button type="button" class="btn btn-primary" onclick="openAdminForm('create',null,event)">Create a circle</button></div>
     </div>
     <div id="adminList" tabindex="-1"></div>
@@ -208,7 +230,7 @@
 
   <!-- Group Detail (injected dynamically) -->
   <div class="page" id="page-group-detail">
-    <h1 class="sr-only">Circle detail</h1>
+    <h1 class="sr-only" tabindex="-1">Circle detail</h1>
     <button class="btn btn-ghost cdetail__back" onclick="nav('groups')">← Back</button>
     <div id="groupDetail"></div>
   </div>
@@ -217,7 +239,7 @@
   <div class="page" id="page-kyc">
     <div id="kycLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="kyc-head">
-      <h1>Verify your identity</h1>
+      <h1 tabindex="-1">Verify your identity</h1>
       <p class="sub">Complete identity verification to help protect your account and enable eligible financial features.</p>
     </div>
     <div id="kycContent"><div class="spinner"></div></div>
@@ -226,7 +248,7 @@
   <!-- Payments -->
   <div class="page" id="page-payments">
     <div class="circles-head">
-      <div><h1>Payments</h1><p class="sub">Track contributions from due date through final settlement.</p></div>
+      <div><h1 tabindex="-1">Payments</h1><p class="sub">Track contributions from due date through final settlement.</p></div>
       <div class="circles-head__actions" id="payHeadActions"></div>
     </div>
     <div class="dash-summary" id="paySummary" aria-label="Payment summary"></div>
@@ -238,13 +260,17 @@
     </div>
     <div id="payCount" class="circles-count" aria-live="polite"></div>
     <div id="paymentsList" role="tabpanel" aria-labelledby="ptab-upcoming" tabindex="0"><div class="spinner"></div></div>
+    <section class="pay-payouts" aria-labelledby="payoutsH">
+      <div class="dash-section-head"><h2 id="payoutsH">Payouts to you</h2></div>
+      <div id="payoutsList"><div class="spinner"></div></div>
+    </section>
   </div>
 
   <!-- Discover / SOL Match -->
   <div class="page" id="page-discover">
     <div id="discLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Discover circles</h1><p class="sub">Find a contribution circle that fits your amount, schedule, and goals.</p></div>
+      <div><h1 tabindex="-1">Discover circles</h1><p class="sub">Find a contribution circle that fits your amount, schedule, and goals.</p></div>
       <div class="circles-head__actions"><button type="button" class="btn btn-ghost" onclick="nav('groups')">View my circles</button></div>
     </div>
     <div class="disc-elig" id="discElig"></div>
@@ -291,14 +317,14 @@
 
   <!-- Timeline -->
   <div class="page" id="page-timeline">
-    <h1>Your timeline</h1>
+    <h1 tabindex="-1">Your timeline</h1>
     <p class="sub">Next contribution, upcoming payout, and progress across your circles.</p>
     <div id="timelineContent"><div class="spinner"></div></div>
   </div>
 
   <!-- Trust / SOL Score -->
   <div class="page" id="page-trust">
-    <h1>Your SOL Score</h1>
+    <h1 tabindex="-1">Your SOL Score</h1>
     <p class="sub">Trust you build by saving on time and showing up for your circles.</p>
     <div id="trustContent"><div class="spinner"></div></div>
   </div>
@@ -307,7 +333,7 @@
   <div class="page" id="page-premium">
     <div id="premiumLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="kyc-head">
-      <h1>SOL Premium</h1>
+      <h1 tabindex="-1">SOL Premium</h1>
       <p class="sub">Manage your membership, billing status, and Premium benefits.</p>
     </div>
     <div id="premiumContent"><div class="spinner"></div></div>
@@ -329,7 +355,7 @@
   <div class="page" id="page-notifications">
     <div id="notifLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Notifications</h1><p class="sub">Review account alerts, payment updates, and circle activity.</p></div>
+      <div><h1 tabindex="-1">Notifications</h1><p class="sub">Review account alerts, payment updates, and circle activity.</p></div>
       <div class="circles-head__actions" id="notifHeadActions"></div>
     </div>
     <div class="dash-summary" id="notifSummary" aria-label="Notification summary"></div>
@@ -361,7 +387,7 @@
     <div id="commLive" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
       <div>
-        <h1>Community</h1>
+        <h1 tabindex="-1">Community</h1>
         <p class="sub">Share progress, ask general questions, and connect with other SOL members.</p>
       </div>
       <div class="circles-head__actions">
@@ -437,7 +463,7 @@
   <div class="page" id="page-goals">
     <div id="goalsLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Savings goals</h1><p class="sub">Track progress toward the things that matter to you.</p></div>
+      <div><h1 tabindex="-1">Savings goals</h1><p class="sub">Track progress toward the things that matter to you.</p></div>
       <div class="circles-head__actions" id="goalsHeadActions"></div>
     </div>
     <div class="goal-disclose"><svg class="ic" aria-hidden="true"><use href="#ic-goals"/></svg><span>Goals are a planning tool. The tracked amount reflects your own progress toward a goal — it isn't money held in an account, and updating it moves no money.</span></div>
@@ -502,7 +528,7 @@
   <div class="page" id="page-bank">
     <div id="bankLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
     <div class="circles-head">
-      <div><h1>Bank &amp; payment methods</h1><p class="sub">Manage the account used for contributions and payouts.</p></div>
+      <div><h1 tabindex="-1">Bank &amp; payment methods</h1><p class="sub">Manage the account used for contributions and payouts.</p></div>
       <div class="circles-head__actions" id="bankHeadActions"></div>
     </div>
     <div class="dash-summary" id="bankSummary" aria-label="Bank summary"></div>
@@ -519,7 +545,7 @@
               <div class="field"><label for="routingNumber">Routing number (9 digits)</label><input id="routingNumber" class="input" type="text" inputmode="numeric" maxlength="9" minlength="9" pattern="[0-9]{9}" placeholder="021000021" autocomplete="off" required></div>
               <div class="field"><label for="accountNumber">Account number</label><input id="accountNumber" class="input" type="text" inputmode="numeric" placeholder="Your checking or savings account number" autocomplete="off" required></div>
               <div class="field"><label for="accountType">Account type</label><select id="accountType" class="input"><option value="checking">Checking</option><option value="savings">Savings</option></select></div>
-              <p class="err" id="bankErr" style="display:none"></p>
+              <p class="err" id="bankErr" role="alert" style="display:none"></p>
               <button id="bankBtn" class="btn btn-primary" type="submit">Connect account</button>
             </form>
           </div>
@@ -551,19 +577,65 @@
       </div>
     </div>
   </div>
+
+  <!-- Settings (pages/settings.js) -->
+  <div class="page" id="page-settings">
+    <div id="settingsLive" class="sr-only" role="status" aria-live="polite"></div>
+    <div class="kyc-head">
+      <h1 tabindex="-1">Settings</h1>
+      <p class="sub">Your profile, sign-in security, notifications and data.</p>
+    </div>
+    <div id="settingsBody" class="set-grid"><div class="spinner"></div></div>
+    <!-- Close-account confirmation (lives in #page-settings so it shows while Settings is active).
+         POST /account/close exists only in draft backend PR #33; what is removed and kept, and
+         for how long, follows that PR's own description (services/account_lifecycle.py:491-555). -->
+    <div class="bank-modal" id="closeAccountDialog" role="dialog" aria-modal="true" aria-labelledby="closeTitle" aria-describedby="closeIntro">
+      <div class="modal">
+        <h3 id="closeTitle" tabindex="-1">Close your account?</h3>
+        <!-- What is removed and kept: PR #33's lists (services/account_lifecycle.py:491-555). -->
+        <div id="closeIntro" class="bank-remove-body">
+          <p>This can't be undone. Download your data first if you want a copy.</p>
+          <ul class="bank-remove-list">
+            <li>You can't sign in again, and every session ends.</li>
+            <li>On your account, we replace your name and email address. We remove your phone number, date of birth, photo, preferences, password, two-factor settings, devices, alerts, savings goals and waitlist places. We switch off your bank accounts and delete their encrypted bank links.</li>
+            <li>We keep money records for financial record-keeping: your contributions and payouts, ledger entries and fees, the circles you were in, your plan and invoice history, the bank name, account type, last 4 digits and the bank provider's reference for the account, and your ID check status and the ID check provider's reference.</li>
+            <li>Some kept records can include your name, email address or phone number: messages our payment, ID check and billing providers sent us about your account, and fraud-check flags. We also keep the providers' references to you, your account record (its id, dates and payment counts), the audit trail, including this closure, and posts you wrote in circle spaces.</li>
+            <li>By default, we keep these records for 5 years. That period is still under legal review.</li>
+            <li>You can't close your account while a circle you belong to hasn't finished, a contribution or payout is in progress, or a plan is active.</li>
+          </ul>
+        </div>
+        <form id="closeForm" onsubmit="confirmCloseAccount(event)" novalidate>
+          <div class="field"><label for="closePw">Password</label>
+            <input id="closePw" class="input" type="password" autocomplete="current-password" oninput="closeFormChanged()"></div>
+          <div class="field" id="closeCodeField" hidden><label for="closeCode">6-digit code from your authenticator app</label>
+            <input id="closeCode" class="input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" oninput="closeFormChanged()"></div>
+          <div class="field"><label for="closePhrase">Type DELETE to confirm</label>
+            <input id="closePhrase" class="input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="closeFormChanged()"></div>
+          <p class="set-na" id="closeNote" role="status" aria-live="polite"></p>
+          <div id="closeErrBox" role="alert">
+            <p class="err" id="closeErr" style="display:none"></p>
+            <ul class="bank-remove-list" id="closeReasons"></ul>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" id="closeCancel" onclick="closeCloseDialog()">Keep my account</button>
+            <button type="submit" class="btn btn-danger" id="closeConfirm" disabled>Close my account</button>
+          </div>
+        </form>
+        <!-- After closing: what the response says was removed and kept (settings.js). -->
+        <div id="closeDone" hidden>
+          <div id="closeDoneBody" class="bank-remove-body"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-primary" id="closeDoneSignOut" onclick="logout()">Sign out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </main>
 
-<!-- Mobile bottom nav (hidden on desktop via media query) -->
-<nav class="mobile-nav" id="mobileNav" aria-label="Primary mobile">
-  <button type="button" class="mn active" data-mpage="dashboard" onclick="nav('dashboard')"><svg class="ic" aria-hidden="true"><use href="#ic-dashboard"/></svg>Home</button>
-  <button type="button" class="mn" data-mpage="groups" onclick="nav('groups')"><svg class="ic" aria-hidden="true"><use href="#ic-circles"/></svg>Circles</button>
-  <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><svg class="ic" aria-hidden="true"><use href="#ic-payments"/></svg>Pay</button>
-  <button type="button" class="mn" data-mpage="notifications" onclick="nav('notifications')"><svg class="ic" aria-hidden="true"><use href="#ic-alerts"/></svg>Alerts</button>
-  <button type="button" class="mn" onclick="openMore()" aria-haspopup="dialog" aria-controls="moreSheet"><svg class="ic" aria-hidden="true"><use href="#ic-menu"/></svg>More</button>
-</nav>
-
-<!-- Mobile "More" sheet: secondary destinations -->
-<div class="more-sheet-backdrop" id="moreSheet" role="dialog" aria-modal="true" aria-label="More destinations" aria-hidden="true" onclick="if(event.target===this)closeMore()">
+<!-- Mobile "More" sheet: secondary destinations, and Sign out (the sidebar, with its Sign out, is
+     hidden at phone width). Sign out calls the same logout() as the sidebar's. -->
+<div class="more-sheet-backdrop" id="moreSheet" role="dialog" aria-modal="true" aria-label="More" aria-hidden="true" onclick="if(event.target===this)closeMore()">
   <div class="more-sheet">
     <h3>More</h3>
     <div class="more-grid">
@@ -577,6 +649,23 @@
       <button type="button" class="more-item" onclick="navMore('trust')"><svg class="ic" aria-hidden="true"><use href="#ic-score"/></svg>SOL Score</button>
       <button type="button" class="more-item" onclick="navMore('community')"><svg class="ic" aria-hidden="true"><use href="#ic-community"/></svg>Community</button>
       <button type="button" class="more-item" onclick="navMore('premium')"><svg class="ic" aria-hidden="true"><use href="#ic-premium"/></svg>Premium</button>
+      <button type="button" class="more-item" onclick="navMore('settings')"><svg class="ic" aria-hidden="true"><use href="#ic-settings"/></svg>Settings</button>
+    </div>
+    <button type="button" class="more-signout" onclick="closeMore(); logout()"><svg class="ic" aria-hidden="true"><use href="#ic-signout"/></svg>Sign out</button>
+  </div>
+</div>
+
+<!-- First-run guide (pages/onboarding.js). At body level so it can open over any page. -->
+<div class="bank-modal guide-modal" id="guideDialog" role="dialog" aria-modal="true" aria-labelledby="guideTitle" aria-describedby="guideBody">
+  <div class="modal guide">
+    <button type="button" class="guide__close" id="guideClose" aria-label="Close guide" onclick="closeGuide()"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <p class="guide__count" id="guideStepCount" aria-live="polite">Step 1 of 4</p>
+    <h2 class="guide__title" id="guideTitle" tabindex="-1">What a sol is</h2>
+    <div id="guideBody" class="guide__body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="guideBack" onclick="guideStep(-1)">Back</button>
+      <button type="button" class="btn btn-primary" id="guideNext" onclick="guideStep(1)">Next</button>
+      <button type="button" class="btn btn-ghost" id="guideDone" onclick="closeGuide()" hidden>Done</button>
     </div>
   </div>
 </div>
@@ -588,6 +677,8 @@
 <script src="/sol/app/core/api.js"></script>
 <script src="/sol/app/core/dialog.js"></script>
 <script src="/sol/app/core/guard.js"></script>
+<script src="/sol/app/core/account.js"></script>
+<script src="/sol/app/core/a11y.js"></script>
 <script src="/sol/app/pages/dashboard.js"></script>
 <script src="/sol/app/pages/circles.js"></script>
 <script src="/sol/app/pages/circle-detail.js"></script>
@@ -603,6 +694,8 @@
 <script src="/sol/app/pages/notifications.js"></script>
 <script src="/sol/app/pages/community.js"></script>
 <script src="/sol/app/pages/goals.js"></script>
+<script src="/sol/app/pages/settings.js"></script>
+<script src="/sol/app/pages/onboarding.js"></script>
 <script src="/sol/app/main.js"></script>
 </body>
 </html>
